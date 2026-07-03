@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TBFlog</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+
+    <header>
+      <h1>TBFLOG</h1>
+      <p>Coach Dashboard</p>
+    </header>
+
+    <div class="dashboard">
+  <div class="dashboard-header">
+    <h2>Your Athletes</h2>
+    <button class="btn-add">+ Add Athlete</button>
+  </div>
+      <div class="athlete-grid">
+
+        <div class="athlete-card">
+          <div class="athlete-initials">JD</div>
+          <h3>John Doe</h3>
+          <p>5 metrics tracked</p>
+          <p>Last updated: today</p>
+        </div>
+
+        <div class="athlete-card">
+          <div class="athlete-initials">SM</div>
+          <h3>Sarah Miller</h3>
+          <p>3 metrics tracked</p>
+          <p>Last updated: yesterday</p>
+        </div>
+
+        <div class="athlete-card">
+          <div class="athlete-initials">TK</div>
+          <h3>Tom Klein</h3>
+          <p>7 metrics tracked</p>
+          <p>Last updated: 3 days ago</p>
+        </div>
+
+        <div class="athlete-card">
+          <div class="athlete-initials">AR</div>
+          <h3>Anna Ross</h3>
+          <p>4 metrics tracked</p>
+          <p>Last updated: today</p>
+        </div>
+
+      </div>
+    </div>
+<div class="modal-overlay" id="addAthleteModal">
+  <div class="modal">
+    <h2>Add Athlete</h2>
+
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="athleteName" placeholder="e.g. John Doe" />
+    </div>
+
+    <div class="form-group">
+      <label>Date of Birth</label>
+      <input type="date" id="athleteDOB" />
+    </div>
+
+    <div class="form-group">
+      <label>Gender</label>
+      <select id="athleteGender">
+        <option value="">Select gender</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Height (cm)</label>
+      <input type="number" id="athleteHeight" placeholder="e.g. 180" />
+    </div>
+
+    <div class="form-group">
+      <label>Weight (kg)</label>
+      <input type="number" id="athleteWeight" placeholder="e.g. 75" />
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-cancel" id="cancelBtn">Cancel</button>
+      <button class="btn-save" id="saveBtn">Save Athlete</button>
+    </div>
+  </div>
+</div>
+<script src="script.js"></script>
+  </body>
+</html>
