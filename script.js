@@ -1,8 +1,8 @@
 // Connect to Supabase
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const supabaseUrl = 'https://sb_publishable_mV5f4N_x6eXux_f62qQiXw_RiyC5kLT.supabase.co'
-const supabaseKey = 'sb_publishable_mV5f4N_x6eXux_f62qQiXw_RiyC5kLT'
+const supabaseUrl = 'https://szvnaiqlxtlsjgnefunt.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dm5haXFseHRsc2pnbmVmdW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTgzMTgsImV4cCI6MjA5ODczNDMxOH0.i0qOHffDnKBVreN1QM7h8tEfHlJgQulwhZ1x4YEAEdU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Get references to elements we need
