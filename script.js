@@ -1,21 +1,20 @@
-// Connect to Supabase
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
 const supabaseUrl = 'https://szvnaiqlxtlsjgnefunt.supabase.co'
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dm5haXFseHRsc2pnbmVmdW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTgzMTgsImV4cCI6MjA5ODczNDMxOH0.i0qOHffDnKBVreN1QM7h8tEfHlJgQulwhZ1x4YEAEdU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Get references to elements we need
 const addBtn = document.querySelector('.btn-add');
 const modal = document.getElementById('addAthleteModal');
 const cancelBtn = document.getElementById('cancelBtn');
 const saveBtn = document.getElementById('saveBtn');
 const athleteGrid = document.querySelector('.athlete-grid');
 
-// Load athletes when page opens
 loadAthletes();
 
 async function loadAthletes() {
+  athleteGrid.innerHTML = ''
+
   const { data, error } = await supabase
     .from('athletes')
     .select('*')
@@ -25,10 +24,11 @@ async function loadAthletes() {
     return
   }
 
-  // Clear the grid first
-  athleteGrid.innerHTML = ''
+  if (data.length === 0) {
+    athleteGrid.innerHTML = '<p>No athletes yet — add your first one!</p>'
+    return
+  }
 
-  // Create a card for each athlete
   data.forEach(athlete => {
     createAthleteCard(athlete)
   })
@@ -49,30 +49,26 @@ function createAthleteCard(athlete) {
   athleteGrid.appendChild(card)
 }
 
-// Open the modal when clicking "+ Add Athlete"
 addBtn.addEventListener('click', function() {
   modal.classList.add('active');
 });
 
-// Close the modal when clicking Cancel
 cancelBtn.addEventListener('click', function() {
   modal.classList.remove('active');
 });
 
-// Save the athlete when clicking Save
 saveBtn.addEventListener('click', async function() {
   const name = document.getElementById('athleteName').value;
   const dob = document.getElementById('athleteDOB').value;
   const gender = document.getElementById('athleteGender').value;
-  const height = document.getElementById('athleteHeight').value;
-  const weight = document.getElementById('athleteWeight').value;
+  const height = parseInt(document.getElementById('athleteHeight').value);
+  const weight = parseInt(document.getElementById('athleteWeight').value);
 
   if (name === '') {
     alert('Please enter a name');
     return;
   }
 
-  // Save to Supabase
   const { data, error } = await supabase
     .from('athletes')
     .insert([{
@@ -90,7 +86,6 @@ saveBtn.addEventListener('click', async function() {
     return
   }
 
-  // Add card to the screen
   createAthleteCard(data[0])
   modal.classList.remove('active')
 });
