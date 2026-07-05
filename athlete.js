@@ -15,8 +15,7 @@ let athleteMetrics = []
 
 // Load everything when page opens
 loadAthlete()
-loadAllMetrics()
-loadAthleteMetrics()
+loadAllMetrics().then(() => loadAthleteMetrics())
 
 // ---- LOAD ATHLETE INFO ----
 async function loadAthlete() {
