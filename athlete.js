@@ -136,7 +136,10 @@ async function renderMetrics() {
     item.innerHTML = `
       <div class="metric-item-header">
         <h4>${metric.name}</h4>
-        <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
+        <div style="display:flex; gap:8px">
+          <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
+          <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
+        </div>
       </div>
       <div class="measurement-history">${historyHTML}</div>
     `
@@ -144,12 +147,33 @@ async function renderMetrics() {
     list.appendChild(item)
   }
 
-  // Add click listeners to all record buttons
+// Add click listeners to all record buttons
   document.querySelectorAll('.btn-record').forEach(btn => {
     btn.addEventListener('click', function() {
       const metricId = parseInt(this.dataset.metricId)
       currentMetric = allMetrics.find(m => m.id === metricId)
       openMeasurementModal()
+    })
+  })
+
+  document.querySelectorAll('.btn-delete-metric').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const athleteMetricId = parseInt(this.dataset.athleteMetricId)
+      
+      if (!confirm('Remove this metric from the athlete?')) return
+
+      const { error } = await supabase
+        .from('athlete_metrics')
+        .delete()
+        .eq('id', athleteMetricId)
+
+      if (error) {
+        console.log('Error deleting metric:', error)
+        alert('Something went wrong')
+        return
+      }
+
+      loadAthleteMetrics()
     })
   })
 }

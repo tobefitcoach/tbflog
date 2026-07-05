@@ -121,3 +121,18 @@
   font-size: 14px;
   padding: 40px 0;
 }
+.btn-delete-metric {
+  background-color: transparent;
+  border: 1px solid #4a4a8e;
+  color: #aaaacc;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-delete-metric:hover {
+  background-color: #ff4444;
+  border-color: #ff4444;
+  color: white;
+}
