@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Athlete Profile</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="athlete.css" />
+  </head>
+  <body>
+
+    <header>
+      <h1>TBFLOG</h1>
+      <a href="index.html" class="back-btn">← Back to Dashboard</a>
+    </header>
+
+    <div class="profile">
+
+      <div class="profile-header">
+        <div class="profile-initials" id="profileInitials"></div>
+        <div class="profile-info">
+          <h2 id="profileName"></h2>
+          <p id="profileDetails"></p>
+        </div>
+      </div>
+
+      <div class="metrics-section">
+        <div class="metrics-header">
+          <h3>Tracked Metrics</h3>
+          <button class="btn-add" id="addMetricBtn">+ Add Metric</button>
+        </div>
+        <div class="metrics-list" id="metricsList"></div>
+      </div>
+
+    </div>
+
+    <!-- Add Metric Modal -->
+    <div class="modal-overlay" id="addMetricModal">
+      <div class="modal">
+        <h2>Add Metric</h2>
+        <div class="form-group">
+          <label>Select Metric</label>
+          <select id="metricSelect">
+            <option value="">Choose a metric...</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelMetricBtn">Cancel</button>
+          <button class="btn-save" id="saveMetricBtn">Add to Athlete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Measurement Modal -->
+    <div class="modal-overlay" id="addMeasurementModal">
+      <div class="modal">
+        <h2 id="measurementModalTitle">Record Measurement</h2>
+        
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="measurementDate" />
+        </div>
+
+        <!-- Simple metric fields -->
+        <div id="simpleFields">
+          <div class="form-group">
+            <label id="valueLabel">Value</label>
+            <input type="number" id="measurementValue" step="0.01" />
+          </div>
+        </div>
+
+        <!-- Pogo metric fields -->
+        <div id="pogoFields" style="display:none">
+          <div class="form-group">
+            <label>Height (cm)</label>
+            <input type="number" id="pogoHeight" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Ground Contact (ms)</label>
+            <input type="number" id="pogoGroundContact" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>RSI Score</label>
+            <input type="number" id="pogoRSI" step="0.01" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="measurementNotes" placeholder="e.g. after warmup, windy conditions" />
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelMeasurementBtn">Cancel</button>
+          <button class="btn-save" id="saveMeasurementBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="athlete.js"></script>
+  </body>
+</html>

@@ -1,0 +1,248 @@
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const supabaseUrl = 'https://szvnaiqlxtlsjgnefunt.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dm5haXFseHRsc2pnbmVmdW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTgzMTgsImV4cCI6MjA5ODczNDMxOH0.i0qOHffDnKBVreN1QM7h8tEfHlJgQulwhZ1x4YEAEdU'
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+// Get athlete ID from URL
+const params = new URLSearchParams(window.location.search)
+const athleteId = params.get('id')
+
+// Keep track of current metric being recorded
+let currentMetric = null
+let allMetrics = []
+let athleteMetrics = []
+
+// Load everything when page opens
+loadAthlete()
+loadAllMetrics()
+loadAthleteMetrics()
+
+// ---- LOAD ATHLETE INFO ----
+async function loadAthlete() {
+  const { data, error } = await supabase
+    .from('athletes')
+    .select('*')
+    .eq('id', athleteId)
+    .single()
+
+  if (error) {
+    console.log('Error loading athlete:', error)
+    return
+  }
+
+  // Calculate age from date of birth
+  const dob = new Date(data.date_of_birth)
+  const age = Math.floor((new Date() - dob) / (365.25 * 24 * 60 * 60 * 1000))
+
+  // Fill in profile header
+  const initials = data.name.split(' ').map(w => w[0]).join('').toUpperCase()
+  document.getElementById('profileInitials').textContent = initials
+  document.getElementById('profileName').textContent = data.name
+  document.getElementById('profileDetails').textContent = 
+    `${data.gender} · ${age} years old · ${data.height}cm · ${data.weight}kg`
+
+  document.title = `${data.name} — TBFlog`
+}
+
+// ---- LOAD ALL AVAILABLE METRICS ----
+async function loadAllMetrics() {
+  const { data, error } = await supabase
+    .from('metrics')
+    .select('*')
+
+  if (error) {
+    console.log('Error loading metrics:', error)
+    return
+  }
+
+  allMetrics = data
+
+  // Fill the metric dropdown
+  const select = document.getElementById('metricSelect')
+  data.forEach(metric => {
+    const option = document.createElement('option')
+    option.value = metric.id
+    option.textContent = `${metric.name} (${metric.unit})`
+    select.appendChild(option)
+  })
+}
+
+// ---- LOAD ATHLETE'S ASSIGNED METRICS ----
+async function loadAthleteMetrics() {
+  const { data, error } = await supabase
+    .from('athlete_metrics')
+    .select('*, metrics(*)')
+    .eq('athlete_id', athleteId)
+
+  if (error) {
+    console.log('Error loading athlete metrics:', error)
+    return
+  }
+
+  athleteMetrics = data
+  renderMetrics()
+}
+
+// ---- RENDER METRICS ON SCREEN ----
+async function renderMetrics() {
+  const list = document.getElementById('metricsList')
+  list.innerHTML = ''
+
+  if (athleteMetrics.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No metrics added yet — click "+ Add Metric" to start tracking!</p>'
+    return
+  }
+
+  for (const am of athleteMetrics) {
+    const metric = am.metrics
+
+    // Load last 3 measurements for this metric
+    const { data: measurements } = await supabase
+      .from('measurements')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('metric_id', metric.id)
+      .order('date', { ascending: false })
+      .limit(3)
+
+    const item = document.createElement('div')
+    item.classList.add('metric-item')
+
+    let historyHTML = ''
+    if (measurements && measurements.length > 0) {
+      historyHTML = measurements.map(m => {
+        if (metric.type === 'pogo') {
+          return `<div class="measurement-row">
+            <span>${m.date}</span>
+            <span>Height: ${m.height}cm · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}</span>
+          </div>`
+        } else {
+          return `<div class="measurement-row">
+            <span>${m.date}</span>
+            <span>${m.value} ${metric.unit}</span>
+          </div>`
+        }
+      }).join('')
+    } else {
+      historyHTML = '<p style="color:#bbb;font-size:13px">No measurements yet</p>'
+    }
+
+    item.innerHTML = `
+      <div class="metric-item-header">
+        <h4>${metric.name}</h4>
+        <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
+      </div>
+      <div class="measurement-history">${historyHTML}</div>
+    `
+
+    list.appendChild(item)
+  }
+
+  // Add click listeners to all record buttons
+  document.querySelectorAll('.btn-record').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const metricId = parseInt(this.dataset.metricId)
+      currentMetric = allMetrics.find(m => m.id === metricId)
+      openMeasurementModal()
+    })
+  })
+}
+
+// ---- OPEN MEASUREMENT MODAL ----
+function openMeasurementModal() {
+  document.getElementById('measurementModalTitle').textContent = 
+    `Record — ${currentMetric.name}`
+
+  // Set today's date as default
+  document.getElementById('measurementDate').valueAsDate = new Date()
+
+  // Show right fields based on metric type
+  if (currentMetric.type === 'pogo') {
+    document.getElementById('simpleFields').style.display = 'none'
+    document.getElementById('pogoFields').style.display = 'block'
+  } else {
+    document.getElementById('simpleFields').style.display = 'block'
+    document.getElementById('pogoFields').style.display = 'none'
+    document.getElementById('valueLabel').textContent = 
+      `${currentMetric.name} (${currentMetric.unit})`
+  }
+
+  document.getElementById('addMeasurementModal').classList.add('active')
+}
+
+// ---- ADD METRIC MODAL ----
+document.getElementById('addMetricBtn').addEventListener('click', function() {
+  document.getElementById('addMetricModal').classList.add('active')
+})
+
+document.getElementById('cancelMetricBtn').addEventListener('click', function() {
+  document.getElementById('addMetricModal').classList.remove('active')
+})
+
+document.getElementById('saveMetricBtn').addEventListener('click', async function() {
+  const metricId = parseInt(document.getElementById('metricSelect').value)
+
+  if (!metricId) {
+    alert('Please select a metric')
+    return
+  }
+
+  const { error } = await supabase
+    .from('athlete_metrics')
+    .insert([{
+      athlete_id: parseInt(athleteId),
+      metric_id: metricId
+    }])
+
+  if (error) {
+    console.log('Error adding metric:', error)
+    alert('Something went wrong')
+    return
+  }
+
+  document.getElementById('addMetricModal').classList.remove('active')
+  loadAthleteMetrics()
+})
+
+// ---- MEASUREMENT MODAL ----
+document.getElementById('cancelMeasurementBtn').addEventListener('click', function() {
+  document.getElementById('addMeasurementModal').classList.remove('active')
+})
+
+document.getElementById('saveMeasurementBtn').addEventListener('click', async function() {
+  const date = document.getElementById('measurementDate').value
+
+  if (!date) {
+    alert('Please select a date')
+    return
+  }
+
+  let insertData = {
+    athlete_id: parseInt(athleteId),
+    metric_id: currentMetric.id,
+    date: date,
+    notes: document.getElementById('measurementNotes').value
+  }
+
+  if (currentMetric.type === 'pogo') {
+    insertData.height = parseFloat(document.getElementById('pogoHeight').value)
+    insertData.ground_contact = parseFloat(document.getElementById('pogoGroundContact').value)
+    insertData.rsi = parseFloat(document.getElementById('pogoRSI').value)
+  } else {
+    insertData.value = parseFloat(document.getElementById('measurementValue').value)
+  }
+
+  const { error } = await supabase
+    .from('measurements')
+    .insert([insertData])
+
+  if (error) {
+    console.log('Error saving measurement:', error)
+    alert('Something went wrong')
+    return
+  }
+
+  document.getElementById('addMeasurementModal').classList.remove('active')
+  loadAthleteMetrics()
+})

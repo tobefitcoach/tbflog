@@ -46,6 +46,9 @@ function createAthleteCard(athlete) {
     <p>DOB: ${athlete.date_of_birth}</p>
     <p>0 metrics tracked</p>
   `
+  card.addEventListener('click', function() {
+    window.location.href = `athlete.html?id=${athlete.id}`
+  })
   athleteGrid.appendChild(card)
 }
 
