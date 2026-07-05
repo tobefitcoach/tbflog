@@ -71,7 +71,7 @@ async function loadAllMetrics() {
 async function loadAthleteMetrics() {
   const { data, error } = await supabase
     .from('athlete_metrics')
-    .select('*, metrics(*)')
+    .select('*')
     .eq('athlete_id', athleteId)
 
   if (error) {
@@ -79,7 +79,13 @@ async function loadAthleteMetrics() {
     return
   }
 
-  athleteMetrics = data
+  // Add metric details to each athlete_metric
+  athleteMetrics = data.map(am => {
+    return {
+      ...am,
+      metrics: allMetrics.find(m => m.id === am.metric_id)
+    }
+  })
   renderMetrics()
 }
 
