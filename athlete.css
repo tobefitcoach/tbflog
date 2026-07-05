@@ -1,12 +1,11 @@
 .back-btn {
-  color: white;
+  color: #aaaacc;
   text-decoration: none;
   font-size: 14px;
-  opacity: 0.8;
 }
 
 .back-btn:hover {
-  opacity: 1;
+  color: white;
 }
 
 .profile {
@@ -17,18 +16,19 @@
   display: flex;
   align-items: center;
   gap: 24px;
-  background-color: white;
+  background-color: #1a1a2e;
   border-radius: 12px;
   padding: 32px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   margin-bottom: 32px;
+  border: 1px solid #2a2a4e;
 }
 
 .profile-initials {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background-color: #1a1a2e;
+  background-color: #4a4a8e;
   color: white;
   display: flex;
   align-items: center;
@@ -40,20 +40,21 @@
 
 .profile-info h2 {
   font-size: 24px;
-  color: #1a1a2e;
+  color: #ffffff;
   margin-bottom: 8px;
 }
 
 .profile-info p {
-  color: #888;
+  color: #aaaacc;
   font-size: 14px;
 }
 
 .metrics-section {
-  background-color: white;
+  background-color: #1a1a2e;
   border-radius: 12px;
   padding: 32px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid #2a2a4e;
 }
 
 .metrics-header {
@@ -65,14 +66,15 @@
 
 .metrics-header h3 {
   font-size: 18px;
-  color: #1a1a2e;
+  color: #ffffff;
 }
 
 .metric-item {
-  border: 1px solid #eee;
+  border: 1px solid #2a2a4e;
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 16px;
+  background-color: #0f0f1a;
 }
 
 .metric-item-header {
@@ -84,11 +86,11 @@
 
 .metric-item-header h4 {
   font-size: 16px;
-  color: #1a1a2e;
+  color: #ffffff;
 }
 
 .btn-record {
-  background-color: #1a1a2e;
+  background-color: #4a4a8e;
   color: white;
   border: none;
   padding: 8px 16px;
@@ -98,24 +100,24 @@
 }
 
 .btn-record:hover {
-  background-color: #2a2a4e;
+  background-color: #5a5aae;
 }
 
 .measurement-history {
   font-size: 13px;
-  color: #888;
+  color: #aaaacc;
 }
 
 .measurement-row {
   display: flex;
   justify-content: space-between;
   padding: 6px 0;
-  border-bottom: 1px solid #f4f4f4;
+  border-bottom: 1px solid #2a2a4e;
 }
 
 .no-metrics {
   text-align: center;
-  color: #888;
+  color: #aaaacc;
   font-size: 14px;
   padding: 40px 0;
 }
