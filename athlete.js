@@ -38,8 +38,8 @@ async function loadAthlete() {
   const initials = data.name.split(' ').map(w => w[0]).join('').toUpperCase()
   document.getElementById('profileInitials').textContent = initials
   document.getElementById('profileName').textContent = data.name
-  document.getElementById('profileDetails').textContent = 
-    `${data.gender} · ${age} years old · ${data.height}cm · ${data.weight}kg`
+document.getElementById('profileDetails').textContent = 
+    `${data.gender} · ${age} years old · ${data.height}cm`
 
   document.title = `${data.name} — TBFlog`
 
@@ -704,6 +704,7 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
 })
 // ---- BODYWEIGHT ----
 let bodyweightChart = null
+let bodyweightUnit = 'kg'
 
 async function loadBodyweightGraph() {
   const { data, error } = await supabase
@@ -730,8 +731,8 @@ async function loadBodyweightGraph() {
     type: 'line',
     data: {
       labels: data.map(d => d.date),
-      datasets: [{
-        data: data.map(d => d.weight),
+     datasets: [{
+        data: data.map(d => bodyweightUnit === 'kg' ? d.weight : +(d.weight * 2.20462).toFixed(1)),
         borderColor: '#4a4a8e',
         backgroundColor: 'rgba(74, 74, 142, 0.1)',
         borderWidth: 2,
@@ -784,5 +785,19 @@ document.getElementById('saveBodyweightBtn').addEventListener('click', async fun
   document.getElementById('bodyweightModal').classList.remove('active')
   document.getElementById('bodyweightValue').value = ''
   document.getElementById('bodyweightNotes').value = ''
+  loadBodyweightGraph()
+})
+// ---- BODYWEIGHT UNIT TOGGLE ----
+document.getElementById('bwKgBtn').addEventListener('click', function() {
+  bodyweightUnit = 'kg'
+  document.getElementById('bwKgBtn').classList.add('active')
+  document.getElementById('bwLbsBtn').classList.remove('active')
+  loadBodyweightGraph()
+})
+
+document.getElementById('bwLbsBtn').addEventListener('click', function() {
+  bodyweightUnit = 'lbs'
+  document.getElementById('bwLbsBtn').classList.add('active')
+  document.getElementById('bwKgBtn').classList.remove('active')
   loadBodyweightGraph()
 })

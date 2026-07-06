@@ -30,7 +30,13 @@
           </div>
         </div>
         <div class="profile-right">
-          <p class="bodyweight-label">Bodyweight</p>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <p class="bodyweight-label">Bodyweight</p>
+            <div class="unit-toggle">
+              <button class="unit-btn active" id="bwKgBtn">kg</button>
+              <button class="unit-btn" id="bwLbsBtn">lbs</button>
+            </div>
+          </div>
           <div class="bodyweight-graph-area">
             <canvas id="bodyweightGraph"></canvas>
             <p class="no-bodyweight-data" id="noBodyweightMsg">No weight entries yet</p>

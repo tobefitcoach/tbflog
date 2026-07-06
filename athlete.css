@@ -381,3 +381,23 @@
   color: #4a4a8e;
   margin-top: 8px;
 }
+.unit-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.unit-btn {
+  background-color: transparent;
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.unit-btn.active {
+  background-color: #4a4a8e;
+  border-color: #4a4a8e;
+  color: white;
+}
