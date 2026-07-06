@@ -42,8 +42,20 @@ async function loadAthlete() {
     `${data.gender} · ${age} years old · ${data.height}cm · ${data.weight}kg`
 
   document.title = `${data.name} — TBFlog`
-}
 
+  // Make profile header clickable
+  document.getElementById('profileDetails').innerHTML += 
+    '<br><span class="edit-hint">Click to edit info</span>'
+
+  document.querySelector('.profile-header').addEventListener('click', function() {
+    document.getElementById('editAthleteName').value = data.name
+    document.getElementById('editAthleteDOB').value = data.date_of_birth
+    document.getElementById('editAthleteGender').value = data.gender
+    document.getElementById('editAthleteHeight').value = data.height
+    document.getElementById('editAthleteWeight').value = data.weight
+    document.getElementById('editAthleteModal').classList.add('active')
+  })
+}
 // ---- LOAD ALL AVAILABLE METRICS ----
 async function loadAllMetrics() {
   const { data, error } = await supabase
@@ -661,4 +673,32 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
   document.getElementById('editEntryModal').classList.remove('active')
   await loadEntries(currentEntriesMetric)
   loadAthleteMetrics()
+})
+// ---- EDIT ATHLETE INFO ----
+document.getElementById('closeEditAthleteBtn').addEventListener('click', function() {
+  document.getElementById('editAthleteModal').classList.remove('active')
+})
+
+document.getElementById('cancelEditAthleteBtn').addEventListener('click', function() {
+  document.getElementById('editAthleteModal').classList.remove('active')
+})
+
+document.getElementById('saveEditAthleteBtn').addEventListener('click', async function() {
+  const name = document.getElementById('editAthleteName').value.trim()
+  const dob = document.getElementById('editAthleteDOB').value
+  const gender = document.getElementById('editAthleteGender').value
+  const height = parseInt(document.getElementById('editAthleteHeight').value)
+  const weight = parseInt(document.getElementById('editAthleteWeight').value)
+
+  if (!name) { alert('Please enter a name'); return }
+
+  const { error } = await supabase
+    .from('athletes')
+    .update({ name, date_of_birth: dob, gender, height, weight })
+    .eq('id', athleteId)
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+
+  document.getElementById('editAthleteModal').classList.remove('active')
+  loadAthlete()
 })

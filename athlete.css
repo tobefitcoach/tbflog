@@ -311,3 +311,16 @@
 .metric-item {
   cursor: pointer;
 }
+.profile-header {
+  cursor: pointer;
+}
+
+.profile-header:hover {
+  opacity: 0.9;
+}
+
+.edit-hint {
+  font-size: 11px;
+  color: #4a4a8e;
+  margin-top: 8px;
+}

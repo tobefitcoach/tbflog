@@ -193,6 +193,43 @@
         </div>
       </div>
     </div>
+    <!-- Edit Athlete Info Modal -->
+    <div class="modal-overlay" id="editAthleteModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Edit Athlete Info</h2>
+          <button class="btn-cancel" id="closeEditAthleteBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="editAthleteName" />
+        </div>
+        <div class="form-group">
+          <label>Date of Birth</label>
+          <input type="date" id="editAthleteDOB" />
+        </div>
+        <div class="form-group">
+          <label>Gender</label>
+          <select id="editAthleteGender">
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Height (cm)</label>
+          <input type="number" id="editAthleteHeight" />
+        </div>
+        <div class="form-group">
+          <label>Weight (kg)</label>
+          <input type="number" id="editAthleteWeight" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelEditAthleteBtn">Cancel</button>
+          <button class="btn-save" id="saveEditAthleteBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="athlete.js"></script>
   </body>
 </html>
