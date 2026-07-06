@@ -97,9 +97,10 @@
 }
 
 .metric-graph-area {
-  flex: 1;
-  min-height: 120px;
+  height: 100px;
+  max-height: 100px;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .metric-graph-area:hover {
@@ -227,6 +228,8 @@
   margin-top: 12px;
   height: 80px;
   cursor: pointer;
+  max-height: 80px;
+  overflow: hidden;
 }
 
 .mini-graph-container:hover {
