@@ -144,6 +144,55 @@
         </div>
       </div>
     </div>
+    <!-- Entries Modal -->
+    <div class="modal-overlay" id="entriesModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2 id="entriesModalTitle">All Entries</h2>
+          <button class="btn-cancel" id="closeEntriesBtn">✕</button>
+        </div>
+        <div id="entriesList"></div>
+      </div>
+    </div>
+
+    <!-- Edit Entry Modal -->
+    <div class="modal-overlay" id="editEntryModal">
+      <div class="modal">
+        <h2>Edit Entry</h2>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="editEntryDate" />
+        </div>
+        <div id="editSimpleFields">
+          <div class="form-group">
+            <label id="editValueLabel">Value</label>
+            <input type="number" id="editEntryValue" step="0.01" />
+          </div>
+        </div>
+        <div id="editPogoFields" style="display:none">
+          <div class="form-group">
+            <label>Height (cm)</label>
+            <input type="number" id="editPogoHeight" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Ground Contact (ms)</label>
+            <input type="number" id="editPogoGroundContact" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>RSI Score</label>
+            <input type="number" id="editPogoRSI" step="0.01" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="editEntryNotes" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelEditEntryBtn">Cancel</button>
+          <button class="btn-save" id="saveEditEntryBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="athlete.js"></script>
   </body>
 </html>

@@ -272,3 +272,42 @@
   border-color: #5a5aae;
   color: white;
 }
+.entries-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.entries-table th {
+  text-align: left;
+  font-size: 12px;
+  color: #aaaacc;
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.entries-table td {
+  padding: 10px 0;
+  font-size: 13px;
+  color: #ffffff;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.btn-edit-entry {
+  background-color: transparent;
+  border: 1px solid #4a4a8e;
+  color: #aaaacc;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.btn-edit-entry:hover {
+  background-color: #4a4a8e;
+  color: white;
+}
+
+.metric-item {
+  cursor: pointer;
+}

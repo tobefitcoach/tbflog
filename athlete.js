@@ -111,8 +111,9 @@ async function renderMetrics() {
       .order('date', { ascending: true })
       .limit(5)
 
-    const item = document.createElement('div')
+const item = document.createElement('div')
     item.classList.add('metric-item')
+    item.dataset.metricId = metric.id
 
     let historyHTML = ''
     if (measurements && measurements.length > 0) {
@@ -223,7 +224,17 @@ async function renderMetrics() {
       openGraphModal(metric)
     })
   }
-
+// Add click listener to metric cards to open entries
+  document.querySelectorAll('.metric-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+      if (e.target.classList.contains('btn-record') ||
+          e.target.classList.contains('btn-delete-metric') ||
+          e.target.tagName === 'CANVAS') return
+      const metricId = parseInt(this.dataset.metricId)
+      const metric = allMetrics.find(m => m.id === metricId)
+      openEntriesModal(metric)
+    })
+  })
   document.querySelectorAll('.btn-delete-metric').forEach(btn => {
     btn.addEventListener('click', async function() {
       const athleteMetricId = parseInt(this.dataset.athleteMetricId)
@@ -506,4 +517,148 @@ document.getElementById('saveNewMetricBtn').addEventListener('click', async func
   document.getElementById('addMetricModal').classList.add('active')
 
   alert(`"${name}" created and selected!`)
+})
+// ---- ENTRIES MODAL ----
+let currentEditEntry = null
+let currentEntriesMetric = null
+
+async function openEntriesModal(metric) {
+  currentEntriesMetric = metric
+  document.getElementById('entriesModalTitle').textContent = `${metric.name} — All Entries`
+  document.getElementById('entriesModal').classList.add('active')
+
+  await loadEntries(metric)
+}
+
+async function loadEntries(metric) {
+  const { data, error } = await supabase
+    .from('measurements')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .eq('metric_id', metric.id)
+    .order('date', { ascending: false })
+
+  const list = document.getElementById('entriesList')
+
+  if (!data || data.length === 0) {
+    list.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No entries yet</p>'
+    return
+  }
+
+  list.innerHTML = `
+    <table class="entries-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Value</th>
+          <th>Notes</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(m => {
+          let valueText = ''
+          if (metric.type === 'pogo') {
+            valueText = `H: ${m.height}cm · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}`
+          } else {
+            valueText = `${m.value} ${metric.unit}`
+          }
+          return `<tr>
+            <td>${m.date}</td>
+            <td>${valueText}</td>
+            <td>${m.notes || '—'}</td>
+            <td>
+              <button class="btn-edit-entry" data-entry-id="${m.id}">✏</button>
+              <button class="btn-delete-measurement" data-measurement-id="${m.id}">🗑</button>
+            </td>
+          </tr>`
+        }).join('')}
+      </tbody>
+    </table>
+  `
+
+  // Delete listener
+  list.querySelectorAll('.btn-delete-measurement').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const measurementId = parseInt(this.dataset.measurementId)
+      if (!confirm('Delete this entry?')) return
+
+      const { error } = await supabase
+        .from('measurements')
+        .delete()
+        .eq('id', measurementId)
+
+      if (error) { alert('Something went wrong'); return }
+
+      await loadEntries(metric)
+      loadAthleteMetrics()
+    })
+  })
+
+  // Edit listener
+  list.querySelectorAll('.btn-edit-entry').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const entryId = parseInt(this.dataset.entryId)
+      const entry = data.find(m => m.id === entryId)
+      openEditEntryModal(entry, metric)
+    })
+  })
+}
+
+function openEditEntryModal(entry, metric) {
+  currentEditEntry = entry
+  document.getElementById('editEntryDate').value = entry.date
+  document.getElementById('editEntryNotes').value = entry.notes || ''
+
+  if (metric.type === 'pogo') {
+    document.getElementById('editSimpleFields').style.display = 'none'
+    document.getElementById('editPogoFields').style.display = 'block'
+    document.getElementById('editPogoHeight').value = entry.height || ''
+    document.getElementById('editPogoGroundContact').value = entry.ground_contact || ''
+    document.getElementById('editPogoRSI').value = entry.rsi || ''
+  } else {
+    document.getElementById('editSimpleFields').style.display = 'block'
+    document.getElementById('editPogoFields').style.display = 'none'
+    document.getElementById('editValueLabel').textContent = `${metric.name} (${metric.unit})`
+    document.getElementById('editEntryValue').value = entry.value || ''
+  }
+
+  document.getElementById('editEntryModal').classList.add('active')
+}
+
+document.getElementById('closeEntriesBtn').addEventListener('click', function() {
+  document.getElementById('entriesModal').classList.remove('active')
+})
+
+document.getElementById('cancelEditEntryBtn').addEventListener('click', function() {
+  document.getElementById('editEntryModal').classList.remove('active')
+})
+
+document.getElementById('saveEditEntryBtn').addEventListener('click', async function() {
+  const date = document.getElementById('editEntryDate').value
+  if (!date) { alert('Please select a date'); return }
+
+  let updateData = {
+    date,
+    notes: document.getElementById('editEntryNotes').value
+  }
+
+  if (currentEntriesMetric.type === 'pogo') {
+    updateData.height = parseFloat(document.getElementById('editPogoHeight').value)
+    updateData.ground_contact = parseFloat(document.getElementById('editPogoGroundContact').value)
+    updateData.rsi = parseFloat(document.getElementById('editPogoRSI').value)
+  } else {
+    updateData.value = parseFloat(document.getElementById('editEntryValue').value)
+  }
+
+  const { error } = await supabase
+    .from('measurements')
+    .update(updateData)
+    .eq('id', currentEditEntry.id)
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+
+  document.getElementById('editEntryModal').classList.remove('active')
+  await loadEntries(currentEntriesMetric)
+  loadAthleteMetrics()
 })
