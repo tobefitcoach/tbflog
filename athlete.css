@@ -24,6 +24,15 @@
   border: 1px solid #2a2a4e;
 }
 
+@media (max-width: 768px) {
+  .profile-header {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0 0 24px 0;
+  }
+}
+
 .profile-initials {
   width: 80px;
   height: 80px;
@@ -55,6 +64,19 @@
   padding: 32px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   border: 1px solid #2a2a4e;
+}
+
+@media (max-width: 768px) {
+  .metrics-section {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .profile {
+    padding: 20px;
+  }
 }
 
 .metrics-header {
