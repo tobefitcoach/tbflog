@@ -35,7 +35,7 @@
 
     </div>
 
-    <!-- Add Metric Modal -->
+   <!-- Add Metric Modal -->
     <div class="modal-overlay" id="addMetricModal">
       <div class="modal">
         <h2>Add Metric</h2>
@@ -45,9 +45,37 @@
             <option value="">Choose a metric...</option>
           </select>
         </div>
+        <p style="text-align:center; color:#aaaacc; font-size:13px; margin: 8px 0">or</p>
+        <button class="btn-create-metric" id="createNewMetricBtn">+ Create New Metric</button>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelMetricBtn">Cancel</button>
           <button class="btn-save" id="saveMetricBtn">Add to Athlete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create New Metric Modal -->
+    <div class="modal-overlay" id="createMetricModal">
+      <div class="modal">
+        <h2>Create New Metric</h2>
+        <div class="form-group">
+          <label>Metric Name</label>
+          <input type="text" id="newMetricName" placeholder="e.g. Standing Long Jump" />
+        </div>
+        <div class="form-group">
+          <label>Unit</label>
+          <input type="text" id="newMetricUnit" placeholder="e.g. cm, seconds, kg" />
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="newMetricType">
+            <option value="simple">Simple — one value per session</option>
+            <option value="pogo">Pogo — height, ground contact and RSI</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelCreateMetricBtn">Cancel</button>
+          <button class="btn-save" id="saveNewMetricBtn">Create Metric</button>
         </div>
       </div>
     </div>

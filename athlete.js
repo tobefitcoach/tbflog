@@ -456,3 +456,54 @@ document.querySelectorAll('.time-filter-btn').forEach(btn => {
     await loadGraphData(months)
   })
 })
+// ---- CREATE NEW METRIC ----
+document.getElementById('createNewMetricBtn').addEventListener('click', function() {
+  document.getElementById('addMetricModal').classList.remove('active')
+  document.getElementById('createMetricModal').classList.add('active')
+})
+
+document.getElementById('cancelCreateMetricBtn').addEventListener('click', function() {
+  document.getElementById('createMetricModal').classList.remove('active')
+  document.getElementById('addMetricModal').classList.add('active')
+})
+
+document.getElementById('saveNewMetricBtn').addEventListener('click', async function() {
+  const name = document.getElementById('newMetricName').value.trim()
+  const unit = document.getElementById('newMetricUnit').value.trim()
+  const type = document.getElementById('newMetricType').value
+
+  if (!name || !unit) {
+    alert('Please fill in both name and unit')
+    return
+  }
+
+  const { data, error } = await supabase
+    .from('metrics')
+    .insert([{ name, unit, type }])
+    .select()
+
+  if (error) {
+    console.log('Error creating metric:', error)
+    alert('Something went wrong')
+    return
+  }
+
+  // Add new metric to allMetrics and dropdown
+  allMetrics.push(data[0])
+  const select = document.getElementById('metricSelect')
+  const option = document.createElement('option')
+  option.value = data[0].id
+  option.textContent = `${data[0].name} (${data[0].unit})`
+  select.appendChild(option)
+  select.value = data[0].id
+
+  // Clear form
+  document.getElementById('newMetricName').value = ''
+  document.getElementById('newMetricUnit').value = ''
+
+  // Go back to add metric modal
+  document.getElementById('createMetricModal').classList.remove('active')
+  document.getElementById('addMetricModal').classList.add('active')
+
+  alert(`"${name}" created and selected!`)
+})
