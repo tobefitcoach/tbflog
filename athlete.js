@@ -335,8 +335,8 @@ if (currentMetric.type === 'pogo') {
   } else {
     document.getElementById('simpleFields').style.display = 'block'
     document.getElementById('pogoFields').style.display = 'none'
-    document.getElementById('valueLabel').textContent = 
-      `${currentMetric.name} (${currentMetric.unit})`
+document.getElementById('valueLabel').textContent = 
+      `${currentMetric.name} (${currentMetric.display_unit || currentMetric.unit})`
   }
 
   document.getElementById('addMeasurementModal').classList.add('active')
