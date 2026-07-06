@@ -18,10 +18,23 @@
     <div class="profile">
 
       <div class="profile-header">
-        <div class="profile-initials" id="profileInitials"></div>
-        <div class="profile-info">
-          <h2 id="profileName"></h2>
-          <p id="profileDetails"></p>
+        <div class="profile-left">
+          <div class="profile-initials" id="profileInitials"></div>
+          <div class="profile-info">
+            <h2 id="profileName"></h2>
+            <p id="profileDetails"></p>
+            <div class="profile-btns">
+              <button class="btn-profile-action" id="editAthleteBtn">✏ Edit info</button>
+              <button class="btn-profile-action" id="addBodyweightBtn">⚖ Log weight</button>
+            </div>
+          </div>
+        </div>
+        <div class="profile-right">
+          <p class="bodyweight-label">Bodyweight</p>
+          <div class="bodyweight-graph-area">
+            <canvas id="bodyweightGraph"></canvas>
+            <p class="no-bodyweight-data" id="noBodyweightMsg">No weight entries yet</p>
+          </div>
         </div>
       </div>
 
@@ -227,6 +240,31 @@
         <div class="form-actions">
           <button class="btn-cancel" id="cancelEditAthleteBtn">Cancel</button>
           <button class="btn-save" id="saveEditAthleteBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
+    <!-- Log Bodyweight Modal -->
+    <div class="modal-overlay" id="bodyweightModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Log Bodyweight</h2>
+          <button class="btn-cancel" id="closeBodyweightBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="bodyweightDate" />
+        </div>
+        <div class="form-group">
+          <label>Weight (kg)</label>
+          <input type="number" id="bodyweightValue" step="0.1" placeholder="e.g. 75.5" />
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="bodyweightNotes" placeholder="e.g. morning weight" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelBodyweightBtn">Cancel</button>
+          <button class="btn-save" id="saveBodyweightBtn">Save</button>
         </div>
       </div>
     </div>

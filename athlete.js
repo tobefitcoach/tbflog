@@ -43,11 +43,8 @@ async function loadAthlete() {
 
   document.title = `${data.name} — TBFlog`
 
-  // Make profile header clickable
-  document.getElementById('profileDetails').innerHTML += 
-    '<br><span class="edit-hint">Click to edit info</span>'
-
-  document.querySelector('.profile-header').addEventListener('click', function() {
+ // Edit info button
+  document.getElementById('editAthleteBtn').addEventListener('click', function() {
     document.getElementById('editAthleteName').value = data.name
     document.getElementById('editAthleteDOB').value = data.date_of_birth
     document.getElementById('editAthleteGender').value = data.gender
@@ -55,6 +52,9 @@ async function loadAthlete() {
     document.getElementById('editAthleteWeight').value = data.weight
     document.getElementById('editAthleteModal').classList.add('active')
   })
+
+  // Load bodyweight graph
+  loadBodyweightGraph()
 }
 // ---- LOAD ALL AVAILABLE METRICS ----
 async function loadAllMetrics() {
@@ -701,4 +701,88 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
 
   document.getElementById('editAthleteModal').classList.remove('active')
   loadAthlete()
+})
+// ---- BODYWEIGHT ----
+let bodyweightChart = null
+
+async function loadBodyweightGraph() {
+  const { data, error } = await supabase
+    .from('bodyweight')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('date', { ascending: true })
+
+  const canvas = document.getElementById('bodyweightGraph')
+  const noDataMsg = document.getElementById('noBodyweightMsg')
+
+  if (!data || data.length === 0) {
+    canvas.style.display = 'none'
+    noDataMsg.style.display = 'block'
+    return
+  }
+
+  noDataMsg.style.display = 'none'
+  canvas.style.display = 'block'
+
+  if (bodyweightChart) bodyweightChart.destroy()
+
+  bodyweightChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.date),
+      datasets: [{
+        data: data.map(d => d.weight),
+        borderColor: '#4a4a8e',
+        backgroundColor: 'rgba(74, 74, 142, 0.1)',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: {
+          ticks: { color: '#aaaacc', font: { size: 10 } },
+          grid: { color: '#2a2a4e' }
+        }
+      }
+    }
+  })
+}
+
+document.getElementById('addBodyweightBtn').addEventListener('click', function() {
+  document.getElementById('bodyweightDate').valueAsDate = new Date()
+  document.getElementById('bodyweightModal').classList.add('active')
+})
+
+document.getElementById('closeBodyweightBtn').addEventListener('click', function() {
+  document.getElementById('bodyweightModal').classList.remove('active')
+})
+
+document.getElementById('cancelBodyweightBtn').addEventListener('click', function() {
+  document.getElementById('bodyweightModal').classList.remove('active')
+})
+
+document.getElementById('saveBodyweightBtn').addEventListener('click', async function() {
+  const date = document.getElementById('bodyweightDate').value
+  const weight = parseFloat(document.getElementById('bodyweightValue').value)
+  const notes = document.getElementById('bodyweightNotes').value
+
+  if (!date || !weight) { alert('Please fill in date and weight'); return }
+
+  const { error } = await supabase
+    .from('bodyweight')
+    .insert([{ athlete_id: parseInt(athleteId), date, weight, notes }])
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+
+  document.getElementById('bodyweightModal').classList.remove('active')
+  document.getElementById('bodyweightValue').value = ''
+  document.getElementById('bodyweightNotes').value = ''
+  loadBodyweightGraph()
 })
