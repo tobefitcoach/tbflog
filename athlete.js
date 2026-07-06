@@ -771,7 +771,9 @@ document.getElementById('cancelBodyweightBtn').addEventListener('click', functio
 
 document.getElementById('saveBodyweightBtn').addEventListener('click', async function() {
   const date = document.getElementById('bodyweightDate').value
-  const weight = parseFloat(document.getElementById('bodyweightValue').value)
+  const rawWeight = parseFloat(document.getElementById('bodyweightValue').value)
+  const inputUnit = document.getElementById('bodyweightInputUnit').value
+  const weight = inputUnit === 'lbs' ? +(rawWeight / 2.20462).toFixed(2) : rawWeight
   const notes = document.getElementById('bodyweightNotes').value
 
   if (!date || !weight) { alert('Please fill in date and weight'); return }
