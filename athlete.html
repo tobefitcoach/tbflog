@@ -193,9 +193,16 @@
           <input type="date" id="editEntryDate" />
         </div>
         <div id="editSimpleFields">
-          <div class="form-group">
+          <div class="form-group" id="editSingleValueGroup">
             <label id="editValueLabel">Value</label>
             <input type="number" id="editEntryValue" step="0.01" />
+          </div>
+          <div class="form-group" id="editFeetInchesGroup" style="display:none">
+            <label>Distance</label>
+            <div style="display:flex; gap:8px">
+              <input type="number" id="editEntryFeet" step="1" placeholder="ft" style="flex:1" />
+              <input type="number" id="editEntryInches" step="0.1" min="0" max="11.9" placeholder="in" style="flex:1" />
+            </div>
           </div>
         </div>
         <div id="editPogoFields" style="display:none">

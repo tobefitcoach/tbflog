@@ -675,16 +675,22 @@ function openEditEntryModal(entry, metric) {
     document.getElementById('editPogoHeight').value = converted.text || ''
     document.getElementById('editPogoGroundContact').value = entry.ground_contact || ''
     document.getElementById('editPogoRSI').value = entry.rsi || ''
-  } else {
+} else {
     document.getElementById('editSimpleFields').style.display = 'block'
     document.getElementById('editPogoFields').style.display = 'none'
-    document.getElementById('editValueLabel').textContent = `${metric.name} (${metric.display_unit || metric.unit})`
+
     if (metric.display_unit === 'ft') {
+      document.getElementById('editSingleValueGroup').style.display = 'none'
+      document.getElementById('editFeetInchesGroup').style.display = 'block'
       const totalInches = (entry.value / 2.54)
       const feet = Math.floor(totalInches / 12)
       const inches = +(totalInches % 12).toFixed(1)
-      document.getElementById('editEntryValue').value = `${feet}.${String(inches).replace('.', '')}`
+      document.getElementById('editEntryFeet').value = feet
+      document.getElementById('editEntryInches').value = inches
     } else {
+      document.getElementById('editSingleValueGroup').style.display = 'block'
+      document.getElementById('editFeetInchesGroup').style.display = 'none'
+      document.getElementById('editValueLabel').textContent = `${metric.name} (${metric.display_unit || metric.unit})`
       const converted = convertValue(entry.value, metric.display_unit)
       document.getElementById('editEntryValue').value = converted.text || ''
     }
@@ -716,11 +722,9 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
     updateData.rsi = parseFloat(document.getElementById('editPogoRSI').value)
   } else {
     let rawValue
-    if (currentEntriesMetric.display_unit === 'ft') {
-      const input = document.getElementById('editEntryValue').value
-      const parts = input.toString().split('.')
-      const feet = parseFloat(parts[0]) || 0
-      const inches = parseFloat(parts[1]) || 0
+   if (currentEntriesMetric.display_unit === 'ft') {
+      const feet = parseFloat(document.getElementById('editEntryFeet').value) || 0
+      const inches = parseFloat(document.getElementById('editEntryInches').value) || 0
       rawValue = feet + (inches / 12)
     } else {
       rawValue = parseFloat(document.getElementById('editEntryValue').value)
