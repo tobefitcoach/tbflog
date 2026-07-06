@@ -149,3 +149,64 @@
 .btn-delete-measurement:hover {
   color: #ff4444;
 }
+.graph-modal {
+  max-width: 800px;
+  width: 95%;
+}
+
+.graph-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.graph-time-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.time-filter-btn {
+  background-color: transparent;
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.time-filter-btn:hover {
+  border-color: #4a4a8e;
+  color: white;
+}
+
+.time-filter-btn.active {
+  background-color: #4a4a8e;
+  border-color: #4a4a8e;
+  color: white;
+}
+
+.graph-container {
+  position: relative;
+  height: 350px;
+}
+
+.mini-graph-container {
+  margin-top: 12px;
+  height: 80px;
+  cursor: pointer;
+}
+
+.mini-graph-container:hover {
+  opacity: 0.8;
+}
+
+.graph-hint {
+  font-size: 11px;
+  color: #4a4a8e;
+  margin-top: 4px;
+  text-align: right;
+}

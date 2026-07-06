@@ -102,14 +102,14 @@ async function renderMetrics() {
   for (const am of athleteMetrics) {
     const metric = am.metrics
 
-    // Load last 3 measurements for this metric
+   // Load last 5 measurements for mini graph
     const { data: measurements } = await supabase
       .from('measurements')
       .select('*')
       .eq('athlete_id', athleteId)
       .eq('metric_id', metric.id)
-      .order('date', { ascending: false })
-      .limit(3)
+      .order('date', { ascending: true })
+      .limit(5)
 
     const item = document.createElement('div')
     item.classList.add('metric-item')
@@ -144,6 +144,12 @@ async function renderMetrics() {
         </div>
       </div>
       <div class="measurement-history">${historyHTML}</div>
+      ${measurements && measurements.length > 1 ? `
+        <div class="mini-graph-container">
+          <canvas id="mini-graph-${metric.id}"></canvas>
+        </div>
+        <p class="graph-hint">Click graph to expand</p>
+      ` : ''}
     `
 
     list.appendChild(item)
@@ -157,6 +163,55 @@ async function renderMetrics() {
       openMeasurementModal()
     })
   })
+
+  // Draw mini graphs
+  for (const am of athleteMetrics) {
+    const metric = am.metrics
+    const canvas = document.getElementById(`mini-graph-${metric.id}`)
+    if (!canvas) continue
+
+    const { data: graphData } = await supabase
+      .from('measurements')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('metric_id', metric.id)
+      .order('date', { ascending: true })
+      .limit(5)
+
+    if (!graphData || graphData.length < 2) continue
+
+    const labels = graphData.map(m => m.date)
+    const values = graphData.map(m => metric.type === 'pogo' ? m.rsi : m.value)
+
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          borderColor: '#4a4a8e',
+          backgroundColor: 'rgba(74, 74, 142, 0.1)',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false },
+          y: { display: false }
+        }
+      }
+    })
+
+    canvas.addEventListener('click', function() {
+      openGraphModal(metric)
+    })
+  }
 
   document.querySelectorAll('.btn-delete-metric').forEach(btn => {
     btn.addEventListener('click', async function() {
@@ -203,7 +258,6 @@ async function renderMetrics() {
 
 // ---- OPEN MEASUREMENT MODAL ----
 
-// ---- OPEN MEASUREMENT MODAL ----
 function openMeasurementModal() {
   document.getElementById('measurementModalTitle').textContent = 
     `Record — ${currentMetric.name}`
@@ -299,4 +353,95 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
 
   document.getElementById('addMeasurementModal').classList.remove('active')
   loadAthleteMetrics()
+})
+// ---- GRAPH MODAL ----
+let fullChart = null
+let currentGraphMetric = null
+
+async function openGraphModal(metric) {
+  currentGraphMetric = metric
+  document.getElementById('graphModalTitle').textContent = metric.name
+  document.getElementById('graphModal').classList.add('active')
+
+  // Set 1M as default active filter
+  document.querySelectorAll('.time-filter-btn').forEach(btn => btn.classList.remove('active'))
+  document.querySelector('.time-filter-btn[data-months="1"]').classList.add('active')
+
+  await loadGraphData(1)
+}
+
+async function loadGraphData(months) {
+  let query = supabase
+    .from('measurements')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .eq('metric_id', currentGraphMetric.id)
+    .order('date', { ascending: true })
+
+  if (months > 0) {
+    const fromDate = new Date()
+    fromDate.setMonth(fromDate.getMonth() - months)
+    query = query.gte('date', fromDate.toISOString().split('T')[0])
+  }
+
+  const { data } = await query
+
+  if (!data || data.length === 0) {
+    if (fullChart) { fullChart.destroy(); fullChart = null }
+    return
+  }
+
+  const labels = data.map(m => m.date)
+  const values = data.map(m => currentGraphMetric.type === 'pogo' ? m.rsi : m.value)
+
+  if (fullChart) fullChart.destroy()
+
+  const ctx = document.getElementById('fullGraph').getContext('2d')
+  fullChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: currentGraphMetric.name,
+        data: values,
+        borderColor: '#4a4a8e',
+        backgroundColor: 'rgba(74, 74, 142, 0.1)',
+        borderWidth: 2,
+        pointRadius: 5,
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#aaaacc' },
+          grid: { color: '#2a2a4e' }
+        },
+        y: {
+          ticks: { color: '#aaaacc' },
+          grid: { color: '#2a2a4e' }
+        }
+      }
+    }
+  })
+}
+
+document.getElementById('closeGraphBtn').addEventListener('click', function() {
+  document.getElementById('graphModal').classList.remove('active')
+  if (fullChart) { fullChart.destroy(); fullChart = null }
+})
+
+document.querySelectorAll('.time-filter-btn').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    document.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'))
+    this.classList.add('active')
+    const months = parseInt(this.dataset.months)
+    await loadGraphData(months)
+  })
 })

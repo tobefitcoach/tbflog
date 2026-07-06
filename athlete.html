@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css" />
-    <link rel="stylesheet" href="athlete.css" />
+  <link rel="stylesheet" href="athlete.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
 
@@ -96,7 +97,25 @@
         </div>
       </div>
     </div>
-
+<!-- Full Graph Modal -->
+    <div class="modal-overlay" id="graphModal">
+      <div class="modal graph-modal">
+        <div class="graph-modal-header">
+          <h2 id="graphModalTitle">Progress</h2>
+          <button class="btn-cancel" id="closeGraphBtn">✕</button>
+        </div>
+        <div class="graph-time-filters">
+          <button class="time-filter-btn active" data-months="1">1M</button>
+          <button class="time-filter-btn" data-months="3">3M</button>
+          <button class="time-filter-btn" data-months="6">6M</button>
+          <button class="time-filter-btn" data-months="12">1Y</button>
+          <button class="time-filter-btn" data-months="0">All</button>
+        </div>
+        <div class="graph-container">
+          <canvas id="fullGraph"></canvas>
+        </div>
+      </div>
+    </div>
     <script type="module" src="athlete.js"></script>
   </body>
 </html>
