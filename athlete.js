@@ -93,6 +93,7 @@ async function loadAllMetrics() {
   }
 
   allMetrics = data
+  console.log('metrics loaded:', data)
 
   // Fill the metric dropdown
   const select = document.getElementById('metricSelect')
