@@ -135,6 +135,17 @@ async function renderMetrics() {
       historyHTML = '<p style="color:#bbb;font-size:13px">No measurements yet</p>'
     }
 
+    // Get latest measurement for display
+    const latest = measurements && measurements.length > 0 ? measurements[measurements.length - 1] : null
+    let latestText = 'No measurements yet'
+    if (latest) {
+      if (metric.type === 'pogo') {
+        latestText = `Height: ${latest.height}cm · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
+      } else {
+        latestText = `${latest.value} ${metric.unit}`
+      }
+    }
+
     item.innerHTML = `
       <div class="metric-item-header">
         <h4>${metric.name}</h4>
@@ -143,13 +154,13 @@ async function renderMetrics() {
           <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
         </div>
       </div>
-      <div class="measurement-history">${historyHTML}</div>
-      ${measurements && measurements.length > 1 ? `
-        <div class="mini-graph-container">
+      <p class="metric-latest">Latest: ${latestText}</p>
+      <div class="metric-graph-area">
+        ${measurements && measurements.length > 1 ? `
           <canvas id="mini-graph-${metric.id}"></canvas>
-        </div>
-        <p class="graph-hint">Click graph to expand</p>
-      ` : ''}
+          <p class="graph-hint">Click to expand</p>
+        ` : '<p style="color:#4a4a8e;font-size:12px">Add 2+ measurements to see graph</p>'}
+      </div>
     `
 
     list.appendChild(item)

@@ -69,12 +69,41 @@
   color: #ffffff;
 }
 
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .metric-item {
   border: 1px solid #2a2a4e;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 20px;
-  margin-bottom: 16px;
   background-color: #0f0f1a;
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-latest {
+  font-size: 13px;
+  color: #aaaacc;
+  margin-bottom: 12px;
+}
+
+.metric-graph-area {
+  flex: 1;
+  min-height: 120px;
+  cursor: pointer;
+}
+
+.metric-graph-area:hover {
+  opacity: 0.8;
 }
 
 .metric-item-header {
