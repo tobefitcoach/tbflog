@@ -56,6 +56,31 @@ document.getElementById('profileDetails').textContent =
   // Load bodyweight graph
   loadBodyweightGraph()
 }
+// ---- UNIT CONVERSION HELPERS ----
+function convertValue(value, displayUnit) {
+  if (!displayUnit || !value) return { text: value, unit: displayUnit || '' }
+  
+  if (displayUnit === 'in') {
+    const inches = (value / 2.54).toFixed(1)
+    return { text: inches, unit: 'in' }
+  }
+  
+  if (displayUnit === 'ft') {
+    const totalInches = value / 2.54
+    const feet = Math.floor(totalInches / 12)
+    const inches = Math.round(totalInches % 12)
+    return { text: `${feet}'${inches}"`, unit: '' }
+  }
+
+  return { text: value, unit: displayUnit }
+}
+
+function convertInput(value, displayUnit) {
+  if (!displayUnit || !value) return value
+  if (displayUnit === 'in') return +(value * 2.54).toFixed(1)
+  if (displayUnit === 'ft') return +(value * 30.48).toFixed(1)
+  return value
+}
 // ---- LOAD ALL AVAILABLE METRICS ----
 async function loadAllMetrics() {
   const { data, error } = await supabase
@@ -153,12 +178,13 @@ const item = document.createElement('div')
     let latestText = 'No measurements yet'
     if (latest) {
       if (metric.type === 'pogo') {
-        latestText = `Height: ${latest.height}cm · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
+        const converted = convertValue(latest.height, metric.display_unit)
+        latestText = `Height: ${converted.text}${converted.unit} · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
       } else {
-        latestText = `${latest.value} ${metric.unit}`
+        const converted = convertValue(latest.value, metric.display_unit)
+        latestText = `${converted.text} ${converted.unit}`
       }
     }
-
     item.innerHTML = `
       <div class="metric-item-header">
         <h4>${metric.name}</h4>
@@ -300,9 +326,11 @@ function openMeasurementModal() {
   document.getElementById('measurementDate').valueAsDate = new Date()
 
   // Show right fields based on metric type
-  if (currentMetric.type === 'pogo') {
+if (currentMetric.type === 'pogo') {
     document.getElementById('simpleFields').style.display = 'none'
     document.getElementById('pogoFields').style.display = 'block'
+    const pogoUnit = currentMetric.display_unit || 'cm'
+    document.getElementById('pogoHeightLabel').textContent = `Height (${pogoUnit})`
   } else {
     document.getElementById('simpleFields').style.display = 'block'
     document.getElementById('pogoFields').style.display = 'none'
@@ -368,11 +396,12 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
   }
 
   if (currentMetric.type === 'pogo') {
-    insertData.height = parseFloat(document.getElementById('pogoHeight').value)
+    insertData.height = convertInput(parseFloat(document.getElementById('pogoHeight').value), currentMetric.display_unit)
     insertData.ground_contact = parseFloat(document.getElementById('pogoGroundContact').value)
     insertData.rsi = parseFloat(document.getElementById('pogoRSI').value)
   } else {
-    insertData.value = parseFloat(document.getElementById('measurementValue').value)
+   const rawValue = parseFloat(document.getElementById('measurementValue').value)
+    insertData.value = convertInput(rawValue, currentMetric.display_unit)
   }
 
   const { error } = await supabase
@@ -571,9 +600,11 @@ async function loadEntries(metric) {
         ${data.map(m => {
           let valueText = ''
           if (metric.type === 'pogo') {
-            valueText = `H: ${m.height}cm · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}`
+            const converted = convertValue(m.height, metric.display_unit)
+            valueText = `H: ${converted.text}${converted.unit} · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}`
           } else {
-            valueText = `${m.value} ${metric.unit}`
+            const converted = convertValue(m.value, metric.display_unit)
+            valueText = `${converted.text} ${converted.unit}`
           }
           return `<tr>
             <td>${m.date}</td>
