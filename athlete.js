@@ -803,3 +803,109 @@ document.getElementById('bwLbsBtn').addEventListener('click', function() {
   document.getElementById('bwKgBtn').classList.remove('active')
   loadBodyweightGraph()
 })
+// ---- BODYWEIGHT ENTRIES ----
+let currentBWEntry = null
+
+document.getElementById('viewBWEntriesBtn').addEventListener('click', function() {
+  document.getElementById('bwEntriesModal').classList.add('active')
+  loadBWEntries()
+})
+
+document.getElementById('closeBWEntriesBtn').addEventListener('click', function() {
+  document.getElementById('bwEntriesModal').classList.remove('active')
+})
+
+async function loadBWEntries() {
+  const { data, error } = await supabase
+    .from('bodyweight')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('date', { ascending: false })
+
+  const list = document.getElementById('bwEntriesList')
+
+  if (!data || data.length === 0) {
+    list.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No entries yet</p>'
+    return
+  }
+
+  list.innerHTML = `
+    <table class="entries-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Weight</th>
+          <th>Notes</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(m => `
+          <tr>
+            <td>${m.date}</td>
+            <td>${bodyweightUnit === 'lbs' ? +(m.weight * 2.20462).toFixed(1) + ' lbs' : m.weight + ' kg'}</td>
+            <td>${m.notes || '—'}</td>
+            <td>
+              <button class="btn-edit-entry" data-entry-id="${m.id}">✏</button>
+              <button class="btn-delete-measurement" data-entry-id="${m.id}">🗑</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `
+
+  list.querySelectorAll('.btn-delete-measurement').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const entryId = parseInt(this.dataset.entryId)
+      if (!confirm('Delete this entry?')) return
+
+      const { error } = await supabase
+        .from('bodyweight')
+        .delete()
+        .eq('id', entryId)
+
+      if (error) { alert('Something went wrong'); return }
+
+      loadBWEntries()
+      loadBodyweightGraph()
+    })
+  })
+
+  list.querySelectorAll('.btn-edit-entry').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const entryId = parseInt(this.dataset.entryId)
+      currentBWEntry = data.find(m => m.id === entryId)
+      document.getElementById('editBWDate').value = currentBWEntry.date
+      document.getElementById('editBWValue').value = currentBWEntry.weight
+      document.getElementById('editBWUnit').value = 'kg'
+      document.getElementById('editBWNotes').value = currentBWEntry.notes || ''
+      document.getElementById('editBWEntryModal').classList.add('active')
+    })
+  })
+}
+
+document.getElementById('cancelEditBWBtn').addEventListener('click', function() {
+  document.getElementById('editBWEntryModal').classList.remove('active')
+})
+
+document.getElementById('saveEditBWBtn').addEventListener('click', async function() {
+  const date = document.getElementById('editBWDate').value
+  const rawWeight = parseFloat(document.getElementById('editBWValue').value)
+  const unit = document.getElementById('editBWUnit').value
+  const weight = unit === 'lbs' ? +(rawWeight / 2.20462).toFixed(2) : rawWeight
+  const notes = document.getElementById('editBWNotes').value
+
+  if (!date || !weight) { alert('Please fill in date and weight'); return }
+
+  const { error } = await supabase
+    .from('bodyweight')
+    .update({ date, weight, notes })
+    .eq('id', currentBWEntry.id)
+
+  if (error) { alert('Something went wrong'); return }
+
+  document.getElementById('editBWEntryModal').classList.remove('active')
+  loadBWEntries()
+  loadBodyweightGraph()
+})

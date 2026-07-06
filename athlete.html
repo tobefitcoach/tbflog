@@ -32,9 +32,12 @@
         <div class="profile-right">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
             <p class="bodyweight-label">Bodyweight</p>
-            <div class="unit-toggle">
-              <button class="unit-btn active" id="bwKgBtn">kg</button>
-              <button class="unit-btn" id="bwLbsBtn">lbs</button>
+            <div style="display:flex; gap:8px; align-items:center">
+              <button class="unit-btn" id="viewBWEntriesBtn">All entries</button>
+              <div class="unit-toggle">
+                <button class="unit-btn active" id="bwKgBtn">kg</button>
+                <button class="unit-btn" id="bwLbsBtn">lbs</button>
+              </div>
             </div>
           </div>
           <div class="bodyweight-graph-area">
@@ -277,6 +280,45 @@
         <div class="form-actions">
           <button class="btn-cancel" id="cancelBodyweightBtn">Cancel</button>
           <button class="btn-save" id="saveBodyweightBtn">Save</button>
+        </div>
+      </div>
+    </div>
+    <!-- Bodyweight Entries Modal -->
+    <div class="modal-overlay" id="bwEntriesModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Bodyweight Entries</h2>
+          <button class="btn-cancel" id="closeBWEntriesBtn">✕</button>
+        </div>
+        <div id="bwEntriesList"></div>
+      </div>
+    </div>
+
+    <!-- Edit Bodyweight Entry Modal -->
+    <div class="modal-overlay" id="editBWEntryModal">
+      <div class="modal">
+        <h2>Edit Bodyweight Entry</h2>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="editBWDate" />
+        </div>
+        <div class="form-group">
+          <label>Weight</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="editBWValue" step="0.1" style="flex:3" />
+            <select id="editBWUnit" style="flex:1">
+              <option value="kg">kg</option>
+              <option value="lbs">lbs</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="editBWNotes" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelEditBWBtn">Cancel</button>
+          <button class="btn-save" id="saveEditBWBtn">Save Changes</button>
         </div>
       </div>
     </div>
