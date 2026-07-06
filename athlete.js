@@ -92,8 +92,7 @@ async function loadAllMetrics() {
     return
   }
 
-  allMetrics = data
-  console.log('metrics loaded:', data)
+allMetrics = data
 
   // Fill the metric dropdown
   const select = document.getElementById('metricSelect')
@@ -335,8 +334,16 @@ if (currentMetric.type === 'pogo') {
   } else {
     document.getElementById('simpleFields').style.display = 'block'
     document.getElementById('pogoFields').style.display = 'none'
-document.getElementById('valueLabel').textContent = 
-      `${currentMetric.name} (${currentMetric.display_unit || currentMetric.unit})`
+
+    if (currentMetric.display_unit === 'ft') {
+      document.getElementById('singleValueGroup').style.display = 'none'
+      document.getElementById('feetInchesGroup').style.display = 'block'
+    } else {
+      document.getElementById('singleValueGroup').style.display = 'block'
+      document.getElementById('feetInchesGroup').style.display = 'none'
+      document.getElementById('valueLabel').textContent = 
+        `${currentMetric.name} (${currentMetric.display_unit || currentMetric.unit})`
+    }
   }
 
   document.getElementById('addMeasurementModal').classList.add('active')
@@ -401,7 +408,14 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
     insertData.ground_contact = parseFloat(document.getElementById('pogoGroundContact').value)
     insertData.rsi = parseFloat(document.getElementById('pogoRSI').value)
   } else {
-   const rawValue = parseFloat(document.getElementById('measurementValue').value)
+   let rawValue
+    if (currentMetric.display_unit === 'ft') {
+      const feet = parseFloat(document.getElementById('measurementFeet').value) || 0
+      const inches = parseFloat(document.getElementById('measurementInches').value) || 0
+      rawValue = feet + (inches / 12)
+    } else {
+      rawValue = parseFloat(document.getElementById('measurementValue').value)
+    }
     insertData.value = convertInput(rawValue, currentMetric.display_unit)
   }
 
@@ -657,14 +671,23 @@ function openEditEntryModal(entry, metric) {
   if (metric.type === 'pogo') {
     document.getElementById('editSimpleFields').style.display = 'none'
     document.getElementById('editPogoFields').style.display = 'block'
-    document.getElementById('editPogoHeight').value = entry.height || ''
+    const converted = convertValue(entry.height, metric.display_unit)
+    document.getElementById('editPogoHeight').value = converted.text || ''
     document.getElementById('editPogoGroundContact').value = entry.ground_contact || ''
     document.getElementById('editPogoRSI').value = entry.rsi || ''
   } else {
     document.getElementById('editSimpleFields').style.display = 'block'
     document.getElementById('editPogoFields').style.display = 'none'
-    document.getElementById('editValueLabel').textContent = `${metric.name} (${metric.unit})`
-    document.getElementById('editEntryValue').value = entry.value || ''
+    document.getElementById('editValueLabel').textContent = `${metric.name} (${metric.display_unit || metric.unit})`
+    if (metric.display_unit === 'ft') {
+      const totalInches = (entry.value / 2.54)
+      const feet = Math.floor(totalInches / 12)
+      const inches = +(totalInches % 12).toFixed(1)
+      document.getElementById('editEntryValue').value = `${feet}.${String(inches).replace('.', '')}`
+    } else {
+      const converted = convertValue(entry.value, metric.display_unit)
+      document.getElementById('editEntryValue').value = converted.text || ''
+    }
   }
 
   document.getElementById('editEntryModal').classList.add('active')
@@ -688,11 +711,21 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
   }
 
   if (currentEntriesMetric.type === 'pogo') {
-    updateData.height = parseFloat(document.getElementById('editPogoHeight').value)
+    updateData.height = convertInput(parseFloat(document.getElementById('editPogoHeight').value), currentEntriesMetric.display_unit)
     updateData.ground_contact = parseFloat(document.getElementById('editPogoGroundContact').value)
     updateData.rsi = parseFloat(document.getElementById('editPogoRSI').value)
   } else {
-    updateData.value = parseFloat(document.getElementById('editEntryValue').value)
+    let rawValue
+    if (currentEntriesMetric.display_unit === 'ft') {
+      const input = document.getElementById('editEntryValue').value
+      const parts = input.toString().split('.')
+      const feet = parseFloat(parts[0]) || 0
+      const inches = parseFloat(parts[1]) || 0
+      rawValue = feet + (inches / 12)
+    } else {
+      rawValue = parseFloat(document.getElementById('editEntryValue').value)
+    }
+    updateData.value = convertInput(rawValue, currentEntriesMetric.display_unit)
   }
 
   const { error } = await supabase
