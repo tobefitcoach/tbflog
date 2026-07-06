@@ -116,16 +116,18 @@ async function renderMetrics() {
 
     let historyHTML = ''
     if (measurements && measurements.length > 0) {
-      historyHTML = measurements.map(m => {
+     historyHTML = measurements.map(m => {
         if (metric.type === 'pogo') {
           return `<div class="measurement-row">
             <span>${m.date}</span>
             <span>Height: ${m.height}cm · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}</span>
+            <button class="btn-delete-measurement" data-measurement-id="${m.id}">🗑</button>
           </div>`
         } else {
           return `<div class="measurement-row">
             <span>${m.date}</span>
             <span>${m.value} ${metric.unit}</span>
+            <button class="btn-delete-measurement" data-measurement-id="${m.id}">🗑</button>
           </div>`
         }
       }).join('')
@@ -176,7 +178,30 @@ async function renderMetrics() {
       loadAthleteMetrics()
     })
   })
+
+  document.querySelectorAll('.btn-delete-measurement').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const measurementId = parseInt(this.dataset.measurementId)
+      
+      if (!confirm('Delete this measurement?')) return
+
+      const { error } = await supabase
+        .from('measurements')
+        .delete()
+        .eq('id', measurementId)
+
+      if (error) {
+        console.log('Error deleting measurement:', error)
+        alert('Something went wrong')
+        return
+      }
+
+      loadAthleteMetrics()
+    })
+  })
 }
+
+// ---- OPEN MEASUREMENT MODAL ----
 
 // ---- OPEN MEASUREMENT MODAL ----
 function openMeasurementModal() {

@@ -186,3 +186,20 @@ header h1 {
 .btn-save:hover {
   background-color: #5a5aae;
 }
+.btn-delete-athlete {
+  margin-top: 12px;
+  background-color: transparent;
+  border: 1px solid #4a4a8e;
+  color: #aaaacc;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-delete-athlete:hover {
+  background-color: #ff4444;
+  border-color: #ff4444;
+  color: white;
+}

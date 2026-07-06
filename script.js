@@ -39,16 +39,38 @@ function createAthleteCard(athlete) {
 
   const card = document.createElement('div')
   card.classList.add('athlete-card')
-  card.innerHTML = `
+card.innerHTML = `
     <div class="athlete-initials">${initials}</div>
     <h3>${athlete.name}</h3>
     <p>${athlete.gender} · ${athlete.height}cm · ${athlete.weight}kg</p>
     <p>DOB: ${athlete.date_of_birth}</p>
     <p>0 metrics tracked</p>
+    <button class="btn-delete-athlete" data-athlete-id="${athlete.id}">🗑 Delete</button>
   `
-  card.addEventListener('click', function() {
+card.addEventListener('click', function(e) {
+    if (e.target.classList.contains('btn-delete-athlete')) return
     window.location.href = `athlete.html?id=${athlete.id}`
   })
+
+  card.querySelector('.btn-delete-athlete').addEventListener('click', async function(e) {
+    e.stopPropagation()
+    
+    if (!confirm('Delete this athlete? This cannot be undone.')) return
+
+    const { error } = await supabase
+      .from('athletes')
+      .delete()
+      .eq('id', athlete.id)
+
+    if (error) {
+      console.log('Error deleting athlete:', error)
+      alert('Something went wrong')
+      return
+    }
+
+    loadAthletes()
+  })
+
   athleteGrid.appendChild(card)
 }
 

@@ -136,3 +136,16 @@
   border-color: #ff4444;
   color: white;
 }
+.btn-delete-measurement {
+  background-color: transparent;
+  border: none;
+  color: #4a4a8e;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-delete-measurement:hover {
+  color: #ff4444;
+}
