@@ -40,19 +40,34 @@ function createAthleteCard(athlete) {
   const card = document.createElement('div')
   card.classList.add('athlete-card')
 card.innerHTML = `
-    <div class="athlete-initials">${initials}</div>
+    <div class="card-top">
+      <div class="athlete-initials">${initials}</div>
+      <div class="kebab-menu">
+        <button class="kebab-btn" data-athlete-id="${athlete.id}">⋮</button>
+        <div class="kebab-dropdown" id="dropdown-${athlete.id}">
+          <button class="kebab-delete" data-athlete-id="${athlete.id}">🗑 Delete athlete</button>
+        </div>
+      </div>
+    </div>
     <h3>${athlete.name}</h3>
     <p>${athlete.gender} · ${athlete.height}cm · ${athlete.weight}kg</p>
     <p>DOB: ${athlete.date_of_birth}</p>
     <p>0 metrics tracked</p>
-    <button class="btn-delete-athlete" data-athlete-id="${athlete.id}">🗑 Delete</button>
   `
-card.addEventListener('click', function(e) {
-    if (e.target.classList.contains('btn-delete-athlete')) return
+
+  card.addEventListener('click', function(e) {
+    if (e.target.classList.contains('kebab-btn') ||
+        e.target.classList.contains('kebab-delete')) return
     window.location.href = `athlete.html?id=${athlete.id}`
   })
 
-  card.querySelector('.btn-delete-athlete').addEventListener('click', async function(e) {
+  card.querySelector('.kebab-btn').addEventListener('click', function(e) {
+    e.stopPropagation()
+    const dropdown = document.getElementById(`dropdown-${athlete.id}`)
+    dropdown.classList.toggle('active')
+  })
+
+  card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
     e.stopPropagation()
     
     if (!confirm('Delete this athlete? This cannot be undone.')) return

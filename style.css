@@ -186,20 +186,65 @@ header h1 {
 .btn-save:hover {
   background-color: #5a5aae;
 }
-.btn-delete-athlete {
-  margin-top: 12px;
-  background-color: transparent;
-  border: 1px solid #4a4a8e;
-  color: #aaaacc;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  width: 100%;
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
 }
 
-.btn-delete-athlete:hover {
+.athlete-card .athlete-initials {
+  margin-bottom: 0;
+}
+
+.kebab-menu {
+  position: relative;
+}
+
+.kebab-btn {
+  background: transparent;
+  border: none;
+  color: #aaaacc;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.kebab-btn:hover {
+  color: white;
+}
+
+.kebab-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 24px;
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  padding: 8px;
+  z-index: 100;
+  min-width: 160px;
+}
+
+.kebab-dropdown.active {
+  display: block;
+}
+
+.kebab-delete {
+  background: transparent;
+  border: none;
+  color: #aaaacc;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 12px;
+  width: 100%;
+  text-align: left;
+  border-radius: 6px;
+}
+
+.kebab-delete:hover {
   background-color: #ff4444;
-  border-color: #ff4444;
   color: white;
 }
