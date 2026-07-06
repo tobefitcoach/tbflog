@@ -16,19 +16,12 @@
   display: flex;
   align-items: center;
   gap: 24px;
-  background-color: #1a1a2e;
-  border-radius: 12px;
-  padding: 32px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 0 0 32px 0;
   margin-bottom: 32px;
-  border: 1px solid #2a2a4e;
 }
 
 @media (max-width: 768px) {
   .profile-header {
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
     padding: 0 0 24px 0;
   }
 }
@@ -59,21 +52,13 @@
 }
 
 .metrics-section {
-  background-color: #1a1a2e;
-  border-radius: 12px;
-  padding: 32px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a4e;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 @media (max-width: 768px) {
-  .metrics-section {
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-  }
-
   .profile {
     padding: 20px;
   }
