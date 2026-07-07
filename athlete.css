@@ -401,3 +401,7 @@
   border-color: #4a4a8e;
   color: white;
 }
+.entries-modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
