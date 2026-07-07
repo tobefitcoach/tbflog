@@ -124,6 +124,7 @@ async function loadAthleteMetrics() {
     }
   })
   renderMetrics()
+  loadStatsBar()
 }
 
 // ---- RENDER METRICS ON SCREEN ----
@@ -463,6 +464,76 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
   document.getElementById('addMeasurementModal').classList.remove('active')
   loadAthleteMetrics()
 })
+// ---- STATS BAR ----
+async function loadStatsBar() {
+  // Get all measurements for this athlete
+  const { data: allMeasurements } = await supabase
+    .from('measurements')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('date', { ascending: false })
+
+  if (!allMeasurements) return
+
+  // Total entries
+  document.getElementById('statEntries').textContent = allMeasurements.length
+
+  // Metrics tracked
+  document.getElementById('statMetrics').textContent = athleteMetrics.length
+
+  // Last updated
+  if (allMeasurements.length > 0) {
+    const lastDate = new Date(allMeasurements[0].date)
+    const today = new Date()
+    const diffDays = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) {
+      document.getElementById('statLastUpdated').textContent = 'Today'
+    } else if (diffDays === 1) {
+      document.getElementById('statLastUpdated').textContent = 'Yesterday'
+    } else {
+      document.getElementById('statLastUpdated').textContent = `${diffDays}d ago`
+    }
+  }
+
+  // PRs this month
+  const now = new Date()
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  
+  let prCount = 0
+
+  for (const am of athleteMetrics) {
+    const metric = am.metrics
+    if (!metric) continue
+
+    // Get all time measurements for this metric
+    const metricMeasurements = allMeasurements.filter(m => m.metric_id === metric.id)
+    if (metricMeasurements.length < 2) continue
+
+    // Get this month's measurements
+    const thisMonthMeasurements = metricMeasurements.filter(m => m.date >= firstOfMonth)
+    if (thisMonthMeasurements.length === 0) continue
+
+    // Get best value before this month
+    const beforeMonth = metricMeasurements.filter(m => m.date < firstOfMonth)
+    if (beforeMonth.length === 0) continue
+
+    const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
+    const higherIsBetter = metric.higher_is_better
+
+    const bestBefore = higherIsBetter
+      ? Math.max(...beforeMonth.map(getValue))
+      : Math.min(...beforeMonth.map(getValue))
+
+    const bestThisMonth = higherIsBetter
+      ? Math.max(...thisMonthMeasurements.map(getValue))
+      : Math.min(...thisMonthMeasurements.map(getValue))
+
+    if (higherIsBetter && bestThisMonth > bestBefore) prCount++
+    if (!higherIsBetter && bestThisMonth < bestBefore) prCount++
+  }
+
+  document.getElementById('statPRs').textContent = prCount
+}
 // ---- GRAPH MODAL ----
 let fullChart = null
 let currentGraphMetric = null
