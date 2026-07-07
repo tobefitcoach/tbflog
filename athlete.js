@@ -649,7 +649,7 @@ async function loadEntries(metric) {
             const converted = convertValue(m.height, metric.display_unit)
             valueText = `H: ${converted.text}${converted.unit} · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}`
           } else if (metric.type === 'zone2') {
-            valueText = `Score: ${m.value} · Pace: ${m.pace} min/km · BPM: ${m.bpm} · ${m.distance}km · ${m.duration}min`
+            valueText = `Score: ${m.value}`
           } else {
             const converted = convertValue(m.value, metric.display_unit)
             valueText = `${converted.text} ${converted.unit}`
