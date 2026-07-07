@@ -416,10 +416,14 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
     insertData.ground_contact = parseFloat(document.getElementById('pogoGroundContact').value)
     insertData.rsi = parseFloat(document.getElementById('pogoRSI').value)
   } else if (currentMetric.type === 'zone2') {
-    const pace = parseFloat(document.getElementById('zone2Pace').value)
+    const paceMin = parseFloat(document.getElementById('zone2PaceMin').value) || 0
+    const paceSec = parseFloat(document.getElementById('zone2PaceSec').value) || 0
+    const pace = paceMin + (paceSec / 60)
     const bpm = parseFloat(document.getElementById('zone2BPM').value)
     const distance = parseFloat(document.getElementById('zone2Distance').value)
-    const duration = parseFloat(document.getElementById('zone2Duration').value)
+    const durMin = parseFloat(document.getElementById('zone2DurMin').value) || 0
+    const durSec = parseFloat(document.getElementById('zone2DurSec').value) || 0
+    const duration = durMin + (durSec / 60)
     const score = +(1000 / (pace * bpm)).toFixed(3)
     insertData.pace = pace
     insertData.bpm = bpm
@@ -701,10 +705,16 @@ function openEditEntryModal(entry, metric) {
     document.getElementById('editSimpleFields').style.display = 'none'
     document.getElementById('editPogoFields').style.display = 'none'
     document.getElementById('editZone2Fields').style.display = 'block'
-    document.getElementById('editZone2Pace').value = entry.pace || ''
+   const paceMin = Math.floor(entry.pace || 0)
+    const paceSec = Math.round(((entry.pace || 0) - paceMin) * 60)
+    document.getElementById('editZone2PaceMin').value = paceMin
+    document.getElementById('editZone2PaceSec').value = paceSec
     document.getElementById('editZone2BPM').value = entry.bpm || ''
     document.getElementById('editZone2Distance').value = entry.distance || ''
-    document.getElementById('editZone2Duration').value = entry.duration || ''
+    const durMin = Math.floor(entry.duration || 0)
+    const durSec = Math.round(((entry.duration || 0) - durMin) * 60)
+    document.getElementById('editZone2DurMin').value = durMin
+    document.getElementById('editZone2DurSec').value = durSec
   } else {
     document.getElementById('editSimpleFields').style.display = 'block'
     document.getElementById('editPogoFields').style.display = 'none'
@@ -751,10 +761,14 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
     updateData.ground_contact = parseFloat(document.getElementById('editPogoGroundContact').value)
     updateData.rsi = parseFloat(document.getElementById('editPogoRSI').value)
   } else if (currentEntriesMetric.type === 'zone2') {
-    const pace = parseFloat(document.getElementById('editZone2Pace').value)
+    const paceMin = parseFloat(document.getElementById('editZone2PaceMin').value) || 0
+    const paceSec = parseFloat(document.getElementById('editZone2PaceSec').value) || 0
+    const pace = paceMin + (paceSec / 60)
     const bpm = parseFloat(document.getElementById('editZone2BPM').value)
     const distance = parseFloat(document.getElementById('editZone2Distance').value)
-    const duration = parseFloat(document.getElementById('editZone2Duration').value)
+    const durMin = parseFloat(document.getElementById('editZone2DurMin').value) || 0
+    const durSec = parseFloat(document.getElementById('editZone2DurSec').value) || 0
+    const duration = durMin + (durSec / 60)
     updateData.pace = pace
     updateData.bpm = bpm
     updateData.distance = distance
