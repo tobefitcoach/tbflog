@@ -692,14 +692,23 @@ function openEditEntryModal(entry, metric) {
   if (metric.type === 'pogo') {
     document.getElementById('editSimpleFields').style.display = 'none'
     document.getElementById('editPogoFields').style.display = 'block'
+    document.getElementById('editZone2Fields').style.display = 'none'
     const converted = convertValue(entry.height, metric.display_unit)
     document.getElementById('editPogoHeight').value = converted.text || ''
     document.getElementById('editPogoGroundContact').value = entry.ground_contact || ''
     document.getElementById('editPogoRSI').value = entry.rsi || ''
-} else {
+  } else if (metric.type === 'zone2') {
+    document.getElementById('editSimpleFields').style.display = 'none'
+    document.getElementById('editPogoFields').style.display = 'none'
+    document.getElementById('editZone2Fields').style.display = 'block'
+    document.getElementById('editZone2Pace').value = entry.pace || ''
+    document.getElementById('editZone2BPM').value = entry.bpm || ''
+    document.getElementById('editZone2Distance').value = entry.distance || ''
+    document.getElementById('editZone2Duration').value = entry.duration || ''
+  } else {
     document.getElementById('editSimpleFields').style.display = 'block'
     document.getElementById('editPogoFields').style.display = 'none'
-
+    document.getElementById('editZone2Fields').style.display = 'none'
     if (metric.display_unit === 'ft') {
       document.getElementById('editSingleValueGroup').style.display = 'none'
       document.getElementById('editFeetInchesGroup').style.display = 'block'
@@ -737,10 +746,20 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
     notes: document.getElementById('editEntryNotes').value
   }
 
-  if (currentEntriesMetric.type === 'pogo') {
+ if (currentEntriesMetric.type === 'pogo') {
     updateData.height = convertInput(parseFloat(document.getElementById('editPogoHeight').value), currentEntriesMetric.display_unit)
     updateData.ground_contact = parseFloat(document.getElementById('editPogoGroundContact').value)
     updateData.rsi = parseFloat(document.getElementById('editPogoRSI').value)
+  } else if (currentEntriesMetric.type === 'zone2') {
+    const pace = parseFloat(document.getElementById('editZone2Pace').value)
+    const bpm = parseFloat(document.getElementById('editZone2BPM').value)
+    const distance = parseFloat(document.getElementById('editZone2Distance').value)
+    const duration = parseFloat(document.getElementById('editZone2Duration').value)
+    updateData.pace = pace
+    updateData.bpm = bpm
+    updateData.distance = distance
+    updateData.duration = duration
+    updateData.value = +(1000 / (pace * bpm)).toFixed(3)
   } else {
     let rawValue
    if (currentEntriesMetric.display_unit === 'ft') {
