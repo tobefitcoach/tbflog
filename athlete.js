@@ -226,13 +226,17 @@ const item = document.createElement('div')
     const canvas = document.getElementById(`mini-graph-${metric.id}`)
     if (!canvas) continue
 
+    const threeMonthsAgo2 = new Date()
+    threeMonthsAgo2.setMonth(threeMonthsAgo2.getMonth() - 3)
+    const fromDate2 = threeMonthsAgo2.toISOString().split('T')[0]
+
     const { data: graphData } = await supabase
       .from('measurements')
       .select('*')
       .eq('athlete_id', athleteId)
       .eq('metric_id', metric.id)
+      .gte('date', fromDate2)
       .order('date', { ascending: true })
-      .limit(5)
 
     if (!graphData || graphData.length < 2) continue
 
