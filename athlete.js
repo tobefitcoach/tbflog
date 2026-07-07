@@ -128,7 +128,7 @@ async function loadAthleteMetrics() {
 }
 
 // ---- RENDER METRICS ON SCREEN ----
-async function renderMetrics() {
+ async function renderMetrics() {
   const list = document.getElementById('metricsList')
   list.innerHTML = ''
 
@@ -137,87 +137,119 @@ async function renderMetrics() {
     return
   }
 
+  // Group metrics by category
+  const categories = {}
   for (const am of athleteMetrics) {
-    const metric = am.metrics
-
-// Load last 3 months of measurements for mini graph
-    const threeMonthsAgo = new Date()
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-    const fromDate = threeMonthsAgo.toISOString().split('T')[0]
-
-    const { data: measurements } = await supabase
-      .from('measurements')
-      .select('*')
-      .eq('athlete_id', athleteId)
-      .eq('metric_id', metric.id)
-      .gte('date', fromDate)
-      .order('date', { ascending: true })
-
-const item = document.createElement('div')
-    item.classList.add('metric-item')
-    item.dataset.metricId = metric.id
-
-    let historyHTML = ''
-    if (measurements && measurements.length > 0) {
-     historyHTML = measurements.map(m => {
-        if (metric.type === 'pogo') {
-          return `<div class="measurement-row">
-            <span>${m.date}</span>
-            <span>Height: ${m.height}cm · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}</span>
-            <button class="btn-delete-measurement" data-measurement-id="${m.id}">🗑</button>
-          </div>`
-        } else {
-          return `<div class="measurement-row">
-            <span>${m.date}</span>
-            <span>${m.value} ${metric.unit}</span>
-            <button class="btn-delete-measurement" data-measurement-id="${m.id}">🗑</button>
-          </div>`
-        }
-      }).join('')
-    } else {
-      historyHTML = '<p style="color:#bbb;font-size:13px">No measurements yet</p>'
-    }
-
-    // Get latest measurement for display
-    const latest = measurements && measurements.length > 0 ? measurements[measurements.length - 1] : null
-    let latestText = 'No measurements yet'
-   if (latest) {
-      if (metric.type === 'pogo') {
-        const converted = convertValue(latest.height, metric.display_unit)
-        latestText = `Height: ${converted.text}${converted.unit} · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
-      } else if (metric.type === 'zone2') {
-        latestText = `Score: ${latest.value} · Pace: ${latest.pace} min/km · BPM: ${latest.bpm}`
-      } else {
-        const converted = convertValue(latest.value, metric.display_unit)
-        latestText = `${converted.text} ${converted.unit}`
-      }
-    }
-    item.innerHTML = `
-      <div class="metric-item-header">
-        <h4>${metric.name}</h4>
-        <div style="display:flex; gap:8px">
-          <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
-          <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
-        </div>
-      </div>
-      <p class="metric-latest">Latest: ${latestText}</p>
-      <div class="metric-graph-area">
-        ${measurements && measurements.length > 1 ? `
-          <canvas id="mini-graph-${metric.id}"></canvas>
-          <p class="graph-hint">Click to expand</p>
-        ` : '<p style="color:#4a4a8e;font-size:12px">Add 2+ measurements to see graph</p>'}
-      </div>
-    `
-
-    list.appendChild(item)
+    const category = am.metrics?.category || 'Other'
+    if (!categories[category]) categories[category] = []
+    categories[category].push(am)
   }
 
-// Add click listeners to all record buttons
+  // Render each category
+  for (const [category, items] of Object.entries(categories)) {
+    const categorySection = document.createElement('div')
+    categorySection.classList.add('metric-category')
+    categorySection.innerHTML = `<h4 class="category-title">${category}</h4>`
+    
+    const grid = document.createElement('div')
+    grid.classList.add('metrics-grid')
+
+    for (const am of items) {
+      const metric = am.metrics
+
+      // Load last 3 months of measurements for mini graph
+      const threeMonthsAgo = new Date()
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+      const fromDate = threeMonthsAgo.toISOString().split('T')[0]
+
+      const { data: measurements } = await supabase
+        .from('measurements')
+        .select('*')
+        .eq('athlete_id', athleteId)
+        .eq('metric_id', metric.id)
+        .gte('date', fromDate)
+        .order('date', { ascending: true })
+
+      const item = document.createElement('div')
+      item.classList.add('metric-item')
+      item.dataset.metricId = metric.id
+
+      const latest = measurements && measurements.length > 0 ? measurements[measurements.length - 1] : null
+      let latestText = 'No measurements yet'
+      if (latest) {
+        if (metric.type === 'pogo') {
+          const converted = convertValue(latest.height, metric.display_unit)
+          latestText = `Height: ${converted.text}${converted.unit} · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
+        } else if (metric.type === 'zone2') {
+          latestText = `Score: ${latest.value}`
+        } else {
+          const converted = convertValue(latest.value, metric.display_unit)
+          latestText = `${converted.text} ${converted.unit}`
+        }
+      }
+
+      item.innerHTML = `
+        <div class="metric-item-header">
+          <h4>${metric.name}</h4>
+          <div style="display:flex; gap:8px">
+            <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
+            <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
+          </div>
+        </div>
+        <p class="metric-latest">Latest: ${latestText}</p>
+        <div class="metric-graph-area">
+          ${measurements && measurements.length > 1 ? `
+            <canvas id="mini-graph-${metric.id}"></canvas>
+            <p class="graph-hint">Click to expand</p>
+          ` : '<p style="color:#4a4a8e;font-size:12px">Add 2+ measurements to see graph</p>'}
+        </div>
+      `
+
+      grid.appendChild(item)
+    }
+
+    categorySection.appendChild(grid)
+    list.appendChild(categorySection)
+  }
+
+  // Add click listeners to all record buttons
   document.querySelectorAll('.btn-record').forEach(btn => {
     btn.addEventListener('click', function() {
       const metricId = parseInt(this.dataset.metricId)
       currentMetric = allMetrics.find(m => m.id === metricId)
       openMeasurementModal()
+    })
+  })
+
+  document.querySelectorAll('.btn-delete-metric').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const athleteMetricId = parseInt(this.dataset.athleteMetricId)
+      if (!confirm('Remove this metric from the athlete?')) return
+
+      const { error } = await supabase
+        .from('athlete_metrics')
+        .delete()
+        .eq('id', athleteMetricId)
+
+      if (error) { console.log('Error deleting metric:', error); alert('Something went wrong'); return }
+
+      loadAthleteMetrics()
+    })
+  })
+
+  document.querySelectorAll('.btn-delete-measurement').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const measurementId = parseInt(this.dataset.measurementId)
+      if (!confirm('Delete this measurement?')) return
+
+      const { error } = await supabase
+        .from('measurements')
+        .delete()
+        .eq('id', measurementId)
+
+      if (error) { console.log('Error deleting measurement:', error); alert('Something went wrong'); return }
+
+      loadAthleteMetrics()
     })
   })
 
@@ -273,7 +305,8 @@ const item = document.createElement('div')
       openGraphModal(metric)
     })
   }
-// Add click listener to metric cards to open entries
+
+  // Add click listener to metric cards to open entries
   document.querySelectorAll('.metric-item').forEach(item => {
     item.addEventListener('click', function(e) {
       if (e.target.classList.contains('btn-record') ||
@@ -282,47 +315,6 @@ const item = document.createElement('div')
       const metricId = parseInt(this.dataset.metricId)
       const metric = allMetrics.find(m => m.id === metricId)
       openEntriesModal(metric)
-    })
-  })
-  document.querySelectorAll('.btn-delete-metric').forEach(btn => {
-    btn.addEventListener('click', async function() {
-      const athleteMetricId = parseInt(this.dataset.athleteMetricId)
-      
-      if (!confirm('Remove this metric from the athlete?')) return
-
-      const { error } = await supabase
-        .from('athlete_metrics')
-        .delete()
-        .eq('id', athleteMetricId)
-
-      if (error) {
-        console.log('Error deleting metric:', error)
-        alert('Something went wrong')
-        return
-      }
-
-      loadAthleteMetrics()
-    })
-  })
-
-  document.querySelectorAll('.btn-delete-measurement').forEach(btn => {
-    btn.addEventListener('click', async function() {
-      const measurementId = parseInt(this.dataset.measurementId)
-      
-      if (!confirm('Delete this measurement?')) return
-
-      const { error } = await supabase
-        .from('measurements')
-        .delete()
-        .eq('id', measurementId)
-
-      if (error) {
-        console.log('Error deleting measurement:', error)
-        alert('Something went wrong')
-        return
-      }
-
-      loadAthleteMetrics()
     })
   })
 }
@@ -646,9 +638,10 @@ document.getElementById('saveNewMetricBtn').addEventListener('click', async func
     return
   }
 
+  const category = document.getElementById('newMetricCategory').value
   const { data, error } = await supabase
     .from('metrics')
-    .insert([{ name, unit, type }])
+    .insert([{ name, unit, type, category }])
     .select()
 
   if (error) {

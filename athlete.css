@@ -446,3 +446,16 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+.metric-category {
+  margin-bottom: 32px;
+}
+
+.category-title {
+  font-size: 14px;
+  color: #aaaacc;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2a2a4e;
+}
