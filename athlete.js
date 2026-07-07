@@ -139,14 +139,18 @@ async function renderMetrics() {
   for (const am of athleteMetrics) {
     const metric = am.metrics
 
-   // Load last 5 measurements for mini graph
+// Load last 3 months of measurements for mini graph
+    const threeMonthsAgo = new Date()
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+    const fromDate = threeMonthsAgo.toISOString().split('T')[0]
+
     const { data: measurements } = await supabase
       .from('measurements')
       .select('*')
       .eq('athlete_id', athleteId)
       .eq('metric_id', metric.id)
+      .gte('date', fromDate)
       .order('date', { ascending: true })
-      .limit(5)
 
 const item = document.createElement('div')
     item.classList.add('metric-item')
