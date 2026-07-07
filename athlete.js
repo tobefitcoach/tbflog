@@ -176,10 +176,12 @@ const item = document.createElement('div')
     // Get latest measurement for display
     const latest = measurements && measurements.length > 0 ? measurements[measurements.length - 1] : null
     let latestText = 'No measurements yet'
-    if (latest) {
+   if (latest) {
       if (metric.type === 'pogo') {
         const converted = convertValue(latest.height, metric.display_unit)
         latestText = `Height: ${converted.text}${converted.unit} · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
+      } else if (metric.type === 'zone2') {
+        latestText = `Score: ${latest.value} · Pace: ${latest.pace} min/km · BPM: ${latest.bpm}`
       } else {
         const converted = convertValue(latest.value, metric.display_unit)
         latestText = `${converted.text} ${converted.unit}`
@@ -329,11 +331,17 @@ function openMeasurementModal() {
 if (currentMetric.type === 'pogo') {
     document.getElementById('simpleFields').style.display = 'none'
     document.getElementById('pogoFields').style.display = 'block'
+    document.getElementById('zone2Fields').style.display = 'none'
     const pogoUnit = currentMetric.display_unit || 'cm'
     document.getElementById('pogoHeightLabel').textContent = `Height (${pogoUnit})`
+  } else if (currentMetric.type === 'zone2') {
+    document.getElementById('simpleFields').style.display = 'none'
+    document.getElementById('pogoFields').style.display = 'none'
+    document.getElementById('zone2Fields').style.display = 'block'
   } else {
     document.getElementById('simpleFields').style.display = 'block'
     document.getElementById('pogoFields').style.display = 'none'
+    document.getElementById('zone2Fields').style.display = 'none'
 
     if (currentMetric.display_unit === 'ft') {
       document.getElementById('singleValueGroup').style.display = 'none'
@@ -407,8 +415,19 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
     insertData.height = convertInput(parseFloat(document.getElementById('pogoHeight').value), currentMetric.display_unit)
     insertData.ground_contact = parseFloat(document.getElementById('pogoGroundContact').value)
     insertData.rsi = parseFloat(document.getElementById('pogoRSI').value)
+  } else if (currentMetric.type === 'zone2') {
+    const pace = parseFloat(document.getElementById('zone2Pace').value)
+    const bpm = parseFloat(document.getElementById('zone2BPM').value)
+    const distance = parseFloat(document.getElementById('zone2Distance').value)
+    const duration = parseFloat(document.getElementById('zone2Duration').value)
+    const score = +(1000 / (pace * bpm)).toFixed(3)
+    insertData.pace = pace
+    insertData.bpm = bpm
+    insertData.distance = distance
+    insertData.duration = duration
+    insertData.value = score
   } else {
-   let rawValue
+    let rawValue
     if (currentMetric.display_unit === 'ft') {
       const feet = parseFloat(document.getElementById('measurementFeet').value) || 0
       const inches = parseFloat(document.getElementById('measurementInches').value) || 0
@@ -614,9 +633,11 @@ async function loadEntries(metric) {
       <tbody>
         ${data.map(m => {
           let valueText = ''
-          if (metric.type === 'pogo') {
+        if (metric.type === 'pogo') {
             const converted = convertValue(m.height, metric.display_unit)
             valueText = `H: ${converted.text}${converted.unit} · GCT: ${m.ground_contact}ms · RSI: ${m.rsi}`
+          } else if (metric.type === 'zone2') {
+            valueText = `Score: ${m.value} · Pace: ${m.pace} min/km · BPM: ${m.bpm} · ${m.distance}km · ${m.duration}min`
           } else {
             const converted = convertValue(m.value, metric.display_unit)
             valueText = `${converted.text} ${converted.unit}`
