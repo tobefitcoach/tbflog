@@ -213,7 +213,7 @@ async function loadAthleteMetrics() {
               const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
               const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
               const arrow = pct > 0 ? '▲' : '▼'
-              changeHTML = `<span class="metric-change ${cssClass}">${arrow} ${Math.abs(pct)}%</span>`
+              changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="zone2" data-metric-id="${metric.id}" data-metric-name="${metric.name}" data-avg30="${avg30.toFixed(3)}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}">${arrow} ${Math.abs(pct)}%</span>`
             }
           }
         } else {
@@ -227,7 +227,7 @@ async function loadAthleteMetrics() {
             const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
             const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
             const arrow = pct > 0 ? '▲' : '▼'
-            changeHTML = `<span class="metric-change ${cssClass}">${arrow} ${Math.abs(pct)}%</span>`
+            changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="simple" data-metric-name="${metric.name}" data-latest="${latestVal}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}" data-unit="${metric.display_unit || metric.unit}">${arrow} ${Math.abs(pct)}%</span>`
           }
         }
       }
@@ -359,6 +359,12 @@ async function loadAthleteMetrics() {
       if (e.target.classList.contains('btn-record') ||
           e.target.classList.contains('btn-delete-metric') ||
           e.target.tagName === 'CANVAS') return
+
+      if (e.target.classList.contains('metric-change')) {
+        openChangeExplain(e.target)
+        return
+      }
+
       const metricId = parseInt(this.dataset.metricId)
       const metric = allMetrics.find(m => m.id === metricId)
       openEntriesModal(metric)
@@ -1150,4 +1156,66 @@ document.getElementById('saveEditBWBtn').addEventListener('click', async functio
   document.getElementById('editBWEntryModal').classList.remove('active')
   loadBWEntries()
   loadBodyweightGraph()
+})
+// ---- % CHANGE EXPLANATION ----
+function openChangeExplain(el) {
+  const type = el.dataset.explainType
+  const metricName = el.dataset.metricName
+  const pct = parseFloat(el.dataset.pct)
+  const higher = el.dataset.higher === 'true'
+  const isPositive = higher ? pct > 0 : pct < 0
+  const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
+  const arrow = pct > 0 ? '▲' : '▼'
+
+  document.getElementById('changeExplainTitle').textContent = `${metricName} — Change Breakdown`
+
+  let content = ''
+
+  if (type === 'zone2') {
+    const avg30 = parseFloat(el.dataset.avg30)
+    const avgPrev = parseFloat(el.dataset.avgprev)
+    content = `
+      <div class="change-explain-row">
+        <span class="change-explain-label">Last 30 days avg score</span>
+        <span class="change-explain-value">${avg30}</span>
+      </div>
+      <div class="change-explain-row">
+        <span class="change-explain-label">Previous 30 days avg score</span>
+        <span class="change-explain-value">${avgPrev}</span>
+      </div>
+      <div class="change-explain-result metric-change ${cssClass}">
+        ${arrow} ${Math.abs(pct)}% change in efficiency
+      </div>
+      <p style="color:#aaaacc; font-size:12px; margin-top:12px; text-align:center">
+        Score = 1000 ÷ (pace × BPM) — higher is better
+      </p>
+    `
+  } else {
+    const latest = parseFloat(el.dataset.latest)
+    const avgPrev = parseFloat(el.dataset.avgprev)
+    const unit = el.dataset.unit
+    content = `
+      <div class="change-explain-row">
+        <span class="change-explain-label">Latest entry</span>
+        <span class="change-explain-value">${latest} ${unit}</span>
+      </div>
+      <div class="change-explain-row">
+        <span class="change-explain-label">Avg of previous 5 entries</span>
+        <span class="change-explain-value">${avgPrev} ${unit}</span>
+      </div>
+      <div class="change-explain-result metric-change ${cssClass}">
+        ${arrow} ${Math.abs(pct)}% vs previous 5 entries
+      </div>
+      <p style="color:#aaaacc; font-size:12px; margin-top:12px; text-align:center">
+        ${higher ? 'Higher is better for this metric' : 'Lower is better for this metric'}
+      </p>
+    `
+  }
+
+  document.getElementById('changeExplainContent').innerHTML = content
+  document.getElementById('changeExplainModal').classList.add('active')
+}
+
+document.getElementById('closeChangeExplainBtn').addEventListener('click', function() {
+  document.getElementById('changeExplainModal').classList.remove('active')
 })

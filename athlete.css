@@ -474,3 +474,32 @@
 .metric-change.neutral {
   color: #aaaacc;
 }
+.change-explain-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #2a2a4e;
+  font-size: 14px;
+}
+
+.change-explain-row:last-child {
+  border-bottom: none;
+}
+
+.change-explain-label {
+  color: #aaaacc;
+}
+
+.change-explain-value {
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.change-explain-result {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: #0f0f1a;
+  text-align: center;
+  font-size: 14px;
+}
