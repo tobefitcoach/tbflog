@@ -459,3 +459,18 @@
   padding-bottom: 8px;
   border-bottom: 1px solid #2a2a4e;
 }
+.metric-change {
+  font-size: 12px;
+}
+
+.metric-change.positive {
+  color: #4caf50;
+}
+
+.metric-change.negative {
+  color: #f44336;
+}
+
+.metric-change.neutral {
+  color: #aaaacc;
+}

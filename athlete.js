@@ -174,8 +174,10 @@ async function loadAthleteMetrics() {
       item.classList.add('metric-item')
       item.dataset.metricId = metric.id
 
-      const latest = measurements && measurements.length > 0 ? measurements[measurements.length - 1] : null
+     const latest = measurements && measurements.length > 0 ? measurements[measurements.length - 1] : null
       let latestText = 'No measurements yet'
+      let changeHTML = ''
+
       if (latest) {
         if (metric.type === 'pogo') {
           const converted = convertValue(latest.height, metric.display_unit)
@@ -186,11 +188,56 @@ async function loadAthleteMetrics() {
           const converted = convertValue(latest.value, metric.display_unit)
           latestText = `${converted.text} ${converted.unit}`
         }
+
+        // Calculate % change
+        if (metric.type === 'zone2') {
+          const { data: allZone2 } = await supabase
+            .from('measurements')
+            .select('*')
+            .eq('athlete_id', athleteId)
+            .eq('metric_id', metric.id)
+            .order('date', { ascending: false })
+
+          if (allZone2 && allZone2.length >= 2) {
+            const now = new Date()
+            const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            const sixtyDaysAgo = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+            const last30 = allZone2.filter(m => m.date >= thirtyDaysAgo)
+            const prev30 = allZone2.filter(m => m.date >= sixtyDaysAgo && m.date < thirtyDaysAgo)
+
+            if (last30.length > 0 && prev30.length > 0) {
+              const avg30 = last30.reduce((sum, m) => sum + m.value, 0) / last30.length
+              const avgPrev = prev30.reduce((sum, m) => sum + m.value, 0) / prev30.length
+              const pct = +(((avg30 - avgPrev) / avgPrev) * 100).toFixed(1)
+              const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
+              const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
+              const arrow = pct > 0 ? '▲' : '▼'
+              changeHTML = `<span class="metric-change ${cssClass}">${arrow} ${Math.abs(pct)}%</span>`
+            }
+          }
+        } else {
+          const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
+          const latestVal = getValue(latest)
+
+          if (measurements.length >= 2) {
+            const previous = measurements.slice(0, -1).slice(-5)
+            const avgPrev = previous.reduce((sum, m) => sum + getValue(m), 0) / previous.length
+            const pct = +(((latestVal - avgPrev) / avgPrev) * 100).toFixed(1)
+            const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
+            const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
+            const arrow = pct > 0 ? '▲' : '▼'
+            changeHTML = `<span class="metric-change ${cssClass}">${arrow} ${Math.abs(pct)}%</span>`
+          }
+        }
       }
 
       item.innerHTML = `
         <div class="metric-item-header">
-          <h4>${metric.name}</h4>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+            <h4>${metric.name}</h4>
+            ${changeHTML}
+          </div>
           <div style="display:flex; gap:8px">
             <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
             <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
