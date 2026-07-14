@@ -1185,7 +1185,7 @@ function openChangeExplain(el) {
     const convertedAvg = isPogo ? avgPrev : convertValue(parseFloat(avgPrev), metricDisplayUnit)
     const displayLatest = isPogo ? latest : `${convertedLatest.text} ${convertedLatest.unit}`
     const displayAvg = isPogo ? avgPrev : `${convertedAvg.text} ${convertedAvg.unit}`
-
+console.log('displayLatest:', displayLatest, 'displayAvg:', displayAvg)
     content = `
       <div class="change-explain-row">
         <span class="change-explain-label">${valueLabel}</span>
