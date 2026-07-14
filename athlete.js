@@ -213,8 +213,7 @@ async function loadAthleteMetrics() {
               const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
               const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
               const arrow = pct > 0 ? '▲' : '▼'
-              changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="simple" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-latest="${latestVal}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}" data-unit="${metric.display_unit || metric.unit}">${arrow} ${Math.abs(pct)}%</span>`
-            }
+changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="zone2" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-avg30="${avg30.toFixed(3)}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}">${arrow} ${Math.abs(pct)}%</span>`            }
           }
         } else {
           const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
@@ -227,8 +226,7 @@ async function loadAthleteMetrics() {
             const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
             const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
             const arrow = pct > 0 ? '▲' : '▼'
-            changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="simple" data-metric-name="${metric.name}" data-latest="${latestVal}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}" data-unit="${metric.display_unit || metric.unit}">${arrow} ${Math.abs(pct)}%</span>`
-          }
+changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="simple" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-latest="${latestVal}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}" data-unit="${metric.display_unit || metric.unit}">${arrow} ${Math.abs(pct)}%</span>`          }
         }
       }
 
