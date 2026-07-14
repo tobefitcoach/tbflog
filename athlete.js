@@ -1159,6 +1159,7 @@ document.getElementById('saveEditBWBtn').addEventListener('click', async functio
 function openChangeExplain(el) {
   const type = el.dataset.explainType
   const metricName = el.dataset.metricName
+  console.log('explain data:', el.dataset)
   const pct = parseFloat(el.dataset.pct)
   const higher = el.dataset.higher === 'true'
   const isPositive = higher ? pct > 0 : pct < 0
