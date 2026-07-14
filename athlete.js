@@ -1160,6 +1160,7 @@ function openChangeExplain(el) {
   const type = el.dataset.explainType
   const metricName = el.dataset.metricName
   console.log('explain data:', el.dataset)
+  console.log('converted:', convertValue(parseFloat(el.dataset.latest), el.dataset.unit))
   const pct = parseFloat(el.dataset.pct)
   const higher = el.dataset.higher === 'true'
   const isPositive = higher ? pct > 0 : pct < 0
