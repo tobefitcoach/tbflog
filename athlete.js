@@ -1173,18 +1173,25 @@ function openChangeExplain(el) {
     const avg30 = parseFloat(el.dataset.avg30)
     const avgPrev = parseFloat(el.dataset.avgprev)
     const isPogo = el.dataset.metricType === 'pogo'
+    const metricDisplayUnit = el.dataset.unit
     const displayUnit = isPogo ? '' : unit
     const valueLabel = isPogo ? 'RSI Score' : 'Latest entry'
     const avgLabel = isPogo ? 'Avg RSI of previous 5 entries' : 'Avg of previous 5 entries'
 
+    // Convert values to display unit
+    const convertedLatest = isPogo ? latest : convertValue(latest, metricDisplayUnit)
+    const convertedAvg = isPogo ? avgPrev : convertValue(parseFloat(avgPrev), metricDisplayUnit)
+    const displayLatest = isPogo ? latest : `${convertedLatest.text} ${convertedLatest.unit}`
+    const displayAvg = isPogo ? avgPrev : `${convertedAvg.text} ${convertedAvg.unit}`
+
     content = `
       <div class="change-explain-row">
         <span class="change-explain-label">${valueLabel}</span>
-        <span class="change-explain-value">${latest} ${displayUnit}</span>
+        <span class="change-explain-value">${displayLatest}</span>
       </div>
       <div class="change-explain-row">
         <span class="change-explain-label">${avgLabel}</span>
-        <span class="change-explain-value">${avgPrev} ${displayUnit}</span>
+        <span class="change-explain-value">${displayAvg}</span>
       </div>
       <div class="change-explain-result metric-change ${cssClass}">
         ${arrow} ${Math.abs(pct)}% vs previous 5 entries
