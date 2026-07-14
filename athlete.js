@@ -213,7 +213,7 @@ async function loadAthleteMetrics() {
               const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
               const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
               const arrow = pct > 0 ? '▲' : '▼'
-              changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="zone2" data-metric-id="${metric.id}" data-metric-name="${metric.name}" data-avg30="${avg30.toFixed(3)}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}">${arrow} ${Math.abs(pct)}%</span>`
+              changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="simple" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-latest="${latestVal}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}" data-unit="${metric.display_unit || metric.unit}">${arrow} ${Math.abs(pct)}%</span>`
             }
           }
         } else {
@@ -1174,20 +1174,25 @@ function openChangeExplain(el) {
   if (type === 'zone2') {
     const avg30 = parseFloat(el.dataset.avg30)
     const avgPrev = parseFloat(el.dataset.avgprev)
+    const isPogo = el.dataset.metricType === 'pogo'
+    const displayUnit = isPogo ? '' : unit
+    const valueLabel = isPogo ? 'RSI Score' : 'Latest entry'
+    const avgLabel = isPogo ? 'Avg RSI of previous 5 entries' : 'Avg of previous 5 entries'
+
     content = `
       <div class="change-explain-row">
-        <span class="change-explain-label">Last 30 days avg score</span>
-        <span class="change-explain-value">${avg30}</span>
+        <span class="change-explain-label">${valueLabel}</span>
+        <span class="change-explain-value">${latest} ${displayUnit}</span>
       </div>
       <div class="change-explain-row">
-        <span class="change-explain-label">Previous 30 days avg score</span>
-        <span class="change-explain-value">${avgPrev}</span>
+        <span class="change-explain-label">${avgLabel}</span>
+        <span class="change-explain-value">${avgPrev} ${displayUnit}</span>
       </div>
       <div class="change-explain-result metric-change ${cssClass}">
-        ${arrow} ${Math.abs(pct)}% change in efficiency
+        ${arrow} ${Math.abs(pct)}% vs previous 5 entries
       </div>
       <p style="color:#aaaacc; font-size:12px; margin-top:12px; text-align:center">
-        Score = 1000 ÷ (pace × BPM) — higher is better
+        ${higher ? 'Higher is better for this metric' : 'Lower is better for this metric'}
       </p>
     `
   } else {
