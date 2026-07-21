@@ -1182,9 +1182,9 @@ function openChangeExplain(el) {
   if (type === 'zone2') {
     const avg30 = parseFloat(el.dataset.avg30)
     const avgPrev = parseFloat(el.dataset.avgprev)
-    const isPogo = el.dataset.metricType === 'pogo'
+   const isPogo = el.dataset.metricType === 'pogo'
     const metricDisplayUnit = el.dataset.unit
-    const displayUnit = isPogo ? '' : unit
+    const displayUnit = isPogo ? '' : metricDisplayUnit
     const valueLabel = isPogo ? 'RSI Score' : 'Latest entry'
     const avgLabel = isPogo ? 'Avg RSI of previous 5 entries' : 'Avg of previous 5 entries'
 
