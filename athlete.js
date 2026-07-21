@@ -1182,31 +1182,20 @@ function openChangeExplain(el) {
   if (type === 'zone2') {
     const avg30 = parseFloat(el.dataset.avg30)
     const avgPrev = parseFloat(el.dataset.avgprev)
-   const isPogo = el.dataset.metricType === 'pogo'
-    const metricDisplayUnit = el.dataset.unit
-    const displayUnit = isPogo ? '' : metricDisplayUnit
-    const valueLabel = isPogo ? 'RSI Score' : 'Latest entry'
-    const avgLabel = isPogo ? 'Avg RSI of previous 5 entries' : 'Avg of previous 5 entries'
-
-    // Convert values to display unit
-    const convertedLatest = isPogo ? latest : convertValue(latest, metricDisplayUnit)
-    const convertedAvg = isPogo ? avgPrev : convertValue(parseFloat(avgPrev), metricDisplayUnit)
-    const displayLatest = isPogo ? latest : `${convertedLatest.text} ${convertedLatest.unit}`
-    const displayAvg = isPogo ? avgPrev : `${convertedAvg.text} ${convertedAvg.unit}`
-    content = `
+ content = `
       <div class="change-explain-row">
-        <span class="change-explain-label">${valueLabel}</span>
-        <span class="change-explain-value">${displayLatest}</span>
+        <span class="change-explain-label">Last 30 days avg score</span>
+        <span class="change-explain-value">${avg30}</span>
       </div>
       <div class="change-explain-row">
-        <span class="change-explain-label">${avgLabel}</span>
-        <span class="change-explain-value">${displayAvg}</span>
+        <span class="change-explain-label">Previous 30 days avg score</span>
+        <span class="change-explain-value">${avgPrev}</span>
       </div>
       <div class="change-explain-result metric-change ${cssClass}">
-        ${arrow} ${Math.abs(pct)}% vs previous 5 entries
+        ${arrow} ${Math.abs(pct)}% change in efficiency
       </div>
       <p style="color:#aaaacc; font-size:12px; margin-top:12px; text-align:center">
-        ${higher ? 'Higher is better for this metric' : 'Lower is better for this metric'}
+        Score = 1000 ÷ (pace × BPM) — higher is better
       </p>
     `
  } else {
