@@ -1159,8 +1159,6 @@ document.getElementById('saveEditBWBtn').addEventListener('click', async functio
 function openChangeExplain(el) {
   const type = el.dataset.explainType
   const metricName = el.dataset.metricName
-  console.log('explain data:', el.dataset)
-  console.log('converted:', convertValue(parseFloat(el.dataset.latest), el.dataset.unit))
   const pct = parseFloat(el.dataset.pct)
   const higher = el.dataset.higher === 'true'
   const isPositive = higher ? pct > 0 : pct < 0
@@ -1185,7 +1183,6 @@ function openChangeExplain(el) {
     const convertedAvg = isPogo ? avgPrev : convertValue(parseFloat(avgPrev), metricDisplayUnit)
     const displayLatest = isPogo ? latest : `${convertedLatest.text} ${convertedLatest.unit}`
     const displayAvg = isPogo ? avgPrev : `${convertedAvg.text} ${convertedAvg.unit}`
-console.log('displayLatest:', displayLatest, 'displayAvg:', displayAvg)
     content = `
       <div class="change-explain-row">
         <span class="change-explain-label">${valueLabel}</span>
