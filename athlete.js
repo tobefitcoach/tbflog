@@ -183,7 +183,17 @@ async function loadAthleteMetrics() {
           const converted = convertValue(latest.height, metric.display_unit)
           latestText = `Height: ${converted.text}${converted.unit} · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
         } else if (metric.type === 'zone2') {
-          latestText = `Score: ${latest.value}`
+          // Get total km this year
+          const currentYear = new Date().getFullYear()
+          const { data: yearData } = await supabase
+            .from('measurements')
+            .select('distance')
+            .eq('athlete_id', athleteId)
+            .eq('metric_id', metric.id)
+            .gte('date', `${currentYear}-01-01`)
+          
+          const totalKm = yearData ? yearData.reduce((sum, m) => sum + (m.distance || 0), 0).toFixed(1) : 0
+          latestText = `Score: ${latest.value} · ${totalKm}km in ${currentYear}`
         } else {
           const converted = convertValue(latest.value, metric.display_unit)
           latestText = `${converted.text} ${converted.unit}`
