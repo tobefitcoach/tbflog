@@ -1202,18 +1202,27 @@ console.log('displayLatest:', displayLatest, 'displayAvg:', displayAvg)
         ${higher ? 'Higher is better for this metric' : 'Lower is better for this metric'}
       </p>
     `
-  } else {
+ } else {
     const latest = parseFloat(el.dataset.latest)
     const avgPrev = parseFloat(el.dataset.avgprev)
     const unit = el.dataset.unit
+    const isPogo = el.dataset.metricType === 'pogo'
+
+    const convertedLatest = isPogo ? { text: latest, unit: '' } : convertValue(latest, unit)
+    const convertedAvg = isPogo ? { text: avgPrev, unit: '' } : convertValue(avgPrev, unit)
+    const displayLatest = `${convertedLatest.text} ${convertedLatest.unit}`.trim()
+    const displayAvg = `${convertedAvg.text} ${convertedAvg.unit}`.trim()
+    const valueLabel = isPogo ? 'RSI Score' : 'Latest entry'
+    const avgLabel = isPogo ? 'Avg RSI of previous 5 entries' : 'Avg of previous 5 entries'
+
     content = `
       <div class="change-explain-row">
-        <span class="change-explain-label">Latest entry</span>
-        <span class="change-explain-value">${latest} ${unit}</span>
+        <span class="change-explain-label">${valueLabel}</span>
+        <span class="change-explain-value">${displayLatest}</span>
       </div>
       <div class="change-explain-row">
-        <span class="change-explain-label">Avg of previous 5 entries</span>
-        <span class="change-explain-value">${avgPrev} ${unit}</span>
+        <span class="change-explain-label">${avgLabel}</span>
+        <span class="change-explain-value">${displayAvg}</span>
       </div>
       <div class="change-explain-result metric-change ${cssClass}">
         ${arrow} ${Math.abs(pct)}% vs previous 5 entries
