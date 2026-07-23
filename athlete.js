@@ -210,22 +210,7 @@ async function loadAthleteMetrics() {
           const converted = convertValue(latest.height, metric.display_unit)
           latestText = `Height: ${converted.text}${converted.unit} · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
         } else if (metric.type === 'zone2') {
-          // Get total km this year
-          const currentYear = new Date().getFullYear()
-          const { data: yearData } = await supabase
-            .from('measurements')
-            .select('distance')
-            .eq('athlete_id', athleteId)
-            .eq('metric_id', metric.id)
-            .gte('date', `${currentYear}-01-01`)
-
-          // Calculate total km run this year and store it on the card element
-          // (dataset = custom data attributes on the HTML element, so we can read
-          // these values later when building the card's HTML below)
-          const totalKm = yearData ? yearData.reduce((sum, m) => sum + (m.distance || 0), 0).toFixed(1) : 0
           latestText = `Score: ${latest.value}`
-          item.dataset.totalKm = totalKm
-          item.dataset.currentYear = currentYear
         } else {
           const converted = convertValue(latest.value, metric.display_unit)
           latestText = `${converted.text} ${converted.unit}`
@@ -293,12 +278,6 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
             <p class="graph-hint">Click to expand</p>
           ` : '<p style="color:#4a4a8e;font-size:12px">Add 2+ measurements to see graph</p>'}
         </div>
-        ${item.dataset.totalKm ? `
-          <div class="metric-footer">
-            <span class="km-stat-label">${item.dataset.currentYear}</span>
-            <span class="km-stat-value">${item.dataset.totalKm} km</span>
-          </div>
-        ` : ''}
       `
 
       grid.appendChild(item)
@@ -687,6 +666,16 @@ async function loadGraphData(months) {
   }
 
   const { data } = await query
+
+  // For Zone 2 metrics, show total km run within the selected time filter above the graph
+  const periodStatEl = document.getElementById('graphPeriodStat')
+  if (currentGraphMetric.type === 'zone2') {
+    const periodLabels = { 1: 'last month', 3: 'last 3 months', 6: 'last 6 months', 12: 'last year', 0: 'all time' }
+    const totalKm = data ? data.reduce((sum, m) => sum + (m.distance || 0), 0).toFixed(1) : '0.0'
+    periodStatEl.textContent = `${totalKm} km run · ${periodLabels[months]}`
+  } else {
+    periodStatEl.textContent = ''
+  }
 
   if (!data || data.length === 0) {
     if (fullChart) { fullChart.destroy(); fullChart = null }

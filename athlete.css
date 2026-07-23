@@ -339,6 +339,14 @@
   color: white;
 }
 
+/* Total km run for the selected time filter (Zone 2 metrics only) */
+.graph-period-stat {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 16px;
+}
+
 /* Main chart canvas area inside the modal */
 .graph-container {
   position: relative;
@@ -580,30 +588,6 @@
 
 .metric-change.neutral {
   color: #aaaacc;
-}
-
-/* Footer row on Zone 2 cards: divider line + total km for the year, right-aligned */
-.metric-footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: baseline;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #2a2a4e;
-}
-
-.km-stat-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #aaaacc;
-}
-
-.km-stat-value {
-  font-size: 13px;
-  font-weight: 600;
-  color: #ffffff;
 }
 
 
