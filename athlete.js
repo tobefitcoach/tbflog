@@ -591,10 +591,12 @@ async function loadStatsBar() {
     }
   }
 
-  // PRs this month: for each tracked metric, compare the best value logged
-  // this month against the best value logged before this month
+  // PRs in the last 30 days: walk each metric's measurements oldest-to-newest,
+  // tracking the running best value. Any entry that beats the running best
+  // counts as a PR - except the very first entry ever logged for a metric,
+  // since it has no earlier value to compare against and can't be a "record".
   const now = new Date()
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   let prCount = 0
 
@@ -602,31 +604,29 @@ async function loadStatsBar() {
     const metric = am.metrics
     if (!metric) continue
 
-    // Get all time measurements for this metric
-    const metricMeasurements = allMeasurements.filter(m => m.metric_id === metric.id)
-    if (metricMeasurements.length < 2) continue
+    // Get all measurements for this metric, oldest first, so we can track the running best
+    const metricMeasurements = allMeasurements
+      .filter(m => m.metric_id === metric.id)
+      .sort((a, b) => a.date.localeCompare(b.date))
 
-    // Get this month's measurements
-    const thisMonthMeasurements = metricMeasurements.filter(m => m.date >= firstOfMonth)
-    if (thisMonthMeasurements.length === 0) continue
-
-    // Get best value before this month
-    const beforeMonth = metricMeasurements.filter(m => m.date < firstOfMonth)
-    if (beforeMonth.length === 0) continue
+    if (metricMeasurements.length < 2) continue // need a baseline entry + at least one challenger
 
     const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
     const higherIsBetter = metric.higher_is_better
 
-    const bestBefore = higherIsBetter
-      ? Math.max(...beforeMonth.map(getValue))
-      : Math.min(...beforeMonth.map(getValue))
+    // First entry is just the baseline - it can never be a PR itself
+    let best = getValue(metricMeasurements[0])
 
-    const bestThisMonth = higherIsBetter
-      ? Math.max(...thisMonthMeasurements.map(getValue))
-      : Math.min(...thisMonthMeasurements.map(getValue))
+    for (let i = 1; i < metricMeasurements.length; i++) {
+      const entry = metricMeasurements[i]
+      const value = getValue(entry)
+      const isNewBest = higherIsBetter ? value > best : value < best
 
-    if (higherIsBetter && bestThisMonth > bestBefore) prCount++
-    if (!higherIsBetter && bestThisMonth < bestBefore) prCount++
+      if (isNewBest) {
+        if (entry.date >= thirtyDaysAgo) prCount++
+        best = value
+      }
+    }
   }
 
   document.getElementById('statPRs').textContent = prCount
