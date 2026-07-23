@@ -844,6 +844,16 @@ document.getElementById('closeLastUpdatedModalBtn').addEventListener('click', fu
   document.getElementById('lastUpdatedModal').classList.remove('active')
 })
 
+// Formats a stored 'YYYY-MM-DD' date string as e.g. "Jul 23, 2026"
+function formatDisplayDate(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Show at most this many of the most recent entries - "recent activity" should
+// stay a quick glance, not the athlete's entire history (that's what the
+// "Total entries" and per-metric "All Entries" views are for)
+const RECENT_ACTIVITY_LIMIT = 20
+
 function renderLastUpdatedModal() {
   const container = document.getElementById('lastUpdatedList')
 
@@ -858,21 +868,38 @@ function renderLastUpdatedModal() {
     if (am.metrics) metricById[am.metrics.id] = am.metrics
   }
 
-  const sorted = [...allMeasurementsCache].sort((a, b) => b.date.localeCompare(a.date))
+  const recent = [...allMeasurementsCache]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, RECENT_ACTIVITY_LIMIT)
+
+  // Group same-day entries together under one date heading, so the date
+  // isn't repeated on every row and same-day entries are easy to see as a batch
+  const byDate = {}
+  const dateOrder = []
+  for (const m of recent) {
+    if (!byDate[m.date]) { byDate[m.date] = []; dateOrder.push(m.date) }
+    byDate[m.date].push(m)
+  }
 
   container.innerHTML = `
-    <ul class="detail-list">
-      ${sorted.map(m => {
-        const metric = metricById[m.metric_id]
-        if (!metric) return ''
-        return `
-          <li class="detail-row">
-            <span>${m.date} — ${metric.name}</span>
-            <span class="detail-row-value">${formatMeasurementValue(metric, m)}</span>
-          </li>
-        `
-      }).join('')}
-    </ul>
+    <p style="color:#aaaacc;font-size:12px;margin-bottom:16px">Showing the ${Math.min(RECENT_ACTIVITY_LIMIT, allMeasurementsCache.length)} most recent entries</p>
+    ${dateOrder.map(date => `
+      <div class="detail-group">
+        <h4 class="detail-group-title">${formatDisplayDate(date)}</h4>
+        <ul class="detail-list">
+          ${byDate[date].map(m => {
+            const metric = metricById[m.metric_id]
+            if (!metric) return ''
+            return `
+              <li class="detail-row">
+                <span>${metric.name}</span>
+                <span class="detail-row-value">${formatMeasurementValue(metric, m)}</span>
+              </li>
+            `
+          }).join('')}
+        </ul>
+      </div>
+    `).join('')}
   `
 }
 
