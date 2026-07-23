@@ -281,17 +281,9 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
             <h4>${metric.name}</h4>
             ${changeHTML}
           </div>
-          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px">
-            <div style="display:flex; align-items:center; gap:8px">
-              <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
-              <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
-            </div>
-            ${item.dataset.totalKm ? `
-              <div class="km-stat">
-                <span class="km-stat-label">${item.dataset.currentYear}</span>
-                <span class="km-stat-value">${item.dataset.totalKm} km</span>
-              </div>
-            ` : ''}
+          <div style="display:flex; align-items:center; gap:8px">
+            <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
+            <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
           </div>
         </div>
         <p class="metric-latest">Latest: ${latestText}</p>
@@ -301,6 +293,12 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
             <p class="graph-hint">Click to expand</p>
           ` : '<p style="color:#4a4a8e;font-size:12px">Add 2+ measurements to see graph</p>'}
         </div>
+        ${item.dataset.totalKm ? `
+          <div class="metric-footer">
+            <span class="km-stat-label">${item.dataset.currentYear}</span>
+            <span class="km-stat-value">${item.dataset.totalKm} km</span>
+          </div>
+        ` : ''}
       `
 
       grid.appendChild(item)

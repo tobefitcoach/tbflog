@@ -582,12 +582,15 @@
   color: #aaaacc;
 }
 
-/* Total km stat on Zone 2 cards: small muted year label stacked above a bold km value */
-.km-stat {
+/* Footer row on Zone 2 cards: divider line + total km for the year, right-aligned */
+.metric-footer {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.2;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #2a2a4e;
 }
 
 .km-stat-label {
