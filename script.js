@@ -39,9 +39,28 @@ async function loadAthletes() {
     athleteGrid.innerHTML = '<p>No athletes yet — add your first one!</p>'
     return
   }
- 
+
+  // Get every athlete's most recent bodyweight entry in one query, so the
+  // card shows what's actually been logged instead of the static weight
+  // set when the athlete was created
+  const { data: bodyweightData } = await supabase
+    .from('bodyweight')
+    .select('athlete_id, weight, date')
+    .order('date', { ascending: false })
+
+  // Since bodyweightData is sorted newest-first, the first entry we see for
+  // each athlete_id is their most recent one
+  const latestWeightByAthlete = {}
+  if (bodyweightData) {
+    for (const entry of bodyweightData) {
+      if (!(entry.athlete_id in latestWeightByAthlete)) {
+        latestWeightByAthlete[entry.athlete_id] = entry.weight
+      }
+    }
+  }
+
   data.forEach(athlete => {
-    createAthleteCard(athlete)
+    createAthleteCard(athlete, latestWeightByAthlete[athlete.id])
   })
 }
  
@@ -51,10 +70,13 @@ async function loadAthletes() {
 //  - clicking the card → go to that athlete's profile page
 //  - the kebab (⋮) menu → toggle a dropdown
 //  - "Delete athlete" in that dropdown → confirm, then delete from DB
+// latestWeight is the athlete's most recent logged bodyweight (in kg), or
+// undefined if they don't have any bodyweight entries yet
 // ==========================================================================
-function createAthleteCard(athlete) {
+function createAthleteCard(athlete, latestWeight) {
   const initials = athlete.name.split(' ').map(word => word[0]).join('').toUpperCase()
- 
+  const weightText = latestWeight ? ` · ${latestWeight}kg` : ''
+
   const card = document.createElement('div')
   card.classList.add('athlete-card')
 card.innerHTML = `
@@ -68,7 +90,7 @@ card.innerHTML = `
       </div>
     </div>
     <h3>${athlete.name}</h3>
-    <p>${athlete.gender} · ${athlete.height}cm · ${athlete.weight}kg</p>
+    <p>${athlete.gender} · ${athlete.height}cm${weightText}</p>
     <p>DOB: ${athlete.date_of_birth}</p>
     <p>0 metrics tracked</p>
   `
