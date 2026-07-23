@@ -971,27 +971,52 @@ async function loadGraphData(months) {
   }
 
   // % change badge next to the title, recalculated for whichever time range
-  // is currently selected: splits the visible data in half and compares the
-  // earlier half's average to the more recent half's average
+  // is currently selected: compares the average of the selected period
+  // (e.g. the last 6 months, already loaded as `data` above) to the average
+  // of the same-length period immediately before it (the 6 months before
+  // that). "All" has no equivalent "previous" period to compare against, so
+  // it falls back to splitting all-time data into an earlier half vs a
+  // recent half instead.
   const changeStatEl = document.getElementById('graphChangeStat')
   const periodBadgeLabels = { 1: '1M', 3: '3M', 6: '6M', 12: '1Y', 0: 'All' }
+  const getValue = m => currentGraphMetric.type === 'pogo' ? m.rsi : m.value
 
-  if (!data || data.length < 2) {
+  let currentPeriodData = data
+  let previousPeriodData = null
+
+  if (months > 0) {
+    const currentStart = new Date()
+    currentStart.setMonth(currentStart.getMonth() - months)
+    const previousStart = new Date()
+    previousStart.setMonth(previousStart.getMonth() - months * 2)
+
+    const { data: prevData } = await supabase
+      .from('measurements')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('metric_id', currentGraphMetric.id)
+      .gte('date', previousStart.toISOString().split('T')[0])
+      .lt('date', currentStart.toISOString().split('T')[0])
+
+    previousPeriodData = prevData
+  } else if (data && data.length >= 2) {
+    const half = Math.floor(data.length / 2)
+    previousPeriodData = data.slice(0, half)
+    currentPeriodData = data.slice(half)
+  }
+
+  if (!currentPeriodData || currentPeriodData.length === 0 || !previousPeriodData || previousPeriodData.length === 0) {
     changeStatEl.innerHTML = ''
   } else {
-    const getValue = m => currentGraphMetric.type === 'pogo' ? m.rsi : m.value
-    const half = Math.floor(data.length / 2)
-    const firstHalf = data.slice(0, half)
-    const secondHalf = data.slice(half)
-    const firstAvg = firstHalf.reduce((sum, m) => sum + getValue(m), 0) / firstHalf.length
-    const secondAvg = secondHalf.reduce((sum, m) => sum + getValue(m), 0) / secondHalf.length
-    const pct = +(((secondAvg - firstAvg) / firstAvg) * 100).toFixed(1)
+    const currentAvg = currentPeriodData.reduce((sum, m) => sum + getValue(m), 0) / currentPeriodData.length
+    const previousAvg = previousPeriodData.reduce((sum, m) => sum + getValue(m), 0) / previousPeriodData.length
+    const pct = +(((currentAvg - previousAvg) / previousAvg) * 100).toFixed(1)
     const higherIsBetter = currentGraphMetric.higher_is_better
     const isPositive = higherIsBetter ? pct > 0 : pct < 0
     const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
     const arrow = pct > 0 ? '▲' : '▼'
 
-    changeStatEl.innerHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="period" data-metric-type="${currentGraphMetric.type}" data-metric-name="${currentGraphMetric.name}" data-period-label="${periodBadgeLabels[months]}" data-first-avg="${firstAvg.toFixed(3)}" data-second-avg="${secondAvg.toFixed(3)}" data-pct="${pct}" data-higher="${higherIsBetter}" data-unit="${currentGraphMetric.display_unit || currentGraphMetric.unit}">${arrow} ${Math.abs(pct)}%</span>`
+    changeStatEl.innerHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="period" data-metric-type="${currentGraphMetric.type}" data-metric-name="${currentGraphMetric.name}" data-period-label="${periodBadgeLabels[months]}" data-first-avg="${previousAvg.toFixed(3)}" data-second-avg="${currentAvg.toFixed(3)}" data-pct="${pct}" data-higher="${higherIsBetter}" data-unit="${currentGraphMetric.display_unit || currentGraphMetric.unit}">${arrow} ${Math.abs(pct)}%</span>`
 
     const badge = changeStatEl.querySelector('.metric-change')
     badge.addEventListener('click', function() { openChangeExplain(badge) })
@@ -1611,32 +1636,40 @@ function openChangeExplain(el) {
       </p>
     `
  } else if (type === 'period') {
-    // Full graph modal breakdown: earlier half vs recent half of whichever
-    // time range is currently selected (1M/3M/6M/1Y/All)
+    // Full graph modal breakdown: for a fixed window (1M/3M/6M/1Y), compares
+    // that period's avg to the same-length period right before it. "All" has
+    // no equivalent "previous" period, so it falls back to an earlier-half
+    // vs recent-half split of the whole history instead.
     const periodLabel = el.dataset.periodLabel
-    const firstAvg = parseFloat(el.dataset.firstAvg)
-    const secondAvg = parseFloat(el.dataset.secondAvg)
+    const isAllTime = periodLabel === 'All'
+    const previousAvg = parseFloat(el.dataset.firstAvg)
+    const currentAvg = parseFloat(el.dataset.secondAvg)
     const unit = el.dataset.unit
     const isPogo = el.dataset.metricType === 'pogo'
     const isZone2 = el.dataset.metricType === 'zone2'
 
     const formatVal = v => isZone2 || isPogo ? v : `${convertValue(v, unit).text} ${convertValue(v, unit).unit}`.trim()
     const valueLabel = isZone2 ? 'score' : isPogo ? 'RSI' : 'value'
+    const previousLabel = isAllTime ? `Earlier half avg ${valueLabel}` : `Previous ${periodLabel} avg ${valueLabel}`
+    const currentLabel = isAllTime ? `Recent half avg ${valueLabel}` : `This ${periodLabel} avg ${valueLabel}`
 
     content = `
       <div class="change-explain-row">
-        <span class="change-explain-label">Earlier half avg ${valueLabel} (${periodLabel})</span>
-        <span class="change-explain-value">${formatVal(firstAvg)}</span>
+        <span class="change-explain-label">${previousLabel}</span>
+        <span class="change-explain-value">${formatVal(previousAvg)}</span>
       </div>
       <div class="change-explain-row">
-        <span class="change-explain-label">Recent half avg ${valueLabel} (${periodLabel})</span>
-        <span class="change-explain-value">${formatVal(secondAvg)}</span>
+        <span class="change-explain-label">${currentLabel}</span>
+        <span class="change-explain-value">${formatVal(currentAvg)}</span>
       </div>
       <div class="change-explain-result metric-change ${cssClass}">
         ${arrow} ${Math.abs(pct)}% within the ${periodLabel} view
       </div>
       <p style="color:#aaaacc; font-size:12px; margin-top:12px; text-align:center">
-        Compares the earlier half of the selected time range to the more recent half. Change the time filter above to see a different range.
+        ${isAllTime
+          ? 'All time has no earlier equivalent period, so this compares the earlier half of the athlete’s history to the more recent half.'
+          : `Compares the selected ${periodLabel} period to the ${periodLabel} right before it.`}
+        Change the time filter above to see a different range.
         ${higher ? ' Higher is better for this metric.' : ' Lower is better for this metric.'}
       </p>
     `
