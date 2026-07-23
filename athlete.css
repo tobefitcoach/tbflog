@@ -101,7 +101,8 @@
     padding: 0 0 24px 0;
   }
 
-  .profile-right {
+  .profile-right,
+  .profile-notes {
     max-width: 100%;
     width: 100%;
   }
@@ -633,21 +634,19 @@
 
 /* ==========================================================================
    ATHLETE NOTES
-   Freeform notes card on the athlete profile (injury history, coaching
-   cues, general observations) - a single text block, not a dated log
+   Freeform notes area in the middle column of the profile header, between
+   the avatar/info on the left and the bodyweight graph on the right - a
+   single text block, not a dated log
    ========================================================================== */
 
-.notes-section {
-  background-color: #1a1a2e;
-  border: 1px solid #2a2a4e;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 32px;
+.profile-notes {
+  flex: 1;
+  max-width: 300px;
 }
 
 .notes-textarea {
   width: 100%;
-  min-height: 120px;
+  min-height: 80px;
   padding: 10px 14px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;

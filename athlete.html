@@ -20,7 +20,7 @@
     <div class="profile">
 
       <!-- Profile header card: avatar, name/details, edit/log-weight buttons,
-           and the bodyweight mini-graph on the right -->
+           freeform notes in the middle, and the bodyweight mini-graph on the right -->
       <div class="profile-header">
         <div class="profile-left">
           <div class="profile-initials" id="profileInitials"></div>
@@ -32,6 +32,20 @@
               <button class="btn-profile-action" id="addBodyweightBtn">⚖ Log weight</button>
             </div>
           </div>
+        </div>
+        <!-- Athlete Notes: freeform notes for injury history, coaching cues,
+             general observations, etc. Saved to athletes.notes in Supabase -->
+        <div class="profile-notes">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <p class="bodyweight-label">Notes</p>
+            <span class="notes-saved-label" id="notesSavedLabel"></span>
+          </div>
+          <textarea
+            id="athleteNotes"
+            class="notes-textarea"
+            placeholder="Injury history, coaching cues, observations..."
+          ></textarea>
+          <button class="btn-profile-action" id="saveNotesBtn" style="margin-top:8px">Save Notes</button>
         </div>
         <div class="profile-right">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
@@ -68,23 +82,6 @@
         <div class="stat-item stat-item-clickable" id="statPRsCard">
           <span class="stat-value" id="statPRs">—</span>
           <span class="stat-label">PRs (last 30 days)</span>
-        </div>
-      </div>
-
-      <!-- Athlete Notes: freeform notes area for injury history, coaching
-           cues, general observations, etc. Saved to athletes.notes in Supabase -->
-      <div class="notes-section">
-        <div class="metrics-header">
-          <h3>Notes</h3>
-          <span class="notes-saved-label" id="notesSavedLabel"></span>
-        </div>
-        <textarea
-          id="athleteNotes"
-          class="notes-textarea"
-          placeholder="Add notes about this athlete — injury history, coaching cues, general observations..."
-        ></textarea>
-        <div class="form-actions">
-          <button class="btn-save" id="saveNotesBtn">Save Notes</button>
         </div>
       </div>
 
