@@ -837,6 +837,7 @@ function renderTotalEntriesModal() {
 // ==========================================================================
 document.getElementById('statLastUpdatedCard').addEventListener('click', function() {
   document.getElementById('lastUpdatedModal').classList.add('active')
+  recentActivityPage = 0 // always start back at the newest entries when reopening
   renderLastUpdatedModal()
 })
 
@@ -849,10 +850,9 @@ function formatDisplayDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// Show at most this many of the most recent entries - "recent activity" should
-// stay a quick glance, not the athlete's entire history (that's what the
-// "Total entries" and per-metric "All Entries" views are for)
-const RECENT_ACTIVITY_LIMIT = 20
+// How many entries per page (21-40, 41-60, etc), and which page we're currently on
+const RECENT_ACTIVITY_PAGE_SIZE = 20
+let recentActivityPage = 0
 
 function renderLastUpdatedModal() {
   const container = document.getElementById('lastUpdatedList')
@@ -868,21 +868,24 @@ function renderLastUpdatedModal() {
     if (am.metrics) metricById[am.metrics.id] = am.metrics
   }
 
-  const recent = [...allMeasurementsCache]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, RECENT_ACTIVITY_LIMIT)
+  const sorted = [...allMeasurementsCache].sort((a, b) => b.date.localeCompare(a.date))
+
+  const start = recentActivityPage * RECENT_ACTIVITY_PAGE_SIZE
+  const end = start + RECENT_ACTIVITY_PAGE_SIZE
+  const pageEntries = sorted.slice(start, end)
+  const hasPrev = recentActivityPage > 0
+  const hasNext = end < sorted.length
 
   // Group same-day entries together under one date heading, so the date
   // isn't repeated on every row and same-day entries are easy to see as a batch
   const byDate = {}
   const dateOrder = []
-  for (const m of recent) {
+  for (const m of pageEntries) {
     if (!byDate[m.date]) { byDate[m.date] = []; dateOrder.push(m.date) }
     byDate[m.date].push(m)
   }
 
   container.innerHTML = `
-    <p style="color:#aaaacc;font-size:12px;margin-bottom:16px">Showing the ${Math.min(RECENT_ACTIVITY_LIMIT, allMeasurementsCache.length)} most recent entries</p>
     ${dateOrder.map(date => `
       <div class="detail-group">
         <h4 class="detail-group-title">${formatDisplayDate(date)}</h4>
@@ -900,7 +903,26 @@ function renderLastUpdatedModal() {
         </ul>
       </div>
     `).join('')}
+    <div class="pagination-row">
+      ${hasPrev ? '<button class="pagination-btn" id="prevActivityBtn">← Previous</button>' : '<span></span>'}
+      <span class="pagination-label">${start + 1}–${Math.min(end, sorted.length)} of ${sorted.length}</span>
+      ${hasNext ? '<button class="pagination-btn" id="nextActivityBtn">Next →</button>' : '<span></span>'}
+    </div>
   `
+
+  if (hasPrev) {
+    document.getElementById('prevActivityBtn').addEventListener('click', function() {
+      recentActivityPage--
+      renderLastUpdatedModal()
+    })
+  }
+
+  if (hasNext) {
+    document.getElementById('nextActivityBtn').addEventListener('click', function() {
+      recentActivityPage++
+      renderLastUpdatedModal()
+    })
+  }
 }
 
 // ==========================================================================

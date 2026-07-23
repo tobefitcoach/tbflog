@@ -546,6 +546,37 @@
   font-weight: 600;
 }
 
+/* --- Pagination controls at the bottom of the "Last updated" detail modal --- */
+.pagination-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #2a2a4e;
+}
+
+.pagination-btn {
+  background-color: transparent;
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover {
+  border-color: #4a4a8e;
+  color: white;
+}
+
+.pagination-label {
+  font-size: 12px;
+  color: #aaaacc;
+}
+
 
 /* ==========================================================================
    STATS BAR
