@@ -582,15 +582,25 @@
   color: #aaaacc;
 }
 
-/* Small pill badge showing total km run this year on Zone 2 cards */
-.km-badge {
-  font-size: 11px;
+/* Total km stat on Zone 2 cards: small muted year label stacked above a bold km value */
+.km-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.km-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: #aaaacc;
-  background-color: #2a2a4e;
-  border: 1px solid #4a4a8e;
-  border-radius: 12px;
-  padding: 2px 8px;
-  white-space: nowrap;
+}
+
+.km-stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
 }
 
 

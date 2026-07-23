@@ -281,8 +281,13 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
             <h4>${metric.name}</h4>
             ${changeHTML}
           </div>
-          <div style="display:flex; align-items:center; gap:8px">
-            ${item.dataset.totalKm ? `<span class="km-badge">${item.dataset.totalKm}km in ${item.dataset.currentYear}</span>` : ''}
+          <div style="display:flex; align-items:center; gap:12px">
+            ${item.dataset.totalKm ? `
+              <div class="km-stat">
+                <span class="km-stat-label">${item.dataset.currentYear}</span>
+                <span class="km-stat-value">${item.dataset.totalKm} km</span>
+              </div>
+            ` : ''}
             <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
             <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
           </div>
