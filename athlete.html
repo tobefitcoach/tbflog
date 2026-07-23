@@ -395,7 +395,9 @@
         </div>
       </div>
     </div>
-    <!-- Edit Athlete Info Modal: update name, DOB, gender, height, weight -->
+    <!-- Edit Athlete Info Modal: update name, DOB, gender, height.
+         Weight is intentionally NOT editable here - it's tracked via the
+         separate Bodyweight feature (dated entries, see loadBodyweightGraph) -->
     <div class="modal-overlay" id="editAthleteModal">
       <div class="modal">
         <div class="graph-modal-header">
@@ -421,10 +423,6 @@
         <div class="form-group">
           <label>Height (cm)</label>
           <input type="number" id="editAthleteHeight" />
-        </div>
-        <div class="form-group">
-          <label>Weight (kg)</label>
-          <input type="number" id="editAthleteWeight" />
         </div>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelEditAthleteBtn">Cancel</button>

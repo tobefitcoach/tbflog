@@ -59,7 +59,6 @@ document.getElementById('profileDetails').textContent =
     document.getElementById('editAthleteDOB').value = data.date_of_birth
     document.getElementById('editAthleteGender').value = data.gender
     document.getElementById('editAthleteHeight').value = data.height
-    document.getElementById('editAthleteWeight').value = data.weight
     document.getElementById('editAthleteModal').classList.add('active')
   })
 
@@ -1296,7 +1295,8 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
 })
 // ==========================================================================
 // ---- EDIT ATHLETE INFO ----
-// Saves changes made in the "edit athlete" modal (name, DOB, gender, height, weight).
+// Saves changes made in the "edit athlete" modal (name, DOB, gender, height).
+// Weight is not edited here - see the Bodyweight feature for that.
 // ==========================================================================
 document.getElementById('closeEditAthleteBtn').addEventListener('click', function() {
   document.getElementById('editAthleteModal').classList.remove('active')
@@ -1311,13 +1311,12 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   const dob = document.getElementById('editAthleteDOB').value
   const gender = document.getElementById('editAthleteGender').value
   const height = parseInt(document.getElementById('editAthleteHeight').value)
-  const weight = parseInt(document.getElementById('editAthleteWeight').value)
 
   if (!name) { alert('Please enter a name'); return }
 
   const { error } = await supabase
     .from('athletes')
-    .update({ name, date_of_birth: dob, gender, height, weight })
+    .update({ name, date_of_birth: dob, gender, height })
     .eq('id', athleteId)
 
   if (error) { console.log(error); alert('Something went wrong'); return }
