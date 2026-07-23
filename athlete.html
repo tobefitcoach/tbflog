@@ -233,7 +233,11 @@
     <div class="modal-overlay" id="graphModal">
       <div class="modal graph-modal">
         <div class="graph-modal-header">
-          <h2 id="graphModalTitle">Progress</h2>
+          <div style="display:flex; align-items:center; gap:10px">
+            <h2 id="graphModalTitle">Progress</h2>
+            <!-- % change badge for whichever time range is currently selected below -->
+            <span id="graphChangeStat"></span>
+          </div>
           <button class="btn-cancel" id="closeGraphBtn">✕</button>
         </div>
         <div class="graph-time-filters">

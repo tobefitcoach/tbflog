@@ -970,6 +970,33 @@ async function loadGraphData(months) {
     periodStatEl.textContent = ''
   }
 
+  // % change badge next to the title, recalculated for whichever time range
+  // is currently selected: splits the visible data in half and compares the
+  // earlier half's average to the more recent half's average
+  const changeStatEl = document.getElementById('graphChangeStat')
+  const periodBadgeLabels = { 1: '1M', 3: '3M', 6: '6M', 12: '1Y', 0: 'All' }
+
+  if (!data || data.length < 2) {
+    changeStatEl.innerHTML = ''
+  } else {
+    const getValue = m => currentGraphMetric.type === 'pogo' ? m.rsi : m.value
+    const half = Math.floor(data.length / 2)
+    const firstHalf = data.slice(0, half)
+    const secondHalf = data.slice(half)
+    const firstAvg = firstHalf.reduce((sum, m) => sum + getValue(m), 0) / firstHalf.length
+    const secondAvg = secondHalf.reduce((sum, m) => sum + getValue(m), 0) / secondHalf.length
+    const pct = +(((secondAvg - firstAvg) / firstAvg) * 100).toFixed(1)
+    const higherIsBetter = currentGraphMetric.higher_is_better
+    const isPositive = higherIsBetter ? pct > 0 : pct < 0
+    const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
+    const arrow = pct > 0 ? '▲' : '▼'
+
+    changeStatEl.innerHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="period" data-metric-type="${currentGraphMetric.type}" data-metric-name="${currentGraphMetric.name}" data-period-label="${periodBadgeLabels[months]}" data-first-avg="${firstAvg.toFixed(3)}" data-second-avg="${secondAvg.toFixed(3)}" data-pct="${pct}" data-higher="${higherIsBetter}" data-unit="${currentGraphMetric.display_unit || currentGraphMetric.unit}">${arrow} ${Math.abs(pct)}%</span>`
+
+    const badge = changeStatEl.querySelector('.metric-change')
+    badge.addEventListener('click', function() { openChangeExplain(badge) })
+  }
+
   if (!data || data.length === 0) {
     if (fullChart) { fullChart.destroy(); fullChart = null }
     return
@@ -1583,7 +1610,37 @@ function openChangeExplain(el) {
         Score = 1000 ÷ (pace × BPM) — higher is better
       </p>
     `
- } else {
+ } else if (type === 'period') {
+    // Full graph modal breakdown: earlier half vs recent half of whichever
+    // time range is currently selected (1M/3M/6M/1Y/All)
+    const periodLabel = el.dataset.periodLabel
+    const firstAvg = parseFloat(el.dataset.firstAvg)
+    const secondAvg = parseFloat(el.dataset.secondAvg)
+    const unit = el.dataset.unit
+    const isPogo = el.dataset.metricType === 'pogo'
+    const isZone2 = el.dataset.metricType === 'zone2'
+
+    const formatVal = v => isZone2 || isPogo ? v : `${convertValue(v, unit).text} ${convertValue(v, unit).unit}`.trim()
+    const valueLabel = isZone2 ? 'score' : isPogo ? 'RSI' : 'value'
+
+    content = `
+      <div class="change-explain-row">
+        <span class="change-explain-label">Earlier half avg ${valueLabel} (${periodLabel})</span>
+        <span class="change-explain-value">${formatVal(firstAvg)}</span>
+      </div>
+      <div class="change-explain-row">
+        <span class="change-explain-label">Recent half avg ${valueLabel} (${periodLabel})</span>
+        <span class="change-explain-value">${formatVal(secondAvg)}</span>
+      </div>
+      <div class="change-explain-result metric-change ${cssClass}">
+        ${arrow} ${Math.abs(pct)}% within the ${periodLabel} view
+      </div>
+      <p style="color:#aaaacc; font-size:12px; margin-top:12px; text-align:center">
+        Compares the earlier half of the selected time range to the more recent half. Change the time filter above to see a different range.
+        ${higher ? ' Higher is better for this metric.' : ' Lower is better for this metric.'}
+      </p>
+    `
+  } else {
     // Simple/pogo breakdown: latest entry vs avg of previous 5 entries
     const latest = parseFloat(el.dataset.latest)
     const avgPrev = parseFloat(el.dataset.avgprev)
