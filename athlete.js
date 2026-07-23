@@ -219,8 +219,13 @@ async function loadAthleteMetrics() {
             .eq('metric_id', metric.id)
             .gte('date', `${currentYear}-01-01`)
 
+          // Calculate total km run this year and store it on the card element
+          // (dataset = custom data attributes on the HTML element, so we can read
+          // these values later when building the card's HTML below)
           const totalKm = yearData ? yearData.reduce((sum, m) => sum + (m.distance || 0), 0).toFixed(1) : 0
-          latestText = `Score: ${latest.value} · ${totalKm}km in ${currentYear}`
+          latestText = `Score: ${latest.value}`
+          item.dataset.totalKm = totalKm
+          item.dataset.currentYear = currentYear
         } else {
           const converted = convertValue(latest.value, metric.display_unit)
           latestText = `${converted.text} ${converted.unit}`
@@ -276,7 +281,8 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
             <h4>${metric.name}</h4>
             ${changeHTML}
           </div>
-          <div style="display:flex; gap:8px">
+          <div style="display:flex; align-items:center; gap:8px">
+            ${item.dataset.totalKm ? `<span class="km-badge">${item.dataset.totalKm}km in ${item.dataset.currentYear}</span>` : ''}
             <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
             <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
           </div>

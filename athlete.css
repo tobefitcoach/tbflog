@@ -582,6 +582,17 @@
   color: #aaaacc;
 }
 
+/* Small pill badge showing total km run this year on Zone 2 cards */
+.km-badge {
+  font-size: 11px;
+  color: #aaaacc;
+  background-color: #2a2a4e;
+  border: 1px solid #4a4a8e;
+  border-radius: 12px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 
 /* ==========================================================================
    "EXPLAIN CHANGE" BREAKDOWN
