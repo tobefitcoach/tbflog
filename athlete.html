@@ -53,15 +53,15 @@
 
       <!-- Summary stats row: metrics tracked, total entries, last updated, PRs this month -->
       <div class="stats-bar" id="statsBar">
-        <div class="stat-item">
+        <div class="stat-item stat-item-clickable" id="statMetricsCard">
           <span class="stat-value" id="statMetrics">—</span>
           <span class="stat-label">Metrics tracked</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item stat-item-clickable" id="statEntriesCard">
           <span class="stat-value" id="statEntries">—</span>
           <span class="stat-label">Total entries</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item stat-item-clickable" id="statLastUpdatedCard">
           <span class="stat-value" id="statLastUpdated">—</span>
           <span class="stat-label">Last updated</span>
         </div>
@@ -274,6 +274,48 @@
         </div>
         <div class="entries-modal-body">
           <div id="prList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrics Tracked Modal: opened by clicking the "Metrics tracked" stat.
+         Lists every metric currently assigned to this athlete, grouped by category -->
+    <div class="modal-overlay" id="metricsTrackedModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Metrics Tracked</h2>
+          <button class="btn-cancel" id="closeMetricsTrackedModalBtn">✕</button>
+        </div>
+        <div class="entries-modal-body">
+          <div id="metricsTrackedList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Entries Modal: opened by clicking the "Total entries" stat.
+         Shows how many measurements are logged per metric, grouped by category -->
+    <div class="modal-overlay" id="totalEntriesModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Total Entries</h2>
+          <button class="btn-cancel" id="closeTotalEntriesModalBtn">✕</button>
+        </div>
+        <div class="entries-modal-body">
+          <div id="totalEntriesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Last Updated Modal: opened by clicking the "Last updated" stat.
+         Reverse-chronological feed of the most recently logged entries -->
+    <div class="modal-overlay" id="lastUpdatedModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Recent Activity</h2>
+          <button class="btn-cancel" id="closeLastUpdatedModalBtn">✕</button>
+        </div>
+        <div class="entries-modal-body">
+          <div id="lastUpdatedList"></div>
         </div>
       </div>
     </div>

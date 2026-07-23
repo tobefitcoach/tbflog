@@ -505,28 +505,29 @@
   overflow-y: auto;
 }
 
-/* --- PR overview modal: category groups (reuses .category-title), each
-   containing one block per metric, each metric's PRs listed chronologically --- */
-.pr-category {
+/* --- Shared layout for the 4 stats-bar detail modals (PRs, Metrics tracked,
+   Total entries, Last updated): category groups (reuse .category-title),
+   each containing one block per metric with a list of label/value rows --- */
+.detail-category {
   margin-bottom: 28px;
 }
 
-.pr-metric-group {
+.detail-group {
   margin-bottom: 18px;
 }
 
-.pr-metric-title {
+.detail-group-title {
   font-size: 15px;
   color: #ffffff;
   margin-bottom: 8px;
 }
 
-.pr-entry-list {
+.detail-list {
   list-style: none;
   padding-left: 4px;
 }
 
-.pr-entry {
+.detail-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -536,11 +537,11 @@
   border-bottom: 1px solid #2a2a4e;
 }
 
-.pr-entry:last-child {
+.detail-row:last-child {
   border-bottom: none;
 }
 
-.pr-entry-value {
+.detail-row-value {
   color: #ffffff;
   font-weight: 600;
 }

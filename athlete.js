@@ -16,6 +16,7 @@ let currentMetric = null
 let allMetrics = []
 let athleteMetrics = []
 let prEvents = [] // PRs broken in the last 30 days, filled in by loadStatsBar, read by the PR overview modal
+let allMeasurementsCache = [] // every measurement for this athlete, filled in by loadStatsBar, read by the stats-bar detail modals
 
 // Load everything when page opens
 loadAthlete()
@@ -572,6 +573,8 @@ async function loadStatsBar() {
 
   if (!allMeasurements) return
 
+  allMeasurementsCache = allMeasurements // so the stats-bar detail modals can reuse this without re-querying
+
   // Total entries
   document.getElementById('statEntries').textContent = allMeasurements.length
 
@@ -655,7 +658,7 @@ document.getElementById('closePRModalBtn').addEventListener('click', function() 
 })
 
 // Same value-formatting rules used by the "All Entries" table, per metric type
-function formatPRValue(metric, entry) {
+function formatMeasurementValue(metric, entry) {
   if (metric.type === 'pogo') {
     const converted = convertValue(entry.height, metric.display_unit)
     return `RSI ${entry.rsi} (H: ${converted.text}${converted.unit}, GCT: ${entry.ground_contact}ms)`
@@ -665,6 +668,21 @@ function formatPRValue(metric, entry) {
     const converted = convertValue(entry.value, metric.display_unit)
     return `${converted.text} ${converted.unit}`
   }
+}
+
+// Shared category order for all "grouped by category" detail modals -
+// known categories first in this fixed order, anything unrecognized
+// falls back to the end, alphabetically
+function sortCategories(categoryNames) {
+  const categoryOrder = ['Jumps', 'Sprints', 'Strength', 'Cardio']
+  return categoryNames.sort((a, b) => {
+    const ai = categoryOrder.indexOf(a)
+    const bi = categoryOrder.indexOf(b)
+    if (ai === -1 && bi === -1) return a.localeCompare(b)
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
 }
 
 function renderPRModal() {
@@ -685,32 +703,22 @@ function renderPRModal() {
     byCategory[category][metricName].push(ev)
   }
 
-  // Show known categories in the same fixed order used everywhere else in the app;
-  // anything unrecognized falls back to the end, alphabetically
-  const categoryOrder = ['Jumps', 'Sprints', 'Strength', 'Cardio']
-  const categories = Object.keys(byCategory).sort((a, b) => {
-    const ai = categoryOrder.indexOf(a)
-    const bi = categoryOrder.indexOf(b)
-    if (ai === -1 && bi === -1) return a.localeCompare(b)
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
+  const categories = sortCategories(Object.keys(byCategory))
 
   container.innerHTML = categories.map(category => `
-    <div class="pr-category">
+    <div class="detail-category">
       <h3 class="category-title">${category}</h3>
       ${Object.keys(byCategory[category]).sort().map(metricName => {
         // Chronological (oldest first) so multiple PRs on the same metric show progression
         const events = byCategory[category][metricName].sort((a, b) => a.entry.date.localeCompare(b.entry.date))
         return `
-          <div class="pr-metric-group">
-            <h4 class="pr-metric-title">${metricName}</h4>
-            <ul class="pr-entry-list">
+          <div class="detail-group">
+            <h4 class="detail-group-title">${metricName}</h4>
+            <ul class="detail-list">
               ${events.map(ev => `
-                <li class="pr-entry">
-                  <span class="pr-entry-date">${ev.entry.date}</span>
-                  <span class="pr-entry-value">${formatPRValue(ev.metric, ev.entry)}</span>
+                <li class="detail-row">
+                  <span>${ev.entry.date}</span>
+                  <span class="detail-row-value">${formatMeasurementValue(ev.metric, ev.entry)}</span>
                 </li>
               `).join('')}
             </ul>
@@ -719,6 +727,153 @@ function renderPRModal() {
       }).join('')}
     </div>
   `).join('')
+}
+
+// ==========================================================================
+// ---- METRICS TRACKED MODAL ----
+// Opened by clicking the "Metrics tracked" stat tile. Lists every metric
+// currently assigned to this athlete, grouped by category.
+// ==========================================================================
+document.getElementById('statMetricsCard').addEventListener('click', function() {
+  document.getElementById('metricsTrackedModal').classList.add('active')
+  renderMetricsTrackedModal()
+})
+
+document.getElementById('closeMetricsTrackedModalBtn').addEventListener('click', function() {
+  document.getElementById('metricsTrackedModal').classList.remove('active')
+})
+
+function renderMetricsTrackedModal() {
+  const container = document.getElementById('metricsTrackedList')
+
+  if (athleteMetrics.length === 0) {
+    container.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No metrics tracked yet</p>'
+    return
+  }
+
+  // Group tracked metrics by category
+  const byCategory = {}
+  for (const am of athleteMetrics) {
+    const metric = am.metrics
+    if (!metric) continue
+    const category = metric.category || 'Other'
+    if (!byCategory[category]) byCategory[category] = []
+    byCategory[category].push(metric)
+  }
+
+  const categoryTypeLabels = { simple: 'Simple', pogo: 'Pogo', zone2: 'Zone 2' }
+  const categories = sortCategories(Object.keys(byCategory))
+
+  container.innerHTML = categories.map(category => `
+    <div class="detail-category">
+      <h3 class="category-title">${category}</h3>
+      <ul class="detail-list">
+        ${byCategory[category].sort((a, b) => a.name.localeCompare(b.name)).map(metric => `
+          <li class="detail-row">
+            <span>${metric.name}</span>
+            <span class="detail-row-value">${categoryTypeLabels[metric.type] || metric.type}</span>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  `).join('')
+}
+
+// ==========================================================================
+// ---- TOTAL ENTRIES MODAL ----
+// Opened by clicking the "Total entries" stat tile. Shows how many
+// measurements are logged per metric, grouped by category.
+// ==========================================================================
+document.getElementById('statEntriesCard').addEventListener('click', function() {
+  document.getElementById('totalEntriesModal').classList.add('active')
+  renderTotalEntriesModal()
+})
+
+document.getElementById('closeTotalEntriesModalBtn').addEventListener('click', function() {
+  document.getElementById('totalEntriesModal').classList.remove('active')
+})
+
+function renderTotalEntriesModal() {
+  const container = document.getElementById('totalEntriesList')
+
+  if (allMeasurementsCache.length === 0) {
+    container.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No entries logged yet</p>'
+    return
+  }
+
+  // Count entries per metric, grouped by category (skip metrics with 0 entries)
+  const byCategory = {}
+  for (const am of athleteMetrics) {
+    const metric = am.metrics
+    if (!metric) continue
+    const count = allMeasurementsCache.filter(m => m.metric_id === metric.id).length
+    if (count === 0) continue
+    const category = metric.category || 'Other'
+    if (!byCategory[category]) byCategory[category] = []
+    byCategory[category].push({ metric, count })
+  }
+
+  const categories = sortCategories(Object.keys(byCategory))
+
+  container.innerHTML = categories.map(category => `
+    <div class="detail-category">
+      <h3 class="category-title">${category}</h3>
+      <ul class="detail-list">
+        ${byCategory[category].sort((a, b) => a.metric.name.localeCompare(b.metric.name)).map(({ metric, count }) => `
+          <li class="detail-row">
+            <span>${metric.name}</span>
+            <span class="detail-row-value">${count} ${count === 1 ? 'entry' : 'entries'}</span>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  `).join('')
+}
+
+// ==========================================================================
+// ---- LAST UPDATED / RECENT ACTIVITY MODAL ----
+// Opened by clicking the "Last updated" stat tile. Reverse-chronological
+// feed of every entry logged, newest first, across all metrics.
+// ==========================================================================
+document.getElementById('statLastUpdatedCard').addEventListener('click', function() {
+  document.getElementById('lastUpdatedModal').classList.add('active')
+  renderLastUpdatedModal()
+})
+
+document.getElementById('closeLastUpdatedModalBtn').addEventListener('click', function() {
+  document.getElementById('lastUpdatedModal').classList.remove('active')
+})
+
+function renderLastUpdatedModal() {
+  const container = document.getElementById('lastUpdatedList')
+
+  if (allMeasurementsCache.length === 0) {
+    container.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No entries logged yet</p>'
+    return
+  }
+
+  // Map metric_id -> metric so each measurement can show its metric's name and formatted value
+  const metricById = {}
+  for (const am of athleteMetrics) {
+    if (am.metrics) metricById[am.metrics.id] = am.metrics
+  }
+
+  const sorted = [...allMeasurementsCache].sort((a, b) => b.date.localeCompare(a.date))
+
+  container.innerHTML = `
+    <ul class="detail-list">
+      ${sorted.map(m => {
+        const metric = metricById[m.metric_id]
+        if (!metric) return ''
+        return `
+          <li class="detail-row">
+            <span>${m.date} — ${metric.name}</span>
+            <span class="detail-row-value">${formatMeasurementValue(metric, m)}</span>
+          </li>
+        `
+      }).join('')}
+    </ul>
+  `
 }
 
 // ==========================================================================
