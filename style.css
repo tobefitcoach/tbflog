@@ -1,15 +1,25 @@
+/* ==========================================================================
+   GLOBAL RESET + BASE STYLES
+   ========================================================================== */
+ 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
   font-family: Arial, sans-serif;
 }
-
+ 
 body {
   background-color: #0f0f1a;
   color: #ffffff;
 }
-
+ 
+ 
+/* ==========================================================================
+   TOP HEADER
+   Site title bar shown at the top of every page
+   ========================================================================== */
+ 
 header {
   background-color: #1a1a2e;
   color: white;
@@ -19,28 +29,34 @@ header {
   align-items: center;
   border-bottom: 1px solid #2a2a4e;
 }
-
+ 
 header h1 {
   font-size: 24px;
   letter-spacing: 2px;
 }
-
+ 
+ 
+/* ==========================================================================
+   DASHBOARD / ATHLETE GRID
+   Main index page: list of athlete cards
+   ========================================================================== */
+ 
 .dashboard {
   padding: 40px;
 }
-
+ 
 .dashboard h2 {
   margin-bottom: 24px;
   font-size: 20px;
   color: #ffffff;
 }
-
+ 
 .athlete-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 20px;
 }
-
+ 
 .athlete-card {
   background-color: #1a1a2e;
   border-radius: 12px;
@@ -50,23 +66,24 @@ header h1 {
   transition: transform 0.2s;
   border: 1px solid #2a2a4e;
 }
-
+ 
 .athlete-card:hover {
   transform: translateY(-4px);
   border-color: #4a4a8e;
 }
-
+ 
 .athlete-card h3 {
   font-size: 16px;
   margin-bottom: 8px;
   color: #ffffff;
 }
-
+ 
 .athlete-card p {
   font-size: 13px;
   color: #aaaacc;
 }
-
+ 
+/* Circular avatar with initials, used on athlete cards */
 .athlete-initials {
   width: 48px;
   height: 48px;
@@ -80,14 +97,15 @@ header h1 {
   font-size: 16px;
   margin-bottom: 16px;
 }
-
+ 
+/* Row above the grid: "Athletes" title + "+ Add Athlete" button */
 .dashboard-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
 }
-
+ 
 .btn-add {
   background-color: #4a4a8e;
   color: white;
@@ -98,11 +116,17 @@ header h1 {
   cursor: pointer;
   transition: background-color 0.2s;
 }
-
+ 
 .btn-add:hover {
   background-color: #5a5aae;
 }
-
+ 
+ 
+/* ==========================================================================
+   MODAL (SHARED)
+   Generic popup overlay + box used for "Add Athlete" and other forms
+   ========================================================================== */
+ 
 .modal-overlay {
   display: none;
   position: fixed;
@@ -115,11 +139,12 @@ header h1 {
   align-items: center;
   z-index: 1000;
 }
-
+ 
+/* Shown when JS adds the "active" class to open the modal */
 .modal-overlay.active {
   display: flex;
 }
-
+ 
 .modal {
   background-color: #1a1a2e;
   border-radius: 12px;
@@ -128,23 +153,25 @@ header h1 {
   max-width: 480px;
   border: 1px solid #2a2a4e;
 }
-
+ 
 .modal h2 {
   margin-bottom: 24px;
   color: #ffffff;
 }
-
+ 
+ 
+/* --- Form fields used inside modals --- */
 .form-group {
   margin-bottom: 16px;
 }
-
+ 
 .form-group label {
   display: block;
   font-size: 13px;
   color: #aaaacc;
   margin-bottom: 6px;
 }
-
+ 
 .form-group input,
 .form-group select {
   width: 100%;
@@ -155,14 +182,16 @@ header h1 {
   color: #ffffff;
   background-color: #0f0f1a;
 }
-
+ 
+ 
+/* --- Cancel / Save buttons at the bottom of a modal --- */
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
 }
-
+ 
 .btn-cancel {
   background-color: transparent;
   border: 1px solid #2a2a4e;
@@ -172,7 +201,7 @@ header h1 {
   font-size: 14px;
   color: #aaaacc;
 }
-
+ 
 .btn-save {
   background-color: #4a4a8e;
   color: white;
@@ -182,25 +211,33 @@ header h1 {
   cursor: pointer;
   font-size: 14px;
 }
-
+ 
 .btn-save:hover {
   background-color: #5a5aae;
 }
+ 
+ 
+/* ==========================================================================
+   ATHLETE CARD — KEBAB (⋮) MENU
+   Top-right corner of each athlete card: a "⋮" button that opens a small
+   dropdown with a "Delete athlete" option
+   ========================================================================== */
+ 
 .card-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 16px;
 }
-
+ 
 .athlete-card .athlete-initials {
   margin-bottom: 0;
 }
-
+ 
 .kebab-menu {
   position: relative;
 }
-
+ 
 .kebab-btn {
   background: transparent;
   border: none;
@@ -210,11 +247,12 @@ header h1 {
   padding: 0 4px;
   line-height: 1;
 }
-
+ 
 .kebab-btn:hover {
   color: white;
 }
-
+ 
+/* The dropdown itself, hidden until .active is toggled on by JS */
 .kebab-dropdown {
   display: none;
   position: absolute;
@@ -227,11 +265,11 @@ header h1 {
   z-index: 100;
   min-width: 160px;
 }
-
+ 
 .kebab-dropdown.active {
   display: block;
 }
-
+ 
 .kebab-delete {
   background: transparent;
   border: none;
@@ -243,8 +281,9 @@ header h1 {
   text-align: left;
   border-radius: 6px;
 }
-
+ 
 .kebab-delete:hover {
   background-color: #ff4444;
   color: white;
 }
+ 

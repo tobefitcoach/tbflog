@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- Page metadata + stylesheet -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
@@ -8,11 +9,18 @@
   </head>
   <body>
 
+    <!-- Top header bar -->
     <header>
       <h1>TBFLOG</h1>
       <p>Coach Dashboard</p>
     </header>
 
+    <!-- ======================================================================
+         DASHBOARD — Athlete grid
+         script.js clears out .athlete-grid on page load and re-renders one
+         card per athlete from the database, so the 4 cards below are just
+         placeholder/example markup and get replaced as soon as the page runs.
+         ====================================================================== -->
     <div class="dashboard">
   <div class="dashboard-header">
     <h2>Your Athletes</h2>
@@ -50,6 +58,9 @@
 
       </div>
     </div>
+
+<!-- Add Athlete Modal: form for creating a new athlete (hidden by default,
+     shown via the "active" class from script.js) -->
 <div class="modal-overlay" id="addAthleteModal">
   <div class="modal">
     <h2>Add Athlete</h2>
@@ -90,6 +101,8 @@
     </div>
   </div>
 </div>
+
+<!-- Main page logic (see script.js) -->
 <script type="module" src="script.js"></script>
   </body>
 </html>

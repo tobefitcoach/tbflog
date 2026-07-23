@@ -1,3 +1,6 @@
+// ==========================================================================
+// SETUP — Supabase client + page state
+// ==========================================================================
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
 const supabaseUrl = 'https://szvnaiqlxtlsjgnefunt.supabase.co'
@@ -17,7 +20,12 @@ let athleteMetrics = []
 loadAthlete()
 loadAllMetrics().then(() => loadAthleteMetrics())
 
+// ==========================================================================
 // ---- LOAD ATHLETE INFO ----
+// Fetches the athlete's profile row and fills in the header (name, initials,
+// age, height), sets the page title, wires up the "edit info" button, and
+// kicks off the bodyweight graph load.
+// ==========================================================================
 async function loadAthlete() {
   const { data, error } = await supabase
     .from('athletes')
@@ -38,7 +46,7 @@ async function loadAthlete() {
   const initials = data.name.split(' ').map(w => w[0]).join('').toUpperCase()
   document.getElementById('profileInitials').textContent = initials
   document.getElementById('profileName').textContent = data.name
-document.getElementById('profileDetails').textContent = 
+document.getElementById('profileDetails').textContent =
     `${data.gender} · ${age} years old · ${data.height}cm`
 
   document.title = `${data.name} — TBFlog`
@@ -56,15 +64,19 @@ document.getElementById('profileDetails').textContent =
   // Load bodyweight graph
   loadBodyweightGraph()
 }
+// ==========================================================================
 // ---- UNIT CONVERSION HELPERS ----
+// Converts stored values (always in a base unit, e.g. cm) into whatever
+// display unit the user has chosen (in / ft), and back again for saving.
+// ==========================================================================
 function convertValue(value, displayUnit) {
   if (!displayUnit || !value) return { text: value, unit: displayUnit || '' }
-  
+
   if (displayUnit === 'in') {
     const inches = (value / 2.54).toFixed(1)
     return { text: inches, unit: 'in' }
   }
-  
+
   if (displayUnit === 'ft') {
     const totalInches = value / 2.54
     const feet = Math.floor(totalInches / 12)
@@ -81,7 +93,11 @@ function convertInput(value, displayUnit) {
   if (displayUnit === 'ft') return +(value * 30.48).toFixed(1)
   return value
 }
+// ==========================================================================
 // ---- LOAD ALL AVAILABLE METRICS ----
+// Loads the full catalog of metric types (e.g. "Vertical Jump", "Zone 2 Run")
+// from the DB and populates the "add metric" dropdown with them.
+// ==========================================================================
 async function loadAllMetrics() {
   const { data, error } = await supabase
     .from('metrics')
@@ -104,7 +120,11 @@ allMetrics = data
   })
 }
 
+// ==========================================================================
 // ---- LOAD ATHLETE'S ASSIGNED METRICS ----
+// Loads only the metrics this specific athlete is being tracked on, joins in
+// the metric definition (name/unit/type) from allMetrics, then renders them.
+// ==========================================================================
 async function loadAthleteMetrics() {
   const { data, error } = await supabase
     .from('athlete_metrics')
@@ -127,7 +147,13 @@ async function loadAthleteMetrics() {
   loadStatsBar()
 }
 
+// ==========================================================================
 // ---- RENDER METRICS ON SCREEN ----
+// The big one: builds the metrics grid, grouped by category. For each
+// metric it loads recent measurements, works out the "latest value" text,
+// computes a % change badge, draws the mini graph, and wires up all the
+// buttons (record / delete / open details) for that card.
+// ==========================================================================
  async function renderMetrics() {
   const list = document.getElementById('metricsList')
   list.innerHTML = ''
@@ -150,7 +176,7 @@ async function loadAthleteMetrics() {
     const categorySection = document.createElement('div')
     categorySection.classList.add('metric-category')
     categorySection.innerHTML = `<h4 class="category-title">${category}</h4>`
-    
+
     const grid = document.createElement('div')
     grid.classList.add('metrics-grid')
 
@@ -179,6 +205,7 @@ async function loadAthleteMetrics() {
       let changeHTML = ''
 
       if (latest) {
+        // --- Build the "Latest: ..." text, differently per metric type ---
         if (metric.type === 'pogo') {
           const converted = convertValue(latest.height, metric.display_unit)
           latestText = `Height: ${converted.text}${converted.unit} · GCT: ${latest.ground_contact}ms · RSI: ${latest.rsi}`
@@ -191,7 +218,7 @@ async function loadAthleteMetrics() {
             .eq('athlete_id', athleteId)
             .eq('metric_id', metric.id)
             .gte('date', `${currentYear}-01-01`)
-          
+
           const totalKm = yearData ? yearData.reduce((sum, m) => sum + (m.distance || 0), 0).toFixed(1) : 0
           latestText = `Score: ${latest.value} · ${totalKm}km in ${currentYear}`
         } else {
@@ -199,8 +226,9 @@ async function loadAthleteMetrics() {
           latestText = `${converted.text} ${converted.unit}`
         }
 
-        // Calculate % change
+        // --- Calculate % change badge (▲/▼ x%) shown next to the metric name ---
         if (metric.type === 'zone2') {
+          // Zone2: compare average score of last 30 days vs the 30 days before that
           const { data: allZone2 } = await supabase
             .from('measurements')
             .select('*')
@@ -226,6 +254,7 @@ async function loadAthleteMetrics() {
 changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="zone2" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-avg30="${avg30.toFixed(3)}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}">${arrow} ${Math.abs(pct)}%</span>`            }
           }
         } else {
+          // All other metric types: compare latest value vs avg of previous 5 entries
           const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
           const latestVal = getValue(latest)
 
@@ -240,6 +269,7 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
         }
       }
 
+      // --- Build the card's HTML: header, latest value, mini-graph placeholder ---
       item.innerHTML = `
         <div class="metric-item-header">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
@@ -267,7 +297,7 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
     list.appendChild(categorySection)
   }
 
-  // Add click listeners to all record buttons
+  // --- Wire up "+ Record" buttons: open the measurement modal for that metric ---
   document.querySelectorAll('.btn-record').forEach(btn => {
     btn.addEventListener('click', function() {
       const metricId = parseInt(this.dataset.metricId)
@@ -276,6 +306,7 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
     })
   })
 
+  // --- Wire up "delete metric" buttons: unassign a metric from this athlete ---
   document.querySelectorAll('.btn-delete-metric').forEach(btn => {
     btn.addEventListener('click', async function() {
       const athleteMetricId = parseInt(this.dataset.athleteMetricId)
@@ -292,6 +323,7 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
     })
   })
 
+  // --- Wire up "delete measurement" buttons (used elsewhere in the UI) ---
   document.querySelectorAll('.btn-delete-measurement').forEach(btn => {
     btn.addEventListener('click', async function() {
       const measurementId = parseInt(this.dataset.measurementId)
@@ -308,7 +340,7 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
     })
   })
 
-  // Draw mini graphs
+  // --- Draw the small trend chart (Chart.js) inside each metric card ---
   for (const am of athleteMetrics) {
     const metric = am.metrics
     const canvas = document.getElementById(`mini-graph-${metric.id}`)
@@ -356,12 +388,15 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
       }
     })
 
+    // Clicking the mini graph opens the full-size graph modal
     canvas.addEventListener('click', function() {
       openGraphModal(metric)
     })
   }
 
-  // Add click listener to metric cards to open entries
+  // --- Clicking anywhere on a metric card (except buttons/canvas/change badge)
+  //     opens the full entries list for that metric; clicking the % change
+  //     badge instead opens the "explain this change" breakdown ---
   document.querySelectorAll('.metric-item').forEach(item => {
     item.addEventListener('click', function(e) {
       if (e.target.classList.contains('btn-record') ||
@@ -380,10 +415,14 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
   })
 }
 
+// ==========================================================================
 // ---- OPEN MEASUREMENT MODAL ----
+// Shows/hides the right input fields (simple value / pogo jump / zone2 run)
+// depending on the metric type, then opens the "record measurement" modal.
+// ==========================================================================
 
 function openMeasurementModal() {
-  document.getElementById('measurementModalTitle').textContent = 
+  document.getElementById('measurementModalTitle').textContent =
     `Record — ${currentMetric.name}`
 
   // Set today's date as default
@@ -405,13 +444,14 @@ if (currentMetric.type === 'pogo') {
     document.getElementById('pogoFields').style.display = 'none'
     document.getElementById('zone2Fields').style.display = 'none'
 
+    // Simple numeric metrics can display as a single value or as feet+inches
     if (currentMetric.display_unit === 'ft') {
       document.getElementById('singleValueGroup').style.display = 'none'
       document.getElementById('feetInchesGroup').style.display = 'block'
     } else {
       document.getElementById('singleValueGroup').style.display = 'block'
       document.getElementById('feetInchesGroup').style.display = 'none'
-      document.getElementById('valueLabel').textContent = 
+      document.getElementById('valueLabel').textContent =
         `${currentMetric.name} (${currentMetric.display_unit || currentMetric.unit})`
     }
   }
@@ -419,7 +459,10 @@ if (currentMetric.type === 'pogo') {
   document.getElementById('addMeasurementModal').classList.add('active')
 }
 
+// ==========================================================================
 // ---- ADD METRIC MODAL ----
+// Modal for assigning an existing metric (from the dropdown) to this athlete.
+// ==========================================================================
 document.getElementById('addMetricBtn').addEventListener('click', function() {
   document.getElementById('addMetricModal').classList.add('active')
 })
@@ -453,7 +496,11 @@ document.getElementById('saveMetricBtn').addEventListener('click', async functio
   loadAthleteMetrics()
 })
 
+// ==========================================================================
 // ---- MEASUREMENT MODAL ----
+// Saves a new measurement entry, building the right payload shape depending
+// on whether this is a pogo jump, a zone2 run, or a simple value metric.
+// ==========================================================================
 document.getElementById('cancelMeasurementBtn').addEventListener('click', function() {
   document.getElementById('addMeasurementModal').classList.remove('active')
 })
@@ -478,6 +525,7 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
     insertData.ground_contact = parseFloat(document.getElementById('pogoGroundContact').value)
     insertData.rsi = parseFloat(document.getElementById('pogoRSI').value)
   } else if (currentMetric.type === 'zone2') {
+    // Zone2 "efficiency score" = 1000 / (pace × heart rate) — lower pace & bpm is better
     const paceMin = parseFloat(document.getElementById('zone2PaceMin').value) || 0
     const paceSec = parseFloat(document.getElementById('zone2PaceSec').value) || 0
     const pace = paceMin + (paceSec / 60)
@@ -517,7 +565,12 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
   document.getElementById('addMeasurementModal').classList.remove('active')
   loadAthleteMetrics()
 })
+// ==========================================================================
 // ---- STATS BAR ----
+// Fills in the top summary row: total entries logged, number of metrics
+// tracked, how recently the athlete last logged something, and how many
+// personal records (PRs) were set this month.
+// ==========================================================================
 async function loadStatsBar() {
   // Get all measurements for this athlete
   const { data: allMeasurements } = await supabase
@@ -548,10 +601,11 @@ async function loadStatsBar() {
     }
   }
 
-  // PRs this month
+  // PRs this month: for each tracked metric, compare the best value logged
+  // this month against the best value logged before this month
   const now = new Date()
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  
+
   let prCount = 0
 
   for (const am of athleteMetrics) {
@@ -587,7 +641,10 @@ async function loadStatsBar() {
 
   document.getElementById('statPRs').textContent = prCount
 }
+// ==========================================================================
 // ---- GRAPH MODAL ----
+// Full-size Chart.js graph for one metric, with 1M/3M/1Y/All time filters.
+// ==========================================================================
 let fullChart = null
 let currentGraphMetric = null
 
@@ -603,6 +660,7 @@ async function openGraphModal(metric) {
   await loadGraphData(1)
 }
 
+// Fetches measurements for the selected time range and (re)draws the chart
 async function loadGraphData(months) {
   let query = supabase
     .from('measurements')
@@ -670,6 +728,7 @@ document.getElementById('closeGraphBtn').addEventListener('click', function() {
   if (fullChart) { fullChart.destroy(); fullChart = null }
 })
 
+// Switching the 1M/3M/1Y/All buttons re-loads the graph for that range
 document.querySelectorAll('.time-filter-btn').forEach(btn => {
   btn.addEventListener('click', async function() {
     document.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'))
@@ -678,7 +737,11 @@ document.querySelectorAll('.time-filter-btn').forEach(btn => {
     await loadGraphData(months)
   })
 })
+// ==========================================================================
 // ---- CREATE NEW METRIC ----
+// Lets the user define a brand-new metric type (name/unit/type/category),
+// save it to the DB, and immediately select it in the "add metric" dropdown.
+// ==========================================================================
 document.getElementById('createNewMetricBtn').addEventListener('click', function() {
   document.getElementById('addMetricModal').classList.remove('active')
   document.getElementById('createMetricModal').classList.add('active')
@@ -730,7 +793,11 @@ document.getElementById('saveNewMetricBtn').addEventListener('click', async func
 
   alert(`"${name}" created and selected!`)
 })
+// ==========================================================================
 // ---- ENTRIES MODAL ----
+// Full history table for one metric: lists every measurement, with edit
+// and delete actions per row.
+// ==========================================================================
 let currentEditEntry = null
 let currentEntriesMetric = null
 
@@ -742,6 +809,7 @@ async function openEntriesModal(metric) {
   await loadEntries(metric)
 }
 
+// Fetches and renders the entries table for a given metric
 async function loadEntries(metric) {
   const { data, error } = await supabase
     .from('measurements')
@@ -821,6 +889,7 @@ async function loadEntries(metric) {
   })
 }
 
+// Populates the "edit entry" modal fields based on the metric type, then opens it
 function openEditEntryModal(entry, metric) {
   currentEditEntry = entry
   document.getElementById('editEntryDate').value = entry.date
@@ -880,6 +949,7 @@ document.getElementById('cancelEditEntryBtn').addEventListener('click', function
   document.getElementById('editEntryModal').classList.remove('active')
 })
 
+// Saves edits to an existing measurement, rebuilding the payload per metric type
 document.getElementById('saveEditEntryBtn').addEventListener('click', async function() {
   const date = document.getElementById('editEntryDate').value
   if (!date) { alert('Please select a date'); return }
@@ -930,7 +1000,10 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
   await loadEntries(currentEntriesMetric)
   loadAthleteMetrics()
 })
+// ==========================================================================
 // ---- EDIT ATHLETE INFO ----
+// Saves changes made in the "edit athlete" modal (name, DOB, gender, height, weight).
+// ==========================================================================
 document.getElementById('closeEditAthleteBtn').addEventListener('click', function() {
   document.getElementById('editAthleteModal').classList.remove('active')
 })
@@ -958,7 +1031,11 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   document.getElementById('editAthleteModal').classList.remove('active')
   loadAthlete()
 })
+// ==========================================================================
 // ---- BODYWEIGHT ----
+// Loads and draws the bodyweight trend chart on the profile header, and
+// handles logging a new bodyweight entry.
+// ==========================================================================
 let bodyweightChart = null
 let bodyweightUnit = 'kg'
 
@@ -988,6 +1065,7 @@ async function loadBodyweightGraph() {
     data: {
       labels: data.map(d => d.date),
      datasets: [{
+        // Convert stored kg values to lbs on the fly if the user has lbs selected
         data: data.map(d => bodyweightUnit === 'kg' ? d.weight : +(d.weight * 2.20462).toFixed(1)),
         borderColor: '#4a4a8e',
         backgroundColor: 'rgba(74, 74, 142, 0.1)',
@@ -1025,6 +1103,7 @@ document.getElementById('cancelBodyweightBtn').addEventListener('click', functio
   document.getElementById('bodyweightModal').classList.remove('active')
 })
 
+// Saves a new bodyweight entry; always stores in kg regardless of input unit
 document.getElementById('saveBodyweightBtn').addEventListener('click', async function() {
   const date = document.getElementById('bodyweightDate').value
   const rawWeight = parseFloat(document.getElementById('bodyweightValue').value)
@@ -1045,7 +1124,11 @@ document.getElementById('saveBodyweightBtn').addEventListener('click', async fun
   document.getElementById('bodyweightNotes').value = ''
   loadBodyweightGraph()
 })
+// ==========================================================================
 // ---- BODYWEIGHT UNIT TOGGLE ----
+// Switches the bodyweight display (and re-draws the chart) between kg/lbs.
+// Note: values are always stored in kg — this only changes how they're shown.
+// ==========================================================================
 document.getElementById('bwKgBtn').addEventListener('click', function() {
   bodyweightUnit = 'kg'
   document.getElementById('bwKgBtn').classList.add('active')
@@ -1059,7 +1142,11 @@ document.getElementById('bwLbsBtn').addEventListener('click', function() {
   document.getElementById('bwKgBtn').classList.remove('active')
   loadBodyweightGraph()
 })
+// ==========================================================================
 // ---- BODYWEIGHT ENTRIES ----
+// Full history table for bodyweight logs, with edit/delete per row (mirrors
+// the metric ENTRIES MODAL above, but for the bodyweight table).
+// ==========================================================================
 let currentBWEntry = null
 
 document.getElementById('viewBWEntriesBtn').addEventListener('click', function() {
@@ -1165,7 +1252,11 @@ document.getElementById('saveEditBWBtn').addEventListener('click', async functio
   loadBWEntries()
   loadBodyweightGraph()
 })
+// ==========================================================================
 // ---- % CHANGE EXPLANATION ----
+// Opens a small modal that explains how the ▲/▼ % change badge on a metric
+// card was calculated (which numbers were compared and why).
+// ==========================================================================
 function openChangeExplain(el) {
   const type = el.dataset.explainType
   const metricName = el.dataset.metricName
@@ -1180,6 +1271,7 @@ function openChangeExplain(el) {
   let content = ''
 
   if (type === 'zone2') {
+    // Zone2 breakdown: last-30-days avg vs previous-30-days avg
     const avg30 = parseFloat(el.dataset.avg30)
     const avgPrev = parseFloat(el.dataset.avgprev)
  content = `
@@ -1199,6 +1291,7 @@ function openChangeExplain(el) {
       </p>
     `
  } else {
+    // Simple/pogo breakdown: latest entry vs avg of previous 5 entries
     const latest = parseFloat(el.dataset.latest)
     const avgPrev = parseFloat(el.dataset.avgprev)
     const unit = el.dataset.unit

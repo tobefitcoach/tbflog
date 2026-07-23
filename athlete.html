@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- Page metadata, stylesheets, and the Chart.js library used for all graphs -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
@@ -10,6 +11,7 @@
   </head>
   <body>
 
+    <!-- Top nav bar: site title + link back to the dashboard -->
     <header>
       <h1>TBFLOG</h1>
       <a href="index.html" class="back-btn">← Back to Dashboard</a>
@@ -17,6 +19,8 @@
 
     <div class="profile">
 
+      <!-- Profile header card: avatar, name/details, edit/log-weight buttons,
+           and the bodyweight mini-graph on the right -->
       <div class="profile-header">
         <div class="profile-left">
           <div class="profile-initials" id="profileInitials"></div>
@@ -47,6 +51,7 @@
         </div>
       </div>
 
+      <!-- Summary stats row: metrics tracked, total entries, last updated, PRs this month -->
       <div class="stats-bar" id="statsBar">
         <div class="stat-item">
           <span class="stat-value" id="statMetrics">—</span>
@@ -66,6 +71,7 @@
         </div>
       </div>
 
+      <!-- Tracked metrics grid (filled in by JS) + "Add Metric" button -->
       <div class="metrics-section">
         <div class="metrics-header">
           <h3>Tracked Metrics</h3>
@@ -76,7 +82,14 @@
 
     </div>
 
-   <!-- Add Metric Modal -->
+    <!-- ======================================================================
+         MODALS
+         All popups below are hidden by default (shown via the "active" class
+         from athlete.js) and layered on top of the page content above.
+         ====================================================================== -->
+
+   <!-- Add Metric Modal: assign an existing metric to this athlete, or jump
+        into the "Create New Metric" modal -->
     <div class="modal-overlay" id="addMetricModal">
       <div class="modal">
         <h2>Add Metric</h2>
@@ -95,7 +108,8 @@
       </div>
     </div>
 
-    <!-- Create New Metric Modal -->
+    <!-- Create New Metric Modal: define a brand-new metric type (name, unit,
+         category, and whether it's a "simple" or "pogo" measurement) -->
     <div class="modal-overlay" id="createMetricModal">
       <div class="modal">
         <h2>Create New Metric</h2>
@@ -131,11 +145,13 @@
       </div>
     </div>
 
-    <!-- Add Measurement Modal -->
+    <!-- Add Measurement Modal: log a new value for a metric. Only one of the
+         three field groups below (simple / pogo / zone2) is shown at a time,
+         depending on the metric's type — controlled by athlete.js -->
     <div class="modal-overlay" id="addMeasurementModal">
       <div class="modal">
         <h2 id="measurementModalTitle">Record Measurement</h2>
-        
+
         <div class="form-group">
           <label>Date</label>
           <input type="date" id="measurementDate" />
@@ -212,7 +228,8 @@
         </div>
       </div>
     </div>
-<!-- Full Graph Modal -->
+<!-- Full Graph Modal: expanded Chart.js graph for one metric, with
+     1M/3M/6M/1Y/All time-range filter buttons -->
     <div class="modal-overlay" id="graphModal">
       <div class="modal graph-modal">
         <div class="graph-modal-header">
@@ -231,7 +248,7 @@
         </div>
       </div>
     </div>
-    <!-- Entries Modal -->
+    <!-- Entries Modal: full history table (all measurements) for one metric -->
     <div class="modal-overlay" id="entriesModal">
       <div class="modal">
         <div class="graph-modal-header">
@@ -244,7 +261,9 @@
       </div>
     </div>
 
-    <!-- Edit Entry Modal -->
+    <!-- Edit Entry Modal: edit one existing measurement. Like the Add
+         Measurement modal, only the matching field group (simple/pogo/zone2)
+         is shown, based on the metric being edited -->
     <div class="modal-overlay" id="editEntryModal">
       <div class="modal">
         <h2>Edit Entry</h2>
@@ -317,7 +336,7 @@
         </div>
       </div>
     </div>
-    <!-- Edit Athlete Info Modal -->
+    <!-- Edit Athlete Info Modal: update name, DOB, gender, height, weight -->
     <div class="modal-overlay" id="editAthleteModal">
       <div class="modal">
         <div class="graph-modal-header">
@@ -354,7 +373,7 @@
         </div>
       </div>
     </div>
-    <!-- Log Bodyweight Modal -->
+    <!-- Log Bodyweight Modal: add a new bodyweight entry (kg or lbs input) -->
     <div class="modal-overlay" id="bodyweightModal">
       <div class="modal">
         <div class="graph-modal-header">
@@ -385,7 +404,7 @@
         </div>
       </div>
     </div>
-    <!-- Bodyweight Entries Modal -->
+    <!-- Bodyweight Entries Modal: full history table of bodyweight logs -->
     <div class="modal-overlay" id="bwEntriesModal">
       <div class="modal">
         <div class="graph-modal-header">
@@ -396,7 +415,7 @@
       </div>
     </div>
 
-    <!-- Edit Bodyweight Entry Modal -->
+    <!-- Edit Bodyweight Entry Modal: edit one existing bodyweight entry -->
     <div class="modal-overlay" id="editBWEntryModal">
       <div class="modal">
         <h2>Edit Bodyweight Entry</h2>
@@ -424,7 +443,7 @@
         </div>
       </div>
     </div>
-    <!-- % Change Explanation Modal -->
+    <!-- % Change Explanation Modal: shows the math behind a metric's ▲/▼ % badge -->
     <div class="modal-overlay" id="changeExplainModal">
       <div class="modal">
         <div class="graph-modal-header">
@@ -434,6 +453,8 @@
         <div id="changeExplainContent"></div>
       </div>
     </div>
+
+    <!-- Main page logic (see athlete.js) -->
     <script type="module" src="athlete.js"></script>
   </body>
 </html>

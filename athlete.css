@@ -1,3 +1,8 @@
+/* ==========================================================================
+   BACK BUTTON
+   Small link used to navigate back (e.g. "← Back" link at top of a page)
+   ========================================================================== */
+
 .back-btn {
   color: #aaaacc;
   text-decoration: none;
@@ -7,6 +12,12 @@
 .back-btn:hover {
   color: white;
 }
+
+
+/* ==========================================================================
+   PROFILE PAGE — LAYOUT
+   Overall page padding and the header card (avatar + info + bodyweight graph)
+   ========================================================================== */
 
 .profile {
   padding: 40px;
@@ -25,12 +36,14 @@
   border: 1px solid #2a2a4e;
 }
 
+/* Left side of header: avatar initials + name/info text */
 .profile-left {
   display: flex;
   align-items: center;
   gap: 24px;
 }
 
+/* Right side of header: bodyweight mini-graph */
 .profile-right {
   flex: 1;
   max-width: 300px;
@@ -47,6 +60,7 @@
   position: relative;
 }
 
+/* Placeholder text shown when there's no bodyweight data yet */
 .no-bodyweight-data {
   color: #4a4a8e;
   font-size: 12px;
@@ -54,6 +68,7 @@
   padding-top: 30px;
 }
 
+/* Row of action buttons under the profile header (e.g. edit, log weight) */
 .profile-btns {
   display: flex;
   gap: 8px;
@@ -75,6 +90,8 @@
   color: white;
 }
 
+
+/* --- Responsive: profile header on small screens (stack instead of row) --- */
 @media (max-width: 768px) {
   .profile-header {
     flex-direction: column;
@@ -90,6 +107,8 @@
   }
 }
 
+
+/* --- Profile header content: avatar circle + name/info text --- */
 .profile-initials {
   width: 80px;
   height: 80px;
@@ -115,6 +134,12 @@
   font-size: 14px;
 }
 
+
+/* ==========================================================================
+   METRICS SECTION — LAYOUT
+   Container/header for the grid of tracked metrics (e.g. weight, measurements)
+   ========================================================================== */
+
 .metrics-section {
   background-color: transparent;
   border: none;
@@ -122,6 +147,7 @@
   padding: 0;
 }
 
+/* --- Responsive: reduce page padding on small screens --- */
 @media (max-width: 768px) {
   .profile {
     padding: 20px;
@@ -140,6 +166,7 @@
   color: #ffffff;
 }
 
+/* 3-column grid of metric cards, collapsing to 1 column on mobile */
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -151,6 +178,12 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ==========================================================================
+   INDIVIDUAL METRIC CARD
+   A single card showing a metric's latest value, mini-graph, and history
+   ========================================================================== */
 
 .metric-item {
   border: 1px solid #2a2a4e;
@@ -167,6 +200,7 @@
   margin-bottom: 12px;
 }
 
+/* Mini chart area inside a metric card (click to open full graph modal) */
 .metric-graph-area {
   height: 140px;
   max-height: 140px;
@@ -190,6 +224,7 @@
   color: #ffffff;
 }
 
+/* "Record" button to log a new value for this metric */
 .btn-record {
   background-color: #4a4a8e;
   color: white;
@@ -204,6 +239,7 @@
   background-color: #5a5aae;
 }
 
+/* List of past measurement entries within a metric card */
 .measurement-history {
   font-size: 13px;
   color: #aaaacc;
@@ -216,12 +252,16 @@
   border-bottom: 1px solid #2a2a4e;
 }
 
+/* Empty state shown when no metrics have been created yet */
 .no-metrics {
   text-align: center;
   color: #aaaacc;
   font-size: 14px;
   padding: 40px 0;
 }
+
+
+/* --- Delete buttons for metrics / individual measurements --- */
 .btn-delete-metric {
   background-color: transparent;
   border: 1px solid #4a4a8e;
@@ -237,6 +277,7 @@
   border-color: #ff4444;
   color: white;
 }
+
 .btn-delete-measurement {
   background-color: transparent;
   border: none;
@@ -250,6 +291,13 @@
 .btn-delete-measurement:hover {
   color: #ff4444;
 }
+
+
+/* ==========================================================================
+   GRAPH MODAL
+   Full-size popup graph with time-range filters, opened from a metric card
+   ========================================================================== */
+
 .graph-modal {
   max-width: 800px;
   width: 95%;
@@ -262,6 +310,7 @@
   margin-bottom: 24px;
 }
 
+/* Row of time-range filter buttons (e.g. 1M / 3M / 1Y / All) */
 .graph-time-filters {
   display: flex;
   gap: 8px;
@@ -290,11 +339,13 @@
   color: white;
 }
 
+/* Main chart canvas area inside the modal */
 .graph-container {
   position: relative;
   height: 350px;
 }
 
+/* Smaller inline chart preview (e.g. used elsewhere, click to expand) */
 .mini-graph-container {
   margin-top: 12px;
   height: 80px;
@@ -307,12 +358,20 @@
   opacity: 0.8;
 }
 
+/* Small hint text like "click to view full graph" */
 .graph-hint {
   font-size: 11px;
   color: #4a4a8e;
   margin-top: 4px;
   text-align: right;
 }
+
+
+/* ==========================================================================
+   CREATE METRIC BUTTON
+   Dashed "add new metric" button at the end of the metrics grid
+   ========================================================================== */
+
 .btn-create-metric {
   width: 100%;
   background-color: transparent;
@@ -329,6 +388,13 @@
   border-color: #5a5aae;
   color: white;
 }
+
+
+/* ==========================================================================
+   ENTRIES TABLE
+   Table used in the "all entries" / history modal for a metric
+   ========================================================================== */
+
 .entries-table {
   width: 100%;
   border-collapse: collapse;
@@ -355,6 +421,7 @@
   border-bottom: none;
 }
 
+/* Edit button shown on each row of the entries table */
 .btn-edit-entry {
   background-color: transparent;
   border: 1px solid #4a4a8e;
@@ -371,9 +438,16 @@
   color: white;
 }
 
+
+/* ==========================================================================
+   CLICKABLE / INTERACTIVE STATE OVERRIDES
+   Makes whole cards/headers clickable (e.g. click card to open detail view)
+   ========================================================================== */
+
 .metric-item {
   cursor: pointer;
 }
+
 .profile-header {
   cursor: pointer;
 }
@@ -382,11 +456,19 @@
   opacity: 0.9;
 }
 
+/* Small hint text like "click to edit" shown near clickable elements */
 .edit-hint {
   font-size: 11px;
   color: #4a4a8e;
   margin-top: 8px;
 }
+
+
+/* ==========================================================================
+   UNIT TOGGLE
+   Small toggle for switching units (e.g. kg / lb, cm / in)
+   ========================================================================== */
+
 .unit-toggle {
   display: flex;
   gap: 4px;
@@ -407,10 +489,20 @@
   border-color: #4a4a8e;
   color: white;
 }
+
+
+/* --- Scrollable body of the "all entries" modal --- */
 .entries-modal-body {
   max-height: 60vh;
   overflow-y: auto;
 }
+
+
+/* ==========================================================================
+   STATS BAR
+   Row of top-level summary stat cards (e.g. total workouts, streak, etc.)
+   ========================================================================== */
+
 .stats-bar {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -441,11 +533,19 @@
   color: #aaaacc;
 }
 
+/* --- Responsive: 4 stats collapse to 2 columns on mobile --- */
 @media (max-width: 768px) {
   .stats-bar {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+
+/* ==========================================================================
+   METRIC CATEGORY GROUPING
+   Section labels used to group related metrics (e.g. "BODY", "PERFORMANCE")
+   ========================================================================== */
+
 .metric-category {
   margin-bottom: 32px;
 }
@@ -459,6 +559,13 @@
   padding-bottom: 8px;
   border-bottom: 1px solid #2a2a4e;
 }
+
+
+/* ==========================================================================
+   METRIC CHANGE INDICATORS
+   Colored +/- text showing how a metric changed (up = green, down = red, etc.)
+   ========================================================================== */
+
 .metric-change {
   font-size: 12px;
 }
@@ -474,6 +581,13 @@
 .metric-change.neutral {
   color: #aaaacc;
 }
+
+
+/* ==========================================================================
+   "EXPLAIN CHANGE" BREAKDOWN
+   Modal/section that breaks down how a change value was calculated
+   ========================================================================== */
+
 .change-explain-row {
   display: flex;
   justify-content: space-between;
@@ -495,6 +609,7 @@
   font-weight: bold;
 }
 
+/* Final computed result, highlighted at the bottom of the breakdown */
 .change-explain-result {
   margin-top: 16px;
   padding: 16px;
