@@ -15,6 +15,7 @@ const athleteId = params.get('id')
 let currentMetric = null
 let allMetrics = []
 let athleteMetrics = []
+let prEvents = [] // PRs broken in the last 30 days, filled in by loadStatsBar, read by the PR overview modal
 
 // Load everything when page opens
 loadAthlete()
@@ -599,6 +600,7 @@ async function loadStatsBar() {
   const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   let prCount = 0
+  prEvents = [] // reset the module-level list the PR overview modal reads from
 
   for (const am of athleteMetrics) {
     const metric = am.metrics
@@ -623,7 +625,11 @@ async function loadStatsBar() {
       const isNewBest = higherIsBetter ? value > best : value < best
 
       if (isNewBest) {
-        if (entry.date >= thirtyDaysAgo) prCount++
+        if (entry.date >= thirtyDaysAgo) {
+          prCount++
+          // Keep the metric + entry so the PR overview modal can display and group it
+          prEvents.push({ metric, entry })
+        }
         best = value
       }
     }
@@ -631,6 +637,90 @@ async function loadStatsBar() {
 
   document.getElementById('statPRs').textContent = prCount
 }
+
+// ==========================================================================
+// ---- PR OVERVIEW MODAL ----
+// Opened by clicking the "PRs (last 30 days)" stat tile. Shows prEvents
+// (filled in by loadStatsBar above) grouped by category, then by individual
+// metric, with each metric's PRs listed chronologically (oldest first) so
+// repeat PRs on the same metric read as a clear progression.
+// ==========================================================================
+document.getElementById('statPRsCard').addEventListener('click', function() {
+  document.getElementById('prModal').classList.add('active')
+  renderPRModal()
+})
+
+document.getElementById('closePRModalBtn').addEventListener('click', function() {
+  document.getElementById('prModal').classList.remove('active')
+})
+
+// Same value-formatting rules used by the "All Entries" table, per metric type
+function formatPRValue(metric, entry) {
+  if (metric.type === 'pogo') {
+    const converted = convertValue(entry.height, metric.display_unit)
+    return `RSI ${entry.rsi} (H: ${converted.text}${converted.unit}, GCT: ${entry.ground_contact}ms)`
+  } else if (metric.type === 'zone2') {
+    return `Score: ${entry.value}`
+  } else {
+    const converted = convertValue(entry.value, metric.display_unit)
+    return `${converted.text} ${converted.unit}`
+  }
+}
+
+function renderPRModal() {
+  const container = document.getElementById('prList')
+
+  if (prEvents.length === 0) {
+    container.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No PRs broken in the last 30 days</p>'
+    return
+  }
+
+  // Group PR events: category -> metric name -> array of {metric, entry}
+  const byCategory = {}
+  for (const ev of prEvents) {
+    const category = ev.metric.category || 'Other'
+    const metricName = ev.metric.name
+    if (!byCategory[category]) byCategory[category] = {}
+    if (!byCategory[category][metricName]) byCategory[category][metricName] = []
+    byCategory[category][metricName].push(ev)
+  }
+
+  // Show known categories in the same fixed order used everywhere else in the app;
+  // anything unrecognized falls back to the end, alphabetically
+  const categoryOrder = ['Jumps', 'Sprints', 'Strength', 'Cardio']
+  const categories = Object.keys(byCategory).sort((a, b) => {
+    const ai = categoryOrder.indexOf(a)
+    const bi = categoryOrder.indexOf(b)
+    if (ai === -1 && bi === -1) return a.localeCompare(b)
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+
+  container.innerHTML = categories.map(category => `
+    <div class="pr-category">
+      <h3 class="category-title">${category}</h3>
+      ${Object.keys(byCategory[category]).sort().map(metricName => {
+        // Chronological (oldest first) so multiple PRs on the same metric show progression
+        const events = byCategory[category][metricName].sort((a, b) => a.entry.date.localeCompare(b.entry.date))
+        return `
+          <div class="pr-metric-group">
+            <h4 class="pr-metric-title">${metricName}</h4>
+            <ul class="pr-entry-list">
+              ${events.map(ev => `
+                <li class="pr-entry">
+                  <span class="pr-entry-date">${ev.entry.date}</span>
+                  <span class="pr-entry-value">${formatPRValue(ev.metric, ev.entry)}</span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        `
+      }).join('')}
+    </div>
+  `).join('')
+}
+
 // ==========================================================================
 // ---- GRAPH MODAL ----
 // Full-size Chart.js graph for one metric, with 1M/3M/1Y/All time filters.

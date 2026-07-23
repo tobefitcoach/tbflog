@@ -65,9 +65,9 @@
           <span class="stat-value" id="statLastUpdated">—</span>
           <span class="stat-label">Last updated</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item stat-item-clickable" id="statPRsCard">
           <span class="stat-value" id="statPRs">—</span>
-          <span class="stat-label">PRs this month</span>
+          <span class="stat-label">PRs (last 30 days)</span>
         </div>
       </div>
 
@@ -259,6 +259,21 @@
         </div>
       <div class="entries-modal-body">
           <div id="entriesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR Overview Modal: opened by clicking the "PRs in last 30 days" stat.
+         Shows which PRs were broken, grouped by category then by individual
+         metric, with each metric's PRs listed chronologically -->
+    <div class="modal-overlay" id="prModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>PRs in the Last 30 Days</h2>
+          <button class="btn-cancel" id="closePRModalBtn">✕</button>
+        </div>
+        <div class="entries-modal-body">
+          <div id="prList"></div>
         </div>
       </div>
     </div>
