@@ -71,6 +71,23 @@
         </div>
       </div>
 
+      <!-- Athlete Notes: freeform notes area for injury history, coaching
+           cues, general observations, etc. Saved to athletes.notes in Supabase -->
+      <div class="notes-section">
+        <div class="metrics-header">
+          <h3>Notes</h3>
+          <span class="notes-saved-label" id="notesSavedLabel"></span>
+        </div>
+        <textarea
+          id="athleteNotes"
+          class="notes-textarea"
+          placeholder="Add notes about this athlete — injury history, coaching cues, general observations..."
+        ></textarea>
+        <div class="form-actions">
+          <button class="btn-save" id="saveNotesBtn">Save Notes</button>
+        </div>
+      </div>
+
       <!-- Tracked metrics grid (filled in by JS) + "Add Metric" button -->
       <div class="metrics-section">
         <div class="metrics-header">

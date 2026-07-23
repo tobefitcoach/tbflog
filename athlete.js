@@ -53,6 +53,9 @@ document.getElementById('profileDetails').textContent =
 
   document.title = `${data.name} — TBFlog`
 
+  // Fill in the notes textarea with whatever's saved
+  document.getElementById('athleteNotes').value = data.notes || ''
+
  // Edit info button
   document.getElementById('editAthleteBtn').addEventListener('click', function() {
     document.getElementById('editAthleteName').value = data.name
@@ -65,6 +68,31 @@ document.getElementById('profileDetails').textContent =
   // Load bodyweight graph
   loadBodyweightGraph()
 }
+
+// ==========================================================================
+// ---- ATHLETE NOTES ----
+// Saves the freeform notes textarea to athletes.notes in Supabase.
+// ==========================================================================
+document.getElementById('saveNotesBtn').addEventListener('click', async function() {
+  const notes = document.getElementById('athleteNotes').value
+  const savedLabel = document.getElementById('notesSavedLabel')
+
+  const { error } = await supabase
+    .from('athletes')
+    .update({ notes })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log('Error saving notes:', error)
+    alert('Something went wrong saving notes')
+    return
+  }
+
+  // Briefly confirm the save, then clear the message after a couple seconds
+  savedLabel.textContent = 'Saved ✓'
+  setTimeout(() => { savedLabel.textContent = '' }, 2000)
+})
+
 // ==========================================================================
 // ---- UNIT CONVERSION HELPERS ----
 // Converts stored values (always in a base unit, e.g. cm) into whatever

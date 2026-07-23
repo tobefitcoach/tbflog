@@ -632,6 +632,39 @@
 
 
 /* ==========================================================================
+   ATHLETE NOTES
+   Freeform notes card on the athlete profile (injury history, coaching
+   cues, general observations) - a single text block, not a dated log
+   ========================================================================== */
+
+.notes-section {
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 32px;
+}
+
+.notes-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 14px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #ffffff;
+  background-color: #0f0f1a;
+  resize: vertical;
+}
+
+.notes-saved-label {
+  font-size: 12px;
+  color: #4caf50;
+}
+
+
+/* ==========================================================================
    METRIC CATEGORY GROUPING
    Section labels used to group related metrics (e.g. "BODY", "PERFORMANCE")
    ========================================================================== */
