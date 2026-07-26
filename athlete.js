@@ -1098,7 +1098,7 @@ async function openGraphModal(metric) {
   // Bodyweight overlay always starts off when opening a graph, so it's
   // never confusingly left on for a metric you didn't turn it on for
   showBodyweightOverlay = false
-  document.getElementById('bodyweightOverlayBtn').classList.remove('active')
+  document.getElementById('bodyweightOverlayToggle').checked = false
 
   await loadGraphData(1)
 }
@@ -1196,6 +1196,20 @@ async function loadGraphData(months) {
   }
 }
 
+// Shared dark-theme tooltip styling for both graph render functions below.
+// `extra` can add/override fields (e.g. custom callbacks.label).
+function themedTooltipOptions(extra) {
+  return Object.assign({
+    backgroundColor: '#1a1a2e',
+    titleColor: '#ffffff',
+    bodyColor: '#ffffff',
+    borderColor: '#2a2a4e',
+    borderWidth: 1,
+    padding: 10,
+    displayColors: true
+  }, extra)
+}
+
 // Default view: this metric's own values in their own unit (cm, score, RSI, etc)
 function renderGraphRaw(data) {
   const labels = data.map(m => m.date)
@@ -1212,18 +1226,23 @@ function renderGraphRaw(data) {
         label: currentGraphMetric.name,
         data: values,
         borderColor: '#4a4a8e',
-        backgroundColor: 'rgba(74, 74, 142, 0.1)',
+        backgroundColor: 'rgba(74, 74, 142, 0.12)',
         borderWidth: 2,
-        pointRadius: 5,
-        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#4a4a8e',
+        tension: 0.35,
+        cubicInterpolationMode: 'monotone',
         fill: true
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: false }
+        legend: { display: false },
+        tooltip: themedTooltipOptions()
       },
       scales: {
         x: {
@@ -1243,7 +1262,9 @@ function renderGraphRaw(data) {
 // (kg) are completely different scales, so plotting both in their raw units
 // on one axis - or bolting on a second y-axis - would be misleading. Instead
 // both are indexed to "% change from the first value in this time range",
-// which puts them on one shared, honest axis.
+// which puts them on one shared, honest axis. The hover tooltip still shows
+// each line's real value (metric in its own unit, bodyweight in kg/lbs), so
+// the % is just how they're drawn, not how they're read.
 async function renderGraphWithBodyweightOverlay(data, months) {
   let bwQuery = supabase
     .from('bodyweight')
@@ -1251,13 +1272,30 @@ async function renderGraphWithBodyweightOverlay(data, months) {
     .eq('athlete_id', athleteId)
     .order('date', { ascending: true })
 
+  let fromDateStr = null
   if (months > 0) {
     const fromDate = new Date()
     fromDate.setMonth(fromDate.getMonth() - months)
-    bwQuery = bwQuery.gte('date', fromDate.toISOString().split('T')[0])
+    fromDateStr = fromDate.toISOString().split('T')[0]
+    bwQuery = bwQuery.gte('date', fromDateStr)
   }
 
   const { data: bwData } = await bwQuery
+
+  // Also grab the last bodyweight entry logged BEFORE this window, so if
+  // nothing was logged during the selected range the line still carries
+  // forward the athlete's last known weight instead of just disappearing
+  let carryInWeight = null
+  if (fromDateStr) {
+    const { data: priorData } = await supabase
+      .from('bodyweight')
+      .select('weight')
+      .eq('athlete_id', athleteId)
+      .lt('date', fromDateStr)
+      .order('date', { ascending: false })
+      .limit(1)
+    if (priorData && priorData.length > 0) carryInWeight = priorData[0].weight
+  }
 
   const getMetricValue = m => currentGraphMetric.type === 'pogo' ? m.rsi : m.value
 
@@ -1266,17 +1304,32 @@ async function renderGraphWithBodyweightOverlay(data, months) {
   // line up 1-to-1 (metric-index gap and bodyweight-log dates rarely match)
   const allDates = [...new Set([...data.map(m => m.date), ...(bwData || []).map(b => b.date)])].sort()
 
+  // --- Metric series: indexed to % change from the first value shown ---
   const metricBaseline = getMetricValue(data[0])
-  const metricByDate = {}
-  data.forEach(m => { metricByDate[m.date] = ((getMetricValue(m) - metricBaseline) / metricBaseline) * 100 })
-  const metricSeries = allDates.map(d => d in metricByDate ? +metricByDate[d].toFixed(2) : null)
+  const metricByEntry = {}
+  data.forEach(m => { metricByEntry[m.date] = m })
+  const metricSeries = allDates.map(d => {
+    const entry = metricByEntry[d]
+    return entry ? +(((getMetricValue(entry) - metricBaseline) / metricBaseline) * 100).toFixed(2) : null
+  })
 
+  // --- Bodyweight series: carry the last known weight forward across dates
+  // with no new entry, so the line stays flat/continuous instead of gapping
+  // out when nothing was logged during part (or all) of the selected range ---
   const bwByDate = {}
-  if (bwData && bwData.length > 0) {
-    const bwBaseline = bwData[0].weight
-    bwData.forEach(b => { bwByDate[b.date] = ((b.weight - bwBaseline) / bwBaseline) * 100 })
-  }
-  const bwSeries = allDates.map(d => d in bwByDate ? +bwByDate[d].toFixed(2) : null)
+  if (bwData) bwData.forEach(b => { bwByDate[b.date] = b.weight })
+
+  const bwBaseline = carryInWeight !== null ? carryInWeight : (bwData && bwData[0] ? bwData[0].weight : null)
+
+  let lastKnownWeight = carryInWeight
+  const bwRawByDate = {}
+  allDates.forEach(d => {
+    if (d in bwByDate) lastKnownWeight = bwByDate[d]
+    bwRawByDate[d] = lastKnownWeight
+  })
+  const bwSeries = bwBaseline === null
+    ? allDates.map(() => null)
+    : allDates.map(d => bwRawByDate[d] === null ? null : +(((bwRawByDate[d] - bwBaseline) / bwBaseline) * 100).toFixed(2))
 
   if (fullChart) fullChart.destroy()
 
@@ -1287,23 +1340,30 @@ async function renderGraphWithBodyweightOverlay(data, months) {
       labels: allDates,
       datasets: [
         {
-          label: `${currentGraphMetric.name} (%)`,
+          label: currentGraphMetric.name,
           data: metricSeries,
           borderColor: '#4a4a8e',
+          backgroundColor: 'rgba(74, 74, 142, 0.08)',
           borderWidth: 2,
           pointRadius: 4,
-          tension: 0.3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#4a4a8e',
+          tension: 0.35,
+          cubicInterpolationMode: 'monotone',
           fill: false,
           spanGaps: true
         },
         {
-          label: 'Bodyweight (%)',
+          label: 'Bodyweight',
           data: bwSeries,
-          borderColor: '#aaaacc',
-          borderDash: [6, 4],
+          borderColor: '#e0a458',
+          backgroundColor: 'rgba(224, 164, 88, 0.08)',
           borderWidth: 2,
           pointRadius: 4,
-          tension: 0.3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#e0a458',
+          tension: 0.35,
+          cubicInterpolationMode: 'monotone',
           fill: false,
           spanGaps: true
         }
@@ -1312,8 +1372,27 @@ async function renderGraphWithBodyweightOverlay(data, months) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, labels: { color: '#aaaacc' } }
+        legend: { display: true, labels: { color: '#aaaacc' } },
+        tooltip: themedTooltipOptions({
+          callbacks: {
+            // Show each line's real underlying value instead of the plotted
+            // % - the % is only how the two share one axis visually
+            label: function(context) {
+              const date = context.label
+              if (context.dataset.label === 'Bodyweight') {
+                const raw = bwRawByDate[date]
+                if (raw === null || raw === undefined) return 'Bodyweight: no data'
+                const display = bodyweightUnit === 'lbs' ? (raw * 2.20462).toFixed(1) : raw.toFixed(1)
+                return `Bodyweight: ${display} ${bodyweightUnit}`
+              }
+              const entry = metricByEntry[date]
+              if (!entry) return `${currentGraphMetric.name}: no data`
+              return `${currentGraphMetric.name}: ${formatMeasurementValue(currentGraphMetric, entry)}`
+            }
+          }
+        })
       },
       scales: {
         x: {
@@ -1335,9 +1414,8 @@ document.getElementById('closeGraphBtn').addEventListener('click', function() {
   if (fullChart) { fullChart.destroy(); fullChart = null }
 })
 
-document.getElementById('bodyweightOverlayBtn').addEventListener('click', async function() {
-  showBodyweightOverlay = !showBodyweightOverlay
-  this.classList.toggle('active', showBodyweightOverlay)
+document.getElementById('bodyweightOverlayToggle').addEventListener('change', async function() {
+  showBodyweightOverlay = this.checked
   await loadGraphData(currentGraphMonths)
 })
 

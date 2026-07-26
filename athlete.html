@@ -266,7 +266,13 @@
           </div>
           <!-- Toggle: overlays bodyweight (indexed to % change) on top of this
                metric's line, for whichever time range is selected above -->
-          <button class="time-filter-btn" id="bodyweightOverlayBtn">⚖ Bodyweight</button>
+          <label class="bodyweight-toggle">
+            <span>Bodyweight</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="bodyweightOverlayToggle" />
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
         </div>
         <!-- Only shown for Zone 2 metrics: total km run in the currently selected time filter -->
         <p class="graph-period-stat" id="graphPeriodStat"></p>
