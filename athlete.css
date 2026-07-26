@@ -26,7 +26,7 @@
 .profile-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
   background-color: #1a1a2e;
   border-radius: 12px;
@@ -657,9 +657,31 @@
   resize: vertical;
 }
 
+/* Row under the textarea: save confirmation on the left, save button on the right */
+.notes-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
 .notes-saved-label {
   font-size: 12px;
   color: #4caf50;
+}
+
+.btn-save-notes {
+  background-color: #4a4a8e;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-save-notes:hover {
+  background-color: #5a5aae;
 }
 
 

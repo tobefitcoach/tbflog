@@ -36,16 +36,16 @@
         <!-- Athlete Notes: freeform notes for injury history, coaching cues,
              general observations, etc. Saved to athletes.notes in Supabase -->
         <div class="profile-notes">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-            <p class="bodyweight-label">Notes</p>
-            <span class="notes-saved-label" id="notesSavedLabel"></span>
-          </div>
+          <p class="bodyweight-label">Notes</p>
           <textarea
             id="athleteNotes"
             class="notes-textarea"
             placeholder="Injury history, coaching cues, observations..."
           ></textarea>
-          <button class="btn-profile-action" id="saveNotesBtn" style="margin-top:8px">Save Notes</button>
+          <div class="notes-footer">
+            <span class="notes-saved-label" id="notesSavedLabel"></span>
+            <button class="btn-save-notes" id="saveNotesBtn">Save Notes</button>
+          </div>
         </div>
         <div class="profile-right">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
