@@ -53,8 +53,8 @@ document.getElementById('profileDetails').textContent =
 
   document.title = `${data.name} — TBFlog`
 
-  // Fill in the notes textarea with whatever's saved
-  document.getElementById('athleteNotes').value = data.notes || ''
+  // Show the most recent dated note in the header
+  loadLatestNote()
 
  // Edit info button
   document.getElementById('editAthleteBtn').addEventListener('click', function() {
@@ -71,26 +71,151 @@ document.getElementById('profileDetails').textContent =
 
 // ==========================================================================
 // ---- ATHLETE NOTES ----
-// Saves the freeform notes textarea to athletes.notes in Supabase.
+// Dated notes log: each "Add" creates a new row in athlete_notes (never
+// overwrites), so past notes stay visible with the date they were written.
+// Mirrors the Bodyweight pattern - a "latest entry" preview in the header,
+// full history + edit/delete in the "View all" modal.
 // ==========================================================================
-document.getElementById('saveNotesBtn').addEventListener('click', async function() {
-  const notes = document.getElementById('athleteNotes').value
-  const savedLabel = document.getElementById('notesSavedLabel')
+let currentNoteEntry = null
 
-  const { error } = await supabase
-    .from('athletes')
-    .update({ notes })
-    .eq('id', athleteId)
+// Shows the single most recent note in the profile header
+async function loadLatestNote() {
+  const { data } = await supabase
+    .from('athlete_notes')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('date', { ascending: false })
+    .limit(1)
 
-  if (error) {
-    console.log('Error saving notes:', error)
-    alert('Something went wrong saving notes')
+  const preview = document.getElementById('latestNotePreview')
+
+  if (!data || data.length === 0) {
+    preview.innerHTML = '<p class="no-bodyweight-data">No notes yet</p>'
     return
   }
 
-  // Briefly confirm the save, then clear the message after a couple seconds
-  savedLabel.textContent = 'Saved ✓'
-  setTimeout(() => { savedLabel.textContent = '' }, 2000)
+  const latest = data[0]
+  preview.innerHTML = `
+    <p class="latest-note-date">${formatDisplayDate(latest.date)}</p>
+    <p class="latest-note-text">${latest.note}</p>
+  `
+}
+
+document.getElementById('addNoteBtn').addEventListener('click', function() {
+  document.getElementById('noteDate').valueAsDate = new Date()
+  document.getElementById('noteText').value = ''
+  document.getElementById('addNoteModal').classList.add('active')
+})
+
+document.getElementById('closeAddNoteBtn').addEventListener('click', function() {
+  document.getElementById('addNoteModal').classList.remove('active')
+})
+
+document.getElementById('cancelAddNoteBtn').addEventListener('click', function() {
+  document.getElementById('addNoteModal').classList.remove('active')
+})
+
+document.getElementById('saveNoteBtn').addEventListener('click', async function() {
+  const date = document.getElementById('noteDate').value
+  const note = document.getElementById('noteText').value.trim()
+
+  if (!date || !note) { alert('Please fill in date and note'); return }
+
+  const { error } = await supabase
+    .from('athlete_notes')
+    .insert([{ athlete_id: parseInt(athleteId), date, note }])
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+
+  document.getElementById('addNoteModal').classList.remove('active')
+  loadLatestNote()
+})
+
+document.getElementById('viewNotesBtn').addEventListener('click', function() {
+  document.getElementById('notesListModal').classList.add('active')
+  loadNotesList()
+})
+
+document.getElementById('closeNotesListBtn').addEventListener('click', function() {
+  document.getElementById('notesListModal').classList.remove('active')
+})
+
+// Fetches and renders every note for this athlete, newest first
+async function loadNotesList() {
+  const { data } = await supabase
+    .from('athlete_notes')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('date', { ascending: false })
+
+  const list = document.getElementById('notesList')
+
+  if (!data || data.length === 0) {
+    list.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No notes yet</p>'
+    return
+  }
+
+  list.innerHTML = data.map(n => `
+    <div class="note-entry">
+      <div class="note-entry-header">
+        <span class="note-entry-date">${formatDisplayDate(n.date)}</span>
+        <div>
+          <button class="btn-edit-entry" data-note-id="${n.id}">✏</button>
+          <button class="btn-delete-measurement" data-note-id="${n.id}">🗑</button>
+        </div>
+      </div>
+      <p class="note-entry-text">${n.note}</p>
+    </div>
+  `).join('')
+
+  list.querySelectorAll('.btn-edit-entry').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const noteId = parseInt(this.dataset.noteId)
+      currentNoteEntry = data.find(n => n.id === noteId)
+      document.getElementById('editNoteDate').value = currentNoteEntry.date
+      document.getElementById('editNoteText').value = currentNoteEntry.note
+      document.getElementById('editNoteModal').classList.add('active')
+    })
+  })
+
+  list.querySelectorAll('.btn-delete-measurement').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const noteId = parseInt(this.dataset.noteId)
+      if (!confirm('Delete this note?')) return
+
+      const { error } = await supabase
+        .from('athlete_notes')
+        .delete()
+        .eq('id', noteId)
+
+      if (error) { alert('Something went wrong'); return }
+
+      loadNotesList()
+      loadLatestNote()
+    })
+  })
+}
+
+document.getElementById('cancelEditNoteBtn').addEventListener('click', function() {
+  document.getElementById('editNoteModal').classList.remove('active')
+})
+
+document.getElementById('saveEditNoteBtn').addEventListener('click', async function() {
+  const date = document.getElementById('editNoteDate').value
+  const note = document.getElementById('editNoteText').value.trim()
+
+  if (!date || !note) { alert('Please fill in date and note'); return }
+
+  const { error } = await supabase
+    .from('athlete_notes')
+    .update({ date, note })
+    .eq('id', currentNoteEntry.id)
+
+  if (error) { alert('Something went wrong'); return }
+
+  document.getElementById('editNoteModal').classList.remove('active')
+  loadNotesList()
+  loadLatestNote()
 })
 
 // ==========================================================================

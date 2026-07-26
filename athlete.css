@@ -634,9 +634,10 @@
 
 /* ==========================================================================
    ATHLETE NOTES
-   Freeform notes area in the middle column of the profile header, between
-   the avatar/info on the left and the bodyweight graph on the right - a
-   single text block, not a dated log
+   Dated notes log in the middle column of the profile header, between the
+   avatar/info on the left and the bodyweight graph on the right. Mirrors
+   the Bodyweight pattern: a "latest entry" preview here, full dated
+   history + edit/delete in the "View all" modal
    ========================================================================== */
 
 .profile-notes {
@@ -644,9 +645,10 @@
   max-width: 300px;
 }
 
+/* Textarea used inside the Add/Edit Note modals */
 .notes-textarea {
   width: 100%;
-  min-height: 80px;
+  min-height: 100px;
   padding: 10px 14px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
@@ -655,19 +657,6 @@
   color: #ffffff;
   background-color: #0f0f1a;
   resize: vertical;
-}
-
-/* Row under the textarea: save confirmation on the left, save button on the right */
-.notes-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 8px;
-}
-
-.notes-saved-label {
-  font-size: 12px;
-  color: #4caf50;
 }
 
 .btn-save-notes {
@@ -682,6 +671,57 @@
 
 .btn-save-notes:hover {
   background-color: #5a5aae;
+}
+
+/* Most recent note shown directly in the header */
+.latest-note-preview {
+  min-height: 80px;
+}
+
+.latest-note-date {
+  font-size: 12px;
+  color: #aaaacc;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.latest-note-text {
+  font-size: 13px;
+  color: #ffffff;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* One entry in the "All Notes" list modal */
+.note-entry {
+  padding: 12px 0;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.note-entry:last-child {
+  border-bottom: none;
+}
+
+.note-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.note-entry-date {
+  font-size: 12px;
+  color: #aaaacc;
+  font-weight: 600;
+}
+
+.note-entry-text {
+  font-size: 14px;
+  color: #ffffff;
+  white-space: pre-wrap;
 }
 
 

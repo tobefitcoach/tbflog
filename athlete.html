@@ -33,18 +33,20 @@
             </div>
           </div>
         </div>
-        <!-- Athlete Notes: freeform notes for injury history, coaching cues,
-             general observations, etc. Saved to athletes.notes in Supabase -->
+        <!-- Athlete Notes: dated notes log (injury history, coaching cues,
+             general observations). Each "Add" creates a new athlete_notes
+             row instead of overwriting, so past notes stay visible with the
+             date they were written -->
         <div class="profile-notes">
-          <p class="bodyweight-label">Notes</p>
-          <textarea
-            id="athleteNotes"
-            class="notes-textarea"
-            placeholder="Injury history, coaching cues, observations..."
-          ></textarea>
-          <div class="notes-footer">
-            <span class="notes-saved-label" id="notesSavedLabel"></span>
-            <button class="btn-save-notes" id="saveNotesBtn">Save Notes</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <p class="bodyweight-label">Notes</p>
+            <div style="display:flex; gap:8px; align-items:center">
+              <button class="unit-btn" id="viewNotesBtn">View all</button>
+              <button class="btn-save-notes" id="addNoteBtn">+ Add</button>
+            </div>
+          </div>
+          <div class="latest-note-preview" id="latestNotePreview">
+            <p class="no-bodyweight-data">No notes yet</p>
           </div>
         </div>
         <div class="profile-right">
@@ -518,6 +520,61 @@
         </div>
       </div>
     </div>
+
+    <!-- Add Note Modal: logs a new dated note for this athlete -->
+    <div class="modal-overlay" id="addNoteModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Add Note</h2>
+          <button class="btn-cancel" id="closeAddNoteBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="noteDate" />
+        </div>
+        <div class="form-group">
+          <label>Note</label>
+          <textarea id="noteText" class="notes-textarea" placeholder="Injury history, coaching cues, observations..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelAddNoteBtn">Cancel</button>
+          <button class="btn-save" id="saveNoteBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes List Modal: full dated history of notes, with edit/delete per entry -->
+    <div class="modal-overlay" id="notesListModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>All Notes</h2>
+          <button class="btn-cancel" id="closeNotesListBtn">✕</button>
+        </div>
+        <div class="entries-modal-body">
+          <div id="notesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Note Modal: edit one existing dated note -->
+    <div class="modal-overlay" id="editNoteModal">
+      <div class="modal">
+        <h2>Edit Note</h2>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="editNoteDate" />
+        </div>
+        <div class="form-group">
+          <label>Note</label>
+          <textarea id="editNoteText" class="notes-textarea"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelEditNoteBtn">Cancel</button>
+          <button class="btn-save" id="saveEditNoteBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
     <!-- % Change Explanation Modal: shows the math behind a metric's ▲/▼ % badge -->
     <div class="modal-overlay" id="changeExplainModal">
       <div class="modal">
