@@ -1083,6 +1083,8 @@ function renderLastUpdatedModal() {
 // ==========================================================================
 let fullChart = null
 let currentGraphMetric = null
+let currentGraphMonths = 1 // remembers the active time filter, so the bodyweight toggle can redraw without needing it passed in again
+let showBodyweightOverlay = false
 
 async function openGraphModal(metric) {
   currentGraphMetric = metric
@@ -1090,14 +1092,21 @@ async function openGraphModal(metric) {
   document.getElementById('graphModal').classList.add('active')
 
   // Set 1M as default active filter
-  document.querySelectorAll('.time-filter-btn').forEach(btn => btn.classList.remove('active'))
+  document.querySelectorAll('.time-filter-btn[data-months]').forEach(btn => btn.classList.remove('active'))
   document.querySelector('.time-filter-btn[data-months="1"]').classList.add('active')
+
+  // Bodyweight overlay always starts off when opening a graph, so it's
+  // never confusingly left on for a metric you didn't turn it on for
+  showBodyweightOverlay = false
+  document.getElementById('bodyweightOverlayBtn').classList.remove('active')
 
   await loadGraphData(1)
 }
 
 // Fetches measurements for the selected time range and (re)draws the chart
 async function loadGraphData(months) {
+  currentGraphMonths = months
+
   let query = supabase
     .from('measurements')
     .select('*')
@@ -1180,6 +1189,15 @@ async function loadGraphData(months) {
     return
   }
 
+  if (showBodyweightOverlay) {
+    await renderGraphWithBodyweightOverlay(data, months)
+  } else {
+    renderGraphRaw(data)
+  }
+}
+
+// Default view: this metric's own values in their own unit (cm, score, RSI, etc)
+function renderGraphRaw(data) {
   const labels = data.map(m => m.date)
   const values = data.map(m => currentGraphMetric.type === 'pogo' ? m.rsi : m.value)
 
@@ -1221,15 +1239,112 @@ async function loadGraphData(months) {
   })
 }
 
+// Bodyweight overlay view: the metric (cm, score, RSI...) and bodyweight
+// (kg) are completely different scales, so plotting both in their raw units
+// on one axis - or bolting on a second y-axis - would be misleading. Instead
+// both are indexed to "% change from the first value in this time range",
+// which puts them on one shared, honest axis.
+async function renderGraphWithBodyweightOverlay(data, months) {
+  let bwQuery = supabase
+    .from('bodyweight')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('date', { ascending: true })
+
+  if (months > 0) {
+    const fromDate = new Date()
+    fromDate.setMonth(fromDate.getMonth() - months)
+    bwQuery = bwQuery.gte('date', fromDate.toISOString().split('T')[0])
+  }
+
+  const { data: bwData } = await bwQuery
+
+  const getMetricValue = m => currentGraphMetric.type === 'pogo' ? m.rsi : m.value
+
+  // Combined, sorted list of every date either series has an entry on, so
+  // both lines plot on the same x-axis even though their entries don't
+  // line up 1-to-1 (metric-index gap and bodyweight-log dates rarely match)
+  const allDates = [...new Set([...data.map(m => m.date), ...(bwData || []).map(b => b.date)])].sort()
+
+  const metricBaseline = getMetricValue(data[0])
+  const metricByDate = {}
+  data.forEach(m => { metricByDate[m.date] = ((getMetricValue(m) - metricBaseline) / metricBaseline) * 100 })
+  const metricSeries = allDates.map(d => d in metricByDate ? +metricByDate[d].toFixed(2) : null)
+
+  const bwByDate = {}
+  if (bwData && bwData.length > 0) {
+    const bwBaseline = bwData[0].weight
+    bwData.forEach(b => { bwByDate[b.date] = ((b.weight - bwBaseline) / bwBaseline) * 100 })
+  }
+  const bwSeries = allDates.map(d => d in bwByDate ? +bwByDate[d].toFixed(2) : null)
+
+  if (fullChart) fullChart.destroy()
+
+  const ctx = document.getElementById('fullGraph').getContext('2d')
+  fullChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: allDates,
+      datasets: [
+        {
+          label: `${currentGraphMetric.name} (%)`,
+          data: metricSeries,
+          borderColor: '#4a4a8e',
+          borderWidth: 2,
+          pointRadius: 4,
+          tension: 0.3,
+          fill: false,
+          spanGaps: true
+        },
+        {
+          label: 'Bodyweight (%)',
+          data: bwSeries,
+          borderColor: '#aaaacc',
+          borderDash: [6, 4],
+          borderWidth: 2,
+          pointRadius: 4,
+          tension: 0.3,
+          fill: false,
+          spanGaps: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color: '#aaaacc' } }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#aaaacc' },
+          grid: { color: '#2a2a4e' }
+        },
+        y: {
+          ticks: { color: '#aaaacc', callback: v => `${v}%` },
+          grid: { color: '#2a2a4e' },
+          title: { display: true, text: '% change from period start', color: '#aaaacc' }
+        }
+      }
+    }
+  })
+}
+
 document.getElementById('closeGraphBtn').addEventListener('click', function() {
   document.getElementById('graphModal').classList.remove('active')
   if (fullChart) { fullChart.destroy(); fullChart = null }
 })
 
+document.getElementById('bodyweightOverlayBtn').addEventListener('click', async function() {
+  showBodyweightOverlay = !showBodyweightOverlay
+  this.classList.toggle('active', showBodyweightOverlay)
+  await loadGraphData(currentGraphMonths)
+})
+
 // Switching the 1M/3M/1Y/All buttons re-loads the graph for that range
-document.querySelectorAll('.time-filter-btn').forEach(btn => {
+document.querySelectorAll('.time-filter-btn[data-months]').forEach(btn => {
   btn.addEventListener('click', async function() {
-    document.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'))
+    document.querySelectorAll('.time-filter-btn[data-months]').forEach(b => b.classList.remove('active'))
     this.classList.add('active')
     const months = parseInt(this.dataset.months)
     await loadGraphData(months)

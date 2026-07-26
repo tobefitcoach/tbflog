@@ -256,12 +256,17 @@
           </div>
           <button class="btn-cancel" id="closeGraphBtn">✕</button>
         </div>
-        <div class="graph-time-filters">
-          <button class="time-filter-btn active" data-months="1">1M</button>
-          <button class="time-filter-btn" data-months="3">3M</button>
-          <button class="time-filter-btn" data-months="6">6M</button>
-          <button class="time-filter-btn" data-months="12">1Y</button>
-          <button class="time-filter-btn" data-months="0">All</button>
+        <div class="graph-controls-row">
+          <div class="graph-time-filters">
+            <button class="time-filter-btn" data-months="1">1M</button>
+            <button class="time-filter-btn" data-months="3">3M</button>
+            <button class="time-filter-btn" data-months="6">6M</button>
+            <button class="time-filter-btn" data-months="12">1Y</button>
+            <button class="time-filter-btn" data-months="0">All</button>
+          </div>
+          <!-- Toggle: overlays bodyweight (indexed to % change) on top of this
+               metric's line, for whichever time range is selected above -->
+          <button class="time-filter-btn" id="bodyweightOverlayBtn">⚖ Bodyweight</button>
         </div>
         <!-- Only shown for Zone 2 metrics: total km run in the currently selected time filter -->
         <p class="graph-period-stat" id="graphPeriodStat"></p>

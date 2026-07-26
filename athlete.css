@@ -311,11 +311,18 @@
   margin-bottom: 24px;
 }
 
+/* Row holding the time-range filters on the left and the bodyweight overlay toggle on the right */
+.graph-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
 /* Row of time-range filter buttons (e.g. 1M / 3M / 1Y / All) */
 .graph-time-filters {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
 }
 
 .time-filter-btn {
