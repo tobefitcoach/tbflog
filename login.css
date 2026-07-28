@@ -1,0 +1,42 @@
+/* ==========================================================================
+   COACH LOGIN PAGE
+   Centers the login/signup card, reusing the shared .modal/.form-group/
+   .btn-save classes from style.css so it matches the rest of the app.
+   ========================================================================== */
+
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  padding: 40px;
+}
+
+.auth-card {
+  width: 100%;
+}
+
+.auth-message {
+  color: #ff4444;
+  font-size: 13px;
+  margin-bottom: 12px;
+  min-height: 16px;
+}
+
+.auth-message.success {
+  color: #4caf50;
+}
+
+.auth-toggle {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #aaaacc;
+}
+
+.auth-toggle a {
+  color: #4a4a8e;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 4px;
+}

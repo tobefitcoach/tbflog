@@ -1,11 +1,7 @@
 // ==========================================================================
 // SETUP — Supabase client + page state
 // ==========================================================================
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-
-const supabaseUrl = 'https://szvnaiqlxtlsjgnefunt.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dm5haXFseHRsc2pnbmVmdW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTgzMTgsImV4cCI6MjA5ODczNDMxOH0.i0qOHffDnKBVreN1QM7h8tEfHlJgQulwhZ1x4YEAEdU'
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { supabase } from './coachClient.js'
 
 // Get athlete ID from URL
 const params = new URLSearchParams(window.location.search)
@@ -18,9 +14,21 @@ let athleteMetrics = []
 let prEvents = [] // PRs broken in the last 30 days, filled in by loadStatsBar, read by the PR overview modal
 let allMeasurementsCache = [] // every measurement for this athlete, filled in by loadStatsBar, read by the stats-bar detail modals
 
-// Load everything when page opens
-loadAthlete()
-loadAllMetrics().then(() => loadAthleteMetrics())
+// Require a logged-in coach before loading anything (same gate as script.js -
+// see the comment there for why this isn't real security yet on its own)
+const { data: { session } } = await supabase.auth.getSession()
+if (!session) {
+  window.location.href = 'login.html'
+} else {
+  // Load everything when page opens
+  loadAthlete()
+  loadAllMetrics().then(() => loadAthleteMetrics())
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async function() {
+  await supabase.auth.signOut()
+  window.location.href = 'login.html'
+})
 
 // ==========================================================================
 // ---- LOAD ATHLETE INFO ----

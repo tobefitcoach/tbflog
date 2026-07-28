@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coach Login — TBFlog</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="login.css" />
+  </head>
+  <body>
+
+    <header>
+      <h1>TBFLOG</h1>
+      <p>Coach Login</p>
+    </header>
+
+    <!-- Toggles between Log In and Sign Up via login.js; only coaches use
+         this page - athletes have their own separate login under /athlete-app/ -->
+    <div class="auth-page">
+      <div class="modal auth-card">
+        <h2 id="authTitle">Log In</h2>
+
+        <p class="auth-message" id="authMessage"></p>
+
+        <div class="form-group" id="nameField" style="display:none">
+          <label>Your Name</label>
+          <input type="text" id="authName" placeholder="e.g. Alex Coach" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="authEmail" placeholder="you@email.com" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="authPassword" placeholder="At least 6 characters" />
+        </div>
+
+        <div class="form-actions" style="justify-content:stretch">
+          <button class="btn-save" id="authSubmitBtn" style="width:100%">Log In</button>
+        </div>
+
+        <p class="auth-toggle">
+          <span id="authToggleText">Don't have an account?</span>
+          <a href="#" id="authToggleLink">Sign up</a>
+        </p>
+      </div>
+    </div>
+
+    <script type="module" src="login.js"></script>
+  </body>
+</html>

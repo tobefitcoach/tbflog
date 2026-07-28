@@ -3,11 +3,7 @@
 // This is the dashboard/index page: it lists all athletes as cards and
 // handles adding/deleting athletes.
 // ==========================================================================
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
- 
-const supabaseUrl = 'https://szvnaiqlxtlsjgnefunt.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dm5haXFseHRsc2pnbmVmdW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTgzMTgsImV4cCI6MjA5ODczNDMxOH0.i0qOHffDnKBVreN1QM7h8tEfHlJgQulwhZ1x4YEAEdU'
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { supabase } from './coachClient.js'
  
 const addBtn = document.querySelector('.btn-add');
 const modal = document.getElementById('addAthleteModal');
@@ -15,8 +11,20 @@ const cancelBtn = document.getElementById('cancelBtn');
 const saveBtn = document.getElementById('saveBtn');
 const athleteGrid = document.querySelector('.athlete-grid');
  
-// Load the athlete list as soon as the page opens
-loadAthletes();
+// Require a logged-in coach before loading anything. RLS isn't turned on
+// for the athlete data yet, so this is just a UX gate for now - real
+// enforcement comes once RLS is enabled on the existing tables.
+const { data: { session } } = await supabase.auth.getSession()
+if (!session) {
+  window.location.href = 'login.html'
+} else {
+  loadAthletes();
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async function() {
+  await supabase.auth.signOut()
+  window.location.href = 'login.html'
+})
  
 // ==========================================================================
 // ---- LOAD ATHLETES ----

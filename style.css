@@ -34,6 +34,21 @@ header h1 {
   font-size: 24px;
   letter-spacing: 2px;
 }
+
+/* Small text link/button in the header (e.g. "Log Out") - shared so both
+   the coach dashboard and athlete profile header can use it */
+.header-link {
+  color: #aaaacc;
+  text-decoration: none;
+  font-size: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.header-link:hover {
+  color: white;
+}
  
  
 /* ==========================================================================
