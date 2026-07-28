@@ -1,0 +1,36 @@
+/* ==========================================================================
+   ATHLETE DASHBOARD (placeholder)
+   Centered message card, reused for every state (loading / wrong role /
+   waiting to be linked / placeholder dashboard) - only the text and button
+   inside .athlete-app-card change, via dashboard.js
+   ========================================================================== */
+
+.athlete-app-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  padding: 40px;
+}
+
+.athlete-app-card {
+  background-color: #1a1a2e;
+  border-radius: 12px;
+  padding: 40px;
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid #2a2a4e;
+  text-align: center;
+}
+
+.athlete-app-card h2 {
+  margin-bottom: 16px;
+  color: #ffffff;
+}
+
+.athlete-app-card p {
+  color: #aaaacc;
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}

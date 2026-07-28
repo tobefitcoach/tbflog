@@ -70,6 +70,7 @@ document.getElementById('profileDetails').textContent =
     document.getElementById('editAthleteDOB').value = data.date_of_birth
     document.getElementById('editAthleteGender').value = data.gender
     document.getElementById('editAthleteHeight').value = data.height
+    document.getElementById('editAthleteEmail').value = data.email || ''
     document.getElementById('editAthleteModal').classList.add('active')
   })
 
@@ -1701,8 +1702,10 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
 })
 // ==========================================================================
 // ---- EDIT ATHLETE INFO ----
-// Saves changes made in the "edit athlete" modal (name, DOB, gender, height).
-// Weight is not edited here - see the Bodyweight feature for that.
+// Saves changes made in the "edit athlete" modal (name, DOB, gender, height,
+// email). Weight is not edited here - see the Bodyweight feature for that.
+// Email is what links this athlete row to their own login once they sign up
+// in the athlete app (see claim_athlete_by_email in sql-history.sql).
 // ==========================================================================
 document.getElementById('closeEditAthleteBtn').addEventListener('click', function() {
   document.getElementById('editAthleteModal').classList.remove('active')
@@ -1717,15 +1720,26 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   const dob = document.getElementById('editAthleteDOB').value
   const gender = document.getElementById('editAthleteGender').value
   const height = parseInt(document.getElementById('editAthleteHeight').value)
+  // Empty -> null, not '' - the email column has a "no duplicates" rule in
+  // the database, and two blank emails would otherwise count as duplicates
+  const email = document.getElementById('editAthleteEmail').value.trim() || null
 
   if (!name) { alert('Please enter a name'); return }
 
   const { error } = await supabase
     .from('athletes')
-    .update({ name, date_of_birth: dob, gender, height })
+    .update({ name, date_of_birth: dob, gender, height, email })
     .eq('id', athleteId)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) {
+    console.log(error)
+    if (error.code === '23505') {
+      alert('Another athlete is already using that email')
+    } else {
+      alert('Something went wrong')
+    }
+    return
+  }
 
   document.getElementById('editAthleteModal').classList.remove('active')
   loadAthlete()

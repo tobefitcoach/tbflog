@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard — TBFlog</title>
+    <link rel="stylesheet" href="../style.css" />
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+
+    <header>
+      <h1>TBFLOG</h1>
+      <div style="display:flex; align-items:center; gap:16px">
+        <p>Athlete Dashboard</p>
+        <button class="header-link" id="logoutBtn">Log Out</button>
+      </div>
+    </header>
+
+    <!-- dashboard.js decides what goes in here: a loading message, a "wrong
+         account type" message, a "waiting to be linked" message, or (once
+         the training-program feature exists) the real dashboard -->
+    <div class="athlete-app-page">
+      <div class="athlete-app-card" id="pageContent">
+        <p>Loading...</p>
+      </div>
+    </div>
+
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>
