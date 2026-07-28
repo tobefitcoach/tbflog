@@ -164,6 +164,8 @@ saveBtn.addEventListener('click', async function() {
     return;
   }
  
+  // coach_id has to be set on insert - once RLS is on, the athletes table
+  // policy only allows rows where coach_id matches the logged-in coach
   const { data, error } = await supabase
     .from('athletes')
     .insert([{
@@ -171,7 +173,8 @@ saveBtn.addEventListener('click', async function() {
       date_of_birth: dob,
       gender: gender,
       height: height,
-      weight: weight
+      weight: weight,
+      coach_id: session.user.id
     }])
     .select()
  

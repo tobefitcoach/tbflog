@@ -189,3 +189,48 @@ create policy "athlete manages own exercise logs" on exercise_logs for all
                 join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
                 where pe.id = exercise_logs.program_exercise_id and p.athlete_id = exercise_logs.athlete_id)
   );
+
+-- ==========================================================================
+-- Turn on RLS for the 6 pre-existing tables (athletes, metrics,
+-- athlete_metrics, measurements, bodyweight, athlete_notes). Before this,
+-- every one of these tables was wide open to anyone with the anon key.
+-- Coach access is scoped through athletes.coach_id (set by the earlier
+-- backfill); metrics stays a shared/global library for now (single coach).
+-- Same safe-to-rerun pattern as above - nothing here deletes data.
+-- ==========================================================================
+
+alter table athletes enable row level security;
+drop policy if exists "coach full access to own athletes" on athletes;
+create policy "coach full access to own athletes" on athletes for all
+  using (coach_id = auth.uid()) with check (coach_id = auth.uid());
+drop policy if exists "athlete can view own row" on athletes;
+create policy "athlete can view own row" on athletes for select using (user_id = auth.uid());
+
+alter table metrics enable row level security;
+drop policy if exists "coaches manage global metrics library" on metrics;
+create policy "coaches manage global metrics library" on metrics for all
+  using (is_coach()) with check (is_coach());
+
+alter table athlete_metrics enable row level security;
+drop policy if exists "coach manages own athletes athlete_metrics" on athlete_metrics;
+create policy "coach manages own athletes athlete_metrics" on athlete_metrics for all
+  using (exists (select 1 from athletes a where a.id = athlete_metrics.athlete_id and a.coach_id = auth.uid()))
+  with check (exists (select 1 from athletes a where a.id = athlete_metrics.athlete_id and a.coach_id = auth.uid()));
+
+alter table measurements enable row level security;
+drop policy if exists "coach manages own athletes measurements" on measurements;
+create policy "coach manages own athletes measurements" on measurements for all
+  using (exists (select 1 from athletes a where a.id = measurements.athlete_id and a.coach_id = auth.uid()))
+  with check (exists (select 1 from athletes a where a.id = measurements.athlete_id and a.coach_id = auth.uid()));
+
+alter table bodyweight enable row level security;
+drop policy if exists "coach manages own athletes bodyweight" on bodyweight;
+create policy "coach manages own athletes bodyweight" on bodyweight for all
+  using (exists (select 1 from athletes a where a.id = bodyweight.athlete_id and a.coach_id = auth.uid()))
+  with check (exists (select 1 from athletes a where a.id = bodyweight.athlete_id and a.coach_id = auth.uid()));
+
+alter table athlete_notes enable row level security;
+drop policy if exists "coach manages own athletes notes" on athlete_notes;
+create policy "coach manages own athletes notes" on athlete_notes for all
+  using (exists (select 1 from athletes a where a.id = athlete_notes.athlete_id and a.coach_id = auth.uid()))
+  with check (exists (select 1 from athletes a where a.id = athlete_notes.athlete_id and a.coach_id = auth.uid()));
