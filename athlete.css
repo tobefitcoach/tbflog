@@ -120,6 +120,10 @@
 
 .calendar-day-badge {
   align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   background-color: #4a4a8e;
   color: white;
   font-size: 11px;

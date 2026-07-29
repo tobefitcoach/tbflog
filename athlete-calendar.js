@@ -85,6 +85,14 @@ function resolveDate(startDateStr, weekNumber, dayNumber) {
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
+// Ad-hoc trainings show the name the coach gave them; days from an assigned
+// template show the day's own label (falling back to "Day N"), since that's
+// more useful at a glance than the template's overall name
+function trainingDisplayName(entry) {
+  if (entry.program.is_adhoc) return entry.program.name || 'Training'
+  return entry.day.label || ('Day ' + entry.day.day_number)
+}
+
 // ==========================================================================
 // ---- LOAD + RENDER MONTH GRID ----
 // ==========================================================================
@@ -137,7 +145,11 @@ function renderCalendarGrid(year, month) {
   grid.innerHTML = cells.map(cell => {
     const dateStr = toDateStr(cell.date)
     const entries = calendarEntriesByDate[dateStr] || []
-    const exerciseCount = entries.reduce((sum, e) => sum + e.day.program_exercises.length, 0)
+    // Show the training's own name (ad-hoc) or its day label (assigned
+    // template) rather than a generic "N exercises" count - one badge per
+    // distinct training, since an ad-hoc add and an assigned program can
+    // both land on the same date
+    const names = [...new Set(entries.map(trainingDisplayName))]
 
     const classes = ['calendar-day']
     if (cell.outside) classes.push('calendar-day-outside')
@@ -146,7 +158,7 @@ function renderCalendarGrid(year, month) {
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <span class="calendar-day-number">${cell.date.getDate()}</span>
-        ${exerciseCount > 0 ? `<span class="calendar-day-badge">${exerciseCount} exercise${exerciseCount === 1 ? '' : 's'}</span>` : ''}
+        ${names.map(name => `<span class="calendar-day-badge">${name}</span>`).join('')}
       </div>
     `
   }).join('')
@@ -174,13 +186,22 @@ function openDayModal(dateStr) {
   } else {
     content.innerHTML = entries.map(entry => {
       const label = entry.program.is_adhoc
-        ? 'Ad-hoc'
+        ? entry.program.name
         : `${entry.program.name} — Week ${entry.week.week_number}, ${entry.day.label || ('Day ' + entry.day.day_number)}`
       const exercises = entry.day.program_exercises
+      // Ad-hoc: delete the whole programs row (it only ever covers this one
+      // day). Assigned template: delete just this program_days row, so the
+      // rest of the multi-week program stays intact.
+      const deleteAction = entry.program.is_adhoc
+        ? `data-action="delete-training" data-mode="adhoc" data-program-id="${entry.program.id}"`
+        : `data-action="delete-training" data-mode="day" data-program-day-id="${entry.day.id}"`
 
       return `
         <div class="detail-group">
-          <h4 class="detail-group-title">${label}</h4>
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <h4 class="detail-group-title">${label}</h4>
+            <button class="btn-delete-metric" ${deleteAction}>🗑 Delete Training</button>
+          </div>
           ${exercises.length === 0
             ? '<p class="no-metrics">No exercises</p>'
             : `<ul class="detail-list">${exercises.map(renderScheduledExerciseRow).join('')}</ul>`}
@@ -225,14 +246,37 @@ document.getElementById('dayDetailContent').addEventListener('click', function(e
   if (!btn) return
   if (btn.dataset.action === 'edit-scheduled') openEditScheduledModal(btn.dataset.peId)
   else if (btn.dataset.action === 'delete-scheduled') deleteScheduledExercise(btn.dataset.peId)
+  else if (btn.dataset.action === 'delete-training') deleteTraining(btn.dataset.mode, btn.dataset.programId, btn.dataset.programDayId)
 })
+
+// Ad-hoc trainings only ever cover the one day they were created for, so
+// deleting the whole `programs` row is exactly "delete this training"
+// (cascades its week/day/exercises). An assigned template instance can span
+// many weeks, so only that one program_days row is removed - the rest of
+// the assigned program stays on the calendar untouched.
+async function deleteTraining(mode, programId, programDayId) {
+  if (!confirm(mode === 'adhoc'
+    ? 'Delete this training?'
+    : 'Remove this day from the assigned program? (The rest of the program stays intact.)')) return
+
+  const { error } = mode === 'adhoc'
+    ? await supabase.from('programs').delete().eq('id', programId)
+    : await supabase.from('program_days').delete().eq('id', programDayId)
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+
+  document.getElementById('dayDetailModal').classList.remove('active')
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+}
 
 document.getElementById('closeDayDetailBtn').addEventListener('click', function() {
   document.getElementById('dayDetailModal').classList.remove('active')
 })
 
 document.getElementById('dayDetailAddExerciseBtn').addEventListener('click', async function() {
-  const dayId = await findOrCreateAdHocDay(currentDayDateForModal)
+  const name = prompt('Name this training:', 'Training')
+  if (name === null) return
+  const dayId = await findOrCreateAdHocDay(currentDayDateForModal, name.trim() || 'Training')
   document.getElementById('dayDetailModal').classList.remove('active')
   reopenDayModalAfterSave = true
   openCalendarExercisePicker(dayId)
@@ -293,6 +337,7 @@ async function deleteScheduledExercise(peId) {
 // one each time.
 // ==========================================================================
 document.getElementById('calAddTrainingBtn').addEventListener('click', function() {
+  document.getElementById('adHocNameInput').value = ''
   document.getElementById('adHocDateInput').value = toDateStr(new Date())
   document.getElementById('adHocDateModal').classList.add('active')
 })
@@ -303,16 +348,20 @@ document.getElementById('cancelAdHocDateBtn').addEventListener('click', function
 
 document.getElementById('continueAdHocDateBtn').addEventListener('click', async function() {
   const dateStr = document.getElementById('adHocDateInput').value
+  const name = document.getElementById('adHocNameInput').value.trim()
   if (!dateStr) { alert('Please choose a date'); return }
 
   document.getElementById('adHocDateModal').classList.remove('active')
-  const dayId = await findOrCreateAdHocDay(dateStr)
+  const dayId = await findOrCreateAdHocDay(dateStr, name || 'Training')
   currentDayDateForModal = dateStr
   reopenDayModalAfterSave = false
   openCalendarExercisePicker(dayId)
 })
 
-async function findOrCreateAdHocDay(dateStr) {
+// name is only used the first time a training is created for this date -
+// if one already exists (repeated adds to the same day), its existing name
+// is kept as-is
+async function findOrCreateAdHocDay(dateStr, name) {
   const { data: existing, error: findError } = await supabase
     .from('programs')
     .select('*, program_weeks(*, program_days(*))')
@@ -329,7 +378,7 @@ async function findOrCreateAdHocDay(dateStr) {
 
   const { data: newProgram, error: programError } = await supabase
     .from('programs')
-    .insert([{ coach_id: session.user.id, athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: 'Ad-hoc Training' }])
+    .insert([{ coach_id: session.user.id, athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: name || 'Training' }])
     .select()
   if (programError) { console.log(programError); alert('Something went wrong'); throw programError }
 
