@@ -65,7 +65,23 @@ function populateExerciseSelect(selectedId) {
   select.innerHTML = '<option value="">Choose an exercise...</option>' +
     allExercises.map(ex => `<option value="${ex.id}">${ex.name}</option>`).join('')
   if (selectedId) select.value = selectedId
+  updatePickerFieldsForType()
 }
+
+// "Timed" exercises show Sets + Duration (the same prescribed_reps text
+// column, just relabeled) and hide Weight; "weights" exercises show all
+// three - matches whichever exercise is currently selected in the picker
+function updatePickerFieldsForType() {
+  const exerciseId = document.getElementById('pickerExerciseSelect').value
+  const exercise = allExercises.find(ex => ex.id === exerciseId)
+  const isTimed = exercise && exercise.type === 'timed'
+
+  document.getElementById('pickerRepsLabel').textContent = isTimed ? 'Duration' : 'Reps'
+  document.getElementById('pickerReps').placeholder = isTimed ? 'e.g. 30 sec, 2 min' : 'e.g. 8-12'
+  document.getElementById('pickerWeightGroup').style.display = isTimed ? 'none' : 'block'
+}
+
+document.getElementById('pickerExerciseSelect').addEventListener('change', updatePickerFieldsForType)
 
 // ==========================================================================
 // ---- LOAD + RENDER WEEKS / DAYS / EXERCISES ----
@@ -75,7 +91,7 @@ function populateExerciseSelect(selectedId) {
 async function loadWeeks() {
   const { data, error } = await supabase
     .from('program_weeks')
-    .select('*, program_days(*, program_exercises(*, exercises(id, name, category)))')
+    .select('*, program_days(*, program_exercises(*, exercises(id, name, category, type)))')
     .eq('program_id', programId)
 
   if (error) { console.log('Error loading weeks:', error); return }
@@ -138,9 +154,10 @@ function renderDayBlock(day) {
 }
 
 function renderExerciseRow(pe) {
+  const isTimed = pe.exercises && pe.exercises.type === 'timed'
   const parts = []
   if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
-  if (pe.prescribed_reps) parts.push(`${pe.prescribed_reps} reps`)
+  if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
   if (pe.prescribed_weight) parts.push(`${pe.prescribed_weight}kg`)
   const summary = parts.join(' × ')
 
@@ -268,9 +285,14 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
   const exerciseId = document.getElementById('pickerExerciseSelect').value
   if (!exerciseId) { alert('Please choose an exercise'); return }
 
+  const exercise = allExercises.find(ex => ex.id === exerciseId)
+  const isTimed = exercise && exercise.type === 'timed'
+
   const sets = document.getElementById('pickerSets').value ? parseInt(document.getElementById('pickerSets').value) : null
   const reps = document.getElementById('pickerReps').value.trim() || null
-  const weight = document.getElementById('pickerWeight').value ? parseFloat(document.getElementById('pickerWeight').value) : null
+  // Timed exercises never store a weight, regardless of what's left in the
+  // (hidden) field from a previous selection
+  const weight = isTimed ? null : (document.getElementById('pickerWeight').value ? parseFloat(document.getElementById('pickerWeight').value) : null)
   const notes = document.getElementById('pickerNotes').value.trim() || null
 
   const day = findDay(currentDayIdForAddExercise)
@@ -293,9 +315,28 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
 })
 
 // ---- Create New Exercise, inline (opens on top of the picker) ----
+function populateCreateCategorySelect() {
+  const select = document.getElementById('createExerciseCategory')
+  const categories = [...new Set(allExercises.map(ex => ex.category).filter(c => c && c.trim()))].sort()
+  select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') +
+    '<option value="__new__">+ Add New Category</option>'
+  select.value = '__new__'
+  toggleCreateNewCategoryField()
+}
+
+function toggleCreateNewCategoryField() {
+  const isNew = document.getElementById('createExerciseCategory').value === '__new__'
+  document.getElementById('createExerciseNewCategoryGroup').style.display = isNew ? 'block' : 'none'
+}
+
+document.getElementById('createExerciseCategory').addEventListener('change', toggleCreateNewCategoryField)
+
 document.getElementById('createNewExerciseBtn').addEventListener('click', function() {
   document.getElementById('createExerciseName').value = ''
-  document.getElementById('createExerciseCategory').value = ''
+  document.getElementById('createExerciseNewCategory').value = ''
+  populateCreateCategorySelect()
+  document.getElementById('createExerciseType').value = 'weights'
+  document.getElementById('createExerciseVideoUrl').value = ''
   document.getElementById('createExerciseInstructions').value = ''
   document.getElementById('createExerciseModal').classList.add('active')
 })
@@ -306,14 +347,19 @@ document.getElementById('cancelCreateExerciseBtn').addEventListener('click', fun
 
 document.getElementById('saveCreateExerciseBtn').addEventListener('click', async function() {
   const name = document.getElementById('createExerciseName').value.trim()
-  const category = document.getElementById('createExerciseCategory').value.trim()
+  const categorySelect = document.getElementById('createExerciseCategory').value
+  const category = categorySelect === '__new__'
+    ? document.getElementById('createExerciseNewCategory').value.trim()
+    : categorySelect
+  const type = document.getElementById('createExerciseType').value
+  const videoUrl = document.getElementById('createExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('createExerciseInstructions').value.trim()
 
   if (!name) { alert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('exercises')
-    .insert([{ coach_id: session.user.id, name, category, instructions }])
+    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }])
     .select()
 
   if (error) { console.log(error); alert('Something went wrong'); return }
@@ -333,12 +379,16 @@ function openEditExerciseModal(peId) {
   currentEditPE = findPE(peId)
   if (!currentEditPE) return
 
+  const isTimed = currentEditPE.exercises && currentEditPE.exercises.type === 'timed'
+
   document.getElementById('editExerciseTitle').textContent =
     'Edit ' + (currentEditPE.exercises ? currentEditPE.exercises.name : 'Exercise')
   document.getElementById('editSets').value = currentEditPE.prescribed_sets || ''
   document.getElementById('editReps').value = currentEditPE.prescribed_reps || ''
   document.getElementById('editWeight').value = currentEditPE.prescribed_weight || ''
   document.getElementById('editNotes').value = currentEditPE.notes || ''
+  document.getElementById('editRepsLabel').textContent = isTimed ? 'Duration' : 'Reps'
+  document.getElementById('editWeightGroup').style.display = isTimed ? 'none' : 'block'
   document.getElementById('editExerciseModal').classList.add('active')
 }
 
@@ -347,9 +397,11 @@ document.getElementById('cancelEditExerciseBtn').addEventListener('click', funct
 })
 
 document.getElementById('saveEditExerciseBtn').addEventListener('click', async function() {
+  const isTimed = currentEditPE.exercises && currentEditPE.exercises.type === 'timed'
+
   const sets = document.getElementById('editSets').value ? parseInt(document.getElementById('editSets').value) : null
   const reps = document.getElementById('editReps').value.trim() || null
-  const weight = document.getElementById('editWeight').value ? parseFloat(document.getElementById('editWeight').value) : null
+  const weight = isTimed ? null : (document.getElementById('editWeight').value ? parseFloat(document.getElementById('editWeight').value) : null)
   const notes = document.getElementById('editNotes').value.trim() || null
 
   const { error } = await supabase

@@ -8,6 +8,7 @@
 import { supabase } from './coachClient.js'
 
 let currentExercise = null // exercise being edited, or null when adding new
+let allExercisesCache = [] // used to build the "existing categories" dropdown
 
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
@@ -35,8 +36,34 @@ async function loadExercises() {
     return
   }
 
+  allExercisesCache = data
   renderExercises(data)
 }
+
+// Distinct, already-used categories - populates the "Category" dropdown so
+// picking one is a click instead of retyping the same word every time
+function populateCategorySelect(selectedCategory) {
+  const select = document.getElementById('exerciseCategory')
+  const categories = [...new Set(allExercisesCache.map(ex => ex.category).filter(c => c && c.trim()))].sort()
+
+  select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') +
+    '<option value="__new__">+ Add New Category</option>'
+
+  if (selectedCategory && categories.includes(selectedCategory)) {
+    select.value = selectedCategory
+  } else {
+    select.value = '__new__'
+  }
+
+  toggleNewCategoryField()
+}
+
+function toggleNewCategoryField() {
+  const isNew = document.getElementById('exerciseCategory').value === '__new__'
+  document.getElementById('exerciseNewCategoryGroup').style.display = isNew ? 'block' : 'none'
+}
+
+document.getElementById('exerciseCategory').addEventListener('change', toggleNewCategoryField)
 
 function renderExercises(exercises) {
   const container = document.getElementById('exerciseList')
@@ -62,7 +89,10 @@ function renderExercises(exercises) {
 
   container.innerHTML = categoryNames.map(cat => `
     <div class="metric-category">
-      <h3 class="category-title">${cat}</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+        <h3 class="category-title" style="margin-bottom:0">${cat}</h3>
+        ${cat === 'Uncategorized' ? '' : `<button class="btn-delete-metric btn-delete-category" data-category="${cat}">🗑 Delete Category</button>`}
+      </div>
       <div class="exercise-grid">
         ${byCategory[cat].map(ex => `
           <div class="exercise-item">
@@ -73,7 +103,9 @@ function renderExercises(exercises) {
                 <button class="btn-delete-metric" data-id="${ex.id}">🗑</button>
               </div>
             </div>
+            <p class="exercise-instructions" style="color:#4a4a8e; margin-bottom:4px">${ex.type === 'timed' ? 'Timed' : 'Weightlifting'}</p>
             ${ex.instructions ? `<p class="exercise-instructions">${ex.instructions}</p>` : ''}
+            ${ex.video_url ? `<p class="exercise-instructions"><a href="${ex.video_url}" target="_blank" style="color:#4a4a8e">🎥 Watch video</a></p>` : ''}
           </div>
         `).join('')}
       </div>
@@ -87,9 +119,15 @@ function renderExercises(exercises) {
     })
   })
 
-  container.querySelectorAll('.btn-delete-metric').forEach(btn => {
+  container.querySelectorAll('.exercise-item .btn-delete-metric').forEach(btn => {
     btn.addEventListener('click', function() {
       deleteExercise(btn.dataset.id)
+    })
+  })
+
+  container.querySelectorAll('.btn-delete-category').forEach(btn => {
+    btn.addEventListener('click', function() {
+      deleteCategory(btn.dataset.category, exercises)
     })
   })
 }
@@ -102,7 +140,10 @@ function openExerciseModal(exercise) {
 
   document.getElementById('exerciseModalTitle').textContent = exercise ? 'Edit Exercise' : 'Add Exercise'
   document.getElementById('exerciseName').value = exercise ? exercise.name : ''
-  document.getElementById('exerciseCategory').value = exercise ? (exercise.category || '') : ''
+  document.getElementById('exerciseNewCategory').value = ''
+  populateCategorySelect(exercise ? exercise.category : null)
+  document.getElementById('exerciseType').value = exercise ? (exercise.type || 'weights') : 'weights'
+  document.getElementById('exerciseVideoUrl').value = exercise ? (exercise.video_url || '') : ''
   document.getElementById('exerciseInstructions').value = exercise ? (exercise.instructions || '') : ''
 
   document.getElementById('exerciseModal').classList.add('active')
@@ -122,7 +163,12 @@ document.getElementById('cancelExerciseBtn').addEventListener('click', function(
 
 document.getElementById('saveExerciseBtn').addEventListener('click', async function() {
   const name = document.getElementById('exerciseName').value.trim()
-  const category = document.getElementById('exerciseCategory').value.trim()
+  const categorySelect = document.getElementById('exerciseCategory').value
+  const category = categorySelect === '__new__'
+    ? document.getElementById('exerciseNewCategory').value.trim()
+    : categorySelect
+  const type = document.getElementById('exerciseType').value
+  const videoUrl = document.getElementById('exerciseVideoUrl').value.trim()
   const instructions = document.getElementById('exerciseInstructions').value.trim()
 
   if (!name) { alert('Please enter a name'); return }
@@ -131,12 +177,12 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   if (currentExercise) {
     ({ error } = await supabase
       .from('exercises')
-      .update({ name, category, instructions })
+      .update({ name, category, type, video_url: videoUrl, instructions })
       .eq('id', currentExercise.id))
   } else {
     ({ error } = await supabase
       .from('exercises')
-      .insert([{ coach_id: session.user.id, name, category, instructions }]))
+      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }]))
   }
 
   if (error) { console.log(error); alert('Something went wrong'); return }
@@ -169,6 +215,28 @@ async function deleteExercise(id) {
     }
     return
   }
+
+  loadExercises()
+}
+
+// ==========================================================================
+// ---- DELETE CATEGORY ----
+// Categories aren't their own table - they're just whatever string value
+// exercises.category happens to hold. "Deleting" one clears it (back to
+// blank/Uncategorized) on every exercise currently using it, which is what
+// makes it disappear from the category dropdown going forward.
+// ==========================================================================
+async function deleteCategory(categoryName, exercises) {
+  const count = exercises.filter(ex => (ex.category || '').trim() === categoryName).length
+
+  if (!confirm(`Remove the "${categoryName}" category from ${count} exercise${count === 1 ? '' : 's'}? They'll become Uncategorized - this doesn't delete the exercises themselves.`)) return
+
+  const { error } = await supabase
+    .from('exercises')
+    .update({ category: null })
+    .eq('category', categoryName)
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
 
   loadExercises()
 }

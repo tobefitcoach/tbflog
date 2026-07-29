@@ -701,10 +701,10 @@
           <input type="number" id="calPickerSets" placeholder="e.g. 3" />
         </div>
         <div class="form-group">
-          <label>Reps</label>
+          <label id="calPickerRepsLabel">Reps</label>
           <input type="text" id="calPickerReps" placeholder="e.g. 8-12" />
         </div>
-        <div class="form-group">
+        <div class="form-group" id="calPickerWeightGroup">
           <label>Weight (kg, optional)</label>
           <input type="number" id="calPickerWeight" placeholder="e.g. 60" />
         </div>
@@ -729,7 +729,24 @@
         </div>
         <div class="form-group">
           <label>Category</label>
-          <input type="text" id="calCreateExerciseCategory" placeholder="e.g. Legs" />
+          <select id="calCreateExerciseCategory">
+            <option value="__new__">+ Add New Category</option>
+          </select>
+        </div>
+        <div class="form-group" id="calCreateExerciseNewCategoryGroup" style="display:none">
+          <label>New Category Name</label>
+          <input type="text" id="calCreateExerciseNewCategory" placeholder="e.g. Legs" />
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="calCreateExerciseType">
+            <option value="weights">Weightlifting (sets, reps, weight)</option>
+            <option value="timed">Timed (sets, duration)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Video Link (optional)</label>
+          <input type="url" id="calCreateExerciseVideoUrl" placeholder="https://youtube.com/..." />
         </div>
         <div class="form-group">
           <label>Instructions (optional)</label>
@@ -752,10 +769,10 @@
           <input type="number" id="editScheduledSets" />
         </div>
         <div class="form-group">
-          <label>Reps</label>
+          <label id="editScheduledRepsLabel">Reps</label>
           <input type="text" id="editScheduledReps" />
         </div>
-        <div class="form-group">
+        <div class="form-group" id="editScheduledWeightGroup">
           <label>Weight (kg, optional)</label>
           <input type="number" id="editScheduledWeight" />
         </div>

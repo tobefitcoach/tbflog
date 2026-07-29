@@ -52,7 +52,24 @@
         </div>
         <div class="form-group">
           <label>Category</label>
-          <input type="text" id="exerciseCategory" placeholder="e.g. Legs, Push, Cardio" />
+          <select id="exerciseCategory">
+            <option value="__new__">+ Add New Category</option>
+          </select>
+        </div>
+        <div class="form-group" id="exerciseNewCategoryGroup" style="display:none">
+          <label>New Category Name</label>
+          <input type="text" id="exerciseNewCategory" placeholder="e.g. Legs, Push, Cardio" />
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="exerciseType">
+            <option value="weights">Weightlifting (sets, reps, weight)</option>
+            <option value="timed">Timed (sets, duration)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Video Link (optional)</label>
+          <input type="url" id="exerciseVideoUrl" placeholder="https://youtube.com/..." />
         </div>
         <div class="form-group">
           <label>Instructions (optional)</label>
