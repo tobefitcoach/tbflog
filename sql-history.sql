@@ -279,3 +279,13 @@ create policy "coach manages own programs" on programs for all
 drop policy if exists "athlete views own programs" on programs;
 create policy "athlete views own programs" on programs for select
   using (exists (select 1 from athletes a where a.id = programs.athlete_id and a.user_id = auth.uid()));
+
+-- ==========================================================================
+-- Exercises: what kind of exercise it is (drives which prescribed fields
+-- show up when adding it to a program - weights gets sets/reps/weight,
+-- timed gets sets/duration) and an optional demo video link. No RLS change
+-- needed - both columns are covered by the existing "coach manages own
+-- exercise library" policy.
+-- ==========================================================================
+alter table exercises add column if not exists type text not null default 'weights';
+alter table exercises add column if not exists video_url text;
