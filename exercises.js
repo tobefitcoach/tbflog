@@ -65,6 +65,36 @@ function toggleNewCategoryField() {
 
 document.getElementById('exerciseCategory').addEventListener('change', toggleNewCategoryField)
 
+// Type dropdown: always offers the two built-in types, plus any custom
+// type a coach has already made up, plus "+ Add New Type" - same
+// extensible pattern as Category
+const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)' }
+
+function populateTypeSelect(selectedType) {
+  const select = document.getElementById('exerciseType')
+  const customTypes = [...new Set(allExercisesCache.map(ex => ex.type).filter(t => t && !(t in BUILT_IN_TYPES)))].sort()
+
+  select.innerHTML =
+    Object.entries(BUILT_IN_TYPES).map(([value, label]) => `<option value="${value}">${label}</option>`).join('') +
+    customTypes.map(t => `<option value="${t}">${t}</option>`).join('') +
+    '<option value="__new__">+ Add New Type</option>'
+
+  if (selectedType && (selectedType in BUILT_IN_TYPES || customTypes.includes(selectedType))) {
+    select.value = selectedType
+  } else {
+    select.value = 'weights'
+  }
+
+  toggleNewTypeField()
+}
+
+function toggleNewTypeField() {
+  const isNew = document.getElementById('exerciseType').value === '__new__'
+  document.getElementById('exerciseNewTypeGroup').style.display = isNew ? 'block' : 'none'
+}
+
+document.getElementById('exerciseType').addEventListener('change', toggleNewTypeField)
+
 function renderExercises(exercises) {
   const container = document.getElementById('exerciseList')
 
@@ -103,7 +133,7 @@ function renderExercises(exercises) {
                 <button class="btn-delete-metric" data-id="${ex.id}">🗑</button>
               </div>
             </div>
-            <p class="exercise-instructions" style="color:#4a4a8e; margin-bottom:4px">${ex.type === 'timed' ? 'Timed' : 'Weightlifting'}</p>
+            <p class="exercise-instructions" style="color:#4a4a8e; margin-bottom:4px">${BUILT_IN_TYPES[ex.type] ? BUILT_IN_TYPES[ex.type].split(' (')[0] : (ex.type || 'Weightlifting')}</p>
             ${ex.instructions ? `<p class="exercise-instructions">${ex.instructions}</p>` : ''}
             ${ex.video_url ? `<p class="exercise-instructions"><a href="${ex.video_url}" target="_blank" style="color:#4a4a8e">🎥 Watch video</a></p>` : ''}
           </div>
@@ -142,7 +172,8 @@ function openExerciseModal(exercise) {
   document.getElementById('exerciseName').value = exercise ? exercise.name : ''
   document.getElementById('exerciseNewCategory').value = ''
   populateCategorySelect(exercise ? exercise.category : null)
-  document.getElementById('exerciseType').value = exercise ? (exercise.type || 'weights') : 'weights'
+  document.getElementById('exerciseNewType').value = ''
+  populateTypeSelect(exercise ? exercise.type : null)
   document.getElementById('exerciseVideoUrl').value = exercise ? (exercise.video_url || '') : ''
   document.getElementById('exerciseInstructions').value = exercise ? (exercise.instructions || '') : ''
 
@@ -167,7 +198,10 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   const category = categorySelect === '__new__'
     ? document.getElementById('exerciseNewCategory').value.trim()
     : categorySelect
-  const type = document.getElementById('exerciseType').value
+  const typeSelect = document.getElementById('exerciseType').value
+  const type = typeSelect === '__new__'
+    ? document.getElementById('exerciseNewType').value.trim() || 'weights'
+    : typeSelect
   const videoUrl = document.getElementById('exerciseVideoUrl').value.trim()
   const instructions = document.getElementById('exerciseInstructions').value.trim()
 

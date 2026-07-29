@@ -89,9 +89,19 @@
           <label>Sets</label>
           <input type="number" id="pickerSets" placeholder="e.g. 3" />
         </div>
-        <div class="form-group">
-          <label id="pickerRepsLabel">Reps</label>
+        <div class="form-group" id="pickerRepsGroup">
+          <label>Reps</label>
           <input type="text" id="pickerReps" placeholder="e.g. 8-12" />
+        </div>
+        <div class="form-group" id="pickerDurationGroup" style="display:none">
+          <label>Duration</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="pickerDurationValue" placeholder="e.g. 45" style="flex:1" />
+            <select id="pickerDurationUnit" style="flex:1">
+              <option value="sec">Seconds</option>
+              <option value="min">Minutes</option>
+            </select>
+          </div>
         </div>
         <div class="form-group" id="pickerWeightGroup">
           <label>Weight (kg, optional)</label>
@@ -99,7 +109,12 @@
         </div>
         <div class="form-group">
           <label>Notes (optional)</label>
-          <input type="text" id="pickerNotes" placeholder="e.g. RPE 8, tempo 3-1-1" />
+          <input type="text" id="pickerNotes" placeholder="e.g. tempo 3-1-1" />
+        </div>
+        <div class="form-group">
+          <label>Extra Fields (optional)</label>
+          <div id="pickerExtraFields"></div>
+          <button type="button" class="btn-create-metric" id="pickerAddFieldBtn">+ Add Field (e.g. % of 1RM, RPE)</button>
         </div>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelExercisePickerBtn">Cancel</button>
@@ -131,7 +146,12 @@
           <select id="createExerciseType">
             <option value="weights">Weightlifting (sets, reps, weight)</option>
             <option value="timed">Timed (sets, duration)</option>
+            <option value="__new__">+ Add New Type</option>
           </select>
+        </div>
+        <div class="form-group" id="createExerciseNewTypeGroup" style="display:none">
+          <label>New Type Name</label>
+          <input type="text" id="createExerciseNewType" placeholder="e.g. Plyometric" />
         </div>
         <div class="form-group">
           <label>Video Link (optional)</label>
@@ -158,13 +178,28 @@
           <label>Sets</label>
           <input type="number" id="editSets" />
         </div>
-        <div class="form-group">
-          <label id="editRepsLabel">Reps</label>
+        <div class="form-group" id="editRepsGroup">
+          <label>Reps</label>
           <input type="text" id="editReps" />
+        </div>
+        <div class="form-group" id="editDurationGroup" style="display:none">
+          <label>Duration</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="editDurationValue" placeholder="e.g. 45" style="flex:1" />
+            <select id="editDurationUnit" style="flex:1">
+              <option value="sec">Seconds</option>
+              <option value="min">Minutes</option>
+            </select>
+          </div>
         </div>
         <div class="form-group" id="editWeightGroup">
           <label>Weight (kg, optional)</label>
           <input type="number" id="editWeight" />
+        </div>
+        <div class="form-group" id="editExtraFieldsGroup">
+          <label>Extra Fields (optional)</label>
+          <div id="editExtraFields"></div>
+          <button type="button" class="btn-create-metric" id="editAddFieldBtn">+ Add Field</button>
         </div>
         <div class="form-group">
           <label>Notes (optional)</label>

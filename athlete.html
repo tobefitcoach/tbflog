@@ -700,9 +700,19 @@
           <label>Sets</label>
           <input type="number" id="calPickerSets" placeholder="e.g. 3" />
         </div>
-        <div class="form-group">
-          <label id="calPickerRepsLabel">Reps</label>
+        <div class="form-group" id="calPickerRepsGroup">
+          <label>Reps</label>
           <input type="text" id="calPickerReps" placeholder="e.g. 8-12" />
+        </div>
+        <div class="form-group" id="calPickerDurationGroup" style="display:none">
+          <label>Duration</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="calPickerDurationValue" placeholder="e.g. 45" style="flex:1" />
+            <select id="calPickerDurationUnit" style="flex:1">
+              <option value="sec">Seconds</option>
+              <option value="min">Minutes</option>
+            </select>
+          </div>
         </div>
         <div class="form-group" id="calPickerWeightGroup">
           <label>Weight (kg, optional)</label>
@@ -710,7 +720,12 @@
         </div>
         <div class="form-group">
           <label>Notes (optional)</label>
-          <input type="text" id="calPickerNotes" placeholder="e.g. RPE 8, tempo 3-1-1" />
+          <input type="text" id="calPickerNotes" placeholder="e.g. tempo 3-1-1" />
+        </div>
+        <div class="form-group">
+          <label>Extra Fields (optional)</label>
+          <div id="calPickerExtraFields"></div>
+          <button type="button" class="btn-create-metric" id="calPickerAddFieldBtn">+ Add Field (e.g. % of 1RM, RPE)</button>
         </div>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelCalExercisePickerBtn">Cancel</button>
@@ -742,7 +757,12 @@
           <select id="calCreateExerciseType">
             <option value="weights">Weightlifting (sets, reps, weight)</option>
             <option value="timed">Timed (sets, duration)</option>
+            <option value="__new__">+ Add New Type</option>
           </select>
+        </div>
+        <div class="form-group" id="calCreateExerciseNewTypeGroup" style="display:none">
+          <label>New Type Name</label>
+          <input type="text" id="calCreateExerciseNewType" placeholder="e.g. Plyometric" />
         </div>
         <div class="form-group">
           <label>Video Link (optional)</label>
@@ -768,13 +788,28 @@
           <label>Sets</label>
           <input type="number" id="editScheduledSets" />
         </div>
-        <div class="form-group">
-          <label id="editScheduledRepsLabel">Reps</label>
+        <div class="form-group" id="editScheduledRepsGroup">
+          <label>Reps</label>
           <input type="text" id="editScheduledReps" />
+        </div>
+        <div class="form-group" id="editScheduledDurationGroup" style="display:none">
+          <label>Duration</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="editScheduledDurationValue" placeholder="e.g. 45" style="flex:1" />
+            <select id="editScheduledDurationUnit" style="flex:1">
+              <option value="sec">Seconds</option>
+              <option value="min">Minutes</option>
+            </select>
+          </div>
         </div>
         <div class="form-group" id="editScheduledWeightGroup">
           <label>Weight (kg, optional)</label>
           <input type="number" id="editScheduledWeight" />
+        </div>
+        <div class="form-group">
+          <label>Extra Fields (optional)</label>
+          <div id="editScheduledExtraFields"></div>
+          <button type="button" class="btn-create-metric" id="editScheduledAddFieldBtn">+ Add Field</button>
         </div>
         <div class="form-group">
           <label>Notes (optional)</label>

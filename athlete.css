@@ -118,6 +118,39 @@
   color: #aaaacc;
 }
 
+/* Repeatable "+ Add Field" name/value rows (extra prescribed fields like
+   % of 1RM, RPE) - shared by program-builder.html and athlete.html's
+   calendar exercise pickers/edit modals */
+.extra-field-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.extra-field-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+}
+
+.extra-field-remove {
+  background: transparent;
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  border-radius: 8px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.extra-field-remove:hover {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
 .calendar-day-badge {
   align-self: flex-start;
   max-width: 100%;

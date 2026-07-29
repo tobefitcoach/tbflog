@@ -68,20 +68,70 @@ function populateExerciseSelect(selectedId) {
   updatePickerFieldsForType()
 }
 
-// "Timed" exercises show Sets + Duration (the same prescribed_reps text
-// column, just relabeled) and hide Weight; "weights" exercises show all
-// three - matches whichever exercise is currently selected in the picker
+// Timed exercises store their duration in the same prescribed_reps text
+// column reps normally uses ("45 sec", "2 min") - these two helpers convert
+// between that stored string and the separate value+unit inputs in the UI
+function formatDuration(value, unit) {
+  if (!value) return null
+  return `${value} ${unit}`
+}
+
+function parseDuration(text) {
+  if (!text) return { value: '', unit: 'sec' }
+  const match = String(text).match(/^(\d+(?:\.\d+)?)\s*(sec|min)/i)
+  if (match) return { value: match[1], unit: match[2].toLowerCase() }
+  return { value: text, unit: 'sec' }
+}
+
+// "Timed" exercises show Sets + Duration (value + unit) and hide Weight;
+// "weights" (and any custom type) show Sets + Reps + Weight - matches
+// whichever exercise is currently selected in the picker
 function updatePickerFieldsForType() {
   const exerciseId = document.getElementById('pickerExerciseSelect').value
   const exercise = allExercises.find(ex => ex.id === exerciseId)
   const isTimed = exercise && exercise.type === 'timed'
 
-  document.getElementById('pickerRepsLabel').textContent = isTimed ? 'Duration' : 'Reps'
-  document.getElementById('pickerReps').placeholder = isTimed ? 'e.g. 30 sec, 2 min' : 'e.g. 8-12'
+  document.getElementById('pickerRepsGroup').style.display = isTimed ? 'none' : 'block'
+  document.getElementById('pickerDurationGroup').style.display = isTimed ? 'block' : 'none'
   document.getElementById('pickerWeightGroup').style.display = isTimed ? 'none' : 'block'
 }
 
 document.getElementById('pickerExerciseSelect').addEventListener('change', updatePickerFieldsForType)
+
+// ==========================================================================
+// ---- EXTRA FIELDS (name/value pairs, e.g. "% of 1RM": "75", "RPE": "8") ---
+// ==========================================================================
+function addExtraFieldRow(containerId, name, value) {
+  const container = document.getElementById(containerId)
+  const row = document.createElement('div')
+  row.className = 'extra-field-row'
+  row.innerHTML = `
+    <input type="text" class="extra-field-name" placeholder="Field name (e.g. RPE)" value="${name || ''}">
+    <input type="text" class="extra-field-value" placeholder="Value (e.g. 8)" value="${value || ''}">
+    <button type="button" class="extra-field-remove">✕</button>
+  `
+  row.querySelector('.extra-field-remove').addEventListener('click', function() { row.remove() })
+  container.appendChild(row)
+}
+
+function collectExtraFields(containerId) {
+  const rows = document.querySelectorAll('#' + containerId + ' .extra-field-row')
+  const result = {}
+  rows.forEach(row => {
+    const name = row.querySelector('.extra-field-name').value.trim()
+    const value = row.querySelector('.extra-field-value').value.trim()
+    if (name && value) result[name] = value
+  })
+  return Object.keys(result).length ? result : null
+}
+
+document.getElementById('pickerAddFieldBtn').addEventListener('click', function() {
+  addExtraFieldRow('pickerExtraFields')
+})
+
+document.getElementById('editAddFieldBtn').addEventListener('click', function() {
+  addExtraFieldRow('editExtraFields')
+})
 
 // ==========================================================================
 // ---- LOAD + RENDER WEEKS / DAYS / EXERCISES ----
@@ -159,6 +209,9 @@ function renderExerciseRow(pe) {
   if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
   if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
   if (pe.prescribed_weight) parts.push(`${pe.prescribed_weight}kg`)
+  if (pe.extra_fields) {
+    for (const [k, v] of Object.entries(pe.extra_fields)) parts.push(`${k}: ${v}`)
+  }
   const summary = parts.join(' × ')
 
   return `
@@ -272,8 +325,11 @@ function openExercisePickerModal(dayId) {
   populateExerciseSelect()
   document.getElementById('pickerSets').value = ''
   document.getElementById('pickerReps').value = ''
+  document.getElementById('pickerDurationValue').value = ''
+  document.getElementById('pickerDurationUnit').value = 'sec'
   document.getElementById('pickerWeight').value = ''
   document.getElementById('pickerNotes').value = ''
+  document.getElementById('pickerExtraFields').innerHTML = ''
   document.getElementById('exercisePickerModal').classList.add('active')
 }
 
@@ -289,11 +345,14 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
   const isTimed = exercise && exercise.type === 'timed'
 
   const sets = document.getElementById('pickerSets').value ? parseInt(document.getElementById('pickerSets').value) : null
-  const reps = document.getElementById('pickerReps').value.trim() || null
-  // Timed exercises never store a weight, regardless of what's left in the
-  // (hidden) field from a previous selection
+  // Timed exercises store their duration (value + unit) in the same
+  // prescribed_reps column reps normally uses, and never store a weight
+  const reps = isTimed
+    ? formatDuration(document.getElementById('pickerDurationValue').value, document.getElementById('pickerDurationUnit').value)
+    : (document.getElementById('pickerReps').value.trim() || null)
   const weight = isTimed ? null : (document.getElementById('pickerWeight').value ? parseFloat(document.getElementById('pickerWeight').value) : null)
   const notes = document.getElementById('pickerNotes').value.trim() || null
+  const extraFields = collectExtraFields('pickerExtraFields')
 
   const day = findDay(currentDayIdForAddExercise)
   const nextOrder = day.program_exercises.length ? Math.max(...day.program_exercises.map(pe => pe.order_index)) + 1 : 0
@@ -305,6 +364,7 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
     prescribed_sets: sets,
     prescribed_reps: reps,
     prescribed_weight: weight,
+    extra_fields: extraFields,
     notes
   }])
 
@@ -331,11 +391,34 @@ function toggleCreateNewCategoryField() {
 
 document.getElementById('createExerciseCategory').addEventListener('change', toggleCreateNewCategoryField)
 
+// Type dropdown: always offers the two built-ins, plus any custom type a
+// coach has already made up, plus "+ Add New Type" - same pattern as Category
+const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)' }
+
+function populateCreateTypeSelect() {
+  const select = document.getElementById('createExerciseType')
+  const customTypes = [...new Set(allExercises.map(ex => ex.type).filter(t => t && !(t in BUILT_IN_TYPES)))].sort()
+  select.innerHTML =
+    Object.entries(BUILT_IN_TYPES).map(([value, label]) => `<option value="${value}">${label}</option>`).join('') +
+    customTypes.map(t => `<option value="${t}">${t}</option>`).join('') +
+    '<option value="__new__">+ Add New Type</option>'
+  select.value = 'weights'
+  toggleCreateNewTypeField()
+}
+
+function toggleCreateNewTypeField() {
+  const isNew = document.getElementById('createExerciseType').value === '__new__'
+  document.getElementById('createExerciseNewTypeGroup').style.display = isNew ? 'block' : 'none'
+}
+
+document.getElementById('createExerciseType').addEventListener('change', toggleCreateNewTypeField)
+
 document.getElementById('createNewExerciseBtn').addEventListener('click', function() {
   document.getElementById('createExerciseName').value = ''
   document.getElementById('createExerciseNewCategory').value = ''
   populateCreateCategorySelect()
-  document.getElementById('createExerciseType').value = 'weights'
+  document.getElementById('createExerciseNewType').value = ''
+  populateCreateTypeSelect()
   document.getElementById('createExerciseVideoUrl').value = ''
   document.getElementById('createExerciseInstructions').value = ''
   document.getElementById('createExerciseModal').classList.add('active')
@@ -351,7 +434,10 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
   const category = categorySelect === '__new__'
     ? document.getElementById('createExerciseNewCategory').value.trim()
     : categorySelect
-  const type = document.getElementById('createExerciseType').value
+  const typeSelect = document.getElementById('createExerciseType').value
+  const type = typeSelect === '__new__'
+    ? document.getElementById('createExerciseNewType').value.trim() || 'weights'
+    : typeSelect
   const videoUrl = document.getElementById('createExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('createExerciseInstructions').value.trim()
 
@@ -380,15 +466,25 @@ function openEditExerciseModal(peId) {
   if (!currentEditPE) return
 
   const isTimed = currentEditPE.exercises && currentEditPE.exercises.type === 'timed'
+  const duration = parseDuration(currentEditPE.prescribed_reps)
 
   document.getElementById('editExerciseTitle').textContent =
     'Edit ' + (currentEditPE.exercises ? currentEditPE.exercises.name : 'Exercise')
   document.getElementById('editSets').value = currentEditPE.prescribed_sets || ''
-  document.getElementById('editReps').value = currentEditPE.prescribed_reps || ''
+  document.getElementById('editReps').value = isTimed ? '' : (currentEditPE.prescribed_reps || '')
+  document.getElementById('editDurationValue').value = isTimed ? duration.value : ''
+  document.getElementById('editDurationUnit').value = isTimed ? duration.unit : 'sec'
   document.getElementById('editWeight').value = currentEditPE.prescribed_weight || ''
   document.getElementById('editNotes').value = currentEditPE.notes || ''
-  document.getElementById('editRepsLabel').textContent = isTimed ? 'Duration' : 'Reps'
+  document.getElementById('editRepsGroup').style.display = isTimed ? 'none' : 'block'
+  document.getElementById('editDurationGroup').style.display = isTimed ? 'block' : 'none'
   document.getElementById('editWeightGroup').style.display = isTimed ? 'none' : 'block'
+
+  document.getElementById('editExtraFields').innerHTML = ''
+  if (currentEditPE.extra_fields) {
+    for (const [k, v] of Object.entries(currentEditPE.extra_fields)) addExtraFieldRow('editExtraFields', k, v)
+  }
+
   document.getElementById('editExerciseModal').classList.add('active')
 }
 
@@ -400,13 +496,16 @@ document.getElementById('saveEditExerciseBtn').addEventListener('click', async f
   const isTimed = currentEditPE.exercises && currentEditPE.exercises.type === 'timed'
 
   const sets = document.getElementById('editSets').value ? parseInt(document.getElementById('editSets').value) : null
-  const reps = document.getElementById('editReps').value.trim() || null
+  const reps = isTimed
+    ? formatDuration(document.getElementById('editDurationValue').value, document.getElementById('editDurationUnit').value)
+    : (document.getElementById('editReps').value.trim() || null)
   const weight = isTimed ? null : (document.getElementById('editWeight').value ? parseFloat(document.getElementById('editWeight').value) : null)
   const notes = document.getElementById('editNotes').value.trim() || null
+  const extraFields = collectExtraFields('editExtraFields')
 
   const { error } = await supabase
     .from('program_exercises')
-    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, notes })
+    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, extra_fields: extraFields, notes })
     .eq('id', currentEditPE.id)
 
   if (error) { console.log(error); alert('Something went wrong'); return }
