@@ -103,7 +103,8 @@ header h1 {
   z-index: 100;
 }
 
-.sidebar-item-hover:hover .sidebar-submenu {
+.sidebar-item-hover:hover .sidebar-submenu,
+.sidebar-item-hover.open .sidebar-submenu {
   display: block;
 }
 
@@ -391,4 +392,67 @@ header h1 {
   background-color: #ff4444;
   color: white;
 }
- 
+
+
+/* ==========================================================================
+   MOBILE (max-width: 768px)
+   The sidebar-based layout used across every coach page assumes a wide
+   screen (fixed-width side columns next to the main content). On a phone
+   that just squeezes everything - this stacks things vertically instead.
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .dashboard {
+    padding: 20px;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    padding: 0;
+    border-right: none;
+    border-bottom: 1px solid #2a2a4e;
+  }
+
+  .sidebar-link {
+    padding: 14px 16px;
+  }
+
+  .sidebar-item-hover {
+    flex: 1;
+  }
+
+  /* The submenu was positioned to fly out to the right of a vertical
+     sidebar (left: 100%) - that makes no sense once the sidebar is a
+     horizontal bar, so it drops down underneath instead */
+  .sidebar-submenu {
+    left: 0;
+    top: 100%;
+    border-radius: 0 0 8px 8px;
+  }
+
+  header {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px 20px;
+  }
+
+  .modal {
+    padding: 24px;
+    max-height: 85vh;
+  }
+
+  .dashboard-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .athlete-grid {
+    grid-template-columns: 1fr;
+  }
+}
