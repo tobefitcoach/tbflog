@@ -519,6 +519,31 @@
   color: #aaaacc;
 }
 
+/* Video thumbnail at the top of each card - same YouTube-thumbnail trick
+   as the Training Builder's exercise library panel, just bigger (16:9,
+   full card width) since these cards have more room */
+.exercise-item-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #1a1a2e;
+  margin-bottom: 12px;
+}
+
+.exercise-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.exercise-item-thumb-placeholder {
+  font-size: 32px;
+}
+
 .exercise-instructions {
   font-size: 13px;
   color: #aaaacc;

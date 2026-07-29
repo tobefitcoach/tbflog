@@ -95,6 +95,15 @@ function toggleNewTypeField() {
 
 document.getElementById('exerciseType').addEventListener('change', toggleNewTypeField)
 
+// YouTube's thumbnail images are available at a predictable URL from just
+// the video id, no API key needed - other hosts (Vimeo etc.) fall back to
+// a placeholder icon. Same helper as training-builder.js's library panel.
+function getYouTubeThumbnail(url) {
+  if (!url) return null
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
+}
+
 function renderExercises(exercises) {
   const container = document.getElementById('exerciseList')
 
@@ -124,8 +133,17 @@ function renderExercises(exercises) {
         ${cat === 'Uncategorized' ? '' : `<button class="btn-delete-metric btn-delete-category" data-category="${cat}">🗑 Delete Category</button>`}
       </div>
       <div class="exercise-grid">
-        ${byCategory[cat].map(ex => `
+        ${byCategory[cat].map(ex => {
+          const thumb = getYouTubeThumbnail(ex.video_url)
+          const thumbInner = thumb
+            ? `<img src="${thumb}" alt="" loading="lazy">`
+            : '<span class="exercise-item-thumb-placeholder">🏋</span>'
+
+          return `
           <div class="exercise-item">
+            ${ex.video_url
+              ? `<a href="${ex.video_url}" target="_blank" class="exercise-item-thumb">${thumbInner}</a>`
+              : `<div class="exercise-item-thumb">${thumbInner}</div>`}
             <div class="card-top">
               <h4 class="exercise-item-title" data-id="${ex.id}">${ex.name}</h4>
               <div class="kebab-menu">
@@ -137,9 +155,9 @@ function renderExercises(exercises) {
             </div>
             <p class="exercise-instructions" style="color:#4a4a8e; margin-bottom:4px">${BUILT_IN_TYPES[ex.type] ? BUILT_IN_TYPES[ex.type].split(' (')[0] : (ex.type || 'Weightlifting')}</p>
             ${ex.instructions ? `<p class="exercise-instructions">${ex.instructions}</p>` : ''}
-            ${ex.video_url ? `<p class="exercise-instructions"><a href="${ex.video_url}" target="_blank" style="color:#4a4a8e">🎥 Watch video</a></p>` : ''}
           </div>
-        `).join('')}
+        `
+        }).join('')}
       </div>
     </div>
   `).join('')
