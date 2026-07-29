@@ -21,7 +21,7 @@
    ========================================================================== */
 
 .exercise-library-panel {
-  width: 220px;
+  width: 280px;
   flex-shrink: 0;
   padding: 24px 16px;
   border-right: 1px solid #2a2a4e;
@@ -77,9 +77,10 @@
   cursor: grabbing;
 }
 
+/* 16:9, like a real video thumbnail */
 .exercise-lib-thumb {
-  width: 44px;
-  height: 32px;
+  width: 96px;
+  height: 54px;
   flex-shrink: 0;
   border-radius: 6px;
   overflow: hidden;
@@ -96,7 +97,7 @@
 }
 
 .exercise-lib-thumb-placeholder {
-  font-size: 16px;
+  font-size: 22px;
 }
 
 .exercise-lib-name {
