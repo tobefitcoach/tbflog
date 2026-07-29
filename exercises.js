@@ -106,6 +106,7 @@ function getYouTubeThumbnail(url) {
 
 function renderExercises(exercises) {
   const container = document.getElementById('exerciseList')
+  document.getElementById('exerciseTotalCount').textContent = `(${exercises.length})`
 
   if (exercises.length === 0) {
     container.innerHTML = '<p class="no-metrics">No exercises yet — add your first one!</p>'
@@ -129,7 +130,7 @@ function renderExercises(exercises) {
   container.innerHTML = categoryNames.map((cat, i) => `
     <div class="metric-category">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-        <h3 class="category-title" style="margin-bottom:0">${cat}</h3>
+        <h3 class="category-title" style="margin-bottom:0">${cat} <span class="count-badge">(${byCategory[cat].length})</span></h3>
         ${cat === 'Uncategorized' ? '' : `
           <div class="kebab-menu">
             <button class="kebab-btn" data-index="${i}">⋮</button>

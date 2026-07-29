@@ -1161,6 +1161,17 @@
   border-bottom: 1px solid #2a2a4e;
 }
 
+/* Small item-count next to a title (e.g. "Exercise Library (24)", or a
+   category heading) - resets the uppercase/letter-spacing it'd otherwise
+   inherit from a title like .category-title */
+.count-badge {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+  font-weight: normal;
+  color: #aaaacc;
+}
+
 
 /* ==========================================================================
    METRIC CHANGE INDICATORS
