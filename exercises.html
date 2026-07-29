@@ -17,12 +17,25 @@
       </div>
     </header>
 
-    <div class="dashboard">
-      <div class="dashboard-header">
-        <h2>Exercise Library</h2>
-        <button class="btn-add" id="addExerciseBtn">+ Add Exercise</button>
+    <div class="app-layout">
+      <nav class="sidebar">
+        <a href="index.html" class="sidebar-link">Dashboard</a>
+        <div class="sidebar-item-hover">
+          <span class="sidebar-link active">Library</span>
+          <div class="sidebar-submenu">
+            <a href="exercises.html">Exercise Library</a>
+            <a href="programs.html">Program Library</a>
+          </div>
+        </div>
+      </nav>
+
+      <div class="dashboard">
+        <div class="dashboard-header">
+          <h2>Exercise Library</h2>
+          <button class="btn-add" id="addExerciseBtn">+ Add Exercise</button>
+        </div>
+        <div id="exerciseList"></div>
       </div>
-      <div id="exerciseList"></div>
     </div>
 
     <!-- Add/Edit Exercise Modal - same modal serves both, driven by

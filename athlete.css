@@ -21,6 +21,8 @@
 
 .profile {
   padding: 40px;
+  flex: 1;
+  min-width: 0; /* lets long content (tables, graphs) shrink instead of overflowing the flex row */
 }
 
 /* ==========================================================================

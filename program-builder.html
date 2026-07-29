@@ -17,15 +17,28 @@
       </div>
     </header>
 
-    <div class="dashboard">
-      <div class="dashboard-header">
-        <h2 id="programNameHeading">Loading...</h2>
-        <div style="display:flex; gap:12px">
-          <button class="btn-profile-action" id="renameProgramBtn">✏ Rename</button>
-          <button class="btn-add" id="addWeekBtn">+ Add Week</button>
+    <div class="app-layout">
+      <nav class="sidebar">
+        <a href="index.html" class="sidebar-link">Dashboard</a>
+        <div class="sidebar-item-hover">
+          <span class="sidebar-link active">Library</span>
+          <div class="sidebar-submenu">
+            <a href="exercises.html">Exercise Library</a>
+            <a href="programs.html">Program Library</a>
+          </div>
         </div>
+      </nav>
+
+      <div class="dashboard">
+        <div class="dashboard-header">
+          <h2 id="programNameHeading">Loading...</h2>
+          <div style="display:flex; gap:12px">
+            <button class="btn-profile-action" id="renameProgramBtn">✏ Rename</button>
+            <button class="btn-add" id="addWeekBtn">+ Add Week</button>
+          </div>
+        </div>
+        <div id="weeksList"></div>
       </div>
-      <div id="weeksList"></div>
     </div>
 
     <!-- Rename Template Modal -->
