@@ -126,11 +126,13 @@ function renderExercises(exercises) {
       <div class="exercise-grid">
         ${byCategory[cat].map(ex => `
           <div class="exercise-item">
-            <div class="metric-item-header">
-              <h4>${ex.name}</h4>
-              <div style="display:flex; gap:8px">
-                <button class="btn-edit-entry" data-id="${ex.id}">✏</button>
-                <button class="btn-delete-metric" data-id="${ex.id}">🗑</button>
+            <div class="card-top">
+              <h4 class="exercise-item-title" data-id="${ex.id}">${ex.name}</h4>
+              <div class="kebab-menu">
+                <button class="kebab-btn" data-id="${ex.id}">⋮</button>
+                <div class="kebab-dropdown" id="exercise-dropdown-${ex.id}">
+                  <button class="kebab-delete" data-id="${ex.id}">🗑 Delete exercise</button>
+                </div>
               </div>
             </div>
             <p class="exercise-instructions" style="color:#4a4a8e; margin-bottom:4px">${BUILT_IN_TYPES[ex.type] ? BUILT_IN_TYPES[ex.type].split(' (')[0] : (ex.type || 'Weightlifting')}</p>
@@ -142,15 +144,26 @@ function renderExercises(exercises) {
     </div>
   `).join('')
 
-  container.querySelectorAll('.btn-edit-entry').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const exercise = exercises.find(e => e.id === btn.dataset.id)
+  // Click the title to edit - the pencil icon is gone, editing is now just
+  // "click the exercise"
+  container.querySelectorAll('.exercise-item-title').forEach(title => {
+    title.addEventListener('click', function() {
+      const exercise = exercises.find(e => e.id === title.dataset.id)
       openExerciseModal(exercise)
     })
   })
 
-  container.querySelectorAll('.exercise-item .btn-delete-metric').forEach(btn => {
-    btn.addEventListener('click', function() {
+  // Kebab (⋮) button toggles that card's delete dropdown open/closed
+  container.querySelectorAll('.exercise-item .kebab-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation()
+      document.getElementById(`exercise-dropdown-${btn.dataset.id}`).classList.toggle('active')
+    })
+  })
+
+  container.querySelectorAll('.exercise-item .kebab-delete').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation()
       deleteExercise(btn.dataset.id)
     })
   })

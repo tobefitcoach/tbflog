@@ -508,6 +508,17 @@
   background-color: #0f0f1a;
 }
 
+/* Click the exercise's own name to edit it - no separate pencil icon */
+.exercise-item-title {
+  font-size: 16px;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.exercise-item-title:hover {
+  color: #aaaacc;
+}
+
 .exercise-instructions {
   font-size: 13px;
   color: #aaaacc;
