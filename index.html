@@ -14,53 +14,67 @@
       <h1>TBFLOG</h1>
       <div style="display:flex; align-items:center; gap:16px">
         <p>Coach Dashboard</p>
-        <a href="exercises.html" class="header-link">Exercise Library</a>
-        <a href="programs.html" class="header-link">Program Library</a>
         <button class="header-link" id="logoutBtn">Log Out</button>
       </div>
     </header>
 
-    <!-- ======================================================================
-         DASHBOARD — Athlete grid
-         script.js clears out .athlete-grid on page load and re-renders one
-         card per athlete from the database, so the 4 cards below are just
-         placeholder/example markup and get replaced as soon as the page runs.
-         ====================================================================== -->
-    <div class="dashboard">
-  <div class="dashboard-header">
-    <h2>Your Athletes</h2>
-    <button class="btn-add">+ Add Athlete</button>
-  </div>
-      <div class="athlete-grid">
+    <div class="app-layout">
 
-        <div class="athlete-card">
-          <div class="athlete-initials">JD</div>
-          <h3>John Doe</h3>
-          <p>5 metrics tracked</p>
-          <p>Last updated: today</p>
+      <!-- Left sidebar nav. "Library" reveals Exercise/Program Library on
+           hover (.sidebar-submenu) instead of taking up its own row -->
+      <nav class="sidebar">
+        <a href="index.html" class="sidebar-link active">Dashboard</a>
+        <div class="sidebar-item-hover">
+          <span class="sidebar-link">Library</span>
+          <div class="sidebar-submenu">
+            <a href="exercises.html">Exercise Library</a>
+            <a href="programs.html">Program Library</a>
+          </div>
         </div>
+      </nav>
 
-        <div class="athlete-card">
-          <div class="athlete-initials">SM</div>
-          <h3>Sarah Miller</h3>
-          <p>3 metrics tracked</p>
-          <p>Last updated: yesterday</p>
+      <!-- ====================================================================
+           DASHBOARD — Athlete grid
+           script.js clears out .athlete-grid on page load and re-renders one
+           card per athlete from the database, so the 4 cards below are just
+           placeholder/example markup and get replaced as soon as the page runs.
+           ==================================================================== -->
+      <div class="dashboard">
+    <div class="dashboard-header">
+      <h2>Your Athletes</h2>
+      <button class="btn-add">+ Add Athlete</button>
+    </div>
+        <div class="athlete-grid">
+
+          <div class="athlete-card">
+            <div class="athlete-initials">JD</div>
+            <h3>John Doe</h3>
+            <p>5 metrics tracked</p>
+            <p>Last updated: today</p>
+          </div>
+
+          <div class="athlete-card">
+            <div class="athlete-initials">SM</div>
+            <h3>Sarah Miller</h3>
+            <p>3 metrics tracked</p>
+            <p>Last updated: yesterday</p>
+          </div>
+
+          <div class="athlete-card">
+            <div class="athlete-initials">TK</div>
+            <h3>Tom Klein</h3>
+            <p>7 metrics tracked</p>
+            <p>Last updated: 3 days ago</p>
+          </div>
+
+          <div class="athlete-card">
+            <div class="athlete-initials">AR</div>
+            <h3>Anna Ross</h3>
+            <p>4 metrics tracked</p>
+            <p>Last updated: today</p>
+          </div>
+
         </div>
-
-        <div class="athlete-card">
-          <div class="athlete-initials">TK</div>
-          <h3>Tom Klein</h3>
-          <p>7 metrics tracked</p>
-          <p>Last updated: 3 days ago</p>
-        </div>
-
-        <div class="athlete-card">
-          <div class="athlete-initials">AR</div>
-          <h3>Anna Ross</h3>
-          <p>4 metrics tracked</p>
-          <p>Last updated: today</p>
-        </div>
-
       </div>
     </div>
 
