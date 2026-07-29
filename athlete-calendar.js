@@ -420,7 +420,7 @@ document.getElementById('saveNewTrainingNameBtn').addEventListener('click', asyn
   if (error) { console.log(error); alert('Something went wrong'); return }
 
   document.getElementById('newTrainingNameModal').classList.remove('active')
-  document.getElementById('trainingBuilderFrame').src = `training-builder.html?id=${data[0].id}`
+  document.getElementById('trainingBuilderFrame').src = `training-builder.html?id=${data[0].id}&embed=1`
   document.getElementById('trainingBuilderOverlayModal').classList.add('active')
 })
 

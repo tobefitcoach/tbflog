@@ -10,6 +10,14 @@ import { supabase } from './coachClient.js'
 const params = new URLSearchParams(window.location.search)
 const trainingId = params.get('id')
 
+// Loaded inside an iframe overlay (see athlete-calendar.js's "+ New
+// Training" flow) - hide the page's own header/sidebar since the overlay
+// already has its own title bar and Done button
+if (params.get('embed') === '1') {
+  document.getElementById('pageHeader').style.display = 'none'
+  document.getElementById('pageSidebar').style.display = 'none'
+}
+
 let allExercises = []
 let exercisesCache = [] // last-loaded training_exercises for this training
 let currentEditTE = null // the training_exercises row currently open in the edit modal
