@@ -234,3 +234,48 @@ drop policy if exists "coach manages own athletes notes" on athlete_notes;
 create policy "coach manages own athletes notes" on athlete_notes for all
   using (exists (select 1 from athletes a where a.id = athlete_notes.athlete_id and a.coach_id = auth.uid()))
   with check (exists (select 1 from athletes a where a.id = athlete_notes.athlete_id and a.coach_id = auth.uid()));
+
+-- ==========================================================================
+-- Program builder + calendar: let `programs` hold reusable, athlete-agnostic
+-- TEMPLATES (built in a library, no athlete_id yet) as well as real
+-- athlete-owned instances (assigned-from-template or ad-hoc single-day
+-- additions). athlete_id has to become nullable so a template row can exist
+-- with no athlete attached.
+-- ==========================================================================
+
+alter table programs alter column athlete_id drop not null;
+alter table programs add column if not exists is_template boolean not null default false;
+-- Tells apart the Calendar's "+ Add Training" quick-add container for one
+-- date from a real assigned-template instance - both are is_template=false
+-- with athlete_id set, so without this flag there's no reliable way to tell
+-- them apart in the Calendar UI.
+alter table programs add column if not exists is_adhoc boolean not null default false;
+
+-- Old policy assumed athlete_id was always set, which breaks on template
+-- rows. New version: a row must be EITHER a template (is_template=true,
+-- athlete_id null) OR a real instance owned by one of this coach's athletes
+-- - enforced at the database level, not just trusted from the UI.
+drop policy if exists "coach manages own programs" on programs;
+create policy "coach manages own programs" on programs for all
+  using (
+    coach_id = auth.uid()
+    and (
+      athlete_id is null
+      or exists (select 1 from athletes a where a.id = programs.athlete_id and a.coach_id = auth.uid())
+    )
+  )
+  with check (
+    coach_id = auth.uid() and is_coach()
+    and (
+      (is_template and athlete_id is null)
+      or (not is_template and athlete_id is not null
+          and exists (select 1 from athletes a where a.id = programs.athlete_id and a.coach_id = auth.uid()))
+    )
+  );
+
+-- Unchanged logic, just re-asserted here: athlete_id is null on template
+-- rows, so this join already returns zero rows for templates - athletes
+-- were never able to see them and still can't.
+drop policy if exists "athlete views own programs" on programs;
+create policy "athlete views own programs" on programs for select
+  using (exists (select 1 from athletes a where a.id = programs.athlete_id and a.user_id = auth.uid()));
