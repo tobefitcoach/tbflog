@@ -126,11 +126,18 @@ function renderExercises(exercises) {
     return a.localeCompare(b)
   })
 
-  container.innerHTML = categoryNames.map(cat => `
+  container.innerHTML = categoryNames.map((cat, i) => `
     <div class="metric-category">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
         <h3 class="category-title" style="margin-bottom:0">${cat}</h3>
-        ${cat === 'Uncategorized' ? '' : `<button class="btn-delete-metric btn-delete-category" data-category="${cat}">🗑 Delete Category</button>`}
+        ${cat === 'Uncategorized' ? '' : `
+          <div class="kebab-menu">
+            <button class="kebab-btn" data-index="${i}">⋮</button>
+            <div class="kebab-dropdown" id="category-dropdown-${i}">
+              <button class="kebab-delete btn-delete-category" data-category="${cat}">🗑 Delete Category</button>
+            </div>
+          </div>
+        `}
       </div>
       <div class="exercise-grid">
         ${byCategory[cat].map(ex => {
@@ -186,8 +193,17 @@ function renderExercises(exercises) {
     })
   })
 
+  // Category kebab (⋮) button toggles that category's dropdown open/closed
+  container.querySelectorAll('.kebab-btn[data-index]').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation()
+      document.getElementById(`category-dropdown-${btn.dataset.index}`).classList.toggle('active')
+    })
+  })
+
   container.querySelectorAll('.btn-delete-category').forEach(btn => {
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation()
       deleteCategory(btn.dataset.category, exercises)
     })
   })

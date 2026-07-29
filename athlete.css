@@ -486,13 +486,13 @@
   flex-direction: column;
 }
 
-/* Exercise Library cards (exercises.html) - same 3-col grid/card recipe as
-   the metrics grid above, kept as separate classes since exercise cards
-   don't have a graph/latest-value section */
+/* Exercise Library cards (exercises.html) - auto-fill instead of a fixed
+   3 columns, so more (smaller) cards fit per row on wider screens rather
+   than 3 large cards with a lot of empty space */
 .exercise-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
 }
 
 @media (max-width: 768px) {
@@ -504,7 +504,7 @@
 .exercise-item {
   border: 1px solid #2a2a4e;
   border-radius: 12px;
-  padding: 20px;
+  padding: 12px;
   background-color: #0f0f1a;
 }
 
@@ -528,7 +528,7 @@
   justify-content: center;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   background-color: #1a1a2e;
   margin-bottom: 12px;
@@ -541,7 +541,7 @@
 }
 
 .exercise-item-thumb-placeholder {
-  font-size: 32px;
+  font-size: 20px;
 }
 
 .exercise-instructions {
