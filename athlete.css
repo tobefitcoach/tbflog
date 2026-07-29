@@ -89,6 +89,7 @@
 }
 
 .calendar-day {
+  position: relative;
   min-height: 90px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
@@ -101,6 +102,51 @@
 }
 
 .calendar-day:hover {
+  border-color: #4a4a8e;
+}
+
+/* Small "+" that appears on hover to add a training to that specific day,
+   without needing a whole toolbar/date-picker flow */
+.calendar-day-add-btn {
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #4a4a8e;
+  color: white;
+  border: none;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.calendar-day:hover .calendar-day-add-btn {
+  display: flex;
+}
+
+.calendar-day-add-btn:hover {
+  background-color: #5a5aae;
+}
+
+/* One clickable training row in the "Add Training" popup */
+.training-pick-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.training-pick-row:hover {
   border-color: #4a4a8e;
 }
 

@@ -24,11 +24,8 @@ const { data: { session } } = await supabase.auth.getSession()
 // to run before that redirect happens.
 
 let calendarEntriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
-let allExercisesCache = []
 let calendarLoaded = false
-let currentDayIdForExercise = null // day being added to, set before opening the exercise picker
 let currentDayDateForModal = null // date currently shown in the day-detail modal
-let reopenDayModalAfterSave = false // whether saving the exercise picker should reopen the day modal
 let currentEditScheduledPE = null
 
 const today = new Date()
@@ -38,7 +35,6 @@ let currentViewMonth = today.getMonth() // 0-indexed
 window.addEventListener('calendar-tab-activated', function() {
   if (calendarLoaded) return
   calendarLoaded = true
-  loadAllExercisesForCalendar()
   loadCalendarMonth(currentViewYear, currentViewMonth)
 })
 
@@ -157,6 +153,7 @@ function renderCalendarGrid(year, month) {
 
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
+        <button type="button" class="calendar-day-add-btn" data-date="${dateStr}">+</button>
         <span class="calendar-day-number">${cell.date.getDate()}</span>
         ${names.map(name => `<span class="calendar-day-badge">${name}</span>`).join('')}
       </div>
@@ -166,6 +163,15 @@ function renderCalendarGrid(year, month) {
   grid.querySelectorAll('.calendar-day').forEach(cellEl => {
     cellEl.addEventListener('click', function() {
       openDayModal(cellEl.dataset.date)
+    })
+  })
+
+  // Separate listener + stopPropagation so clicking "+" doesn't also
+  // trigger the cell's own click (which opens the day-detail view instead)
+  grid.querySelectorAll('.calendar-day-add-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation()
+      openDayAddTrainingModal(btn.dataset.date)
     })
   })
 }
@@ -277,15 +283,6 @@ document.getElementById('closeDayDetailBtn').addEventListener('click', function(
   document.getElementById('dayDetailModal').classList.remove('active')
 })
 
-document.getElementById('dayDetailAddExerciseBtn').addEventListener('click', async function() {
-  const name = prompt('Name this training:', 'Training')
-  if (name === null) return
-  const dayId = await findOrCreateAdHocDay(currentDayDateForModal, name.trim() || 'Training')
-  document.getElementById('dayDetailModal').classList.remove('active')
-  reopenDayModalAfterSave = true
-  openCalendarExercisePicker(dayId)
-})
-
 // ==========================================================================
 // ---- EDIT / DELETE A SCHEDULED EXERCISE ----
 // ==========================================================================
@@ -355,53 +352,54 @@ async function deleteScheduledExercise(peId) {
 }
 
 // ==========================================================================
-// ---- AD-HOC ADD ("+ Add Training") ----
+// ---- ADD TRAINING (hover "+" on a calendar day) ----
 // findOrCreateAdHocDay reuses the same (is_adhoc=true, start_date=dateStr)
 // container for repeated adds to the same date, instead of creating a new
-// one each time.
+// one each time. Only way to put exercises on a day is via a saved
+// Training - no more "add one loose exercise" flow, that's what the
+// Training Library / training-builder.html is for.
 // ==========================================================================
-document.getElementById('calAddTrainingBtn').addEventListener('click', async function() {
-  document.getElementById('adHocNameInput').value = ''
-  document.getElementById('adHocDateInput').value = toDateStr(new Date())
-  await loadTrainingLibraryOptions()
-  document.getElementById('adHocDateModal').classList.add('active')
-})
+async function openDayAddTrainingModal(dateStr) {
+  document.getElementById('dayAddTrainingTitle').textContent = 'Add Training — ' + formatDisplayDateCal(dateStr)
 
-// Training Library options for the "Start From" dropdown - "Build from
-// scratch" (default) opens the usual exercise picker; picking a saved
-// training instead clones its exercise list straight onto the day
-async function loadTrainingLibraryOptions() {
-  const { data, error } = await supabase.from('trainings').select('*').order('name')
-  if (error) { console.log(error); return }
+  const { data, error } = await supabase.from('trainings').select('*').order('created_at', { ascending: false })
+  const list = document.getElementById('dayAddTrainingList')
 
-  const select = document.getElementById('adHocFromTrainingSelect')
-  select.innerHTML = '<option value="">Build from scratch</option>' +
-    data.map(t => `<option value="${t.id}">${t.name}</option>`).join('')
+  if (error) {
+    console.log(error)
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Training Library</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No trainings saved yet - create one in the Training Library first</p>'
+  } else {
+    list.innerHTML = data.map(t => `
+      <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
+        <span>${t.name}</span>
+        <span class="btn-edit-entry">+ Add</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        applyTrainingToDay(row.dataset.id, row.dataset.name, dateStr)
+      })
+    })
+  }
+
+  document.getElementById('dayAddTrainingModal').classList.add('active')
 }
 
-document.getElementById('cancelAdHocDateBtn').addEventListener('click', function() {
-  document.getElementById('adHocDateModal').classList.remove('active')
+document.getElementById('closeDayAddTrainingBtn').addEventListener('click', function() {
+  document.getElementById('dayAddTrainingModal').classList.remove('active')
 })
 
-document.getElementById('continueAdHocDateBtn').addEventListener('click', async function() {
-  const dateStr = document.getElementById('adHocDateInput').value
-  const name = document.getElementById('adHocNameInput').value.trim()
-  const trainingId = document.getElementById('adHocFromTrainingSelect').value
-  if (!dateStr) { alert('Please choose a date'); return }
-
-  document.getElementById('adHocDateModal').classList.remove('active')
-  const dayId = await findOrCreateAdHocDay(dateStr, name || 'Training')
+async function applyTrainingToDay(trainingId, trainingName, dateStr) {
+  const dayId = await findOrCreateAdHocDay(dateStr, trainingName)
+  await cloneTrainingToDay(trainingId, dayId)
+  document.getElementById('dayAddTrainingModal').classList.remove('active')
   currentDayDateForModal = dateStr
-
-  if (trainingId) {
-    await cloneTrainingToDay(trainingId, dayId)
-    await loadCalendarMonth(currentViewYear, currentViewMonth)
-    openDayModal(dateStr)
-  } else {
-    reopenDayModalAfterSave = false
-    openCalendarExercisePicker(dayId)
-  }
-})
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+  openDayModal(dateStr)
+}
 
 // Copies a saved training's exercise list onto an ad-hoc day - a real copy,
 // same reasoning as cloneTemplateToAthlete() below: editing the Training
@@ -472,29 +470,11 @@ async function findOrCreateAdHocDay(dateStr, name) {
 }
 
 // ==========================================================================
-// ---- EXERCISE PICKER (shared by ad-hoc add and "+ Add Exercise" in the
-// day modal) - same pick-existing-or-create-new pattern as
-// program-builder.js, duplicated rather than shared (see the plan: nothing
-// gets factored out until it's copy-pasted a third time)
+// ---- DURATION + EXTRA FIELD HELPERS ----
+// Still needed by the "edit a scheduled exercise" modal (openEditScheduledModal
+// / saveEditScheduledBtn above) even though the calendar no longer has its
+// own exercise picker - editing what's already on a day is still supported.
 // ==========================================================================
-async function loadAllExercisesForCalendar() {
-  const { data, error } = await supabase.from('exercises').select('*').order('name')
-  if (error) { console.log(error); return }
-  allExercisesCache = data
-  populateCalExerciseSelect()
-}
-
-function populateCalExerciseSelect(selectedId) {
-  const select = document.getElementById('calPickerExerciseSelect')
-  select.innerHTML = '<option value="">Choose an exercise...</option>' +
-    allExercisesCache.map(ex => `<option value="${ex.id}">${ex.name}</option>`).join('')
-  if (selectedId) select.value = selectedId
-  updateCalPickerFieldsForType()
-}
-
-// Timed exercises store their duration in the same prescribed_reps text
-// column reps normally uses ("45 sec", "2 min") - these two helpers convert
-// between that stored string and the separate value+unit inputs in the UI
 function formatDurationCal(value, unit) {
   if (!value) return null
   return `${value} ${unit}`
@@ -507,23 +487,6 @@ function parseDurationCal(text) {
   return { value: text, unit: 'sec' }
 }
 
-// "Timed" exercises show Sets + Duration and hide Weight; "weights" (and
-// any custom type) show Sets + Reps + Weight
-function updateCalPickerFieldsForType() {
-  const exerciseId = document.getElementById('calPickerExerciseSelect').value
-  const exercise = allExercisesCache.find(ex => ex.id === exerciseId)
-  const isTimed = exercise && exercise.type === 'timed'
-
-  document.getElementById('calPickerRepsGroup').style.display = isTimed ? 'none' : 'block'
-  document.getElementById('calPickerDurationGroup').style.display = isTimed ? 'block' : 'none'
-  document.getElementById('calPickerWeightGroup').style.display = isTimed ? 'none' : 'block'
-}
-
-document.getElementById('calPickerExerciseSelect').addEventListener('change', updateCalPickerFieldsForType)
-
-// ==========================================================================
-// ---- EXTRA FIELDS (name/value pairs, e.g. "% of 1RM": "75", "RPE": "8") ---
-// ==========================================================================
 function addExtraFieldRowCal(containerId, name, value) {
   const container = document.getElementById(containerId)
   const row = document.createElement('div')
@@ -548,148 +511,8 @@ function collectExtraFieldsCal(containerId) {
   return Object.keys(result).length ? result : null
 }
 
-document.getElementById('calPickerAddFieldBtn').addEventListener('click', function() {
-  addExtraFieldRowCal('calPickerExtraFields')
-})
-
 document.getElementById('editScheduledAddFieldBtn').addEventListener('click', function() {
   addExtraFieldRowCal('editScheduledExtraFields')
-})
-
-function openCalendarExercisePicker(dayId) {
-  currentDayIdForExercise = dayId
-  populateCalExerciseSelect()
-  document.getElementById('calPickerSets').value = ''
-  document.getElementById('calPickerReps').value = ''
-  document.getElementById('calPickerDurationValue').value = ''
-  document.getElementById('calPickerDurationUnit').value = 'sec'
-  document.getElementById('calPickerWeight').value = ''
-  document.getElementById('calPickerNotes').value = ''
-  document.getElementById('calPickerExtraFields').innerHTML = ''
-  document.getElementById('calendarExercisePickerModal').classList.add('active')
-}
-
-document.getElementById('cancelCalExercisePickerBtn').addEventListener('click', function() {
-  document.getElementById('calendarExercisePickerModal').classList.remove('active')
-})
-
-document.getElementById('saveCalExercisePickerBtn').addEventListener('click', async function() {
-  const exerciseId = document.getElementById('calPickerExerciseSelect').value
-  if (!exerciseId) { alert('Please choose an exercise'); return }
-
-  const exercise = allExercisesCache.find(ex => ex.id === exerciseId)
-  const isTimed = exercise && exercise.type === 'timed'
-
-  const sets = document.getElementById('calPickerSets').value ? parseInt(document.getElementById('calPickerSets').value) : null
-  const reps = isTimed
-    ? formatDurationCal(document.getElementById('calPickerDurationValue').value, document.getElementById('calPickerDurationUnit').value)
-    : (document.getElementById('calPickerReps').value.trim() || null)
-  const weight = isTimed ? null : (document.getElementById('calPickerWeight').value ? parseFloat(document.getElementById('calPickerWeight').value) : null)
-  const notes = document.getElementById('calPickerNotes').value.trim() || null
-  const extraFields = collectExtraFieldsCal('calPickerExtraFields')
-
-  const { data: existingPEs } = await supabase
-    .from('program_exercises')
-    .select('order_index')
-    .eq('day_id', currentDayIdForExercise)
-
-  const nextOrder = existingPEs && existingPEs.length ? Math.max(...existingPEs.map(pe => pe.order_index)) + 1 : 0
-
-  const { error } = await supabase.from('program_exercises').insert([{
-    day_id: currentDayIdForExercise,
-    exercise_id: exerciseId,
-    order_index: nextOrder,
-    prescribed_sets: sets,
-    prescribed_reps: reps,
-    prescribed_weight: weight,
-    extra_fields: extraFields,
-    notes
-  }])
-
-  if (error) { console.log(error); alert('Something went wrong'); return }
-
-  document.getElementById('calendarExercisePickerModal').classList.remove('active')
-  await loadCalendarMonth(currentViewYear, currentViewMonth)
-  if (reopenDayModalAfterSave) openDayModal(currentDayDateForModal)
-})
-
-function populateCalCreateCategorySelect() {
-  const select = document.getElementById('calCreateExerciseCategory')
-  const categories = [...new Set(allExercisesCache.map(ex => ex.category).filter(c => c && c.trim()))].sort()
-  select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') +
-    '<option value="__new__">+ Add New Category</option>'
-  select.value = '__new__'
-  toggleCalCreateNewCategoryField()
-}
-
-function toggleCalCreateNewCategoryField() {
-  const isNew = document.getElementById('calCreateExerciseCategory').value === '__new__'
-  document.getElementById('calCreateExerciseNewCategoryGroup').style.display = isNew ? 'block' : 'none'
-}
-
-document.getElementById('calCreateExerciseCategory').addEventListener('change', toggleCalCreateNewCategoryField)
-
-// Type dropdown: same extensible pattern as Category
-const CAL_BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)' }
-
-function populateCalCreateTypeSelect() {
-  const select = document.getElementById('calCreateExerciseType')
-  const customTypes = [...new Set(allExercisesCache.map(ex => ex.type).filter(t => t && !(t in CAL_BUILT_IN_TYPES)))].sort()
-  select.innerHTML =
-    Object.entries(CAL_BUILT_IN_TYPES).map(([value, label]) => `<option value="${value}">${label}</option>`).join('') +
-    customTypes.map(t => `<option value="${t}">${t}</option>`).join('') +
-    '<option value="__new__">+ Add New Type</option>'
-  select.value = 'weights'
-  toggleCalCreateNewTypeField()
-}
-
-function toggleCalCreateNewTypeField() {
-  const isNew = document.getElementById('calCreateExerciseType').value === '__new__'
-  document.getElementById('calCreateExerciseNewTypeGroup').style.display = isNew ? 'block' : 'none'
-}
-
-document.getElementById('calCreateExerciseType').addEventListener('change', toggleCalCreateNewTypeField)
-
-document.getElementById('calCreateNewExerciseBtn').addEventListener('click', function() {
-  document.getElementById('calCreateExerciseName').value = ''
-  document.getElementById('calCreateExerciseNewCategory').value = ''
-  populateCalCreateCategorySelect()
-  document.getElementById('calCreateExerciseNewType').value = ''
-  populateCalCreateTypeSelect()
-  document.getElementById('calCreateExerciseVideoUrl').value = ''
-  document.getElementById('calCreateExerciseInstructions').value = ''
-  document.getElementById('calCreateExerciseModal').classList.add('active')
-})
-
-document.getElementById('cancelCalCreateExerciseBtn').addEventListener('click', function() {
-  document.getElementById('calCreateExerciseModal').classList.remove('active')
-})
-
-document.getElementById('saveCalCreateExerciseBtn').addEventListener('click', async function() {
-  const name = document.getElementById('calCreateExerciseName').value.trim()
-  const categorySelect = document.getElementById('calCreateExerciseCategory').value
-  const category = categorySelect === '__new__'
-    ? document.getElementById('calCreateExerciseNewCategory').value.trim()
-    : categorySelect
-  const typeSelect = document.getElementById('calCreateExerciseType').value
-  const type = typeSelect === '__new__'
-    ? document.getElementById('calCreateExerciseNewType').value.trim() || 'weights'
-    : typeSelect
-  const videoUrl = document.getElementById('calCreateExerciseVideoUrl').value.trim()
-  const instructions = document.getElementById('calCreateExerciseInstructions').value.trim()
-  if (!name) { alert('Please enter a name'); return }
-
-  const { data, error } = await supabase
-    .from('exercises')
-    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }])
-    .select()
-
-  if (error) { console.log(error); alert('Something went wrong'); return }
-
-  allExercisesCache.push(data[0])
-  allExercisesCache.sort((a, b) => a.name.localeCompare(b.name))
-  populateCalExerciseSelect(data[0].id)
-  document.getElementById('calCreateExerciseModal').classList.remove('active')
 })
 
 // ==========================================================================
