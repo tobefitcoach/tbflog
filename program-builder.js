@@ -83,6 +83,19 @@ function parseDuration(text) {
   return { value: text, unit: 'sec' }
 }
 
+// rest_seconds is stored as a plain int (a rest timer counts down from a
+// number, not a parsed string) - these convert to/from the value+unit inputs
+function restToSeconds(value, unit) {
+  if (!value) return null
+  return Math.round(parseFloat(value) * (unit === 'min' ? 60 : 1))
+}
+
+function secondsToRest(seconds) {
+  if (!seconds) return { value: '', unit: 'sec' }
+  if (seconds >= 60 && seconds % 60 === 0) return { value: seconds / 60, unit: 'min' }
+  return { value: seconds, unit: 'sec' }
+}
+
 // "Timed" exercises show Sets + Duration (value + unit) and hide Weight;
 // "weights" (and any custom type) show Sets + Reps + Weight - matches
 // whichever exercise is currently selected in the picker
@@ -328,6 +341,8 @@ function openExercisePickerModal(dayId) {
   document.getElementById('pickerDurationValue').value = ''
   document.getElementById('pickerDurationUnit').value = 'sec'
   document.getElementById('pickerWeight').value = ''
+  document.getElementById('pickerRestValue').value = ''
+  document.getElementById('pickerRestUnit').value = 'sec'
   document.getElementById('pickerNotes').value = ''
   document.getElementById('pickerExtraFields').innerHTML = ''
   document.getElementById('exercisePickerModal').classList.add('active')
@@ -351,6 +366,7 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
     ? formatDuration(document.getElementById('pickerDurationValue').value, document.getElementById('pickerDurationUnit').value)
     : (document.getElementById('pickerReps').value.trim() || null)
   const weight = isTimed ? null : (document.getElementById('pickerWeight').value ? parseFloat(document.getElementById('pickerWeight').value) : null)
+  const restSeconds = restToSeconds(document.getElementById('pickerRestValue').value, document.getElementById('pickerRestUnit').value)
   const notes = document.getElementById('pickerNotes').value.trim() || null
   const extraFields = collectExtraFields('pickerExtraFields')
 
@@ -364,6 +380,7 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
     prescribed_sets: sets,
     prescribed_reps: reps,
     prescribed_weight: weight,
+    rest_seconds: restSeconds,
     extra_fields: extraFields,
     notes
   }])
@@ -476,6 +493,9 @@ function openEditExerciseModal(peId) {
   document.getElementById('editDurationValue').value = isTimed ? duration.value : ''
   document.getElementById('editDurationUnit').value = isTimed ? duration.unit : 'sec'
   document.getElementById('editWeight').value = currentEditPE.prescribed_weight || ''
+  const rest = secondsToRest(currentEditPE.rest_seconds)
+  document.getElementById('editRestValue').value = rest.value
+  document.getElementById('editRestUnit').value = rest.unit
   document.getElementById('editNotes').value = currentEditPE.notes || ''
   document.getElementById('editRepsGroup').style.display = isTimed ? 'none' : 'block'
   document.getElementById('editDurationGroup').style.display = isTimed ? 'block' : 'none'
@@ -501,12 +521,13 @@ document.getElementById('saveEditExerciseBtn').addEventListener('click', async f
     ? formatDuration(document.getElementById('editDurationValue').value, document.getElementById('editDurationUnit').value)
     : (document.getElementById('editReps').value.trim() || null)
   const weight = isTimed ? null : (document.getElementById('editWeight').value ? parseFloat(document.getElementById('editWeight').value) : null)
+  const restSeconds = restToSeconds(document.getElementById('editRestValue').value, document.getElementById('editRestUnit').value)
   const notes = document.getElementById('editNotes').value.trim() || null
   const extraFields = collectExtraFields('editExtraFields')
 
   const { error } = await supabase
     .from('program_exercises')
-    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, extra_fields: extraFields, notes })
+    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, rest_seconds: restSeconds, extra_fields: extraFields, notes })
     .eq('id', currentEditPE.id)
 
   if (error) { console.log(error); alert('Something went wrong'); return }

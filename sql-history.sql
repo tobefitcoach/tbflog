@@ -333,3 +333,49 @@ drop policy if exists "coach manages own training exercises" on training_exercis
 create policy "coach manages own training exercises" on training_exercises for all
   using (exists (select 1 from trainings t where t.id = training_exercises.training_id and t.coach_id = auth.uid()))
   with check (exists (select 1 from trainings t where t.id = training_exercises.training_id and t.coach_id = auth.uid()));
+
+-- ==========================================================================
+-- Athlete-side logging. rest_seconds is a coach-prescribed value (how long
+-- to rest between sets), same lifecycle as prescribed_sets/reps/weight - set
+-- on program_exercises, seeded from training_exercises when a Training is
+-- cloned onto a day. No RLS change needed for either column - both tables'
+-- existing "coach manages own..." policies aren't column-scoped.
+-- ==========================================================================
+alter table program_exercises add column if not exists rest_seconds int;
+alter table training_exercises add column if not exists rest_seconds int;
+
+-- exercise_logs (from the original auth-foundation plan) was added as
+-- foresight but never wired to any UI, and its shape - one row per exercise
+-- per day, a single aggregate actual_sets/actual_reps/actual_weight -
+-- doesn't fit per-set logging. Replacing it outright, not migrating (it
+-- holds no real data).
+drop table if exists exercise_logs;
+
+-- --- exercise_log_sets: one row per set the athlete actually logs.
+-- unique(program_exercise_id, date, set_number) makes "check a set" an
+-- upsert - re-checking the same set updates it instead of duplicating. ---
+create table if not exists exercise_log_sets (
+  id uuid primary key default gen_random_uuid(),
+  program_exercise_id uuid not null references program_exercises(id) on delete cascade,
+  athlete_id bigint not null references athletes(id) on delete cascade,
+  date date not null default current_date,
+  set_number int not null,
+  actual_reps text,
+  actual_weight numeric,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (program_exercise_id, date, set_number)
+);
+alter table exercise_log_sets enable row level security;
+drop policy if exists "coach views log sets for own athletes" on exercise_log_sets;
+create policy "coach views log sets for own athletes" on exercise_log_sets for select
+  using (exists (select 1 from athletes a where a.id = exercise_log_sets.athlete_id and a.coach_id = auth.uid()));
+drop policy if exists "athlete manages own log sets" on exercise_log_sets;
+create policy "athlete manages own log sets" on exercise_log_sets for all
+  using (exists (select 1 from athletes a where a.id = exercise_log_sets.athlete_id and a.user_id = auth.uid()))
+  with check (
+    exists (select 1 from athletes a where a.id = exercise_log_sets.athlete_id and a.user_id = auth.uid())
+    and exists (select 1 from program_exercises pe join program_days d on d.id = pe.day_id
+                join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
+                where pe.id = exercise_log_sets.program_exercise_id and p.athlete_id = exercise_log_sets.athlete_id)
+  );

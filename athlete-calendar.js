@@ -301,6 +301,9 @@ function openEditScheduledModal(peId) {
   document.getElementById('editScheduledDurationValue').value = isTimed ? duration.value : ''
   document.getElementById('editScheduledDurationUnit').value = isTimed ? duration.unit : 'sec'
   document.getElementById('editScheduledWeight').value = currentEditScheduledPE.prescribed_weight || ''
+  const rest = secondsToRestCal(currentEditScheduledPE.rest_seconds)
+  document.getElementById('editScheduledRestValue').value = rest.value
+  document.getElementById('editScheduledRestUnit').value = rest.unit
   document.getElementById('editScheduledNotes').value = currentEditScheduledPE.notes || ''
   document.getElementById('editScheduledRepsGroup').style.display = isTimed ? 'none' : 'block'
   document.getElementById('editScheduledDurationGroup').style.display = isTimed ? 'block' : 'none'
@@ -326,12 +329,13 @@ document.getElementById('saveEditScheduledBtn').addEventListener('click', async 
     ? formatDurationCal(document.getElementById('editScheduledDurationValue').value, document.getElementById('editScheduledDurationUnit').value)
     : (document.getElementById('editScheduledReps').value.trim() || null)
   const weight = isTimed ? null : (document.getElementById('editScheduledWeight').value ? parseFloat(document.getElementById('editScheduledWeight').value) : null)
+  const restSeconds = restToSecondsCal(document.getElementById('editScheduledRestValue').value, document.getElementById('editScheduledRestUnit').value)
   const notes = document.getElementById('editScheduledNotes').value.trim() || null
   const extraFields = collectExtraFieldsCal('editScheduledExtraFields')
 
   const { error } = await supabase
     .from('program_exercises')
-    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, extra_fields: extraFields, notes })
+    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, rest_seconds: restSeconds, extra_fields: extraFields, notes })
     .eq('id', currentEditScheduledPE.id)
 
   if (error) { console.log(error); alert('Something went wrong'); return }
@@ -462,6 +466,7 @@ async function cloneTrainingToDay(trainingId, dayId) {
       prescribed_sets: te.prescribed_sets,
       prescribed_reps: te.prescribed_reps,
       prescribed_weight: te.prescribed_weight,
+      rest_seconds: te.rest_seconds,
       extra_fields: te.extra_fields,
       notes: te.notes
     }])
@@ -524,6 +529,19 @@ function parseDurationCal(text) {
   const match = String(text).match(/^(\d+(?:\.\d+)?)\s*(sec|min)/i)
   if (match) return { value: match[1], unit: match[2].toLowerCase() }
   return { value: text, unit: 'sec' }
+}
+
+// rest_seconds is stored as a plain int (a rest timer counts down from a
+// number, not a parsed string) - these convert to/from the value+unit inputs
+function restToSecondsCal(value, unit) {
+  if (!value) return null
+  return Math.round(parseFloat(value) * (unit === 'min' ? 60 : 1))
+}
+
+function secondsToRestCal(seconds) {
+  if (!seconds) return { value: '', unit: 'sec' }
+  if (seconds >= 60 && seconds % 60 === 0) return { value: seconds / 60, unit: 'min' }
+  return { value: seconds, unit: 'sec' }
 }
 
 function addExtraFieldRowCal(containerId, name, value) {
@@ -661,6 +679,8 @@ async function cloneTemplateToAthlete(templateId, startDate) {
           prescribed_sets: pe.prescribed_sets,
           prescribed_reps: pe.prescribed_reps,
           prescribed_weight: pe.prescribed_weight,
+          rest_seconds: pe.rest_seconds,
+          extra_fields: pe.extra_fields,
           notes: pe.notes
         }])
         if (peError) throw peError

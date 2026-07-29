@@ -143,6 +143,16 @@
           <input type="number" id="tEditWeight" />
         </div>
         <div class="form-group">
+          <label>Rest Between Sets (optional)</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="tEditRestValue" placeholder="e.g. 90" style="flex:1" />
+            <select id="tEditRestUnit" style="flex:1">
+              <option value="sec">Seconds</option>
+              <option value="min">Minutes</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
           <label>Extra Fields (optional)</label>
           <div id="tEditExtraFields"></div>
           <button type="button" class="btn-create-metric" id="tEditAddFieldBtn">+ Add Field</button>

@@ -154,6 +154,19 @@ function parseDuration(text) {
   return { value: text, unit: 'sec' }
 }
 
+// rest_seconds is stored as a plain int (a rest timer counts down from a
+// number, not a parsed string) - these convert to/from the value+unit inputs
+function restToSeconds(value, unit) {
+  if (!value) return null
+  return Math.round(parseFloat(value) * (unit === 'min' ? 60 : 1))
+}
+
+function secondsToRest(seconds) {
+  if (!seconds) return { value: '', unit: 'sec' }
+  if (seconds >= 60 && seconds % 60 === 0) return { value: seconds / 60, unit: 'min' }
+  return { value: seconds, unit: 'sec' }
+}
+
 // ==========================================================================
 // ---- EXTRA FIELDS ----
 // ==========================================================================
@@ -345,6 +358,9 @@ function openEditModal(id) {
   document.getElementById('tEditDurationValue').value = isTimed ? duration.value : ''
   document.getElementById('tEditDurationUnit').value = isTimed ? duration.unit : 'sec'
   document.getElementById('tEditWeight').value = currentEditTE.prescribed_weight || ''
+  const rest = secondsToRest(currentEditTE.rest_seconds)
+  document.getElementById('tEditRestValue').value = rest.value
+  document.getElementById('tEditRestUnit').value = rest.unit
   document.getElementById('tEditNotes').value = currentEditTE.notes || ''
   document.getElementById('tEditRepsGroup').style.display = isTimed ? 'none' : 'block'
   document.getElementById('tEditDurationGroup').style.display = isTimed ? 'block' : 'none'
@@ -370,12 +386,13 @@ document.getElementById('saveTEditExerciseBtn').addEventListener('click', async 
     ? formatDuration(document.getElementById('tEditDurationValue').value, document.getElementById('tEditDurationUnit').value)
     : (document.getElementById('tEditReps').value.trim() || null)
   const weight = isTimed ? null : (document.getElementById('tEditWeight').value ? parseFloat(document.getElementById('tEditWeight').value) : null)
+  const restSeconds = restToSeconds(document.getElementById('tEditRestValue').value, document.getElementById('tEditRestUnit').value)
   const notes = document.getElementById('tEditNotes').value.trim() || null
   const extraFields = collectExtraFields('tEditExtraFields')
 
   const { error } = await supabase
     .from('training_exercises')
-    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, extra_fields: extraFields, notes })
+    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, rest_seconds: restSeconds, extra_fields: extraFields, notes })
     .eq('id', currentEditTE.id)
 
   if (error) { console.log(error); alert('Something went wrong'); return }

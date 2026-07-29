@@ -34,3 +34,232 @@
   margin-bottom: 24px;
   line-height: 1.5;
 }
+
+/* ==========================================================================
+   TODAY / DAY / CALENDAR VIEWS
+   Once there's a real training to show, dashboard.js switches the page and
+   card wrappers to ".wide" - the placeholder states above stay narrow and
+   centered, but a day of exercises with per-set logging needs real width
+   and left-aligned text.
+   ========================================================================== */
+.athlete-app-page.wide {
+  display: block;
+  min-height: auto;
+  padding: 24px 16px;
+}
+
+.athlete-app-card.wide {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: left;
+  padding: 24px;
+}
+
+.day-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.day-view-header h2 {
+  margin: 0;
+}
+
+.day-view-date {
+  color: #aaaacc;
+  font-size: 13px;
+  margin: 0 0 20px 0;
+}
+
+.exercise-log-card {
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.exercise-log-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.exercise-log-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.exercise-log-target {
+  color: #aaaacc;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.exercise-log-notes {
+  color: #aaaacc;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.set-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-label {
+  width: 44px;
+  flex-shrink: 0;
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+.set-reps-input,
+.set-weight-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+}
+
+.set-reps-input:disabled,
+.set-weight-input:disabled {
+  opacity: 0.6;
+}
+
+.set-check-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #2a2a4e;
+  background: transparent;
+  color: #aaaacc;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.set-check-btn:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.set-check-btn.checked {
+  background-color: #4caf50;
+  border-color: #4caf50;
+  color: #ffffff;
+}
+
+.set-remove-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: #aaaacc;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.set-remove-btn:hover {
+  color: #ff4444;
+}
+
+.add-set-btn {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px dashed #2a2a4e;
+  color: #aaaacc;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.add-set-btn:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+/* Fixed to the bottom of the screen so it stays visible while scrolling
+   through a long list of exercises */
+.rest-timer-bar {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background-color: #1a1a2e;
+  border: 1px solid #4a4a8e;
+  border-radius: 30px;
+  padding: 10px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+}
+
+.rest-timer-label {
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+.rest-timer-time {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+  min-width: 44px;
+  text-align: center;
+}
+
+.rest-timer-skip {
+  background: transparent;
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rest-timer-skip:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+/* Calendar day badge that reflects every logged set being complete -
+   layered on top of the base .calendar-day-badge from athlete.css */
+.calendar-day-badge-done {
+  background-color: #4caf50;
+}
+
+@media (max-width: 768px) {
+  .athlete-app-page.wide {
+    padding: 16px 12px;
+  }
+
+  .athlete-app-card.wide {
+    padding: 16px;
+  }
+
+  .set-label {
+    width: 36px;
+  }
+}
