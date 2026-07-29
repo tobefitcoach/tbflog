@@ -85,16 +85,17 @@ header h1 {
   display: none;
 }
 
-/* Small circular handle sitting on the sidebar's right edge - stays put
+/* Wide tab-shaped handle sitting on the sidebar's right edge - stays put
    (and visible) even when the sidebar itself collapses to 0 width, so it
-   always works as a reopen button too */
+   always works as a reopen button too. Wider than tall on purpose - a
+   bigger horizontal target is easier to hit than a small circle. */
 .sidebar-toggle-btn {
   position: absolute;
-  top: 12px;
-  right: -18px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  top: 16px;
+  right: -32px;
+  width: 48px;
+  height: 32px;
+  border-radius: 8px;
   background-color: #4a4a8e;
   color: white;
   border: 2px solid #0f0f1a;
