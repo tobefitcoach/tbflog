@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exercise Library — TBFlog</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="athlete.css" />
+  </head>
+  <body>
+
+    <header>
+      <h1>TBFLOG</h1>
+      <div style="display:flex; align-items:center; gap:16px">
+        <a href="index.html" class="back-btn">← Back to Dashboard</a>
+        <button class="header-link" id="logoutBtn">Log Out</button>
+      </div>
+    </header>
+
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h2>Exercise Library</h2>
+        <button class="btn-add" id="addExerciseBtn">+ Add Exercise</button>
+      </div>
+      <div id="exerciseList"></div>
+    </div>
+
+    <!-- Add/Edit Exercise Modal - same modal serves both, driven by
+         currentExercise in exercises.js -->
+    <div class="modal-overlay" id="exerciseModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2 id="exerciseModalTitle">Add Exercise</h2>
+          <button class="btn-cancel" id="closeExerciseModalBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="exerciseName" placeholder="e.g. Barbell Back Squat" />
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <input type="text" id="exerciseCategory" placeholder="e.g. Legs, Push, Cardio" />
+        </div>
+        <div class="form-group">
+          <label>Instructions (optional)</label>
+          <textarea id="exerciseInstructions" class="notes-textarea" placeholder="Cues, setup notes, form reminders..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelExerciseBtn">Cancel</button>
+          <button class="btn-save" id="saveExerciseBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="exercises.js"></script>
+  </body>
+</html>

@@ -252,6 +252,34 @@
   flex-direction: column;
 }
 
+/* Exercise Library cards (exercises.html) - same 3-col grid/card recipe as
+   the metrics grid above, kept as separate classes since exercise cards
+   don't have a graph/latest-value section */
+.exercise-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .exercise-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.exercise-item {
+  border: 1px solid #2a2a4e;
+  border-radius: 12px;
+  padding: 20px;
+  background-color: #0f0f1a;
+}
+
+.exercise-instructions {
+  font-size: 13px;
+  color: #aaaacc;
+  line-height: 1.5;
+}
+
 .metric-latest {
   font-size: 13px;
   color: #aaaacc;
