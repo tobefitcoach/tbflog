@@ -660,8 +660,8 @@
 
     <!-- Add Training popup: opens from the small "+" that appears when
          hovering a calendar day (see .calendar-day-add-btn). Lists the
-         coach's saved trainings to drop straight onto that day, or a link
-         to build a brand new one in the Training Library. -->
+         coach's saved trainings to drop straight onto that day, or a button
+         to build a brand new one without leaving this page. -->
     <div class="modal-overlay" id="dayAddTrainingModal">
       <div class="modal">
         <div class="graph-modal-header">
@@ -669,9 +669,37 @@
           <button class="btn-cancel" id="closeDayAddTrainingBtn">✕</button>
         </div>
         <div class="entries-modal-body" id="dayAddTrainingList"></div>
-        <p style="text-align:center; margin-top:16px">
-          <a href="trainings.html" target="_blank" style="color:#4a4a8e">+ New Training (opens in a new tab)</a>
-        </p>
+        <div class="form-actions" style="justify-content:center">
+          <button class="btn-create-metric" id="newTrainingFromDayBtn">+ New Training</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick "name it" step before opening the Training Builder overlay -->
+    <div class="modal-overlay" id="newTrainingNameModal">
+      <div class="modal">
+        <h2>New Training</h2>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="newTrainingNameInput" placeholder="e.g. Leg Day" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelNewTrainingNameBtn">Cancel</button>
+          <button class="btn-save" id="saveNewTrainingNameBtn">Create & Build</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Training Builder Overlay: training-builder.html loaded in an iframe
+         so a training can be built without navigating away from the
+         calendar. Same page/logic as the standalone Training Library. -->
+    <div class="modal-overlay" id="trainingBuilderOverlayModal">
+      <div class="modal modal-large">
+        <div class="graph-modal-header">
+          <h2>Build Training</h2>
+          <button class="btn-save" id="doneTrainingBuilderBtn">Done</button>
+        </div>
+        <iframe id="trainingBuilderFrame" class="training-builder-frame" src="about:blank"></iframe>
       </div>
     </div>
 

@@ -359,7 +359,10 @@ async function deleteScheduledExercise(peId) {
 // Training - no more "add one loose exercise" flow, that's what the
 // Training Library / training-builder.html is for.
 // ==========================================================================
+let currentDayDateForAddTraining = null // remembered so "+ New Training" can come back to the same day's popup afterward
+
 async function openDayAddTrainingModal(dateStr) {
+  currentDayDateForAddTraining = dateStr
   document.getElementById('dayAddTrainingTitle').textContent = 'Add Training — ' + formatDisplayDateCal(dateStr)
 
   const { data, error } = await supabase.from('trainings').select('*').order('created_at', { ascending: false })
@@ -390,6 +393,42 @@ async function openDayAddTrainingModal(dateStr) {
 
 document.getElementById('closeDayAddTrainingBtn').addEventListener('click', function() {
   document.getElementById('dayAddTrainingModal').classList.remove('active')
+})
+
+// ---- "+ New Training" - name it, then build it in an overlay without
+// leaving the calendar page (training-builder.html loaded in an iframe) ----
+document.getElementById('newTrainingFromDayBtn').addEventListener('click', function() {
+  document.getElementById('dayAddTrainingModal').classList.remove('active')
+  document.getElementById('newTrainingNameInput').value = ''
+  document.getElementById('newTrainingNameModal').classList.add('active')
+})
+
+document.getElementById('cancelNewTrainingNameBtn').addEventListener('click', function() {
+  document.getElementById('newTrainingNameModal').classList.remove('active')
+  openDayAddTrainingModal(currentDayDateForAddTraining)
+})
+
+document.getElementById('saveNewTrainingNameBtn').addEventListener('click', async function() {
+  const name = document.getElementById('newTrainingNameInput').value.trim()
+  if (!name) { alert('Please enter a name'); return }
+
+  const { data, error } = await supabase
+    .from('trainings')
+    .insert([{ coach_id: session.user.id, name }])
+    .select()
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+
+  document.getElementById('newTrainingNameModal').classList.remove('active')
+  document.getElementById('trainingBuilderFrame').src = `training-builder.html?id=${data[0].id}`
+  document.getElementById('trainingBuilderOverlayModal').classList.add('active')
+})
+
+document.getElementById('doneTrainingBuilderBtn').addEventListener('click', function() {
+  document.getElementById('trainingBuilderOverlayModal').classList.remove('active')
+  document.getElementById('trainingBuilderFrame').src = 'about:blank'
+  // Back to the day's training list, now including the one just built
+  openDayAddTrainingModal(currentDayDateForAddTraining)
 })
 
 async function applyTrainingToDay(trainingId, trainingName, dateStr) {

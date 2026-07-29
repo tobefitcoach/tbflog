@@ -239,6 +239,23 @@ header h1 {
   max-width: 480px;
   border: 1px solid #2a2a4e;
 }
+
+/* Bigger variant for modals that embed a whole other page (e.g. the
+   Training Builder overlay on the calendar) instead of a form */
+.modal-large {
+  max-width: 900px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.training-builder-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background-color: #0f0f1a;
+}
  
 .modal h2 {
   margin-bottom: 24px;
