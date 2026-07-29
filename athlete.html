@@ -22,6 +22,15 @@
 
     <div class="profile">
 
+      <!-- Tab bar: switches which panel below is visible (see initTabs() in
+           athlete.js). Calendar tab content lives in athlete-calendar.js -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="overview">Overview</button>
+        <button class="tab-btn" data-tab="metrics">Metrics</button>
+        <button class="tab-btn" data-tab="calendar">Calendar</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-overview">
       <!-- Profile header card: avatar, name/details, edit/log-weight buttons,
            freeform notes in the middle, and the bodyweight mini-graph on the right -->
       <div class="profile-header">
@@ -69,7 +78,9 @@
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="tab-panel" id="tab-metrics">
       <!-- Summary stats row: metrics tracked, total entries, last updated, PRs this month -->
       <div class="stats-bar" id="statsBar">
         <div class="stat-item stat-item-clickable" id="statMetricsCard">
@@ -97,6 +108,20 @@
           <button class="btn-add" id="addMetricBtn">+ Add Metric</button>
         </div>
        <div id="metricsList"></div>
+      </div>
+      </div>
+
+      <div class="tab-panel" id="tab-calendar">
+        <!-- Filled in by athlete-calendar.js on first activation -->
+        <div class="calendar-toolbar">
+          <button class="btn-cancel" id="calPrevBtn">← Prev</button>
+          <h3 id="calMonthLabel">&nbsp;</h3>
+          <button class="btn-cancel" id="calNextBtn">Next →</button>
+          <div style="flex:1"></div>
+          <button class="btn-profile-action" id="calAddTrainingBtn">+ Add Training</button>
+          <button class="btn-add" id="calAssignProgramBtn">+ Assign Program</button>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
       </div>
 
     </div>

@@ -13,6 +13,7 @@ let allMetrics = []
 let athleteMetrics = []
 let prEvents = [] // PRs broken in the last 30 days, filled in by loadStatsBar, read by the PR overview modal
 let allMeasurementsCache = [] // every measurement for this athlete, filled in by loadStatsBar, read by the stats-bar detail modals
+let metricsLoaded = false // Metrics tab loads its data lazily - see initTabs()
 
 // Require a logged-in coach before loading anything (same gate as script.js -
 // see the comment there for why this isn't real security yet on its own)
@@ -20,15 +21,44 @@ const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
   window.location.href = 'login.html'
 } else {
-  // Load everything when page opens
+  // Overview tab is visible by default, so its data loads right away.
+  // Metrics/Calendar tabs load lazily when first clicked - see initTabs()
   loadAthlete()
-  loadAllMetrics().then(() => loadAthleteMetrics())
 }
+
+initTabs()
 
 document.getElementById('logoutBtn').addEventListener('click', async function() {
   await supabase.auth.signOut()
   window.location.href = 'login.html'
 })
+
+// ==========================================================================
+// ---- TABS ----
+// Switches which .tab-panel is visible. Metrics data loads lazily, the first
+// time that tab is clicked, not on page load - Chart.js sizes its canvases
+// from their rendered pixel dimensions, so drawing graphs while a panel is
+// still display:none would produce blank/squashed charts.
+// ==========================================================================
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+      btn.classList.add('active')
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active')
+
+      if (btn.dataset.tab === 'metrics' && !metricsLoaded) {
+        metricsLoaded = true
+        loadAllMetrics().then(() => loadAthleteMetrics())
+      }
+
+      if (btn.dataset.tab === 'calendar') {
+        window.dispatchEvent(new CustomEvent('calendar-tab-activated'))
+      }
+    })
+  })
+}
 
 // ==========================================================================
 // ---- LOAD ATHLETE INFO ----
