@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Program Library — TBFlog</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="athlete.css" />
+  </head>
+  <body>
+
+    <header>
+      <h1>TBFLOG</h1>
+      <div style="display:flex; align-items:center; gap:16px">
+        <a href="index.html" class="back-btn">← Back to Dashboard</a>
+        <button class="header-link" id="logoutBtn">Log Out</button>
+      </div>
+    </header>
+
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h2>Program Library</h2>
+        <button class="btn-add" id="newTemplateBtn">+ New Template</button>
+      </div>
+      <div class="athlete-grid" id="programGrid"></div>
+    </div>
+
+    <!-- New Template Modal: just a name - the actual weeks/days/exercises
+         get built on program-builder.html after this redirects there -->
+    <div class="modal-overlay" id="newTemplateModal">
+      <div class="modal">
+        <h2>New Program Template</h2>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="newTemplateName" placeholder="e.g. Push Pull Legs - Hypertrophy" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelNewTemplateBtn">Cancel</button>
+          <button class="btn-save" id="saveNewTemplateBtn">Create & Edit</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="programs.js"></script>
+  </body>
+</html>
