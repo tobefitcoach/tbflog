@@ -378,9 +378,10 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
 function populateCreateCategorySelect() {
   const select = document.getElementById('createExerciseCategory')
   const categories = [...new Set(allExercises.map(ex => ex.category).filter(c => c && c.trim()))].sort()
-  select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') +
+  select.innerHTML = '<option value="">Choose Category</option>' +
+    categories.map(c => `<option value="${c}">${c}</option>`).join('') +
     '<option value="__new__">+ Add New Category</option>'
-  select.value = '__new__'
+  select.value = ''
   toggleCreateNewCategoryField()
 }
 

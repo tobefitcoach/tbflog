@@ -252,9 +252,10 @@ const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: '
 function populateCreateCategorySelect() {
   const select = document.getElementById('tCreateExerciseCategory')
   const categories = [...new Set(allExercises.map(ex => ex.category).filter(c => c && c.trim()))].sort()
-  select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') +
+  select.innerHTML = '<option value="">Choose Category</option>' +
+    categories.map(c => `<option value="${c}">${c}</option>`).join('') +
     '<option value="__new__">+ Add New Category</option>'
-  select.value = '__new__'
+  select.value = ''
   toggleCreateNewCategoryField()
 }
 

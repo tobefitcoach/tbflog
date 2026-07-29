@@ -46,14 +46,14 @@ function populateCategorySelect(selectedCategory) {
   const select = document.getElementById('exerciseCategory')
   const categories = [...new Set(allExercisesCache.map(ex => ex.category).filter(c => c && c.trim()))].sort()
 
-  select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('') +
+  select.innerHTML = '<option value="">Choose Category</option>' +
+    categories.map(c => `<option value="${c}">${c}</option>`).join('') +
     '<option value="__new__">+ Add New Category</option>'
 
-  if (selectedCategory && categories.includes(selectedCategory)) {
-    select.value = selectedCategory
-  } else {
-    select.value = '__new__'
-  }
+  // Default to the neutral placeholder - not "+ Add New Category" - so the
+  // new-category text field doesn't show up until the coach actually picks
+  // that option
+  select.value = (selectedCategory && categories.includes(selectedCategory)) ? selectedCategory : ''
 
   toggleNewCategoryField()
 }
