@@ -289,3 +289,10 @@ create policy "athlete views own programs" on programs for select
 -- ==========================================================================
 alter table exercises add column if not exists type text not null default 'weights';
 alter table exercises add column if not exists video_url text;
+
+-- Free-form extra prescribed fields per exercise-in-a-day (e.g. "% of 1RM":
+-- "75", "RPE": "8") on top of the built-in sets/reps/weight columns - lets
+-- a coach attach whatever extra number they want to track without a schema
+-- change every time. No RLS change needed - covered by the existing
+-- program_exercises policies (they don't reference individual columns).
+alter table program_exercises add column if not exists extra_fields jsonb;
