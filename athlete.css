@@ -15,6 +15,109 @@
 
 
 /* ==========================================================================
+   TRAINING BUILDER — EXERCISE LIBRARY PANEL
+   Narrow searchable panel of draggable exercise cards, sits between the nav
+   sidebar and the training's own exercise list (training-builder.html)
+   ========================================================================== */
+
+.exercise-library-panel {
+  width: 220px;
+  flex-shrink: 0;
+  padding: 24px 16px;
+  border-right: 1px solid #2a2a4e;
+}
+
+.exercise-library-panel h3 {
+  font-size: 14px;
+  color: #ffffff;
+  margin-bottom: 12px;
+}
+
+.exercise-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+  margin-bottom: 12px;
+}
+
+.exercise-library-panel .btn-create-metric {
+  width: 100%;
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+
+.exercise-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+.exercise-lib-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  cursor: grab;
+  transition: border-color 0.2s;
+}
+
+.exercise-lib-card:hover {
+  border-color: #4a4a8e;
+}
+
+.exercise-lib-card:active {
+  cursor: grabbing;
+}
+
+.exercise-lib-thumb {
+  width: 44px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #0f0f1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exercise-lib-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.exercise-lib-thumb-placeholder {
+  font-size: 16px;
+}
+
+.exercise-lib-name {
+  font-size: 13px;
+  color: #ffffff;
+  line-height: 1.3;
+}
+
+.training-builder-main {
+  flex: 1;
+}
+
+/* Drop zone highlight while dragging a card over the training's list */
+.drag-over {
+  outline: 2px dashed #4a4a8e;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+
+/* ==========================================================================
    PROFILE PAGE — LAYOUT
    Overall page padding and the header card (avatar + info + bodyweight graph)
    ========================================================================== */

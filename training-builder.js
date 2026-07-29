@@ -56,21 +56,88 @@ async function loadTraining() {
 }
 
 // ==========================================================================
-// ---- EXERCISE LIBRARY CACHE (for the "Add Exercise" picker dropdown) ----
+// ---- EXERCISE LIBRARY PANEL (search + drag source) ----
 // ==========================================================================
 async function loadAllExercises() {
   const { data, error } = await supabase.from('exercises').select('*').order('name')
   if (error) { console.log('Error loading exercises:', error); return }
   allExercises = data
-  populateExerciseSelect()
+  renderLibraryPanel()
 }
 
-function populateExerciseSelect(selectedId) {
-  const select = document.getElementById('tPickerExerciseSelect')
-  select.innerHTML = '<option value="">Choose an exercise...</option>' +
-    allExercises.map(ex => `<option value="${ex.id}">${ex.name}</option>`).join('')
-  if (selectedId) select.value = selectedId
-  updatePickerFieldsForType()
+// YouTube's thumbnail images are available at a predictable URL from just
+// the video id, no API key needed - other hosts (Vimeo etc.) would need a
+// real API call, so those just fall back to a placeholder icon
+function getYouTubeThumbnail(url) {
+  if (!url) return null
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
+}
+
+function renderLibraryPanel() {
+  const filter = document.getElementById('exerciseSearchInput').value.trim().toLowerCase()
+  const filtered = filter ? allExercises.filter(ex => ex.name.toLowerCase().includes(filter)) : allExercises
+
+  const list = document.getElementById('exerciseLibraryList')
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No exercises found</p>'
+    return
+  }
+
+  list.innerHTML = filtered.map(ex => {
+    const thumb = getYouTubeThumbnail(ex.video_url)
+    return `
+      <div class="exercise-lib-card" draggable="true" data-id="${ex.id}">
+        <div class="exercise-lib-thumb">
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder">🏋</span>'}
+        </div>
+        <span class="exercise-lib-name">${ex.name}</span>
+      </div>
+    `
+  }).join('')
+}
+
+document.getElementById('exerciseSearchInput').addEventListener('input', renderLibraryPanel)
+
+// ---- Drag from the library panel, drop onto the training's exercise list ----
+document.getElementById('exerciseLibraryList').addEventListener('dragstart', function(e) {
+  const card = e.target.closest('.exercise-lib-card')
+  if (!card) return
+  e.dataTransfer.setData('text/plain', card.dataset.id)
+})
+
+const trainingDropZone = document.getElementById('trainingExercisesList')
+
+trainingDropZone.addEventListener('dragover', function(e) {
+  e.preventDefault()
+  trainingDropZone.classList.add('drag-over')
+})
+
+trainingDropZone.addEventListener('dragleave', function() {
+  trainingDropZone.classList.remove('drag-over')
+})
+
+trainingDropZone.addEventListener('drop', async function(e) {
+  e.preventDefault()
+  trainingDropZone.classList.remove('drag-over')
+  const exerciseId = e.dataTransfer.getData('text/plain')
+  if (exerciseId) await addExerciseToTraining(exerciseId)
+})
+
+// Dropped in with no prescribed values yet - click the row's ✏ afterward to
+// fill in sets/reps/weight/etc, keeps the drag itself a one-step action
+async function addExerciseToTraining(exerciseId) {
+  const nextOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
+
+  const { error } = await supabase.from('training_exercises').insert([{
+    training_id: trainingId,
+    exercise_id: exerciseId,
+    order_index: nextOrder
+  }])
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+  loadExercisesList()
 }
 
 // Timed exercises store their duration in the same prescribed_reps text
@@ -86,18 +153,6 @@ function parseDuration(text) {
   if (match) return { value: match[1], unit: match[2].toLowerCase() }
   return { value: text, unit: 'sec' }
 }
-
-function updatePickerFieldsForType() {
-  const exerciseId = document.getElementById('tPickerExerciseSelect').value
-  const exercise = allExercises.find(ex => ex.id === exerciseId)
-  const isTimed = exercise && exercise.type === 'timed'
-
-  document.getElementById('tPickerRepsGroup').style.display = isTimed ? 'none' : 'block'
-  document.getElementById('tPickerDurationGroup').style.display = isTimed ? 'block' : 'none'
-  document.getElementById('tPickerWeightGroup').style.display = isTimed ? 'none' : 'block'
-}
-
-document.getElementById('tPickerExerciseSelect').addEventListener('change', updatePickerFieldsForType)
 
 // ==========================================================================
 // ---- EXTRA FIELDS ----
@@ -126,10 +181,6 @@ function collectExtraFields(containerId) {
   return Object.keys(result).length ? result : null
 }
 
-document.getElementById('tPickerAddFieldBtn').addEventListener('click', function() {
-  addExtraFieldRow('tPickerExtraFields')
-})
-
 document.getElementById('tEditAddFieldBtn').addEventListener('click', function() {
   addExtraFieldRow('tEditExtraFields')
 })
@@ -154,7 +205,7 @@ function renderExercisesList() {
   const container = document.getElementById('trainingExercisesList')
 
   if (exercisesCache.length === 0) {
-    container.innerHTML = '<p class="no-metrics">No exercises yet — click "+ Add Exercise" to get started</p>'
+    container.innerHTML = '<p class="no-metrics">No exercises yet — drag one in from the library on the left</p>'
     return
   }
 
@@ -191,59 +242,11 @@ document.getElementById('trainingExercisesList').addEventListener('click', funct
 })
 
 // ==========================================================================
-// ---- ADD EXERCISE (picker, with inline "create new") ----
+// ---- CREATE NEW EXERCISE ----
+// Opened from the Exercise Library panel. Saving adds it to both the
+// searchable library and straight onto the training (it was made
+// specifically to use here, no need for a separate drag step).
 // ==========================================================================
-document.getElementById('addTrainingExerciseBtn').addEventListener('click', function() {
-  populateExerciseSelect()
-  document.getElementById('tPickerSets').value = ''
-  document.getElementById('tPickerReps').value = ''
-  document.getElementById('tPickerDurationValue').value = ''
-  document.getElementById('tPickerDurationUnit').value = 'sec'
-  document.getElementById('tPickerWeight').value = ''
-  document.getElementById('tPickerNotes').value = ''
-  document.getElementById('tPickerExtraFields').innerHTML = ''
-  document.getElementById('tExercisePickerModal').classList.add('active')
-})
-
-document.getElementById('cancelTExercisePickerBtn').addEventListener('click', function() {
-  document.getElementById('tExercisePickerModal').classList.remove('active')
-})
-
-document.getElementById('saveTExercisePickerBtn').addEventListener('click', async function() {
-  const exerciseId = document.getElementById('tPickerExerciseSelect').value
-  if (!exerciseId) { alert('Please choose an exercise'); return }
-
-  const exercise = allExercises.find(ex => ex.id === exerciseId)
-  const isTimed = exercise && exercise.type === 'timed'
-
-  const sets = document.getElementById('tPickerSets').value ? parseInt(document.getElementById('tPickerSets').value) : null
-  const reps = isTimed
-    ? formatDuration(document.getElementById('tPickerDurationValue').value, document.getElementById('tPickerDurationUnit').value)
-    : (document.getElementById('tPickerReps').value.trim() || null)
-  const weight = isTimed ? null : (document.getElementById('tPickerWeight').value ? parseFloat(document.getElementById('tPickerWeight').value) : null)
-  const notes = document.getElementById('tPickerNotes').value.trim() || null
-  const extraFields = collectExtraFields('tPickerExtraFields')
-
-  const nextOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
-
-  const { error } = await supabase.from('training_exercises').insert([{
-    training_id: trainingId,
-    exercise_id: exerciseId,
-    order_index: nextOrder,
-    prescribed_sets: sets,
-    prescribed_reps: reps,
-    prescribed_weight: weight,
-    extra_fields: extraFields,
-    notes
-  }])
-
-  if (error) { console.log(error); alert('Something went wrong'); return }
-
-  document.getElementById('tExercisePickerModal').classList.remove('active')
-  loadExercisesList()
-})
-
-// ---- Create New Exercise, inline (opens on top of the picker) ----
 const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)' }
 
 function populateCreateCategorySelect() {
@@ -280,7 +283,7 @@ function toggleCreateNewTypeField() {
 
 document.getElementById('tCreateExerciseType').addEventListener('change', toggleCreateNewTypeField)
 
-document.getElementById('tCreateNewExerciseBtn').addEventListener('click', function() {
+document.getElementById('openCreateExerciseBtn').addEventListener('click', function() {
   document.getElementById('tCreateExerciseName').value = ''
   document.getElementById('tCreateExerciseNewCategory').value = ''
   populateCreateCategorySelect()
@@ -319,8 +322,9 @@ document.getElementById('saveTCreateExerciseBtn').addEventListener('click', asyn
 
   allExercises.push(data[0])
   allExercises.sort((a, b) => a.name.localeCompare(b.name))
-  populateExerciseSelect(data[0].id)
+  renderLibraryPanel()
   document.getElementById('tCreateExerciseModal').classList.remove('active')
+  await addExerciseToTraining(data[0].id)
 })
 
 // ==========================================================================
