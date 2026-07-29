@@ -53,9 +53,9 @@ header h1 {
  
 /* ==========================================================================
    APP LAYOUT — LEFT SIDEBAR
-   Narrow nav column on the left of the dashboard. "Library" reveals a
-   submenu (Exercise/Program Library) on hover instead of two separate
-   top-level links.
+   Narrow nav column on the left of every coach page. "Library" expands a
+   submenu (Exercise/Program/Training Library) underneath on click. Can be
+   folded down to a thin strip via the toggle button at its top-right edge.
    ========================================================================== */
 
 .app-layout {
@@ -64,12 +64,51 @@ header h1 {
 }
 
 .sidebar {
+  position: relative;
   width: 180px;
   flex-shrink: 0;
   background-color: #1a1a2e;
   border-right: 1px solid #2a2a4e;
   min-height: calc(100vh - 65px);
   padding: 24px 0;
+  transition: width 0.2s;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  padding: 0;
+  border-right: none;
+  overflow: visible;
+}
+
+.sidebar.collapsed .sidebar-links {
+  display: none;
+}
+
+/* Small circular handle sitting on the sidebar's right edge - stays put
+   (and visible) even when the sidebar itself collapses to 0 width, so it
+   always works as a reopen button too */
+.sidebar-toggle-btn {
+  position: absolute;
+  top: 12px;
+  right: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #4a4a8e;
+  color: white;
+  border: 2px solid #0f0f1a;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-toggle-btn:hover {
+  background-color: #5a5aae;
 }
 
 .sidebar-link {
@@ -408,10 +447,33 @@ header h1 {
   .sidebar {
     width: 100%;
     min-height: 0;
-    display: flex;
     padding: 0;
     border-right: none;
     border-bottom: 1px solid #2a2a4e;
+  }
+
+  .sidebar.collapsed {
+    width: 100%;
+    min-height: 0;
+  }
+
+  .sidebar.collapsed .sidebar-links {
+    display: none;
+  }
+
+  /* On mobile the toggle sits inside the bar (it can't stick out past a
+     100%-wide element the way it does on desktop's narrow vertical column) */
+  .sidebar-toggle-btn {
+    position: static;
+    width: 100%;
+    height: 32px;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid #2a2a4e;
+  }
+
+  .sidebar-links {
+    display: flex;
   }
 
   .sidebar-link {

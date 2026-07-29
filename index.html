@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=3" />
+    <link rel="stylesheet" href="style.css?v=4" />
   </head>
   <body>
 
@@ -21,15 +21,18 @@
     <div class="app-layout">
 
       <!-- Left sidebar nav. "Library" reveals Exercise/Program Library on
-           hover (.sidebar-submenu) instead of taking up its own row -->
-      <nav class="sidebar">
-        <a href="index.html" class="sidebar-link active">Dashboard</a>
-        <div class="sidebar-item-hover">
-          <span class="sidebar-link">Library</span>
-          <div class="sidebar-submenu">
-            <a href="exercises.html">Exercise Library</a>
-            <a href="trainings.html">Training Library</a>
-            <a href="programs.html">Program Library</a>
+           click, expanding underneath it (.sidebar-submenu) -->
+      <nav class="sidebar" id="pageSidebar">
+        <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
+        <div class="sidebar-links" id="sidebarLinks">
+          <a href="index.html" class="sidebar-link active">Dashboard</a>
+          <div class="sidebar-item-hover">
+            <span class="sidebar-link">Library</span>
+            <div class="sidebar-submenu">
+              <a href="exercises.html">Exercise Library</a>
+              <a href="trainings.html">Training Library</a>
+              <a href="programs.html">Program Library</a>
+            </div>
           </div>
         </div>
       </nav>

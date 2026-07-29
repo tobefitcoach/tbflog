@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=3" />
+    <link rel="stylesheet" href="style.css?v=4" />
     <link rel="stylesheet" href="athlete.css?v=3" />
   </head>
   <body>
@@ -12,20 +12,22 @@
     <header>
       <h1>TBFLOG</h1>
       <div style="display:flex; align-items:center; gap:16px">
-        <a href="programs.html" class="back-btn">← Back to Program Library</a>
         <button class="header-link" id="logoutBtn">Log Out</button>
       </div>
     </header>
 
     <div class="app-layout">
-      <nav class="sidebar">
-        <a href="index.html" class="sidebar-link">Dashboard</a>
-        <div class="sidebar-item-hover">
-          <span class="sidebar-link active">Library</span>
-          <div class="sidebar-submenu">
-            <a href="exercises.html">Exercise Library</a>
-            <a href="trainings.html">Training Library</a>
-            <a href="programs.html">Program Library</a>
+      <nav class="sidebar" id="pageSidebar">
+        <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
+        <div class="sidebar-links" id="sidebarLinks">
+          <a href="index.html" class="sidebar-link">Dashboard</a>
+          <div class="sidebar-item-hover">
+            <span class="sidebar-link active">Library</span>
+            <div class="sidebar-submenu">
+              <a href="exercises.html">Exercise Library</a>
+              <a href="trainings.html">Training Library</a>
+              <a href="programs.html">Program Library</a>
+            </div>
           </div>
         </div>
       </nav>
