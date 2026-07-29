@@ -296,3 +296,40 @@ alter table exercises add column if not exists video_url text;
 -- change every time. No RLS change needed - covered by the existing
 -- program_exercises policies (they don't reference individual columns).
 alter table program_exercises add column if not exists extra_fields jsonb;
+
+-- ==========================================================================
+-- Training Library: reusable single-day workouts (just a flat list of
+-- exercises, no weeks/days) a coach can build once and either drop onto any
+-- athlete's calendar via "+ Add Training", or use as a starting point they
+-- tweak per-athlete. Separate from `programs` on purpose - a "training" is
+-- always one flat session, not a multi-week structure, so it doesn't need
+-- the program_weeks/program_days layers at all.
+-- ==========================================================================
+create table if not exists trainings (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+alter table trainings enable row level security;
+drop policy if exists "coach manages own trainings" on trainings;
+create policy "coach manages own trainings" on trainings for all
+  using (coach_id = auth.uid()) with check (coach_id = auth.uid());
+
+create table if not exists training_exercises (
+  id uuid primary key default gen_random_uuid(),
+  training_id uuid not null references trainings(id) on delete cascade,
+  exercise_id uuid not null references exercises(id),
+  order_index int not null default 0,
+  prescribed_sets int,
+  prescribed_reps text,
+  prescribed_weight numeric,
+  extra_fields jsonb,
+  notes text,
+  created_at timestamptz not null default now()
+);
+alter table training_exercises enable row level security;
+drop policy if exists "coach manages own training exercises" on training_exercises;
+create policy "coach manages own training exercises" on training_exercises for all
+  using (exists (select 1 from trainings t where t.id = training_exercises.training_id and t.coach_id = auth.uid()))
+  with check (exists (select 1 from trainings t where t.id = training_exercises.training_id and t.coach_id = auth.uid()));
