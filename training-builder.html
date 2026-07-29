@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Training Builder — TBFlog</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="athlete.css" />
+  </head>
+  <body>
+
+    <header>
+      <h1>TBFLOG</h1>
+      <div style="display:flex; align-items:center; gap:16px">
+        <a href="trainings.html" class="back-btn">← Back to Training Library</a>
+        <button class="header-link" id="logoutBtn">Log Out</button>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      <nav class="sidebar">
+        <a href="index.html" class="sidebar-link">Dashboard</a>
+        <div class="sidebar-item-hover">
+          <span class="sidebar-link active">Library</span>
+          <div class="sidebar-submenu">
+            <a href="exercises.html">Exercise Library</a>
+            <a href="trainings.html">Training Library</a>
+            <a href="programs.html">Program Library</a>
+          </div>
+        </div>
+      </nav>
+
+      <div class="dashboard">
+        <div class="dashboard-header">
+          <h2 id="trainingNameHeading">Loading...</h2>
+          <div style="display:flex; gap:12px">
+            <button class="btn-profile-action" id="renameTrainingBtn">✏ Rename</button>
+            <button class="btn-add" id="addTrainingExerciseBtn">+ Add Exercise</button>
+          </div>
+        </div>
+        <ul class="detail-list" id="trainingExercisesList"></ul>
+      </div>
+    </div>
+
+    <!-- Rename Training Modal -->
+    <div class="modal-overlay" id="renameTrainingModal">
+      <div class="modal">
+        <h2>Rename Training</h2>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="renameTrainingInput" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelRenameTrainingBtn">Cancel</button>
+          <button class="btn-save" id="saveRenameTrainingBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exercise Picker Modal: pick from the library or create new, then set
+         prescribed sets/reps-or-duration/weight/extra fields/notes -->
+    <div class="modal-overlay" id="tExercisePickerModal">
+      <div class="modal">
+        <h2>Add Exercise</h2>
+        <div class="form-group">
+          <label>Exercise</label>
+          <select id="tPickerExerciseSelect">
+            <option value="">Choose an exercise...</option>
+          </select>
+        </div>
+        <p style="text-align:center; color:#aaaacc; font-size:13px; margin: 8px 0">or</p>
+        <button class="btn-create-metric" id="tCreateNewExerciseBtn">+ Create New Exercise</button>
+        <div class="form-group" style="margin-top:16px">
+          <label>Sets</label>
+          <input type="number" id="tPickerSets" placeholder="e.g. 3" />
+        </div>
+        <div class="form-group" id="tPickerRepsGroup">
+          <label>Reps</label>
+          <input type="text" id="tPickerReps" placeholder="e.g. 8-12" />
+        </div>
+        <div class="form-group" id="tPickerDurationGroup" style="display:none">
+          <label>Duration</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="tPickerDurationValue" placeholder="e.g. 45" style="flex:1" />
+            <select id="tPickerDurationUnit" style="flex:1">
+              <option value="sec">Seconds</option>
+              <option value="min">Minutes</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="tPickerWeightGroup">
+          <label>Weight (kg, optional)</label>
+          <input type="number" id="tPickerWeight" placeholder="e.g. 60" />
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="tPickerNotes" placeholder="e.g. tempo 3-1-1" />
+        </div>
+        <div class="form-group">
+          <label>Extra Fields (optional)</label>
+          <div id="tPickerExtraFields"></div>
+          <button type="button" class="btn-create-metric" id="tPickerAddFieldBtn">+ Add Field (e.g. % of 1RM, RPE)</button>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelTExercisePickerBtn">Cancel</button>
+          <button class="btn-save" id="saveTExercisePickerBtn">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create New Exercise Modal (opens on top of the picker above) -->
+    <div class="modal-overlay" id="tCreateExerciseModal">
+      <div class="modal">
+        <h2>Create New Exercise</h2>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="tCreateExerciseName" placeholder="e.g. Romanian Deadlift" />
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="tCreateExerciseCategory">
+            <option value="__new__">+ Add New Category</option>
+          </select>
+        </div>
+        <div class="form-group" id="tCreateExerciseNewCategoryGroup" style="display:none">
+          <label>New Category Name</label>
+          <input type="text" id="tCreateExerciseNewCategory" placeholder="e.g. Legs" />
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="tCreateExerciseType">
+            <option value="weights">Weightlifting (sets, reps, weight)</option>
+            <option value="timed">Timed (sets, duration)</option>
+            <option value="__new__">+ Add New Type</option>
+          </select>
+        </div>
+        <div class="form-group" id="tCreateExerciseNewTypeGroup" style="display:none">
+          <label>New Type Name</label>
+          <input type="text" id="tCreateExerciseNewType" placeholder="e.g. Plyometric" />
+        </div>
+        <div class="form-group">
+          <label>Video Link (optional)</label>
+          <input type="url" id="tCreateExerciseVideoUrl" placeholder="https://youtube.com/..." />
+        </div>
+        <div class="form-group">
+          <label>Instructions (optional)</label>
+          <textarea id="tCreateExerciseInstructions" class="notes-textarea"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelTCreateExerciseBtn">Cancel</button>
+          <button class="btn-save" id="saveTCreateExerciseBtn">Create & Select</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Exercise Modal: only prescribed sets/reps/weight/extra
+         fields/notes are editable, not the exercise itself -->
+    <div class="modal-overlay" id="tEditExerciseModal">
+      <div class="modal">
+        <h2 id="tEditExerciseTitle">Edit Exercise</h2>
+        <div class="form-group">
+          <label>Sets</label>
+          <input type="number" id="tEditSets" />
+        </div>
+        <div class="form-group" id="tEditRepsGroup">
+          <label>Reps</label>
+          <input type="text" id="tEditReps" />
+        </div>
+        <div class="form-group" id="tEditDurationGroup" style="display:none">
+          <label>Duration</label>
+          <div style="display:flex; gap:8px">
+            <input type="number" id="tEditDurationValue" placeholder="e.g. 45" style="flex:1" />
+            <select id="tEditDurationUnit" style="flex:1">
+              <option value="sec">Seconds</option>
+              <option value="min">Minutes</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="tEditWeightGroup">
+          <label>Weight (kg, optional)</label>
+          <input type="number" id="tEditWeight" />
+        </div>
+        <div class="form-group">
+          <label>Extra Fields (optional)</label>
+          <div id="tEditExtraFields"></div>
+          <button type="button" class="btn-create-metric" id="tEditAddFieldBtn">+ Add Field</button>
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="tEditNotes" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelTEditExerciseBtn">Cancel</button>
+          <button class="btn-save" id="saveTEditExerciseBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="training-builder.js"></script>
+  </body>
+</html>

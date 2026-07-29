@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Program Library — TBFlog</title>
+    <title>Training Library — TBFlog</title>
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="athlete.css" />
   </head>
@@ -32,29 +32,30 @@
 
       <div class="dashboard">
         <div class="dashboard-header">
-          <h2>Program Library</h2>
-          <button class="btn-add" id="newTemplateBtn">+ New Template</button>
+          <h2>Training Library</h2>
+          <button class="btn-add" id="newTrainingBtn">+ New Training</button>
         </div>
-        <div class="athlete-grid" id="programGrid"></div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:24px">A training is a single reusable workout (a flat list of exercises) - build once, then drop it onto any athlete's calendar.</p>
+        <div class="athlete-grid" id="trainingGrid"></div>
       </div>
     </div>
 
-    <!-- New Template Modal: just a name - the actual weeks/days/exercises
-         get built on program-builder.html after this redirects there -->
-    <div class="modal-overlay" id="newTemplateModal">
+    <!-- New Training Modal: just a name - the exercise list gets built on
+         training-builder.html after this redirects there -->
+    <div class="modal-overlay" id="newTrainingModal">
       <div class="modal">
-        <h2>New Program Template</h2>
+        <h2>New Training</h2>
         <div class="form-group">
           <label>Name</label>
-          <input type="text" id="newTemplateName" placeholder="e.g. Push Pull Legs - Hypertrophy" />
+          <input type="text" id="newTrainingName" placeholder="e.g. Leg Day" />
         </div>
         <div class="form-actions">
-          <button class="btn-cancel" id="cancelNewTemplateBtn">Cancel</button>
-          <button class="btn-save" id="saveNewTemplateBtn">Create & Edit</button>
+          <button class="btn-cancel" id="cancelNewTrainingBtn">Cancel</button>
+          <button class="btn-save" id="saveNewTrainingBtn">Create & Edit</button>
         </div>
       </div>
     </div>
 
-    <script type="module" src="programs.js"></script>
+    <script type="module" src="trainings.js"></script>
   </body>
 </html>

@@ -360,11 +360,24 @@ async function deleteScheduledExercise(peId) {
 // container for repeated adds to the same date, instead of creating a new
 // one each time.
 // ==========================================================================
-document.getElementById('calAddTrainingBtn').addEventListener('click', function() {
+document.getElementById('calAddTrainingBtn').addEventListener('click', async function() {
   document.getElementById('adHocNameInput').value = ''
   document.getElementById('adHocDateInput').value = toDateStr(new Date())
+  await loadTrainingLibraryOptions()
   document.getElementById('adHocDateModal').classList.add('active')
 })
+
+// Training Library options for the "Start From" dropdown - "Build from
+// scratch" (default) opens the usual exercise picker; picking a saved
+// training instead clones its exercise list straight onto the day
+async function loadTrainingLibraryOptions() {
+  const { data, error } = await supabase.from('trainings').select('*').order('name')
+  if (error) { console.log(error); return }
+
+  const select = document.getElementById('adHocFromTrainingSelect')
+  select.innerHTML = '<option value="">Build from scratch</option>' +
+    data.map(t => `<option value="${t.id}">${t.name}</option>`).join('')
+}
 
 document.getElementById('cancelAdHocDateBtn').addEventListener('click', function() {
   document.getElementById('adHocDateModal').classList.remove('active')
@@ -373,14 +386,51 @@ document.getElementById('cancelAdHocDateBtn').addEventListener('click', function
 document.getElementById('continueAdHocDateBtn').addEventListener('click', async function() {
   const dateStr = document.getElementById('adHocDateInput').value
   const name = document.getElementById('adHocNameInput').value.trim()
+  const trainingId = document.getElementById('adHocFromTrainingSelect').value
   if (!dateStr) { alert('Please choose a date'); return }
 
   document.getElementById('adHocDateModal').classList.remove('active')
   const dayId = await findOrCreateAdHocDay(dateStr, name || 'Training')
   currentDayDateForModal = dateStr
-  reopenDayModalAfterSave = false
-  openCalendarExercisePicker(dayId)
+
+  if (trainingId) {
+    await cloneTrainingToDay(trainingId, dayId)
+    await loadCalendarMonth(currentViewYear, currentViewMonth)
+    openDayModal(dateStr)
+  } else {
+    reopenDayModalAfterSave = false
+    openCalendarExercisePicker(dayId)
+  }
 })
+
+// Copies a saved training's exercise list onto an ad-hoc day - a real copy,
+// same reasoning as cloneTemplateToAthlete() below: editing the Training
+// Library entry later shouldn't retroactively change a day already built
+// from it.
+async function cloneTrainingToDay(trainingId, dayId) {
+  const { data: trainingExercises, error } = await supabase
+    .from('training_exercises')
+    .select('*')
+    .eq('training_id', trainingId)
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+
+  trainingExercises.sort((a, b) => a.order_index - b.order_index)
+
+  for (const te of trainingExercises) {
+    const { error: insertError } = await supabase.from('program_exercises').insert([{
+      day_id: dayId,
+      exercise_id: te.exercise_id,
+      order_index: te.order_index,
+      prescribed_sets: te.prescribed_sets,
+      prescribed_reps: te.prescribed_reps,
+      prescribed_weight: te.prescribed_weight,
+      extra_fields: te.extra_fields,
+      notes: te.notes
+    }])
+    if (insertError) { console.log(insertError); alert('Something went wrong copying one of the exercises'); return }
+  }
+}
 
 // name is only used the first time a training is created for this date -
 // if one already exists (repeated adds to the same day), its existing name
