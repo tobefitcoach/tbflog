@@ -244,22 +244,6 @@
   color: #ffffff;
 }
 
-/* Calendar day badge that reflects every logged set being complete -
-   layered on top of the base .calendar-day-badge from athlete.css */
-.calendar-day-badge-done {
-  background-color: #4caf50;
-}
-
-/* Beyond what can_preview_next_week allows this athlete to see - no badge
-   is rendered for these cells (see maxAllowedDateStr in dashboard.js),
-   pointer-events:none also means the click-to-open-day-preview handler
-   never fires here even though it's still attached */
-.calendar-day-locked {
-  opacity: 0.25;
-  cursor: default;
-  pointer-events: none;
-}
-
 /* ==========================================================================
    WEEK VIEW (new default landing) + DAY PREVIEW + ACTIVE WORKOUT + VIDEO
    ========================================================================== */
@@ -544,8 +528,15 @@
     min-height: 70px;
   }
 
+  /* Full text badges don't fit at this width - collapse to a small colored
+     dot instead of hiding entirely, so a scheduled day is still visible */
   .week-day-badge {
-    display: none;
+    font-size: 0;
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+    padding: 0;
+    border-radius: 50%;
   }
 
   .day-preview-thumb {

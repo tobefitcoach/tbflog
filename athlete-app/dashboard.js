@@ -144,7 +144,6 @@ function addDays(date, n) {
   return d
 }
 
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function trainingDisplayName(entry) {
@@ -325,7 +324,6 @@ function renderWeekView(weekStart) {
       <button class="btn-cancel" id="weekNextBtn" ${nextEnabled ? '' : 'disabled'}>Next →</button>
     </div>
     <div class="week-strip">${cardsHtml}</div>
-    <button class="header-link" id="viewFullCalendarBtn">📅 Full Calendar</button>
   `
 
   document.querySelectorAll('.week-day-card').forEach(cardEl => {
@@ -337,9 +335,6 @@ function renderWeekView(weekStart) {
   })
   document.getElementById('weekNextBtn').addEventListener('click', function() {
     if (nextEnabled) renderWeekView(addDays(weekStart, 7))
-  })
-  document.getElementById('viewFullCalendarBtn').addEventListener('click', function() {
-    renderCalendarView(weekStart.getFullYear(), weekStart.getMonth())
   })
 }
 
@@ -791,97 +786,3 @@ function playRestDoneSound() {
   if (navigator.vibrate) navigator.vibrate(300)
 }
 
-// ==========================================================================
-// ---- CALENDAR VIEW (browse further than one week, read-only) ----
-// Reached via the Week view's "Full Calendar" link. Only the coach
-// schedules trainings, so unlike athlete-calendar.js this grid has no "+"
-// add control - just navigation into renderDayPreview().
-// ==========================================================================
-// The Week view's "Next" nav already stops an athlete from stepping past
-// their allowed week, but the month Calendar can jump straight to any
-// future month - it needs the same cap applied per-cell, or the
-// can_preview_next_week toggle would be pointless.
-function maxAllowedDateStr() {
-  const weekEnd = addDays(startOfWeek(new Date()), 6)
-  const maxDate = athlete.can_preview_next_week ? addDays(weekEnd, 7) : weekEnd
-  return toDateStr(maxDate)
-}
-
-function renderCalendarView(year, month) {
-  clearRestTimer()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
-
-  const startWeekday = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const prevMonthDays = new Date(year, month, 0).getDate()
-
-  const cells = []
-  for (let i = startWeekday - 1; i >= 0; i--) {
-    cells.push({ date: new Date(year, month - 1, prevMonthDays - i), outside: true })
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    cells.push({ date: new Date(year, month, d), outside: false })
-  }
-  let nextMonthDay = 1
-  while (cells.length < 42) {
-    cells.push({ date: new Date(year, month + 1, nextMonthDay), outside: true })
-    nextMonthDay++
-  }
-
-  const todayStr = toDateStr(new Date())
-  const maxAllowed = maxAllowedDateStr()
-  const nextMonthFirstDay = new Date(year, month + 1, 1)
-  const nextDisabled = toDateStr(nextMonthFirstDay) > maxAllowed
-
-  pageContent.innerHTML = `
-    <div class="calendar-toolbar">
-      <button class="header-link" id="calBackToWeekBtn">← Week</button>
-      <div style="flex:1"></div>
-      <button class="btn-cancel" id="calPrevBtn">← Prev</button>
-      <h3 id="calMonthLabel">${MONTH_NAMES[month]} ${year}</h3>
-      <button class="btn-cancel" id="calNextBtn" ${nextDisabled ? 'disabled' : ''}>Next →</button>
-    </div>
-    <div class="calendar-grid" id="athCalendarGrid"></div>
-  `
-
-  const grid = document.getElementById('athCalendarGrid')
-  grid.innerHTML = cells.map(cell => {
-    const dateStr = toDateStr(cell.date)
-    const locked = dateStr > maxAllowed
-    const entries = locked ? [] : (entriesByDate[dateStr] || [])
-    const names = [...new Set(entries.map(trainingDisplayName))]
-    const done = dayIsFullyLogged(entries)
-
-    const classes = ['calendar-day']
-    if (cell.outside) classes.push('calendar-day-outside')
-    if (dateStr === todayStr) classes.push('calendar-day-today')
-    if (locked) classes.push('calendar-day-locked')
-
-    return `
-      <div class="${classes.join(' ')}" data-date="${dateStr}">
-        <span class="calendar-day-number">${cell.date.getDate()}</span>
-        ${names.map(name => `<span class="calendar-day-badge ${done ? 'calendar-day-badge-done' : ''}">${done ? '✓ ' : ''}${name}</span>`).join('')}
-      </div>
-    `
-  }).join('')
-
-  grid.querySelectorAll('.calendar-day').forEach(cellEl => {
-    cellEl.addEventListener('click', function() { renderDayPreview(cellEl.dataset.date) })
-  })
-
-  document.getElementById('calBackToWeekBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
-  document.getElementById('calPrevBtn').addEventListener('click', function() {
-    let m = month - 1, y = year
-    if (m < 0) { m = 11; y-- }
-    renderCalendarView(y, m)
-  })
-  document.getElementById('calNextBtn').addEventListener('click', function() {
-    if (nextDisabled) return
-    let m = month + 1, y = year
-    if (m > 11) { m = 0; y++ }
-    renderCalendarView(y, m)
-  })
-}
