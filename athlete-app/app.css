@@ -250,6 +250,16 @@
   background-color: #4caf50;
 }
 
+/* Beyond what can_preview_next_week allows this athlete to see - no badge
+   is rendered for these cells (see maxAllowedDateStr in dashboard.js),
+   pointer-events:none also means the click-to-open-day-preview handler
+   never fires here even though it's still attached */
+.calendar-day-locked {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* ==========================================================================
    WEEK VIEW (new default landing) + DAY PREVIEW + ACTIVE WORKOUT + VIDEO
    ========================================================================== */

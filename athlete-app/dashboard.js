@@ -797,6 +797,16 @@ function playRestDoneSound() {
 // schedules trainings, so unlike athlete-calendar.js this grid has no "+"
 // add control - just navigation into renderDayPreview().
 // ==========================================================================
+// The Week view's "Next" nav already stops an athlete from stepping past
+// their allowed week, but the month Calendar can jump straight to any
+// future month - it needs the same cap applied per-cell, or the
+// can_preview_next_week toggle would be pointless.
+function maxAllowedDateStr() {
+  const weekEnd = addDays(startOfWeek(new Date()), 6)
+  const maxDate = athlete.can_preview_next_week ? addDays(weekEnd, 7) : weekEnd
+  return toDateStr(maxDate)
+}
+
 function renderCalendarView(year, month) {
   clearRestTimer()
   pageWrap.classList.add('wide')
@@ -820,6 +830,9 @@ function renderCalendarView(year, month) {
   }
 
   const todayStr = toDateStr(new Date())
+  const maxAllowed = maxAllowedDateStr()
+  const nextMonthFirstDay = new Date(year, month + 1, 1)
+  const nextDisabled = toDateStr(nextMonthFirstDay) > maxAllowed
 
   pageContent.innerHTML = `
     <div class="calendar-toolbar">
@@ -827,7 +840,7 @@ function renderCalendarView(year, month) {
       <div style="flex:1"></div>
       <button class="btn-cancel" id="calPrevBtn">← Prev</button>
       <h3 id="calMonthLabel">${MONTH_NAMES[month]} ${year}</h3>
-      <button class="btn-cancel" id="calNextBtn">Next →</button>
+      <button class="btn-cancel" id="calNextBtn" ${nextDisabled ? 'disabled' : ''}>Next →</button>
     </div>
     <div class="calendar-grid" id="athCalendarGrid"></div>
   `
@@ -835,13 +848,15 @@ function renderCalendarView(year, month) {
   const grid = document.getElementById('athCalendarGrid')
   grid.innerHTML = cells.map(cell => {
     const dateStr = toDateStr(cell.date)
-    const entries = entriesByDate[dateStr] || []
+    const locked = dateStr > maxAllowed
+    const entries = locked ? [] : (entriesByDate[dateStr] || [])
     const names = [...new Set(entries.map(trainingDisplayName))]
     const done = dayIsFullyLogged(entries)
 
     const classes = ['calendar-day']
     if (cell.outside) classes.push('calendar-day-outside')
     if (dateStr === todayStr) classes.push('calendar-day-today')
+    if (locked) classes.push('calendar-day-locked')
 
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
@@ -864,6 +879,7 @@ function renderCalendarView(year, month) {
     renderCalendarView(y, m)
   })
   document.getElementById('calNextBtn').addEventListener('click', function() {
+    if (nextDisabled) return
     let m = month + 1, y = year
     if (m > 11) { m = 0; y++ }
     renderCalendarView(y, m)
