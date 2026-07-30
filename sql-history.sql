@@ -379,3 +379,33 @@ create policy "athlete manages own log sets" on exercise_log_sets for all
                 join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
                 where pe.id = exercise_log_sets.program_exercise_id and p.athlete_id = exercise_log_sets.athlete_id)
   );
+
+-- ==========================================================================
+-- Week view, guided workout flow. can_preview_next_week is a per-athlete
+-- permission (off by default) the coach flips on for athletes they want to
+-- let plan ahead. workout_sessions gives a real Start-Workout ->
+-- Finish-Workout duration - volume is intentionally not cached here, it's
+-- computed on demand from exercise_log_sets (actual_weight x actual_reps).
+-- ==========================================================================
+alter table athletes add column if not exists can_preview_next_week boolean not null default false;
+
+create table if not exists workout_sessions (
+  id uuid primary key default gen_random_uuid(),
+  program_day_id uuid not null references program_days(id) on delete cascade,
+  athlete_id bigint not null references athletes(id) on delete cascade,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table workout_sessions enable row level security;
+drop policy if exists "coach views sessions for own athletes" on workout_sessions;
+create policy "coach views sessions for own athletes" on workout_sessions for select
+  using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = auth.uid()));
+drop policy if exists "athlete manages own sessions" on workout_sessions;
+create policy "athlete manages own sessions" on workout_sessions for all
+  using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.user_id = auth.uid()))
+  with check (
+    exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.user_id = auth.uid())
+    and exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
+                where d.id = workout_sessions.program_day_id and p.athlete_id = workout_sessions.athlete_id)
+  );

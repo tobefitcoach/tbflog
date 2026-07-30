@@ -101,6 +101,7 @@ document.getElementById('profileDetails').textContent =
     document.getElementById('editAthleteGender').value = data.gender
     document.getElementById('editAthleteHeight').value = data.height
     document.getElementById('editAthleteEmail').value = data.email || ''
+    document.getElementById('editAthleteNextWeekToggle').checked = !!data.can_preview_next_week
     document.getElementById('editAthleteModal').classList.add('active')
   })
 
@@ -1753,12 +1754,13 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   // Empty -> null, not '' - the email column has a "no duplicates" rule in
   // the database, and two blank emails would otherwise count as duplicates
   const email = document.getElementById('editAthleteEmail').value.trim() || null
+  const canPreviewNextWeek = document.getElementById('editAthleteNextWeekToggle').checked
 
   if (!name) { alert('Please enter a name'); return }
 
   const { error } = await supabase
     .from('athletes')
-    .update({ name, date_of_birth: dob, gender, height, email })
+    .update({ name, date_of_birth: dob, gender, height, email, can_preview_next_week: canPreviewNextWeek })
     .eq('id', athleteId)
 
   if (error) {
