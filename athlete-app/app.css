@@ -277,7 +277,7 @@
 .week-strip {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 20px;
 }
 
@@ -285,15 +285,15 @@
   background-color: #1a1a2e;
   border: 1px solid #2a2a4e;
   border-radius: 10px;
-  padding: 10px 6px;
+  padding: 16px 8px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s;
-  min-height: 90px;
+  min-height: 130px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .week-day-card:hover {
@@ -310,26 +310,26 @@
 }
 
 .week-day-name {
-  font-size: 12px;
+  font-size: 13px;
   color: #aaaacc;
 }
 
 .week-day-number {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
   color: #ffffff;
 }
 
 .week-day-badge {
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.3;
   background-color: #3b82f6;
   color: #ffffff;
-  padding: 2px 6px;
+  padding: 4px 8px;
   border-radius: 8px;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .week-day-card.done .week-day-badge {
@@ -518,25 +518,20 @@
     width: 36px;
   }
 
+  /* 7 equal columns get too narrow to read on a phone - scroll horizontally
+     through comfortably-sized cards instead of shrinking them to fit */
   .week-strip {
-    grid-template-columns: repeat(7, minmax(40px, 1fr));
-    gap: 4px;
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
   }
 
   .week-day-card {
-    padding: 6px 2px;
-    min-height: 70px;
-  }
-
-  /* Full text badges don't fit at this width - collapse to a small colored
-     dot instead of hiding entirely, so a scheduled day is still visible */
-  .week-day-badge {
-    font-size: 0;
-    width: 8px;
-    height: 8px;
-    min-width: 8px;
-    padding: 0;
-    border-radius: 50%;
+    flex: 0 0 108px;
+    padding: 14px 8px;
+    min-height: 120px;
   }
 
   .day-preview-thumb {
