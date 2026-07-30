@@ -34,6 +34,24 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 })
 
 // ==========================================================================
+// ---- SETTINGS TAB ----
+// Per-athlete settings save immediately on change, no separate Save button -
+// this page is meant to be filled in once during onboarding and left alone.
+// ==========================================================================
+document.getElementById('settingsNextWeekToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ can_preview_next_week: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    alert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked // revert the toggle visually
+  }
+})
+
+// ==========================================================================
 // ---- TABS ----
 // Switches which .tab-panel is visible. Metrics data loads lazily, the first
 // time that tab is clicked, not on page load - Chart.js sizes its canvases
@@ -94,6 +112,10 @@ document.getElementById('profileDetails').textContent =
   // Show the most recent dated note in the header
   loadLatestNote()
 
+  // Settings tab - populated here (not lazily) since it's just this one
+  // field already loaded above, no chart-canvas-sizing concern like Metrics
+  document.getElementById('settingsNextWeekToggle').checked = !!data.can_preview_next_week
+
  // Edit info button
   document.getElementById('editAthleteBtn').addEventListener('click', function() {
     document.getElementById('editAthleteName').value = data.name
@@ -101,7 +123,6 @@ document.getElementById('profileDetails').textContent =
     document.getElementById('editAthleteGender').value = data.gender
     document.getElementById('editAthleteHeight').value = data.height
     document.getElementById('editAthleteEmail').value = data.email || ''
-    document.getElementById('editAthleteNextWeekToggle').checked = !!data.can_preview_next_week
     document.getElementById('editAthleteModal').classList.add('active')
   })
 
@@ -1754,13 +1775,12 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   // Empty -> null, not '' - the email column has a "no duplicates" rule in
   // the database, and two blank emails would otherwise count as duplicates
   const email = document.getElementById('editAthleteEmail').value.trim() || null
-  const canPreviewNextWeek = document.getElementById('editAthleteNextWeekToggle').checked
 
   if (!name) { alert('Please enter a name'); return }
 
   const { error } = await supabase
     .from('athletes')
-    .update({ name, date_of_birth: dob, gender, height, email, can_preview_next_week: canPreviewNextWeek })
+    .update({ name, date_of_birth: dob, gender, height, email })
     .eq('id', athleteId)
 
   if (error) {

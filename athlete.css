@@ -940,6 +940,32 @@
   margin-bottom: 8px;
 }
 
+/* --- Settings tab: one row per per-athlete toggle, extensible as more
+   settings get added --- */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-title {
+  color: #ffffff;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.settings-row-desc {
+  color: #aaaacc;
+  font-size: 13px;
+}
+
 .detail-list {
   list-style: none;
   padding-left: 4px;
