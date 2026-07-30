@@ -286,9 +286,12 @@ function renderWeekView(weekStart) {
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
+  // Next should stay enabled all the way back up from any past week, not
+  // just when weekStart happens to be exactly today's week - it only locks
+  // once you'd step past the furthest week this athlete is allowed to see
   const realCurrentWeekStart = startOfWeek(new Date())
-  const isCurrentWeek = toDateStr(weekStart) === toDateStr(realCurrentWeekStart)
-  const nextEnabled = isCurrentWeek && !!athlete.can_preview_next_week
+  const maxAllowedWeekStart = athlete.can_preview_next_week ? addDays(realCurrentWeekStart, 7) : realCurrentWeekStart
+  const nextEnabled = toDateStr(weekStart) < toDateStr(maxAllowedWeekStart)
 
   const todayStr = toDateStr(new Date())
   const days = []
