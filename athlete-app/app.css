@@ -518,20 +518,41 @@
     width: 36px;
   }
 
-  /* 7 equal columns get too narrow to read on a phone - scroll horizontally
-     through comfortably-sized cards instead of shrinking them to fit */
+  /* 7 equal columns (or even a horizontally-scrolling strip of small cards)
+     are still too small to read comfortably on a phone - stack the days
+     into a full-width vertical list instead, one big row per day */
   .week-strip {
     display: flex;
-    overflow-x: auto;
-    gap: 10px;
-    padding-bottom: 6px;
-    -webkit-overflow-scrolling: touch;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .week-day-card {
-    flex: 0 0 108px;
-    padding: 14px 8px;
-    min-height: 120px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    text-align: left;
+    min-height: auto;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .week-day-name {
+    width: 34px;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .week-day-number {
+    width: 26px;
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+
+  .week-day-badge {
+    flex: 1;
+    max-width: none;
+    font-size: 13px;
   }
 
   .day-preview-thumb {
