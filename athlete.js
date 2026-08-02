@@ -128,7 +128,211 @@ document.getElementById('profileDetails').textContent =
 
   // Load bodyweight graph
   loadBodyweightGraph()
+
+  // Training completion + volume stats
+  loadOverviewStats()
 }
+
+// ==========================================================================
+// ---- OVERVIEW STATS: completion rate + volume ----
+// Computed from this athlete's schedule (programs -> ... -> program_exercises)
+// and their logged exercise_log_sets. Same nested-query shape and date math
+// athlete-calendar.js/dashboard.js use, duplicated here since this is a
+// separate module with no shared scope.
+// ==========================================================================
+function toDateStrOv(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function parseDateStrOv(dateStr) {
+  return new Date(dateStr + 'T00:00:00')
+}
+
+function resolveDateOv(startDateStr, weekNumber, dayNumber) {
+  const start = parseDateStrOv(startDateStr)
+  const result = new Date(start)
+  result.setDate(result.getDate() + (weekNumber - 1) * 7 + (dayNumber - 1))
+  return toDateStrOv(result)
+}
+
+function addDaysOv(date, n) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + n)
+  return d
+}
+
+function startOfWeekOv(date) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  const day = d.getDay() // 0=Sun..6=Sat
+  const diff = day === 0 ? -6 : 1 - day // shift back to Monday
+  d.setDate(d.getDate() + diff)
+  return d
+}
+
+// Weight x reps for one logged set - 0 if incomplete, unweighted, or the
+// reps didn't parse as a plain number (duration text, unedited "8-12" ranges)
+function setVolumeOv(s) {
+  if (!s.completed_at || s.actual_weight == null) return 0
+  const reps = parseInt(s.actual_reps)
+  return isNaN(reps) ? 0 : reps * s.actual_weight
+}
+
+let volumeChart = null
+let volumeChartData = { labels: [], values: [] }
+
+async function loadOverviewStats() {
+  const { data: programs, error: programsError } = await supabase
+    .from('programs')
+    .select('*, program_weeks(*, program_days(*, program_exercises(*)))')
+    .eq('athlete_id', athleteId)
+    .eq('is_template', false)
+
+  if (programsError) { console.log('Error loading schedule for stats:', programsError); return }
+
+  // Bucket every scheduled day's exercises by resolved date
+  const exercisesByDate = {}
+  for (const program of programs) {
+    for (const week of program.program_weeks) {
+      for (const day of week.program_days) {
+        const dateStr = resolveDateOv(program.start_date, week.week_number, day.day_number)
+        if (!exercisesByDate[dateStr]) exercisesByDate[dateStr] = []
+        exercisesByDate[dateStr].push(...day.program_exercises)
+      }
+    }
+  }
+
+  const ninetyDaysAgo = toDateStrOv(addDaysOv(new Date(), -89))
+  const { data: logSets, error: logError } = await supabase
+    .from('exercise_log_sets')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .gte('date', ninetyDaysAgo)
+
+  if (logError) { console.log('Error loading logged sets for stats:', logError); return }
+
+  const logSetsByPE = {}
+  for (const row of logSets) {
+    if (!logSetsByPE[row.program_exercise_id]) logSetsByPE[row.program_exercise_id] = []
+    logSetsByPE[row.program_exercise_id].push(row)
+  }
+
+  // ---- Completion rate: completed scheduled days / scheduled days, within
+  // the window. Rest days (nothing scheduled) don't count toward either side ----
+  function completionRate(windowDays) {
+    const cutoff = toDateStrOv(addDaysOv(new Date(), -(windowDays - 1)))
+    const todayStr = toDateStrOv(new Date())
+    let scheduled = 0
+    let completed = 0
+
+    for (const dateStr in exercisesByDate) {
+      if (dateStr < cutoff || dateStr > todayStr) continue
+      const exercises = exercisesByDate[dateStr]
+      if (exercises.length === 0) continue
+      scheduled++
+
+      const dayDone = exercises.every(pe => {
+        const prescribed = pe.prescribed_sets || 1
+        const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
+        return logged.length >= prescribed
+      })
+      if (dayDone) completed++
+    }
+
+    return scheduled === 0 ? null : Math.round((completed / scheduled) * 100)
+  }
+
+  const rate30 = completionRate(30)
+  const rate60 = completionRate(60)
+  const rate90 = completionRate(90)
+
+  document.getElementById('statCompletion').textContent = rate30 === null ? '—' : `${rate30}%`
+  document.getElementById('statCompletion30').textContent = rate30 === null ? '—' : `${rate30}%`
+  document.getElementById('statCompletion60').textContent = rate60 === null ? '—' : `${rate60}%`
+  document.getElementById('statCompletion90').textContent = rate90 === null ? '—' : `${rate90}%`
+
+  // ---- Volume ----
+  const sevenDaysAgo = toDateStrOv(addDaysOv(new Date(), -6))
+  const volume7d = logSets
+    .filter(s => s.date >= sevenDaysAgo)
+    .reduce((sum, s) => sum + setVolumeOv(s), 0)
+
+  document.getElementById('statVolume').textContent = `${Math.round(volume7d).toLocaleString()}kg`
+
+  // Weekly buckets for the trend chart, oldest of the last 12 weeks first
+  const weeklyVolume = {} // 'YYYY-MM-DD' (week start) -> kg
+  for (const s of logSets) {
+    const weekStart = toDateStrOv(startOfWeekOv(parseDateStrOv(s.date)))
+    weeklyVolume[weekStart] = (weeklyVolume[weekStart] || 0) + setVolumeOv(s)
+  }
+
+  const labels = []
+  const values = []
+  const currentWeekStart = startOfWeekOv(new Date())
+  for (let i = 11; i >= 0; i--) {
+    const weekStart = addDaysOv(currentWeekStart, -7 * i)
+    labels.push(weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+    values.push(Math.round(weeklyVolume[toDateStrOv(weekStart)] || 0))
+  }
+  volumeChartData = { labels, values }
+}
+
+document.getElementById('statCompletionCard').addEventListener('click', function() {
+  document.getElementById('completionDetailModal').classList.add('active')
+})
+
+document.getElementById('closeCompletionModalBtn').addEventListener('click', function() {
+  document.getElementById('completionDetailModal').classList.remove('active')
+})
+
+// Chart.js sizes its canvas from rendered pixel dimensions, so it's only
+// drawn once the modal is actually visible - same reasoning as the Metrics
+// tab's lazy chart loading (see initTabs())
+document.getElementById('statVolumeCard').addEventListener('click', function() {
+  document.getElementById('volumeDetailModal').classList.add('active')
+
+  const canvas = document.getElementById('volumeChart')
+  const noDataMsg = document.getElementById('noVolumeMsg')
+  const hasData = volumeChartData.values.some(v => v > 0)
+
+  if (!hasData) {
+    canvas.style.display = 'none'
+    noDataMsg.style.display = 'block'
+    return
+  }
+
+  canvas.style.display = 'block'
+  noDataMsg.style.display = 'none'
+
+  if (volumeChart) volumeChart.destroy()
+
+  volumeChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: volumeChartData.labels,
+      datasets: [{
+        data: volumeChartData.values,
+        backgroundColor: '#4a4a8e'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#aaaacc', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#aaaacc', font: { size: 10 } }, grid: { color: '#2a2a4e' } }
+      }
+    }
+  })
+})
+
+document.getElementById('closeVolumeModalBtn').addEventListener('click', function() {
+  document.getElementById('volumeDetailModal').classList.remove('active')
+})
 
 // ==========================================================================
 // ---- ATHLETE NOTES ----

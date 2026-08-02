@@ -94,6 +94,20 @@
           </div>
         </div>
       </div>
+
+      <!-- Training stats: how much of what was programmed actually got
+           done, and how much volume they're moving - computed from the
+           athlete's logged exercise_log_sets, see loadOverviewStats() -->
+      <div class="stats-bar" id="overviewStatsBar">
+        <div class="stat-item stat-item-clickable" id="statCompletionCard">
+          <span class="stat-value" id="statCompletion">—</span>
+          <span class="stat-label">Completion (30d)</span>
+        </div>
+        <div class="stat-item stat-item-clickable" id="statVolumeCard">
+          <span class="stat-value" id="statVolume">—</span>
+          <span class="stat-label">Volume (7d)</span>
+        </div>
+      </div>
       </div>
 
       <div class="tab-panel" id="tab-metrics">
@@ -367,6 +381,48 @@
         </div>
         <div class="entries-modal-body">
           <div id="prList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Completion Detail Modal: opened by clicking the "Completion (30d)"
+         stat. Same underlying data, just broken out into all three windows -->
+    <div class="modal-overlay" id="completionDetailModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Training Completion</h2>
+          <button class="btn-cancel" id="closeCompletionModalBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px; margin-bottom:16px">Share of scheduled training days where every prescribed set was logged. Rest days aren't counted either way.</p>
+        <div class="stats-bar" id="completionDetailBar">
+          <div class="stat-item">
+            <span class="stat-value" id="statCompletion30">—</span>
+            <span class="stat-label">Last 30 days</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="statCompletion60">—</span>
+            <span class="stat-label">Last 60 days</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="statCompletion90">—</span>
+            <span class="stat-label">Last 90 days</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Volume Detail Modal: opened by clicking the "Volume (7d)" stat.
+         A trend, not just a number, is what actually shows overtraining risk -->
+    <div class="modal-overlay" id="volumeDetailModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Weekly Training Volume</h2>
+          <button class="btn-cancel" id="closeVolumeModalBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px; margin-bottom:16px">Total weight × reps logged per week, last 12 weeks.</p>
+        <div class="bodyweight-graph-area" style="height:260px">
+          <canvas id="volumeChart"></canvas>
+          <p class="no-bodyweight-data" id="noVolumeMsg" style="display:none">No logged sets with a weight yet</p>
         </div>
       </div>
     </div>
@@ -803,7 +859,7 @@
     </div>
 
     <!-- Main page logic (see athlete.js) -->
-    <script type="module" src="athlete.js?v=2"></script>
+    <script type="module" src="athlete.js?v=3"></script>
     <script type="module" src="athlete-calendar.js?v=1"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
