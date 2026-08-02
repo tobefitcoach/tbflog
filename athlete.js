@@ -208,17 +208,19 @@ async function loadOverviewStats() {
 
   if (programsError) { console.log('Error loading schedule for stats:', programsError); return }
 
-  // Bucket every scheduled day's exercises by resolved date, and remember
-  // each day's date + display name so a workout_sessions row (which only
-  // has a program_day_id) can be labeled in the duration list below
-  const exercisesByDate = {}
+  // One entry per program_days row - i.e. per workout, not per calendar
+  // date. Two workouts landing on the same date (an assigned program day
+  // plus an ad-hoc training, say) stay separate here so completion rate
+  // counts them as two workouts, not one merged day. dayInfoById remembers
+  // each workout's date + display name so a workout_sessions row (which
+  // only has a program_day_id) can be labeled in the duration list below.
+  const workoutEntries = [] // { dateStr, exercises }
   const dayInfoById = {}
   for (const program of programs) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
         const dateStr = resolveDateOv(program.start_date, week.week_number, day.day_number)
-        if (!exercisesByDate[dateStr]) exercisesByDate[dateStr] = []
-        exercisesByDate[dateStr].push(...day.program_exercises)
+        workoutEntries.push({ dateStr, exercises: day.program_exercises })
         dayInfoById[day.id] = { dateStr, name: trainingDisplayNameOv(program, day) }
       }
     }
@@ -239,33 +241,34 @@ async function loadOverviewStats() {
     logSetsByPE[row.program_exercise_id].push(row)
   }
 
-  // ---- Completion rate: scheduled days where at least half the prescribed
-  // sets got logged, divided by scheduled days in the window. Set-level
-  // (not "every exercise finished") so a day with 3 exercises where 2 are
-  // fully done and 1 barely started still gets fair partial credit.
-  // Rest days (nothing scheduled) don't count toward either side.
+  // ---- Completion rate: scheduled workouts where at least half the
+  // prescribed sets got logged, divided by scheduled workouts in the
+  // window - counted per workout (per program_days row), not per calendar
+  // date, so a day with two separate trainings counts as two, not one.
+  // Set-level within a workout (not "every exercise finished") so 2 fully
+  // done exercises plus 1 barely started still gets fair partial credit.
+  // Workouts with no exercises don't count toward either side.
   function completionRate(windowDays) {
     const cutoff = toDateStrOv(addDaysOv(new Date(), -(windowDays - 1)))
     const todayStr = toDateStrOv(new Date())
     let scheduled = 0
     let completed = 0
 
-    for (const dateStr in exercisesByDate) {
-      if (dateStr < cutoff || dateStr > todayStr) continue
-      const exercises = exercisesByDate[dateStr]
-      if (exercises.length === 0) continue
+    for (const entry of workoutEntries) {
+      if (entry.dateStr < cutoff || entry.dateStr > todayStr) continue
+      if (entry.exercises.length === 0) continue
       scheduled++
 
       let totalSets = 0
       let doneSets = 0
-      for (const pe of exercises) {
+      for (const pe of entry.exercises) {
         const prescribed = pe.prescribed_sets || 1
         totalSets += prescribed
         const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
         doneSets += Math.min(logged.length, prescribed)
       }
-      const dayDone = totalSets > 0 && (doneSets / totalSets) >= 0.5
-      if (dayDone) completed++
+      const workoutDone = totalSets > 0 && (doneSets / totalSets) >= 0.5
+      if (workoutDone) completed++
     }
 
     return scheduled === 0 ? null : Math.round((completed / scheduled) * 100)
