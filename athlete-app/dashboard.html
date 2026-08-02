@@ -6,7 +6,7 @@
     <title>Dashboard — TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=6" />
     <link rel="stylesheet" href="../athlete.css?v=7" />
-    <link rel="stylesheet" href="app.css?v=7" />
+    <link rel="stylesheet" href="app.css?v=8" />
   </head>
   <body>
 
@@ -27,20 +27,6 @@
       </div>
     </div>
 
-    <!-- Video player - one shared modal, opened from any exercise thumbnail.
-         Closing resets the iframe src to about:blank to stop playback. -->
-    <div class="modal-overlay" id="videoModal">
-      <div class="modal">
-        <div class="graph-modal-header">
-          <h2>Video</h2>
-          <button class="btn-cancel" id="closeVideoModalBtn">✕</button>
-        </div>
-        <div class="video-modal-frame">
-          <iframe id="videoModalIframe" src="about:blank" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-        </div>
-      </div>
-    </div>
-
-    <script type="module" src="dashboard.js?v=6"></script>
+    <script type="module" src="dashboard.js?v=7"></script>
   </body>
 </html>

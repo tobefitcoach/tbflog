@@ -246,9 +246,11 @@ function targetLine(pe) {
 }
 
 // ==========================================================================
-// ---- VIDEO MODAL ----
+// ---- INLINE VIDEO ----
 // YouTube thumbnails/embeds are available at predictable URLs from just the
 // video id, no API key needed. Other hosts fall back to opening a new tab.
+// Tapping a thumbnail swaps it for a playing embed right in place - no
+// overlay/modal covering the screen.
 // ==========================================================================
 function getYouTubeThumbnail(url) {
   if (!url) return null
@@ -262,20 +264,12 @@ function getYouTubeEmbedUrl(url) {
   return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null
 }
 
-function openVideoModal(url) {
+function playInlineVideo(containerEl, url) {
   if (!url) return
   const embedUrl = getYouTubeEmbedUrl(url)
   if (!embedUrl) { window.open(url, '_blank'); return }
-  document.getElementById('videoModalIframe').src = embedUrl
-  document.getElementById('videoModal').classList.add('active')
+  containerEl.innerHTML = `<iframe src="${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`
 }
-
-function closeVideoModal() {
-  document.getElementById('videoModal').classList.remove('active')
-  document.getElementById('videoModalIframe').src = 'about:blank'
-}
-
-document.getElementById('closeVideoModalBtn').addEventListener('click', closeVideoModal)
 
 // ==========================================================================
 // ---- WEEK VIEW (default landing) ----
@@ -371,7 +365,7 @@ function renderDayPreview(dateStr) {
 
   document.getElementById('dayPreviewBody').addEventListener('click', function(e) {
     const thumbBtn = e.target.closest('[data-video-url]')
-    if (thumbBtn) openVideoModal(thumbBtn.dataset.videoUrl)
+    if (thumbBtn) playInlineVideo(thumbBtn, thumbBtn.dataset.videoUrl)
   })
 
   entries.forEach(entry => {
@@ -511,14 +505,13 @@ function renderActiveExercise(entry, dateStr, exercises, index, session) {
     </div>
     <div class="workout-nav-row">
       <button class="btn-cancel" id="prevExerciseBtn" ${index === 0 ? 'disabled' : ''}>← Previous</button>
-      <button class="btn-save" id="nextExerciseBtn">${isLast ? 'Finish Workout' : 'Next →'}</button>
+      <button class="btn-save" id="nextExerciseBtn">Next →</button>
     </div>
-    <a href="#" class="header-link end-workout-link" id="endWorkoutLink">End Workout</a>
     <div id="restTimerBar" class="rest-timer-bar"></div>
   `
 
   document.getElementById('activeExerciseThumbBtn').addEventListener('click', function() {
-    openVideoModal(videoUrl)
+    playInlineVideo(this, videoUrl)
   })
 
   wireExerciseCardEvents('activeExerciseCard', dateStr)
@@ -527,11 +520,34 @@ function renderActiveExercise(entry, dateStr, exercises, index, session) {
     if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, session)
   })
   document.getElementById('nextExerciseBtn').addEventListener('click', function() {
-    if (isLast) finishWorkout(entry, session)
+    if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, session)
     else renderActiveExercise(entry, dateStr, exercises, index + 1, session)
   })
-  document.getElementById('endWorkoutLink').addEventListener('click', function(e) {
-    e.preventDefault()
+}
+
+// Reached by pressing Next on the last exercise - the only place "End
+// Workout" lives now, instead of a persistent link on every slide
+function renderEndOfWorkoutSlide(entry, dateStr, exercises, session) {
+  clearRestTimer()
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  pageContent.innerHTML = `
+    <p class="active-exercise-progress">Workout Complete</p>
+    <div class="workout-summary">
+      <h2>Nice work 💪</h2>
+      <p style="color:#aaaacc">That's every exercise. Ready to finish up?</p>
+    </div>
+    <div class="workout-nav-row">
+      <button class="btn-cancel" id="prevExerciseBtn">← Previous</button>
+      <button class="btn-save" id="endWorkoutBtn">End Workout</button>
+    </div>
+  `
+
+  document.getElementById('prevExerciseBtn').addEventListener('click', function() {
+    renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, session)
+  })
+  document.getElementById('endWorkoutBtn').addEventListener('click', function() {
     finishWorkout(entry, session)
   })
 }

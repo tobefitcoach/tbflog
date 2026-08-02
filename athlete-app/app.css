@@ -363,10 +363,12 @@
   padding: 0;
 }
 
-.day-preview-thumb img {
+.day-preview-thumb img,
+.day-preview-thumb iframe {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border: none;
 }
 
 .day-preview-thumb-placeholder {
@@ -431,10 +433,12 @@
   margin-bottom: 12px;
 }
 
-.active-exercise-thumb img {
+.active-exercise-thumb img,
+.active-exercise-thumb iframe {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border: none;
 }
 
 .active-exercise-thumb-placeholder {
@@ -456,12 +460,6 @@
 
 .workout-nav-row button {
   flex: 1;
-}
-
-.end-workout-link {
-  display: block;
-  text-align: center;
-  margin-top: 12px;
 }
 
 /* --- Workout summary --- */
@@ -487,22 +485,6 @@
   color: #aaaacc;
   font-size: 13px;
   margin-top: 2px;
-}
-
-/* --- Video modal --- */
-.video-modal-frame {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background-color: #000000;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.video-modal-frame iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
 }
 
 @media (max-width: 768px) {
