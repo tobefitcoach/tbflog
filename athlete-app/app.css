@@ -452,6 +452,20 @@
   margin-bottom: 4px;
 }
 
+/* Swipeable slide (the exercise card, or the end-of-workout card) - see
+   attachSwipeHandlers()/mountSlide() in dashboard.js. touch-action:pan-y
+   tells the browser to leave vertical scrolling alone but not fight our
+   own horizontal drag handling. */
+.workout-slide {
+  touch-action: pan-y;
+  cursor: grab;
+  will-change: transform;
+}
+
+.workout-slide.dragging {
+  cursor: grabbing;
+}
+
 .workout-nav-row {
   display: flex;
   gap: 12px;

@@ -470,7 +470,10 @@ async function startWorkout(entry, dateStr) {
   renderActiveExercise(entry, dateStr, exercises, resumeIndex, session)
 }
 
-function renderActiveExercise(entry, dateStr, exercises, index, session) {
+// direction: 1 when arriving from a Next/swipe-left (new slide enters from
+// the right), -1 from Previous/swipe-right (enters from the left), omitted
+// for the very first exercise shown (no animation, nothing to slide from)
+function renderActiveExercise(entry, dateStr, exercises, index, session, direction) {
   clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
@@ -493,7 +496,7 @@ function renderActiveExercise(entry, dateStr, exercises, index, session) {
 
   pageContent.innerHTML = `
     <p class="active-exercise-progress">Exercise ${index + 1} of ${exercises.length}</p>
-    <div id="activeExerciseCard" data-pe-id="${pe.id}">
+    <div id="activeExerciseCard" class="workout-slide" data-pe-id="${pe.id}">
       <button type="button" class="active-exercise-thumb" id="activeExerciseThumbBtn" ${videoUrl ? '' : 'disabled'}>
         ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
       </button>
@@ -517,24 +520,37 @@ function renderActiveExercise(entry, dateStr, exercises, index, session) {
   wireExerciseCardEvents('activeExerciseCard', dateStr)
 
   document.getElementById('prevExerciseBtn').addEventListener('click', function() {
-    if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, session)
+    if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, session, -1)
   })
   document.getElementById('nextExerciseBtn').addEventListener('click', function() {
-    if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, session)
-    else renderActiveExercise(entry, dateStr, exercises, index + 1, session)
+    if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, session, 1)
+    else renderActiveExercise(entry, dateStr, exercises, index + 1, session, 1)
   })
+
+  attachSwipeHandlers(
+    function onSwipeLeft() {
+      if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, session, 1)
+      else renderActiveExercise(entry, dateStr, exercises, index + 1, session, 1)
+    },
+    function onSwipeRight() {
+      if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, session, -1)
+    }
+  )
+
+  mountSlide(direction)
 }
 
-// Reached by pressing Next on the last exercise - the only place "End
-// Workout" lives now, instead of a persistent link on every slide
-function renderEndOfWorkoutSlide(entry, dateStr, exercises, session) {
+// Reached by pressing Next (or swiping left) on the last exercise - the
+// only place "End Workout" lives now, instead of a persistent link on
+// every slide
+function renderEndOfWorkoutSlide(entry, dateStr, exercises, session, direction) {
   clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
   pageContent.innerHTML = `
     <p class="active-exercise-progress">Workout Complete</p>
-    <div class="workout-summary">
+    <div class="workout-summary workout-slide">
       <h2>Nice work 💪</h2>
       <p style="color:#aaaacc">That's every exercise. Ready to finish up?</p>
     </div>
@@ -545,11 +561,114 @@ function renderEndOfWorkoutSlide(entry, dateStr, exercises, session) {
   `
 
   document.getElementById('prevExerciseBtn').addEventListener('click', function() {
-    renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, session)
+    renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, session, -1)
   })
   document.getElementById('endWorkoutBtn').addEventListener('click', function() {
     finishWorkout(entry, session)
   })
+
+  attachSwipeHandlers(
+    null, // already the last slide, nothing to swipe forward to
+    function onSwipeRight() {
+      renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, session, -1)
+    }
+  )
+
+  mountSlide(direction)
+}
+
+// ==========================================================================
+// ---- SWIPE NAVIGATION ----
+// Drags the current ".workout-slide" 1:1 with the finger, and snaps it out
+// (then calls the nav callback) once a horizontal drag clears the
+// threshold. Uses the Pointer Events API so touch, mouse, and pen all work
+// through one code path. Pointer capture is only taken once a drag is
+// confirmed horizontal - never on a plain tap - so taps on set-row inputs/
+// buttons inside the slide are completely unaffected.
+// ==========================================================================
+function mountSlide(direction) {
+  const slide = document.querySelector('.workout-slide')
+  if (!slide || !direction) return
+  slide.style.transition = 'none'
+  slide.style.transform = `translateX(${direction * 100}%)`
+  // Two rAFs: the first lets the browser paint the off-screen starting
+  // position, the second then starts the transition to translateX(0)
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      slide.style.transition = 'transform 0.2s ease-out'
+      slide.style.transform = 'translateX(0)'
+      // Clear the transition once it's done so a later drag on this same
+      // slide gets instant 1:1 tracking instead of fighting a leftover
+      // animation duration
+      setTimeout(function() { slide.style.transition = '' }, 220)
+    })
+  })
+}
+
+function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
+  const slide = document.querySelector('.workout-slide')
+  if (!slide) return
+
+  let startX = 0
+  let startY = 0
+  let currentX = 0
+  let dragging = false
+  let horizontal = false
+
+  slide.addEventListener('pointerdown', function(e) {
+    if (e.target.closest('input, button, iframe, select, textarea')) return
+    startX = e.clientX
+    startY = e.clientY
+    currentX = startX
+    dragging = true
+    horizontal = false
+  })
+
+  slide.addEventListener('pointermove', function(e) {
+    if (!dragging) return
+    currentX = e.clientX
+    const deltaX = currentX - startX
+    const deltaY = e.clientY - startY
+
+    if (!horizontal) {
+      if (Math.abs(deltaX) < 10) return
+      if (Math.abs(deltaX) < Math.abs(deltaY) * 1.5) { dragging = false; return } // vertical scroll, not a swipe
+      horizontal = true
+      slide.classList.add('dragging')
+      slide.style.transition = 'none'
+      slide.setPointerCapture(e.pointerId)
+    }
+
+    slide.style.transform = `translateX(${deltaX}px)`
+  })
+
+  function endDrag(e) {
+    if (!dragging) return
+    dragging = false
+    if (!horizontal) return
+    slide.classList.remove('dragging')
+
+    const deltaX = currentX - startX
+    const threshold = 70
+
+    if (deltaX <= -threshold && onSwipeLeft) {
+      slideOut(-1, onSwipeLeft)
+    } else if (deltaX >= threshold && onSwipeRight) {
+      slideOut(1, onSwipeRight)
+    } else {
+      slide.style.transition = 'transform 0.2s ease-out'
+      slide.style.transform = 'translateX(0)'
+    }
+  }
+
+  function slideOut(direction, callback) {
+    slide.style.transition = 'transform 0.18s ease-in'
+    slide.style.transform = `translateX(${direction * 100}%)`
+    setTimeout(callback, 180)
+  }
+
+  slide.addEventListener('pointerup', endDrag)
+  slide.addEventListener('pointercancel', endDrag)
 }
 
 async function finishWorkout(entry, session) {
