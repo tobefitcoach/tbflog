@@ -466,14 +466,41 @@
   cursor: grabbing;
 }
 
-.workout-nav-row {
+/* Replaces the old Previous/Next buttons - a quiet, animated nudge instead
+   of a persistent control */
+.swipe-hint {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #6a6a9e;
+  font-size: 13px;
+  letter-spacing: 0.3px;
   margin-top: 20px;
 }
 
-.workout-nav-row button {
-  flex: 1;
+.swipe-hint-arrow {
+  display: inline-block;
+  color: #4a4a8e;
+  font-size: 16px;
+}
+
+.swipe-hint-arrow:first-child {
+  animation: swipe-hint-drift-left 1.8s ease-in-out infinite;
+}
+
+.swipe-hint-arrow:last-child {
+  animation: swipe-hint-drift-right 1.8s ease-in-out infinite 0.2s;
+}
+
+@keyframes swipe-hint-drift-left {
+  0%, 100% { opacity: 0.35; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(-3px); }
+}
+
+@keyframes swipe-hint-drift-right {
+  0%, 100% { opacity: 0.35; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(3px); }
 }
 
 /* --- Workout summary --- */

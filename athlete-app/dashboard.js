@@ -506,10 +506,7 @@ function renderActiveExercise(entry, dateStr, exercises, index, session, directi
       <div class="set-rows" data-pe-id="${pe.id}">${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set">+ Add Set</button>
     </div>
-    <div class="workout-nav-row">
-      <button class="btn-cancel" id="prevExerciseBtn" ${index === 0 ? 'disabled' : ''}>← Previous</button>
-      <button class="btn-save" id="nextExerciseBtn">Next →</button>
-    </div>
+    <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
     <div id="restTimerBar" class="rest-timer-bar"></div>
   `
 
@@ -518,14 +515,6 @@ function renderActiveExercise(entry, dateStr, exercises, index, session, directi
   })
 
   wireExerciseCardEvents('activeExerciseCard', dateStr)
-
-  document.getElementById('prevExerciseBtn').addEventListener('click', function() {
-    if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, session, -1)
-  })
-  document.getElementById('nextExerciseBtn').addEventListener('click', function() {
-    if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, session, 1)
-    else renderActiveExercise(entry, dateStr, exercises, index + 1, session, 1)
-  })
 
   attachSwipeHandlers(
     function onSwipeLeft() {
@@ -553,16 +542,11 @@ function renderEndOfWorkoutSlide(entry, dateStr, exercises, session, direction) 
     <div class="workout-summary workout-slide">
       <h2>Nice work 💪</h2>
       <p style="color:#aaaacc">That's every exercise. Ready to finish up?</p>
+      <button class="btn-save start-workout-btn" id="endWorkoutBtn">End Workout</button>
     </div>
-    <div class="workout-nav-row">
-      <button class="btn-cancel" id="prevExerciseBtn">← Previous</button>
-      <button class="btn-save" id="endWorkoutBtn">End Workout</button>
-    </div>
+    <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe to go back</p>
   `
 
-  document.getElementById('prevExerciseBtn').addEventListener('click', function() {
-    renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, session, -1)
-  })
   document.getElementById('endWorkoutBtn').addEventListener('click', function() {
     finishWorkout(entry, session)
   })
@@ -784,14 +768,30 @@ function addSetRow(peId) {
   rowsContainer.insertAdjacentHTML('beforeend', renderSetRow(pe, nextNumber, null, isTimed, true))
 }
 
+// Optimistic UI: the row flips to "checked" the instant you tap, before the
+// network round trip even starts - on a slow connection, waiting for the
+// server response before showing anything made the checkmark feel broken
+// (no feedback for a couple seconds, so a second tap would land on the
+// wrong state). Only rolled back if the save genuinely fails.
 // Upsert on (program_exercise_id, date, set_number) - re-checking an
-// already-logged set updates it instead of creating a duplicate row
+// already-logged set updates it instead of creating a duplicate row.
 async function checkSet(peId, setNumber, dateStr, rowEl) {
   const pe = findPE(peId)
   const repsInput = rowEl.querySelector('.set-reps-input')
   const weightInput = rowEl.querySelector('.set-weight-input')
   const actualReps = repsInput.value.trim() || null
   const actualWeight = weightInput ? (weightInput.value ? parseFloat(weightInput.value) : null) : null
+  const removedBtn = rowEl.querySelector('.set-remove-btn')
+
+  rowEl.classList.add('completed')
+  repsInput.disabled = true
+  if (weightInput) weightInput.disabled = true
+  const checkBtn = rowEl.querySelector('.set-check-btn')
+  checkBtn.textContent = '✓'
+  checkBtn.classList.add('checked')
+  checkBtn.title = 'Undo'
+  if (removedBtn) removedBtn.remove()
+  maybeStartRestTimer(pe, rowEl)
 
   const { data, error } = await supabase
     .from('exercise_log_sets')
@@ -806,26 +806,44 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
     }], { onConflict: 'program_exercise_id,date,set_number' })
     .select()
 
-  if (error) { console.log(error); alert('Something went wrong saving that set'); return }
+  if (error) {
+    console.log(error)
+    alert('Something went wrong saving that set - try again')
+    clearRestTimer()
+    rowEl.classList.remove('completed')
+    repsInput.disabled = false
+    if (weightInput) weightInput.disabled = false
+    checkBtn.textContent = ''
+    checkBtn.classList.remove('checked')
+    checkBtn.title = 'Mark done'
+    if (setNumber > (pe.prescribed_sets || 0)) {
+      rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
+    }
+    return
+  }
 
   if (!logSetsByPE[peId]) logSetsByPE[peId] = []
   logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
   logSetsByPE[peId].push(data[0])
-
-  rowEl.classList.add('completed')
-  repsInput.disabled = true
-  if (weightInput) weightInput.disabled = true
-  const checkBtn = rowEl.querySelector('.set-check-btn')
-  checkBtn.textContent = '✓'
-  checkBtn.classList.add('checked')
-  checkBtn.title = 'Undo'
-  const removeBtn = rowEl.querySelector('.set-remove-btn')
-  if (removeBtn) removeBtn.remove()
-
-  maybeStartRestTimer(pe, rowEl)
 }
 
 async function uncheckSet(peId, setNumber, dateStr, rowEl) {
+  const pe = findPE(peId)
+  const repsInput = rowEl.querySelector('.set-reps-input')
+  const weightInput = rowEl.querySelector('.set-weight-input')
+  const checkBtn = rowEl.querySelector('.set-check-btn')
+  const isExtra = setNumber > (pe.prescribed_sets || 0)
+
+  rowEl.classList.remove('completed')
+  repsInput.disabled = false
+  if (weightInput) weightInput.disabled = false
+  checkBtn.textContent = ''
+  checkBtn.classList.remove('checked')
+  checkBtn.title = 'Mark done'
+  if (isExtra && !rowEl.querySelector('.set-remove-btn')) {
+    rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
+  }
+
   const { error } = await supabase
     .from('exercise_log_sets')
     .delete()
@@ -833,23 +851,21 @@ async function uncheckSet(peId, setNumber, dateStr, rowEl) {
     .eq('date', dateStr)
     .eq('set_number', setNumber)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) {
+    console.log(error)
+    alert('Something went wrong undoing that set - try again')
+    rowEl.classList.add('completed')
+    repsInput.disabled = true
+    if (weightInput) weightInput.disabled = true
+    checkBtn.textContent = '✓'
+    checkBtn.classList.add('checked')
+    checkBtn.title = 'Undo'
+    const removeBtn = rowEl.querySelector('.set-remove-btn')
+    if (removeBtn) removeBtn.remove()
+    return
+  }
 
   logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
-
-  rowEl.classList.remove('completed')
-  rowEl.querySelector('.set-reps-input').disabled = false
-  const weightInput = rowEl.querySelector('.set-weight-input')
-  if (weightInput) weightInput.disabled = false
-  const checkBtn = rowEl.querySelector('.set-check-btn')
-  checkBtn.textContent = ''
-  checkBtn.classList.remove('checked')
-  checkBtn.title = 'Mark done'
-
-  const pe = findPE(peId)
-  if (setNumber > (pe.prescribed_sets || 0) && !rowEl.querySelector('.set-remove-btn')) {
-    rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
-  }
 }
 
 // ==========================================================================
