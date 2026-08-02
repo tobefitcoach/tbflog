@@ -319,7 +319,10 @@ header h1 {
   padding: 10px 14px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
-  font-size: 14px;
+  /* iOS Safari auto-zooms the page when a focused input's font-size is
+     under 16px - this is the actual size that matters, not a stylistic
+     choice */
+  font-size: 16px;
   color: #ffffff;
   background-color: #0f0f1a;
 }

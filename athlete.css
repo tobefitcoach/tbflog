@@ -38,7 +38,8 @@
   padding: 8px 12px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
-  font-size: 13px;
+  /* Under 16px triggers iOS Safari's auto-zoom-on-focus */
+  font-size: 16px;
   color: #ffffff;
   background-color: #0f0f1a;
   margin-bottom: 12px;
@@ -282,7 +283,8 @@
   padding: 10px 14px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
-  font-size: 14px;
+  /* Under 16px triggers iOS Safari's auto-zoom-on-focus */
+  font-size: 16px;
   color: #ffffff;
   background-color: #0f0f1a;
 }
@@ -1095,7 +1097,8 @@
   padding: 10px 14px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
-  font-size: 14px;
+  /* Under 16px triggers iOS Safari's auto-zoom-on-focus */
+  font-size: 16px;
   font-family: inherit;
   color: #ffffff;
   background-color: #0f0f1a;

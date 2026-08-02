@@ -134,7 +134,9 @@
   padding: 8px 10px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
-  font-size: 14px;
+  /* Under 16px triggers iOS Safari's auto-zoom-on-focus - the exact bug
+     that was making every tap/type on a phone zoom the page in */
+  font-size: 16px;
   color: #ffffff;
   background-color: #0f0f1a;
 }
