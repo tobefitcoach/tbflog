@@ -7,8 +7,8 @@
 // athlete). Tapping a day opens a read-only preview of that day's
 // exercises; tapping "Start Workout" (today only) begins a guided,
 // one-exercise-at-a-time flow that records a real start/end time
-// (workout_sessions) and reuses the same per-set logging built earlier
-// (renderSetRow/checkSet/uncheckSet/addSetRow/rest timer, unchanged).
+// (workout_sessions). Checking a set is one-way (never un-checks) and
+// retries on save failure instead of losing what was logged.
 //
 // Mirrors the shape of the coach's athlete-calendar.js (same nested query,
 // same date-math helpers) but duplicated rather than imported - this is a
@@ -736,6 +736,29 @@ function renderWorkoutSummary(finishedSession, entry) {
     }
   }
 
+  const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
+  const breakdownHtml = exercises.map(pe => {
+    const isTimed = pe.exercises && pe.exercises.type === 'timed'
+    const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
+    if (sets.length === 0) return ''
+
+    return `
+      <div class="detail-group">
+        <h4 class="detail-group-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</h4>
+        <ul class="detail-list">
+          ${sets.map(s => `
+            <li class="detail-row">
+              <span>Set ${s.set_number}</span>
+              <span class="detail-row-value">${isTimed
+                ? (s.actual_reps || '-')
+                : `${s.actual_reps || '-'} reps${s.actual_weight != null ? ' @ ' + s.actual_weight + 'kg' : ''}`}</span>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `
+  }).join('')
+
   pageContent.innerHTML = `
     <div class="workout-summary">
       <h2>Workout Complete 💪</h2>
@@ -749,8 +772,9 @@ function renderWorkoutSummary(finishedSession, entry) {
           <div class="workout-summary-stat-label">Total Volume</div>
         </div>
       </div>
-      <button class="btn-save" id="summaryDoneBtn">Done</button>
     </div>
+    ${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}
+    <button class="btn-save start-workout-btn" id="summaryDoneBtn">Done</button>
   `
 
   document.getElementById('summaryDoneBtn').addEventListener('click', function() {
@@ -773,12 +797,16 @@ function renderSetRow(pe, setNumber, logged, isTimed, isExtra) {
       <span class="set-label">Set ${setNumber}</span>
       <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}" ${checked ? 'disabled' : ''}>
       ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${weightVal}" placeholder="kg" step="0.5" ${checked ? 'disabled' : ''}>`}
-      <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
+      <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Completed' : 'Mark done'}" ${checked ? 'disabled' : ''}>${checked ? '✓' : ''}</button>
       ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>
   `
 }
 
+// Checking a set is one-way - once marked done it can't be tapped back to
+// undone, so the button is disabled the moment it's checked (see
+// renderSetRow) and this handler also ignores clicks on an already-
+// completed row as a second guard
 function wireExerciseCardEvents(containerId, dateStr) {
   document.getElementById(containerId).addEventListener('click', async function(e) {
     const btn = e.target.closest('[data-action]')
@@ -789,12 +817,9 @@ function wireExerciseCardEvents(containerId, dateStr) {
     if (btn.dataset.action === 'add-set') {
       addSetRow(peId)
     } else if (btn.dataset.action === 'check-set') {
+      if (row.classList.contains('completed')) return
       const setNumber = parseInt(row.dataset.setNumber)
-      if (row.classList.contains('completed')) {
-        await uncheckSet(peId, setNumber, dateStr, row)
-      } else {
-        await checkSet(peId, setNumber, dateStr, row)
-      }
+      await checkSet(peId, setNumber, dateStr, row)
     } else if (btn.dataset.action === 'remove-set') {
       row.remove()
     }
@@ -815,9 +840,14 @@ function addSetRow(peId) {
 // the DOM. Without that second part, swiping to another exercise before a
 // slow save finished and then swiping back would re-render this row from
 // stale data and show it as unchecked again, even though the tap "worked".
-// Both the DOM and logSetsByPE are rolled back only if the save actually
-// fails. The save promise itself is tracked in pendingSaves so
-// finishWorkout can wait for it - see the comment there.
+//
+// Checking is one-way and never reverts, even if the save fails - it just
+// retries in the background (saveWithRetry, a handful of attempts with
+// backoff) since a slow/flaky connection eventually gets there. The save
+// promise (covering every retry) is tracked in pendingSaves so
+// finishWorkout can wait for it before ending the session - see the
+// comment there. If every retry is exhausted, the row is flagged
+// "unsynced" rather than silently losing what was checked.
 // Upsert on (program_exercise_id, date, set_number) - re-checking an
 // already-logged set updates it instead of creating a duplicate row.
 async function checkSet(peId, setNumber, dateStr, rowEl) {
@@ -834,7 +864,8 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   const checkBtn = rowEl.querySelector('.set-check-btn')
   checkBtn.textContent = '✓'
   checkBtn.classList.add('checked')
-  checkBtn.title = 'Undo'
+  checkBtn.disabled = true
+  checkBtn.title = 'Completed'
   if (removedBtn) removedBtn.remove()
   maybeStartRestTimer(pe, rowEl)
 
@@ -850,10 +881,7 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
     completed_at: new Date().toISOString()
   })
 
-  // Wrapped in an immediately-invoked async function so this is a real,
-  // single-fire Promise - safe to await both here and later from
-  // finishWorkout's Promise.all without triggering the request twice
-  const savePromise = (async () => supabase
+  const savePromise = saveWithRetry(() => supabase
     .from('exercise_log_sets')
     .upsert([{
       program_exercise_id: peId,
@@ -865,81 +893,44 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
       completed_at: new Date().toISOString()
     }], { onConflict: 'program_exercise_id,date,set_number' })
     .select()
-  )()
+  )
 
   pendingSaves.push(savePromise)
   const { data, error } = await savePromise
   pendingSaves = pendingSaves.filter(p => p !== savePromise)
 
   if (error) {
+    // Every retry failed (still offline, most likely) - leave it checked
+    // rather than silently discarding what the athlete just logged. Flags
+    // as unsynced so it's visible something still needs to go through.
     console.log(error)
-    alert('Something went wrong saving that set - try again')
-    clearRestTimer()
-    logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
-    rowEl.classList.remove('completed')
-    repsInput.disabled = false
-    if (weightInput) weightInput.disabled = false
-    checkBtn.textContent = ''
-    checkBtn.classList.remove('checked')
-    checkBtn.title = 'Mark done'
-    if (setNumber > (pe.prescribed_sets || 0)) {
-      rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
-    }
+    rowEl.classList.add('unsynced')
+    checkBtn.title = 'Not synced yet - will retry next time you check a set'
     return
   }
 
+  rowEl.classList.remove('unsynced')
   // Replace the optimistic placeholder with the real saved row
   logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
   logSetsByPE[peId].push(data[0])
 }
 
-async function uncheckSet(peId, setNumber, dateStr, rowEl) {
-  const pe = findPE(peId)
-  const repsInput = rowEl.querySelector('.set-reps-input')
-  const weightInput = rowEl.querySelector('.set-weight-input')
-  const checkBtn = rowEl.querySelector('.set-check-btn')
-  const isExtra = setNumber > (pe.prescribed_sets || 0)
-  const previousEntry = (logSetsByPE[peId] || []).find(s => s.set_number === setNumber)
-
-  rowEl.classList.remove('completed')
-  repsInput.disabled = false
-  if (weightInput) weightInput.disabled = false
-  checkBtn.textContent = ''
-  checkBtn.classList.remove('checked')
-  checkBtn.title = 'Mark done'
-  if (isExtra && !rowEl.querySelector('.set-remove-btn')) {
-    rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
-  }
-  logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
-
-  const savePromise = (async () => supabase
-    .from('exercise_log_sets')
-    .delete()
-    .eq('program_exercise_id', peId)
-    .eq('date', dateStr)
-    .eq('set_number', setNumber)
-  )()
-
-  pendingSaves.push(savePromise)
-  const { error } = await savePromise
-  pendingSaves = pendingSaves.filter(p => p !== savePromise)
-
-  if (error) {
-    console.log(error)
-    alert('Something went wrong undoing that set - try again')
-    if (previousEntry) {
-      if (!logSetsByPE[peId]) logSetsByPE[peId] = []
-      logSetsByPE[peId].push(previousEntry)
+// Retries a Supabase call a few times with backoff before giving up -
+// covers a temporary drop or a slow connection that eventually comes
+// through, without the caller having to think about it. Wrapped as its own
+// async function so the whole retry sequence is one real Promise, safe to
+// await both from the caller and later from finishWorkout's Promise.all
+// without re-triggering anything.
+async function saveWithRetry(operation, maxAttempts = 5) {
+  let result = { data: null, error: null }
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    result = await operation()
+    if (!result.error) return result
+    if (attempt < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 2000))
     }
-    rowEl.classList.add('completed')
-    repsInput.disabled = true
-    if (weightInput) weightInput.disabled = true
-    checkBtn.textContent = '✓'
-    checkBtn.classList.add('checked')
-    checkBtn.title = 'Undo'
-    const removeBtn = rowEl.querySelector('.set-remove-btn')
-    if (removeBtn) removeBtn.remove()
   }
+  return result
 }
 
 // ==========================================================================
