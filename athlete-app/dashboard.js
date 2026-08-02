@@ -34,6 +34,8 @@ let athlete = null
 let entriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
 let openSessionsByDayId = {} // program_days.id -> in-progress workout_sessions row (ended_at is null)
+let completedSessionsByDayId = {} // program_days.id -> most recently-ended workout_sessions row
+let pendingSaves = [] // in-flight exercise_log_sets save promises - finishWorkout waits for these so a slow connection can't race ahead and end the session before a just-checked set has actually saved
 let restTimerInterval = null
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 
@@ -197,12 +199,21 @@ async function loadTrainingData() {
     .from('workout_sessions')
     .select('*')
     .eq('athlete_id', athlete.id)
-    .is('ended_at', null)
 
-  if (sessionsError) { console.log('Error loading open sessions:', sessionsError); return }
+  if (sessionsError) { console.log('Error loading sessions:', sessionsError); return }
 
   openSessionsByDayId = {}
-  for (const s of sessions) openSessionsByDayId[s.program_day_id] = s
+  completedSessionsByDayId = {}
+  for (const s of sessions) {
+    if (!s.ended_at) {
+      openSessionsByDayId[s.program_day_id] = s
+      continue
+    }
+    // Keep the most recently-ended one per day, in case a workout got
+    // started and finished more than once for the same day
+    const existing = completedSessionsByDayId[s.program_day_id]
+    if (!existing || s.ended_at > existing.ended_at) completedSessionsByDayId[s.program_day_id] = s
+  }
 }
 
 // A program_exercise only ever resolves to one calendar date, so scanning
@@ -371,25 +382,40 @@ function renderDayPreview(dateStr) {
   entries.forEach(entry => {
     const startBtn = document.getElementById('startWorkoutBtn-' + entry.day.id)
     if (startBtn) startBtn.addEventListener('click', function() { startWorkout(entry, dateStr) })
+
+    const summaryBtn = document.getElementById('viewSummaryBtn-' + entry.day.id)
+    if (summaryBtn) summaryBtn.addEventListener('click', function() {
+      renderWorkoutSummary(completedSessionsByDayId[entry.day.id], entry)
+    })
   })
 }
 
 function renderDayPreviewGroup(entry, isToday) {
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
-  const fullyLogged = exercises.length > 0 && exercises.every(pe => {
-    const prescribed = pe.prescribed_sets || 1
-    const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
-    return logged.length >= prescribed
-  })
   const openSession = openSessionsByDayId[entry.day.id]
+  const completedSession = completedSessionsByDayId[entry.day.id]
+
+  // "Active" = today, with nothing ended yet - keep the preview clean (no
+  // logged-value clutter) right up until Start/Continue is pressed. Once a
+  // session's been explicitly ended, or the day's in the past, show what
+  // was actually logged instead - that's the useful thing to see by then.
+  const isActive = isToday && !completedSession
+  const showLoggedValues = !isActive
+
+  let actionButton = ''
+  if (exercises.length > 0) {
+    if (completedSession && !openSession) {
+      actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}">📋 View Summary</button>`
+    } else if (isToday) {
+      actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
+    }
+  }
 
   return `
     <div class="detail-group">
       <h4 class="detail-group-title">${trainingDisplayName(entry)}</h4>
-      ${exercises.map(pe => renderDayPreviewExercise(pe, isToday && fullyLogged)).join('')}
-      ${isToday && exercises.length > 0 && !fullyLogged
-        ? `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
-        : ''}
+      ${exercises.map(pe => renderDayPreviewExercise(pe, showLoggedValues)).join('')}
+      ${actionButton}
     </div>
   `
 }
@@ -658,6 +684,17 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
 async function finishWorkout(entry, session) {
   if (!confirm('Finish this workout?')) return
 
+  const endBtn = document.getElementById('endWorkoutBtn')
+
+  // Wait for any set still saving in the background before ending the
+  // session - on a slow connection, a set checked seconds ago can still be
+  // in flight, and ending the workout right away would build the summary
+  // (and mark the session done) without it
+  if (pendingSaves.length > 0) {
+    if (endBtn) { endBtn.disabled = true; endBtn.textContent = 'Saving...' }
+    await Promise.all(pendingSaves)
+  }
+
   const { data, error } = await supabase
     .from('workout_sessions')
     .update({ ended_at: new Date().toISOString() })
@@ -665,7 +702,12 @@ async function finishWorkout(entry, session) {
     .select()
     .single()
 
-  if (error) { console.log(error); alert('Something went wrong ending the workout'); return }
+  if (error) {
+    console.log(error)
+    alert('Something went wrong ending the workout - try again')
+    if (endBtn) { endBtn.disabled = false; endBtn.textContent = 'End Workout' }
+    return
+  }
 
   await loadTrainingData()
   renderWorkoutSummary(data, entry)
@@ -768,11 +810,14 @@ function addSetRow(peId) {
   rowsContainer.insertAdjacentHTML('beforeend', renderSetRow(pe, nextNumber, null, isTimed, true))
 }
 
-// Optimistic UI: the row flips to "checked" the instant you tap, before the
-// network round trip even starts - on a slow connection, waiting for the
-// server response before showing anything made the checkmark feel broken
-// (no feedback for a couple seconds, so a second tap would land on the
-// wrong state). Only rolled back if the save genuinely fails.
+// Optimistic UI: the row flips to "checked" instantly, and logSetsByPE
+// (the state every render reads from) is updated right away too - not just
+// the DOM. Without that second part, swiping to another exercise before a
+// slow save finished and then swiping back would re-render this row from
+// stale data and show it as unchecked again, even though the tap "worked".
+// Both the DOM and logSetsByPE are rolled back only if the save actually
+// fails. The save promise itself is tracked in pendingSaves so
+// finishWorkout can wait for it - see the comment there.
 // Upsert on (program_exercise_id, date, set_number) - re-checking an
 // already-logged set updates it instead of creating a duplicate row.
 async function checkSet(peId, setNumber, dateStr, rowEl) {
@@ -793,7 +838,22 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   if (removedBtn) removedBtn.remove()
   maybeStartRestTimer(pe, rowEl)
 
-  const { data, error } = await supabase
+  if (!logSetsByPE[peId]) logSetsByPE[peId] = []
+  logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
+  logSetsByPE[peId].push({
+    program_exercise_id: peId,
+    athlete_id: athlete.id,
+    date: dateStr,
+    set_number: setNumber,
+    actual_reps: actualReps,
+    actual_weight: actualWeight,
+    completed_at: new Date().toISOString()
+  })
+
+  // Wrapped in an immediately-invoked async function so this is a real,
+  // single-fire Promise - safe to await both here and later from
+  // finishWorkout's Promise.all without triggering the request twice
+  const savePromise = (async () => supabase
     .from('exercise_log_sets')
     .upsert([{
       program_exercise_id: peId,
@@ -805,11 +865,17 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
       completed_at: new Date().toISOString()
     }], { onConflict: 'program_exercise_id,date,set_number' })
     .select()
+  )()
+
+  pendingSaves.push(savePromise)
+  const { data, error } = await savePromise
+  pendingSaves = pendingSaves.filter(p => p !== savePromise)
 
   if (error) {
     console.log(error)
     alert('Something went wrong saving that set - try again')
     clearRestTimer()
+    logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
     rowEl.classList.remove('completed')
     repsInput.disabled = false
     if (weightInput) weightInput.disabled = false
@@ -822,7 +888,7 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
     return
   }
 
-  if (!logSetsByPE[peId]) logSetsByPE[peId] = []
+  // Replace the optimistic placeholder with the real saved row
   logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
   logSetsByPE[peId].push(data[0])
 }
@@ -833,6 +899,7 @@ async function uncheckSet(peId, setNumber, dateStr, rowEl) {
   const weightInput = rowEl.querySelector('.set-weight-input')
   const checkBtn = rowEl.querySelector('.set-check-btn')
   const isExtra = setNumber > (pe.prescribed_sets || 0)
+  const previousEntry = (logSetsByPE[peId] || []).find(s => s.set_number === setNumber)
 
   rowEl.classList.remove('completed')
   repsInput.disabled = false
@@ -843,17 +910,27 @@ async function uncheckSet(peId, setNumber, dateStr, rowEl) {
   if (isExtra && !rowEl.querySelector('.set-remove-btn')) {
     rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
   }
+  logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
 
-  const { error } = await supabase
+  const savePromise = (async () => supabase
     .from('exercise_log_sets')
     .delete()
     .eq('program_exercise_id', peId)
     .eq('date', dateStr)
     .eq('set_number', setNumber)
+  )()
+
+  pendingSaves.push(savePromise)
+  const { error } = await savePromise
+  pendingSaves = pendingSaves.filter(p => p !== savePromise)
 
   if (error) {
     console.log(error)
     alert('Something went wrong undoing that set - try again')
+    if (previousEntry) {
+      if (!logSetsByPE[peId]) logSetsByPE[peId] = []
+      logSetsByPE[peId].push(previousEntry)
+    }
     rowEl.classList.add('completed')
     repsInput.disabled = true
     if (weightInput) weightInput.disabled = true
@@ -862,10 +939,7 @@ async function uncheckSet(peId, setNumber, dateStr, rowEl) {
     checkBtn.title = 'Undo'
     const removeBtn = rowEl.querySelector('.set-remove-btn')
     if (removeBtn) removeBtn.remove()
-    return
   }
-
-  logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
 }
 
 // ==========================================================================
