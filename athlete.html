@@ -107,6 +107,10 @@
           <span class="stat-value" id="statVolume">—</span>
           <span class="stat-label">Volume (7d)</span>
         </div>
+        <div class="stat-item stat-item-clickable" id="statDurationCard">
+          <span class="stat-value" id="statDuration">—</span>
+          <span class="stat-label">Avg Duration (30d)</span>
+        </div>
       </div>
       </div>
 
@@ -381,6 +385,20 @@
         </div>
         <div class="entries-modal-body">
           <div id="prList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Duration Detail Modal: opened by clicking the "Avg Duration (30d)"
+         stat. Individual completed workout sessions, most recent first -->
+    <div class="modal-overlay" id="durationDetailModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Workout Durations</h2>
+          <button class="btn-cancel" id="closeDurationModalBtn">✕</button>
+        </div>
+        <div class="entries-modal-body">
+          <div id="durationList"></div>
         </div>
       </div>
     </div>
@@ -859,7 +877,7 @@
     </div>
 
     <!-- Main page logic (see athlete.js) -->
-    <script type="module" src="athlete.js?v=3"></script>
+    <script type="module" src="athlete.js?v=4"></script>
     <script type="module" src="athlete-calendar.js?v=1"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>

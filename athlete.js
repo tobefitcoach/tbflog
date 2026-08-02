@@ -181,8 +181,23 @@ function setVolumeOv(s) {
   return isNaN(reps) ? 0 : reps * s.actual_weight
 }
 
+// Same is_adhoc/label fallback used everywhere else a training's display
+// name is derived (athlete-calendar.js, dashboard.js)
+function trainingDisplayNameOv(program, day) {
+  if (program.is_adhoc) return program.name || 'Training'
+  return day.label || ('Day ' + day.day_number)
+}
+
+function formatDurationOv(minutes) {
+  if (minutes < 60) return `${minutes}m`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
 let volumeChart = null
 let volumeChartData = { labels: [], values: [] }
+let durationEvents = [] // { dateStr, name, minutes }, filled in by loadOverviewStats, read by the duration detail modal
 
 async function loadOverviewStats() {
   const { data: programs, error: programsError } = await supabase
@@ -193,14 +208,18 @@ async function loadOverviewStats() {
 
   if (programsError) { console.log('Error loading schedule for stats:', programsError); return }
 
-  // Bucket every scheduled day's exercises by resolved date
+  // Bucket every scheduled day's exercises by resolved date, and remember
+  // each day's date + display name so a workout_sessions row (which only
+  // has a program_day_id) can be labeled in the duration list below
   const exercisesByDate = {}
+  const dayInfoById = {}
   for (const program of programs) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
         const dateStr = resolveDateOv(program.start_date, week.week_number, day.day_number)
         if (!exercisesByDate[dateStr]) exercisesByDate[dateStr] = []
         exercisesByDate[dateStr].push(...day.program_exercises)
+        dayInfoById[day.id] = { dateStr, name: trainingDisplayNameOv(program, day) }
       }
     }
   }
@@ -278,7 +297,66 @@ async function loadOverviewStats() {
     values.push(Math.round(weeklyVolume[toDateStrOv(weekStart)] || 0))
   }
   volumeChartData = { labels, values }
+
+  // ---- Duration: completed workout_sessions rows only (still-open sessions
+  // have no ended_at yet, nothing to measure) ----
+  const ninetyDaysAgoISO = addDaysOv(new Date(), -89).toISOString()
+  const { data: sessions, error: sessionsError } = await supabase
+    .from('workout_sessions')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .not('ended_at', 'is', null)
+    .gte('started_at', ninetyDaysAgoISO)
+    .order('started_at', { ascending: false })
+
+  if (sessionsError) { console.log('Error loading sessions for stats:', sessionsError); return }
+
+  durationEvents = sessions.map(s => {
+    const info = dayInfoById[s.program_day_id]
+    const minutes = Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000)
+    return { dateStr: info ? info.dateStr : s.started_at.split('T')[0], name: info ? info.name : 'Training', minutes }
+  })
+
+  const thirtyDaysAgo = toDateStrOv(addDaysOv(new Date(), -29))
+  const recentDurations = durationEvents.filter(e => e.dateStr >= thirtyDaysAgo).map(e => e.minutes)
+  const avgMinutes = recentDurations.length
+    ? Math.round(recentDurations.reduce((sum, m) => sum + m, 0) / recentDurations.length)
+    : null
+
+  document.getElementById('statDuration').textContent = avgMinutes === null ? '—' : formatDurationOv(avgMinutes)
 }
+
+// Opened by clicking the "Avg Duration (30d)" stat tile. Individual
+// completed sessions (durationEvents, filled in by loadOverviewStats above),
+// most recent first - a trend chart would hide which specific day ran long
+function renderDurationModal() {
+  const container = document.getElementById('durationList')
+
+  if (durationEvents.length === 0) {
+    container.innerHTML = '<p style="color:#aaaacc;text-align:center;padding:20px">No completed workouts logged yet</p>'
+    return
+  }
+
+  container.innerHTML = `
+    <ul class="detail-list">
+      ${durationEvents.map(e => `
+        <li class="detail-row">
+          <span>${e.dateStr} — ${e.name}</span>
+          <span class="detail-row-value">${formatDurationOv(e.minutes)}</span>
+        </li>
+      `).join('')}
+    </ul>
+  `
+}
+
+document.getElementById('statDurationCard').addEventListener('click', function() {
+  document.getElementById('durationDetailModal').classList.add('active')
+  renderDurationModal()
+})
+
+document.getElementById('closeDurationModalBtn').addEventListener('click', function() {
+  document.getElementById('durationDetailModal').classList.remove('active')
+})
 
 document.getElementById('statCompletionCard').addEventListener('click', function() {
   document.getElementById('completionDetailModal').classList.add('active')
