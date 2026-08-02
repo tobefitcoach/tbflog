@@ -797,16 +797,12 @@ function renderSetRow(pe, setNumber, logged, isTimed, isExtra) {
       <span class="set-label">Set ${setNumber}</span>
       <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}" ${checked ? 'disabled' : ''}>
       ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${weightVal}" placeholder="kg" step="0.5" ${checked ? 'disabled' : ''}>`}
-      <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Completed' : 'Mark done'}" ${checked ? 'disabled' : ''}>${checked ? '✓' : ''}</button>
+      <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
       ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>
   `
 }
 
-// Checking a set is one-way - once marked done it can't be tapped back to
-// undone, so the button is disabled the moment it's checked (see
-// renderSetRow) and this handler also ignores clicks on an already-
-// completed row as a second guard
 function wireExerciseCardEvents(containerId, dateStr) {
   document.getElementById(containerId).addEventListener('click', async function(e) {
     const btn = e.target.closest('[data-action]')
@@ -817,9 +813,12 @@ function wireExerciseCardEvents(containerId, dateStr) {
     if (btn.dataset.action === 'add-set') {
       addSetRow(peId)
     } else if (btn.dataset.action === 'check-set') {
-      if (row.classList.contains('completed')) return
       const setNumber = parseInt(row.dataset.setNumber)
-      await checkSet(peId, setNumber, dateStr, row)
+      if (row.classList.contains('completed')) {
+        await uncheckSet(peId, setNumber, dateStr, row)
+      } else {
+        await checkSet(peId, setNumber, dateStr, row)
+      }
     } else if (btn.dataset.action === 'remove-set') {
       row.remove()
     }
@@ -841,13 +840,14 @@ function addSetRow(peId) {
 // slow save finished and then swiping back would re-render this row from
 // stale data and show it as unchecked again, even though the tap "worked".
 //
-// Checking is one-way and never reverts, even if the save fails - it just
-// retries in the background (saveWithRetry, a handful of attempts with
-// backoff) since a slow/flaky connection eventually gets there. The save
+// A failed save never reverts what you tapped - it retries in the
+// background (saveWithRetry, a handful of attempts with backoff) since a
+// slow/flaky connection eventually gets there, so you can swipe on to the
+// next exercise right away without worrying whether it saved. The save
 // promise (covering every retry) is tracked in pendingSaves so
 // finishWorkout can wait for it before ending the session - see the
-// comment there. If every retry is exhausted, the row is flagged
-// "unsynced" rather than silently losing what was checked.
+// comment there. Only if every retry is exhausted does the row get flagged
+// "unsynced", and even then it stays checked rather than silently reverting.
 // Upsert on (program_exercise_id, date, set_number) - re-checking an
 // already-logged set updates it instead of creating a duplicate row.
 async function checkSet(peId, setNumber, dateStr, rowEl) {
@@ -859,13 +859,13 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   const removedBtn = rowEl.querySelector('.set-remove-btn')
 
   rowEl.classList.add('completed')
+  rowEl.classList.remove('unsynced')
   repsInput.disabled = true
   if (weightInput) weightInput.disabled = true
   const checkBtn = rowEl.querySelector('.set-check-btn')
   checkBtn.textContent = '✓'
   checkBtn.classList.add('checked')
-  checkBtn.disabled = true
-  checkBtn.title = 'Completed'
+  checkBtn.title = 'Undo'
   if (removedBtn) removedBtn.remove()
   maybeStartRestTimer(pe, rowEl)
 
@@ -909,10 +909,49 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
     return
   }
 
-  rowEl.classList.remove('unsynced')
   // Replace the optimistic placeholder with the real saved row
   logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
   logSetsByPE[peId].push(data[0])
+}
+
+// Same reasoning as checkSet - unchecks immediately, retries the delete in
+// the background, and only flags "unsynced" (staying visually unchecked)
+// if every retry fails, rather than silently snapping back to checked
+async function uncheckSet(peId, setNumber, dateStr, rowEl) {
+  const pe = findPE(peId)
+  const repsInput = rowEl.querySelector('.set-reps-input')
+  const weightInput = rowEl.querySelector('.set-weight-input')
+  const checkBtn = rowEl.querySelector('.set-check-btn')
+  const isExtra = setNumber > (pe.prescribed_sets || 0)
+
+  rowEl.classList.remove('completed', 'unsynced')
+  repsInput.disabled = false
+  if (weightInput) weightInput.disabled = false
+  checkBtn.textContent = ''
+  checkBtn.classList.remove('checked')
+  checkBtn.title = 'Mark done'
+  if (isExtra && !rowEl.querySelector('.set-remove-btn')) {
+    rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
+  }
+  logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
+
+  const savePromise = saveWithRetry(() => supabase
+    .from('exercise_log_sets')
+    .delete()
+    .eq('program_exercise_id', peId)
+    .eq('date', dateStr)
+    .eq('set_number', setNumber)
+  )
+
+  pendingSaves.push(savePromise)
+  const { error } = await savePromise
+  pendingSaves = pendingSaves.filter(p => p !== savePromise)
+
+  if (error) {
+    console.log(error)
+    rowEl.classList.add('unsynced')
+    checkBtn.title = 'Not synced yet - will retry next time you check a set'
+  }
 }
 
 // Retries a Supabase call a few times with backoff before giving up -
