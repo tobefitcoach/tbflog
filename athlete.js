@@ -239,8 +239,11 @@ async function loadOverviewStats() {
     logSetsByPE[row.program_exercise_id].push(row)
   }
 
-  // ---- Completion rate: completed scheduled days / scheduled days, within
-  // the window. Rest days (nothing scheduled) don't count toward either side ----
+  // ---- Completion rate: scheduled days where at least half the prescribed
+  // sets got logged, divided by scheduled days in the window. Set-level
+  // (not "every exercise finished") so a day with 3 exercises where 2 are
+  // fully done and 1 barely started still gets fair partial credit.
+  // Rest days (nothing scheduled) don't count toward either side.
   function completionRate(windowDays) {
     const cutoff = toDateStrOv(addDaysOv(new Date(), -(windowDays - 1)))
     const todayStr = toDateStrOv(new Date())
@@ -253,11 +256,15 @@ async function loadOverviewStats() {
       if (exercises.length === 0) continue
       scheduled++
 
-      const dayDone = exercises.every(pe => {
+      let totalSets = 0
+      let doneSets = 0
+      for (const pe of exercises) {
         const prescribed = pe.prescribed_sets || 1
+        totalSets += prescribed
         const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
-        return logged.length >= prescribed
-      })
+        doneSets += Math.min(logged.length, prescribed)
+      }
+      const dayDone = totalSets > 0 && (doneSets / totalSets) >= 0.5
       if (dayDone) completed++
     }
 
