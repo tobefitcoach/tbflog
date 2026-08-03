@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=7" />
-  <link rel="stylesheet" href="athlete.css?v=11" />
+  <link rel="stylesheet" href="athlete.css?v=12" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
@@ -151,6 +151,12 @@
           <button class="btn-cancel" id="calPrevBtn">← Prev</button>
           <h3 id="calMonthLabel">&nbsp;</h3>
           <button class="btn-cancel" id="calNextBtn">Next →</button>
+        </div>
+        <!-- Static - the grid below always starts each row on Sunday (see
+             renderCalendarGrid's startWeekday math), so this never needs to
+             be regenerated per month -->
+        <div class="calendar-weekday-header">
+          <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
         </div>
         <div class="calendar-grid" id="calendarGrid"></div>
       </div>

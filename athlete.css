@@ -232,6 +232,23 @@
   text-align: center;
 }
 
+/* Sun-Sat, matching the order renderCalendarGrid() lays days out in - same
+   7-column grid as .calendar-grid so the labels line up with the days
+   underneath */
+.calendar-weekday-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 8px;
+}
+
+.calendar-weekday-header span {
+  text-align: center;
+  color: #aaaacc;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1599,6 +1616,10 @@
   .calendar-day-badge {
     font-size: 9px;
     padding: 2px 5px;
+  }
+
+  .calendar-weekday-header span {
+    font-size: 10px;
   }
 
   .calendar-toolbar {
