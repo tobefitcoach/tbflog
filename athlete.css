@@ -172,6 +172,51 @@
   display: block;
 }
 
+/* ==========================================================================
+   ADD TRAINING POPUP — IN-MODAL TABS
+   Same look as .tab-bar/.tab-btn/.tab-panel above, but a separate set of
+   classes - initTabs() in athlete.js queries .tab-btn/.tab-panel globally,
+   so reusing those exact classes inside this modal would make it fight
+   with (and break) the page's own Overview/Metrics/Calendar/Settings tabs.
+   See switchDayAddTab() in athlete-calendar.js.
+   ========================================================================== */
+
+.modal-tab-bar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #2a2a4e;
+  margin-bottom: 20px;
+}
+
+.modal-tab-btn {
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #aaaacc;
+  padding: 10px 4px;
+  margin-bottom: -1px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-tab-btn:hover {
+  color: white;
+}
+
+.modal-tab-btn.active {
+  color: white;
+  border-bottom-color: #4a4a8e;
+}
+
+.modal-tab-panel {
+  display: none;
+}
+
+.modal-tab-panel.active {
+  display: block;
+}
+
 /* Calendar tab toolbar (month nav + add-training/assign-program buttons).
    The grid itself (.calendar-grid, .calendar-day, etc.) is styled once
    athlete-calendar.js actually renders it. */

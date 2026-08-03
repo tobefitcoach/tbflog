@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=7" />
-  <link rel="stylesheet" href="athlete.css?v=8" />
+  <link rel="stylesheet" href="athlete.css?v=9" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
@@ -754,18 +754,46 @@
     </div>
 
     <!-- Add Training popup: opens from the small "+" that appears when
-         hovering a calendar day (see .calendar-day-add-btn). Lists the
-         coach's saved trainings to drop straight onto that day, or a button
-         to build a brand new one without leaving this page. -->
+         hovering a calendar day (see .calendar-day-add-btn). Two tabs: drop
+         a single saved Training onto just this day, or assign a whole
+         multi-week Program starting on this day - same underlying flows as
+         before, just reachable from one popup instead of two. -->
     <div class="modal-overlay" id="dayAddTrainingModal">
       <div class="modal">
         <div class="graph-modal-header">
           <h2 id="dayAddTrainingTitle">Add Training</h2>
           <button class="btn-cancel" id="closeDayAddTrainingBtn">✕</button>
         </div>
-        <div class="entries-modal-body" id="dayAddTrainingList"></div>
-        <div class="form-actions" style="justify-content:center">
-          <button class="btn-create-metric" id="newTrainingFromDayBtn">+ New Training</button>
+
+        <div class="modal-tab-bar">
+          <button type="button" class="modal-tab-btn active" id="dayAddTabWorkout">Single Workout</button>
+          <button type="button" class="modal-tab-btn" id="dayAddTabProgram">Program</button>
+        </div>
+
+        <div class="modal-tab-panel active" id="dayAddWorkoutPanel">
+          <div class="entries-modal-body" id="dayAddTrainingList"></div>
+          <div class="form-actions" style="justify-content:center">
+            <button class="btn-create-metric" id="newTrainingFromDayBtn">+ New Training</button>
+          </div>
+        </div>
+
+        <div class="modal-tab-panel" id="dayAddProgramPanel">
+          <div class="form-group">
+            <label>Template</label>
+            <select id="dayAddProgramTemplateSelect">
+              <option value="">Choose a template...</option>
+            </select>
+          </div>
+          <p style="text-align:center; color:#aaaacc; font-size:13px; margin: 8px 0">
+            <a href="programs.html" target="_blank" style="color:#4a4a8e">+ Create New Template (opens in a new tab)</a>
+          </p>
+          <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" id="dayAddProgramStartDate" />
+          </div>
+          <div class="form-actions" style="justify-content:center">
+            <button class="btn-save" id="saveDayAddProgramBtn">Assign Program</button>
+          </div>
         </div>
       </div>
     </div>
@@ -878,7 +906,7 @@
 
     <!-- Main page logic (see athlete.js) -->
     <script type="module" src="athlete.js?v=6"></script>
-    <script type="module" src="athlete-calendar.js?v=1"></script>
+    <script type="module" src="athlete-calendar.js?v=2"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

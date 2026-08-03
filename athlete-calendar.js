@@ -361,19 +361,47 @@ async function deleteScheduledExercise(peId) {
 // container for repeated adds to the same date, instead of creating a new
 // one each time. Only way to put exercises on a day is via a saved
 // Training - no more "add one loose exercise" flow, that's what the
-// Training Library / training-builder.html is for.
+// Training Library / training-builder.html is for. Two tabs share this one
+// popup: a single saved Training onto just this day, or a whole Program
+// starting on this day (see switchDayAddTab below).
 // ==========================================================================
 let currentDayDateForAddTraining = null // remembered so "+ New Training" can come back to the same day's popup afterward
+
+// Both lists rarely change, but were previously re-fetched from Supabase on
+// every single "+" click - the main reason that popup felt slow. Cached
+// after the first fetch and reused for the rest of the page's lifetime;
+// cachedTrainings is cleared when a new Training is actually created so it
+// shows up immediately, cachedTemplates doesn't need that (templates are
+// only ever edited on a different page).
+let cachedTrainings = null
+let cachedTemplates = null
+
+async function getTrainingsList() {
+  if (cachedTrainings) return cachedTrainings
+  const { data, error } = await supabase.from('trainings').select('*').order('created_at', { ascending: false })
+  if (error) { console.log(error); return null }
+  cachedTrainings = data
+  return cachedTrainings
+}
+
+async function getProgramTemplates() {
+  if (cachedTemplates) return cachedTemplates
+  const { data, error } = await supabase.from('programs').select('*').eq('is_template', true).order('name')
+  if (error) { console.log(error); return null }
+  cachedTemplates = data
+  return cachedTemplates
+}
 
 async function openDayAddTrainingModal(dateStr) {
   currentDayDateForAddTraining = dateStr
   document.getElementById('dayAddTrainingTitle').textContent = 'Add Training — ' + formatDisplayDateCal(dateStr)
+  document.getElementById('dayAddProgramStartDate').value = dateStr
+  switchDayAddTab('workout')
 
-  const { data, error } = await supabase.from('trainings').select('*').order('created_at', { ascending: false })
+  const data = await getTrainingsList()
   const list = document.getElementById('dayAddTrainingList')
 
-  if (error) {
-    console.log(error)
+  if (data === null) {
     list.innerHTML = '<p class="no-metrics">Something went wrong loading the Training Library</p>'
   } else if (data.length === 0) {
     list.innerHTML = '<p class="no-metrics">No trainings saved yet - create one in the Training Library first</p>'
@@ -394,6 +422,49 @@ async function openDayAddTrainingModal(dateStr) {
 
   document.getElementById('dayAddTrainingModal').classList.add('active')
 }
+
+function switchDayAddTab(tab) {
+  document.getElementById('dayAddTabWorkout').classList.toggle('active', tab === 'workout')
+  document.getElementById('dayAddTabProgram').classList.toggle('active', tab === 'program')
+  document.getElementById('dayAddWorkoutPanel').classList.toggle('active', tab === 'workout')
+  document.getElementById('dayAddProgramPanel').classList.toggle('active', tab === 'program')
+  if (tab === 'program') loadDayAddProgramTemplates()
+}
+
+document.getElementById('dayAddTabWorkout').addEventListener('click', function() { switchDayAddTab('workout') })
+document.getElementById('dayAddTabProgram').addEventListener('click', function() { switchDayAddTab('program') })
+
+async function loadDayAddProgramTemplates() {
+  const select = document.getElementById('dayAddProgramTemplateSelect')
+  const data = await getProgramTemplates()
+  select.innerHTML = '<option value="">Choose a template...</option>' +
+    (data || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('')
+}
+
+document.getElementById('saveDayAddProgramBtn').addEventListener('click', async function() {
+  const templateId = document.getElementById('dayAddProgramTemplateSelect').value
+  const startDate = document.getElementById('dayAddProgramStartDate').value
+  if (!templateId) { alert('Please choose a template'); return }
+  if (!startDate) { alert('Please choose a start date'); return }
+
+  const saveBtn = document.getElementById('saveDayAddProgramBtn')
+  saveBtn.disabled = true
+  saveBtn.textContent = 'Assigning...'
+
+  try {
+    await cloneTemplateToAthlete(templateId, startDate)
+    document.getElementById('dayAddTrainingModal').classList.remove('active')
+    currentDayDateForModal = startDate
+    await loadCalendarMonth(currentViewYear, currentViewMonth)
+    openDayModal(startDate)
+  } catch (err) {
+    console.log(err)
+    alert('Something went wrong while assigning the program. Check Supabase for a partially-created program under this athlete and delete it before retrying.')
+  } finally {
+    saveBtn.disabled = false
+    saveBtn.textContent = 'Assign Program'
+  }
+})
 
 document.getElementById('closeDayAddTrainingBtn').addEventListener('click', function() {
   document.getElementById('dayAddTrainingModal').classList.remove('active')
@@ -423,6 +494,7 @@ document.getElementById('saveNewTrainingNameBtn').addEventListener('click', asyn
 
   if (error) { console.log(error); alert('Something went wrong'); return }
 
+  cachedTrainings = null // force a fresh fetch so the one just created shows up
   document.getElementById('newTrainingNameModal').classList.remove('active')
   document.getElementById('trainingBuilderFrame').src = `training-builder.html?id=${data[0].id}&embed=1`
   document.getElementById('trainingBuilderOverlayModal').classList.add('active')
@@ -579,12 +651,11 @@ document.getElementById('editScheduledAddFieldBtn').addEventListener('click', fu
 // the template later never changes an already-assigned athlete's calendar.
 // ==========================================================================
 document.getElementById('calAssignProgramBtn').addEventListener('click', async function() {
-  const { data, error } = await supabase.from('programs').select('*').eq('is_template', true).order('name')
-  if (error) { console.log(error); return }
+  const data = await getProgramTemplates()
 
   const select = document.getElementById('assignTemplateSelect')
   select.innerHTML = '<option value="">Choose a template...</option>' +
-    data.map(t => `<option value="${t.id}">${t.name}</option>`).join('')
+    (data || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('')
 
   document.getElementById('assignStartDate').value = toDateStr(new Date())
   document.getElementById('assignProgramModal').classList.add('active')
