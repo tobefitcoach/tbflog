@@ -760,14 +760,15 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
 }
 
 // Shows a "Saving..." state on the button so ending a workout is never
-// silent, then (1) actually waits for the pending-save queue to flush -
-// so every set logged this session is confirmed saved before the session
-// is marked ended, instead of racing ahead and leaving sets stuck in the
-// queue with nothing forcing them through - and (2) sends the session-end
-// update itself through saveWithRetry, since a plain unprotected Supabase
-// call has no timeout and could previously hang forever on a bad
-// connection with zero visible feedback (exactly what looked like
-// "pressing End Workout does nothing").
+// silent, then (1) gives the pending-save queue a bounded window to flush
+// - flushPendingQueue is durable and keeps retrying in the background on
+// its own regardless (localStorage queue + visibilitychange + next page
+// load), so this only needs to give it a head start, not block on it
+// finishing completely - and (2) sends the session-end update itself
+// through saveWithRetry, since a plain unprotected Supabase call has no
+// timeout and could previously hang forever on a bad connection with zero
+// visible feedback (exactly what looked like "pressing End Workout does
+// nothing").
 async function finishWorkout(entry, session) {
   if (!confirm('Finish this workout?')) return
 
@@ -777,7 +778,13 @@ async function finishWorkout(entry, session) {
     btn.textContent = 'Saving...'
   }
 
-  await flushPendingQueue()
+  // Whichever finishes first - either the queue actually flushes, or 8
+  // seconds pass and we move on anyway (flushPendingQueue itself just
+  // keeps running in the background if it's still mid-retry)
+  await Promise.race([
+    flushPendingQueue(),
+    new Promise(resolve => setTimeout(resolve, 8000))
+  ])
 
   const { error } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
@@ -1117,14 +1124,24 @@ function applyPendingQueueLocally() {
   }
 }
 
-// Not awaited by its callers on purpose - nothing in this app should make
-// an athlete wait on a network retry. Runs on load and whenever the tab
-// becomes visible again (see the visibilitychange listener below).
+// Not awaited by most of its callers on purpose - nothing in this app
+// should make an athlete wait on a network retry. Runs on load and
+// whenever the tab becomes visible again (see the visibilitychange
+// listener below), and is raced against a timeout in finishWorkout.
+//
+// Every entry is saved in PARALLEL (Promise.all), not one at a time. With
+// several entries stuck retrying on a bad connection, saving them one at a
+// time meant the wait was entries x up to ~24s each (3 attempts x 6s
+// timeout, plus backoff) - that's exactly what turned "saving the workout"
+// into a multi-minute wait once more than a couple of sets had backed up
+// in the queue. Running them together bounds the wait to about one
+// entry's worth of retries, no matter how many are queued.
 async function flushPendingQueue() {
-  for (const entry of loadPendingQueue()) {
+  const entries = loadPendingQueue()
+  await Promise.all(entries.map(async function(entry) {
     const { error } = await performQueuedSave(entry)
     if (!error) queueRemove(entry.program_exercise_id, entry.date, entry.set_number)
-  }
+  }))
 }
 
 document.addEventListener('visibilitychange', function() {
