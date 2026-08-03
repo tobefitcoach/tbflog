@@ -617,13 +617,21 @@
 }
 
 /* Settings screen - .settings-row/.toggle-switch come from athlete.css
-   (shared with the coach's own Settings tab), but a plain <select> has no
-   dark-theme styling outside of .form-group, so it needs its own rule here */
-.settings-row select {
-  padding: 8px 10px;
-  border: 1px solid #2a2a4e;
-  border-radius: 8px;
-  font-size: 14px;
+   (shared with the coach's own Settings tab). Weight units uses the same
+   .toggle-switch as every other setting here (kg/lbs is just a two-way
+   choice) with a label on each side, instead of a <select> that didn't
+   match the size of the other rows. */
+.unit-toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unit-toggle-switch span {
+  font-size: 13px;
+  color: #aaaacc;
+}
+
+.unit-toggle-switch span.active {
   color: #ffffff;
-  background-color: #0f0f1a;
 }

@@ -122,10 +122,14 @@ function renderSettings() {
       <div class="settings-row-info">
         <div class="settings-row-title">Weight units</div>
       </div>
-      <select id="weightUnitSelect">
-        <option value="kg" ${athlete.weight_unit !== 'lbs' ? 'selected' : ''}>Kilograms (kg)</option>
-        <option value="lbs" ${athlete.weight_unit === 'lbs' ? 'selected' : ''}>Pounds (lbs)</option>
-      </select>
+      <div class="unit-toggle-switch">
+        <span class="${athlete.weight_unit !== 'lbs' ? 'active' : ''}">kg</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="weightUnitToggle" ${athlete.weight_unit === 'lbs' ? 'checked' : ''}>
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="${athlete.weight_unit === 'lbs' ? 'active' : ''}">lbs</span>
+      </div>
     </div>
     <div class="settings-row">
       <div class="settings-row-info">
@@ -144,10 +148,14 @@ function renderSettings() {
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
   })
 
-  document.getElementById('weightUnitSelect').addEventListener('change', async function(e) {
-    const newUnit = e.target.value
+  document.getElementById('weightUnitToggle').addEventListener('change', async function(e) {
+    const newUnit = e.target.checked ? 'lbs' : 'kg'
     const previousUnit = athlete.weight_unit
     athlete.weight_unit = newUnit // optimistic, same pattern used everywhere else in this file
+
+    const labels = e.target.closest('.unit-toggle-switch').querySelectorAll('span')
+    labels[0].classList.toggle('active', newUnit === 'kg')
+    labels[1].classList.toggle('active', newUnit === 'lbs')
 
     const { error } = await supabase
       .from('athletes')
@@ -157,7 +165,9 @@ function renderSettings() {
     if (error) {
       console.log(error)
       athlete.weight_unit = previousUnit
-      e.target.value = previousUnit
+      e.target.checked = previousUnit === 'lbs'
+      labels[0].classList.toggle('active', previousUnit === 'kg')
+      labels[1].classList.toggle('active', previousUnit === 'lbs')
       alert('Something went wrong saving that - try again')
     }
   })
