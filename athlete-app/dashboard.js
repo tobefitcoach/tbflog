@@ -36,6 +36,10 @@ document.getElementById('settingsBtn').addEventListener('click', function() {
   if (athlete) renderSettings()
 })
 
+document.getElementById('weeklyRecapCloseBtn').addEventListener('click', function() {
+  document.getElementById('weeklyRecapModal').classList.remove('active')
+})
+
 let athlete = null
 let entriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
@@ -68,6 +72,7 @@ async function checkAccountState() {
     athlete = foundAthlete
     await loadTrainingData()
     renderWeekView(startOfWeek(new Date()))
+    maybeShowWeeklyRecap()
     flushPendingQueue() // not awaited - picks up anything left over from a previous session
     return
   }
@@ -450,6 +455,86 @@ function renderWeekView(weekStart) {
   document.getElementById('weekNextBtn').addEventListener('click', function() {
     if (nextEnabled) renderWeekView(addDays(weekStart, 7))
   })
+}
+
+// ==========================================================================
+// ---- WEEKLY RECAP POPUP ----
+// Shows a "here's what you did last week" popup at most once per week, the
+// first time the athlete opens the app that week (not an actual push
+// notification - see the weekly_recap_enabled setting's comment for why).
+// Tracked in localStorage rather than the database since it's purely a
+// "have I already shown this on this device" flag, not something the coach
+// or any other device needs to know about.
+// ==========================================================================
+function maybeShowWeeklyRecap() {
+  if (!athlete.weekly_recap_enabled) return
+
+  const thisWeekKey = toDateStr(startOfWeek(new Date()))
+  if (localStorage.getItem('tbflog-recap-shown-week') === thisWeekKey) return
+
+  const lastWeekStart = addDays(startOfWeek(new Date()), -7)
+  const stats = computeWeekRecap(lastWeekStart)
+  localStorage.setItem('tbflog-recap-shown-week', thisWeekKey)
+
+  // Nothing happened last week (e.g. a brand new athlete) - showing an
+  // empty recap isn't useful, so skip the popup but still mark it seen
+  if (stats.totalWorkouts === 0 && stats.totalSets === 0) return
+
+  showWeeklyRecapModal(stats)
+}
+
+function computeWeekRecap(weekStart) {
+  let totalWorkouts = 0
+  let totalSets = 0
+  let totalReps = 0
+  let totalDurationMs = 0
+
+  for (let i = 0; i < 7; i++) {
+    const dateStr = toDateStr(addDays(weekStart, i))
+    const entries = entriesByDate[dateStr] || []
+    for (const entry of entries) {
+      const session = completedSessionsByDayId[entry.day.id]
+      if (!session) continue // only count workouts that were actually finished
+
+      totalWorkouts++
+      totalDurationMs += new Date(session.ended_at) - new Date(session.started_at)
+
+      for (const pe of entry.day.program_exercises) {
+        const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at)
+        totalSets += sets.length
+        for (const s of sets) {
+          const reps = parseInt(s.actual_reps)
+          if (!isNaN(reps)) totalReps += reps
+        }
+      }
+    }
+  }
+
+  return { totalWorkouts, totalSets, totalReps, totalDurationMs }
+}
+
+// A little tiered feel-good message rather than one fixed line - a quiet
+// week gets encouragement to jump back in, not silence or a guilt trip
+function pickRecapMessage(totalWorkouts) {
+  if (totalWorkouts === 0) return "A quiet week - let's get back into it this week 💪"
+  if (totalWorkouts <= 2) return 'Nice work getting sessions in - keep building on it!'
+  return 'Great consistency last week - keep it up! 🔥'
+}
+
+function showWeeklyRecapModal(stats) {
+  const durationMin = Math.round(stats.totalDurationMs / 60000)
+  const durationText = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : `${durationMin}m`
+
+  document.getElementById('weeklyRecapBody').innerHTML = `
+    <div class="workout-summary-stats" style="flex-wrap:wrap; gap:20px">
+      <div><div class="workout-summary-stat-value">${stats.totalWorkouts}</div><div class="workout-summary-stat-label">Workouts</div></div>
+      <div><div class="workout-summary-stat-value">${stats.totalSets}</div><div class="workout-summary-stat-label">Sets</div></div>
+      <div><div class="workout-summary-stat-value">${stats.totalReps}</div><div class="workout-summary-stat-label">Reps</div></div>
+      <div><div class="workout-summary-stat-value">${durationText}</div><div class="workout-summary-stat-label">Time</div></div>
+    </div>
+    <p style="margin-top:20px; color:#aaaacc; text-align:center">${pickRecapMessage(stats.totalWorkouts)}</p>
+  `
+  document.getElementById('weeklyRecapModal').classList.add('active')
 }
 
 // ==========================================================================

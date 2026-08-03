@@ -28,6 +28,18 @@
       </div>
     </div>
 
-    <script type="module" src="dashboard.js?v=19"></script>
+    <!-- Shown at most once per week, the first time the athlete opens the
+         app that week - see maybeShowWeeklyRecap() in dashboard.js -->
+    <div class="modal-overlay" id="weeklyRecapModal">
+      <div class="modal">
+        <h2>Last Week's Recap</h2>
+        <div id="weeklyRecapBody"></div>
+        <div class="form-actions" style="justify-content:flex-end; margin-top:24px">
+          <button class="btn-save" id="weeklyRecapCloseBtn">Nice!</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="dashboard.js?v=20"></script>
   </body>
 </html>
