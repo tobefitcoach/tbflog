@@ -1473,11 +1473,17 @@ async function saveWithRetry(operationFactory, maxAttempts = 3) {
 // is the last row in its exercise's list, there's nothing to rest before.
 // ==========================================================================
 function maybeStartRestTimer(pe, rowEl) {
-  if (!pe.rest_seconds) return
+  // Each set can have its own rest now (shorter after a warmup set than
+  // after a top set) - fall back to the exercise's old shared rest_seconds
+  // for a set beyond what the coach targeted, or for pre-pyramid data
+  const setNumber = parseInt(rowEl.dataset.setNumber)
+  const target = pe.set_targets && pe.set_targets[setNumber - 1]
+  const restSeconds = target && target.rest != null ? target.rest : pe.rest_seconds
+  if (!restSeconds) return
   const rows = [...rowEl.parentElement.children]
   const isLastRow = rows[rows.length - 1] === rowEl
   if (isLastRow) return
-  startRestTimer(pe.rest_seconds)
+  startRestTimer(restSeconds)
 }
 
 function startRestTimer(totalSeconds) {

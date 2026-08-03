@@ -242,7 +242,6 @@ function renderScheduledExerciseCard(pe) {
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnailCal(videoUrl)
   const targets = deriveSetTargetsCal(pe)
-  const rest = secondsToRestCal(pe.rest_seconds)
   const rowsHtml = targets.map((t, i) => renderSetTargetRowCal(i + 1, t, isTimed, targets.length === 1)).join('')
 
   return `
@@ -253,14 +252,6 @@ function renderScheduledExerciseCard(pe) {
         </button>
         <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         <button type="button" class="btn-delete-measurement" data-action="delete-scheduled" title="Remove exercise">🗑</button>
-      </div>
-      <div class="builder-exercise-rest-row">
-        <span>Rest between sets:</span>
-        <input type="number" class="rest-value-input" value="${rest.value}" placeholder="e.g. 90">
-        <select class="rest-unit-select">
-          <option value="sec" ${rest.unit === 'sec' ? 'selected' : ''}>sec</option>
-          <option value="min" ${rest.unit === 'min' ? 'selected' : ''}>min</option>
-        </select>
       </div>
       <div class="set-target-rows">
         ${rowsHtml}
@@ -363,13 +354,15 @@ async function saveScheduledExercise(peId) {
     const reps = row.querySelector('.set-reps-input').value.trim() || null
     const weightInput = row.querySelector('.set-weight-input')
     const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
-    return { reps, weight }
+    const restInput = row.querySelector('.set-rest-input')
+    const rest = restInput.value ? parseInt(restInput.value) : null
+    const type = row.querySelector('.set-type-select').value
+    return { reps, weight, rest, type }
   })
 
-  const restSeconds = restToSecondsCal(card.querySelector('.rest-value-input').value, card.querySelector('.rest-unit-select').value)
   const notes = card.querySelector('.exercise-notes-input').value.trim() || null
   const extraFields = collectExtraFieldsCal(`extraFieldsSched-${peId}`)
-  const first = setTargets[0] || { reps: null, weight: null }
+  const first = setTargets[0] || { reps: null, weight: null, rest: null }
 
   const { error } = await supabase
     .from('program_exercises')
@@ -378,7 +371,7 @@ async function saveScheduledExercise(peId) {
       prescribed_sets: setTargets.length,
       prescribed_reps: first.reps,
       prescribed_weight: first.weight,
-      rest_seconds: restSeconds,
+      rest_seconds: first.rest,
       extra_fields: extraFields,
       notes
     })
@@ -931,19 +924,6 @@ async function findOrCreateAdHocDay(dateStr, name) {
 // on a day is still supported.
 // ==========================================================================
 
-// rest_seconds is stored as a plain int (a rest timer counts down from a
-// number, not a parsed string) - these convert to/from the value+unit inputs
-function restToSecondsCal(value, unit) {
-  if (!value) return null
-  return Math.round(parseFloat(value) * (unit === 'min' ? 60 : 1))
-}
-
-function secondsToRestCal(seconds) {
-  if (!seconds) return { value: '', unit: 'sec' }
-  if (seconds >= 60 && seconds % 60 === 0) return { value: seconds / 60, unit: 'min' }
-  return { value: seconds, unit: 'sec' }
-}
-
 function addExtraFieldRowCal(containerId, name, value) {
   const container = document.getElementById(containerId)
   const row = document.createElement('div')
@@ -971,24 +951,32 @@ function collectExtraFieldsCal(containerId) {
 // ==========================================================================
 // ---- PER-SET TARGETS ----
 // Same shape/reasoning as training-builder.js / program-builder.js: a
-// program_exercises row keeps one set_targets array ([{reps, weight}, ...],
-// index 0 = Set 1) so each set can have its own target, with
-// prescribed_sets/prescribed_reps/prescribed_weight kept in sync (length /
-// first set's values) so every other place that only reads those old
-// columns keeps working untouched.
+// program_exercises row keeps one set_targets array
+// ([{reps, weight, rest, type}, ...], index 0 = Set 1) so each set can have
+// its own target AND its own rest afterward (shorter between warmup sets
+// than top sets) and its own type (warmup / main / failure), with
+// prescribed_sets/prescribed_reps/prescribed_weight/rest_seconds kept in
+// sync (length / first set's values) so every other place that only reads
+// those old columns keeps working untouched.
 // ==========================================================================
+const SET_TYPES_CAL = { main: 'Main Set', warmup: 'Warmup Set', failure: 'Set to Failure' }
+
 function deriveSetTargetsCal(row) {
   if (row.set_targets && row.set_targets.length) return row.set_targets
   const count = row.prescribed_sets || 1
-  return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null }))
+  return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null, rest: row.rest_seconds || null, type: 'main' }))
 }
 
 function renderSetTargetRowCal(setNumber, target, isTimed, onlyRow) {
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
       <span class="set-label">Set ${setNumber}</span>
+      <select class="set-type-select">
+        ${Object.entries(SET_TYPES_CAL).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
+      </select>
       <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}">
       ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">`}
+      <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>
   `
@@ -997,7 +985,7 @@ function renderSetTargetRowCal(setNumber, target, isTimed, onlyRow) {
 function addSetTargetRowCal(rowsEl, isTimed) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRowCal(rows.length + 1, { reps: null, weight: null }, isTimed, false))
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRowCal(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, false))
 }
 
 // Removal can happen from the middle of the list, so every remaining row

@@ -1702,47 +1702,42 @@
   font-weight: 600;
 }
 
-.builder-exercise-rest-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: #aaaacc;
-  font-size: 13px;
-}
-
-.builder-exercise-rest-row input,
-.builder-exercise-rest-row select {
-  background-color: #0f0f1a;
-  border: 1px solid #2a2a4e;
-  color: #ffffff;
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 13px;
-  width: 70px;
-}
-
 .set-target-rows {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+/* Left to right: set number, type (warmup/main/failure), reps, kg, rest
+   after this set - rest lives per-set now instead of one shared value at
+   the top of the card, so warmup sets can rest less than top sets */
 .set-target-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .set-target-row .set-label {
-  width: 44px;
+  width: 38px;
   flex-shrink: 0;
   color: #aaaacc;
   font-size: 13px;
 }
 
+.set-target-row .set-type-select {
+  flex-shrink: 0;
+  width: 92px;
+  padding: 7px 4px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+}
+
 .set-target-row .set-reps-input,
-.set-target-row .set-weight-input {
+.set-target-row .set-weight-input,
+.set-target-row .set-rest-input {
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
@@ -1815,4 +1810,23 @@
   align-items: center;
   gap: 8px;
   margin-top: 14px;
+}
+
+@media (max-width: 768px) {
+  /* Set number, type dropdown, reps, kg, rest, remove button is too many
+     columns for a narrow phone screen at full size - let it wrap onto a
+     second line instead of squeezing everything unreadably small */
+  .set-target-row {
+    flex-wrap: wrap;
+  }
+
+  .set-target-row .set-type-select {
+    width: 100px;
+  }
+
+  .set-target-row .set-reps-input,
+  .set-target-row .set-weight-input,
+  .set-target-row .set-rest-input {
+    min-width: 70px;
+  }
 }
