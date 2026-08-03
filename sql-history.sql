@@ -476,3 +476,17 @@ create index if not exists idx_athlete_metrics_athlete_id on athlete_metrics(ath
 create index if not exists idx_measurements_athlete_id on measurements(athlete_id);
 create index if not exists idx_bodyweight_athlete_id on bodyweight(athlete_id);
 create index if not exists idx_athlete_notes_athlete_id on athlete_notes(athlete_id);
+
+-- ==========================================================================
+-- Per-set targets: lets a coach give each individual set within an exercise
+-- its own reps/weight (a pyramid: 12/10/8 reps at increasing weight),
+-- instead of one shared prescribed_reps/prescribed_weight applied to every
+-- set. Array of {reps, weight} objects, one per set, index 0 = set 1 - same
+-- reps-stays-text (ranges, "45 sec" for timed exercises) / weight-stays-
+-- numeric-or-null convention as the existing prescribed_reps/
+-- prescribed_weight columns. Null on every row created before this - both
+-- builder pages and the athlete dashboard fall back to the old single-value
+-- columns when it's null, so nothing needs a backfill.
+-- ==========================================================================
+alter table training_exercises add column if not exists set_targets jsonb;
+alter table program_exercises add column if not exists set_targets jsonb;

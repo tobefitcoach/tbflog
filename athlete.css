@@ -1643,3 +1643,176 @@
     height: 92vh;
   }
 }
+
+/* ==========================================================================
+   BUILDER EXERCISE CARDS (training-builder.js, program-builder.js, and the
+   calendar's day-detail modal) - coach-side equivalent of the athlete's own
+   active-exercise card in athlete-app/app.css (.active-exercise-thumb,
+   .set-row etc), which can't be linked in directly here since it also
+   carries athlete-app-only page layout rules. Same visual language, new
+   names, so a coach editing a workout sees roughly what the athlete will.
+   ========================================================================== */
+.builder-exercise-card {
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.builder-exercise-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.builder-exercise-thumb {
+  flex-shrink: 0;
+  width: 64px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #0f0f1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.builder-exercise-thumb img,
+.builder-exercise-thumb iframe {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: none;
+}
+
+.builder-exercise-thumb-placeholder {
+  font-size: 20px;
+}
+
+.builder-exercise-name {
+  flex: 1;
+  min-width: 0;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.builder-exercise-rest-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+.builder-exercise-rest-row input,
+.builder-exercise-rest-row select {
+  background-color: #0f0f1a;
+  border: 1px solid #2a2a4e;
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  width: 70px;
+}
+
+.set-target-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.set-target-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-target-row .set-label {
+  width: 44px;
+  flex-shrink: 0;
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+.set-target-row .set-reps-input,
+.set-target-row .set-weight-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+}
+
+.set-target-row .set-remove-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: #aaaacc;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.set-target-row .set-remove-btn:hover:not(:disabled) {
+  color: #ff4444;
+}
+
+.set-target-row .set-remove-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.builder-add-set-btn {
+  margin-top: 10px;
+  background: transparent;
+  border: 1px dashed #2a2a4e;
+  color: #aaaacc;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.builder-add-set-btn:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.builder-exercise-notes {
+  margin-top: 12px;
+}
+
+.builder-exercise-notes label {
+  display: block;
+  color: #aaaacc;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.builder-exercise-notes input {
+  width: 100%;
+  background-color: #0f0f1a;
+  border: 1px solid #2a2a4e;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.builder-exercise-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}

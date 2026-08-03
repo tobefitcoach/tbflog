@@ -1,9 +1,11 @@
 // ==========================================================================
 // TRAINING BUILDER
 // Edits one training's flat exercise list. Same picker/edit patterns as
-// program-builder.js (pick-existing-or-create-new, type-aware duration vs
-// weight fields, extra name/value fields), just without the week/day
-// nesting - a training is always one flat session.
+// program-builder.js, just without the week/day nesting - a training is
+// always one flat session. Each exercise is an always-editable card (video
+// thumbnail, one row per set with its own reps/weight target, rest time,
+// notes) instead of a popup modal - mirrors the athlete's own live workout
+// screen (athlete-app/dashboard.js's renderActiveExercise/renderSetRow).
 // ==========================================================================
 import { supabase } from './coachClient.js'
 
@@ -20,7 +22,6 @@ if (params.get('embed') === '1') {
 
 let allExercises = []
 let exercisesCache = [] // last-loaded training_exercises for this training
-let currentEditTE = null // the training_exercises row currently open in the edit modal
 
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
@@ -74,6 +75,21 @@ function getYouTubeThumbnail(url) {
   return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
 }
 
+function getYouTubeEmbedUrl(url) {
+  if (!url) return null
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null
+}
+
+// Tapping a card's thumbnail swaps it for a playing embed right in place,
+// same as the athlete's own exercise card
+function playInlineVideo(containerEl, url) {
+  if (!url) return
+  const embedUrl = getYouTubeEmbedUrl(url)
+  if (!embedUrl) { window.open(url, '_blank'); return }
+  containerEl.innerHTML = `<iframe src="${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`
+}
+
 function renderLibraryPanel() {
   const filter = document.getElementById('exerciseSearchInput').value.trim().toLowerCase()
   const filtered = filter ? allExercises.filter(ex => ex.name.toLowerCase().includes(filter)) : allExercises
@@ -125,8 +141,9 @@ trainingDropZone.addEventListener('drop', async function(e) {
   if (exerciseId) await addExerciseToTraining(exerciseId)
 })
 
-// Dropped in with no prescribed values yet - click the row's ✏ afterward to
-// fill in sets/reps/weight/etc, keeps the drag itself a one-step action
+// Dropped in with no prescribed values yet - renders immediately as one
+// blank, empty set row (see deriveSetTargets) ready to edit right there,
+// no separate step needed
 async function addExerciseToTraining(exerciseId) {
   const nextOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
 
@@ -138,20 +155,6 @@ async function addExerciseToTraining(exerciseId) {
 
   if (error) { console.log(error); alert('Something went wrong'); return }
   loadExercisesList()
-}
-
-// Timed exercises store their duration in the same prescribed_reps text
-// column reps normally uses ("45 sec", "2 min")
-function formatDuration(value, unit) {
-  if (!value) return null
-  return `${value} ${unit}`
-}
-
-function parseDuration(text) {
-  if (!text) return { value: '', unit: 'sec' }
-  const match = String(text).match(/^(\d+(?:\.\d+)?)\s*(sec|min)/i)
-  if (match) return { value: match[1], unit: match[2].toLowerCase() }
-  return { value: text, unit: 'sec' }
 }
 
 // rest_seconds is stored as a plain int (a rest timer counts down from a
@@ -172,6 +175,7 @@ function secondsToRest(seconds) {
 // ==========================================================================
 function addExtraFieldRow(containerId, name, value) {
   const container = document.getElementById(containerId)
+  if (!container) return
   const row = document.createElement('div')
   row.className = 'extra-field-row'
   row.innerHTML = `
@@ -194,9 +198,50 @@ function collectExtraFields(containerId) {
   return Object.keys(result).length ? result : null
 }
 
-document.getElementById('tEditAddFieldBtn').addEventListener('click', function() {
-  addExtraFieldRow('tEditExtraFields')
-})
+// ==========================================================================
+// ---- PER-SET TARGETS ----
+// A training_exercises row keeps one set_targets array ([{reps, weight}, ...],
+// index 0 = Set 1) so each set can have its own target (a pyramid: 12/10/8
+// reps at increasing weight) instead of one shared value for every set.
+// prescribed_sets/prescribed_reps/prescribed_weight are kept in sync with it
+// on every save (length / first set's values) purely so every other place
+// in the app that only reads those old columns keeps working untouched.
+// ==========================================================================
+function deriveSetTargets(row) {
+  if (row.set_targets && row.set_targets.length) return row.set_targets
+  const count = row.prescribed_sets || 1
+  return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null }))
+}
+
+function renderSetTargetRow(setNumber, target, isTimed, onlyRow) {
+  return `
+    <div class="set-target-row" data-set-number="${setNumber}">
+      <span class="set-label">Set ${setNumber}</span>
+      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}">
+      ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">`}
+      <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
+    </div>
+  `
+}
+
+function addSetTargetRow(rowsEl, isTimed) {
+  const rows = [...rowsEl.querySelectorAll('.set-target-row')]
+  if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, weight: null }, isTimed, false))
+}
+
+// Removal can happen from the middle of the list, so every remaining row
+// needs relabelling, not just a length check
+function removeSetTargetRow(row) {
+  const rowsEl = row.parentElement
+  row.remove()
+  const remaining = [...rowsEl.querySelectorAll('.set-target-row')]
+  remaining.forEach((r, i) => {
+    r.dataset.setNumber = i + 1
+    r.querySelector('.set-label').textContent = `Set ${i + 1}`
+  })
+  if (remaining.length === 1) remaining[0].querySelector('.set-remove-btn').disabled = true
+}
 
 // ==========================================================================
 // ---- LOAD + RENDER EXERCISE LIST ----
@@ -204,7 +249,7 @@ document.getElementById('tEditAddFieldBtn').addEventListener('click', function()
 async function loadExercisesList() {
   const { data, error } = await supabase
     .from('training_exercises')
-    .select('*, exercises(id, name, category, type)')
+    .select('*, exercises(id, name, category, type, video_url)')
     .eq('training_id', trainingId)
 
   if (error) { console.log('Error loading training exercises:', error); return }
@@ -222,36 +267,131 @@ function renderExercisesList() {
     return
   }
 
-  container.innerHTML = exercisesCache.map(renderExerciseRow).join('')
+  container.innerHTML = exercisesCache.map(renderExerciseCard).join('')
+
+  // innerHTML wipes any dynamically-built children, so extra field rows
+  // (built with document.createElement, not template strings) get
+  // re-populated here for every card, same as the old edit modal did
+  for (const te of exercisesCache) {
+    if (te.extra_fields) {
+      for (const [k, v] of Object.entries(te.extra_fields)) addExtraFieldRow(`extraFields-${te.id}`, k, v)
+    }
+  }
 }
 
-function renderExerciseRow(te) {
+function renderExerciseCard(te) {
   const isTimed = te.exercises && te.exercises.type === 'timed'
-  const parts = []
-  if (te.prescribed_sets) parts.push(`${te.prescribed_sets} sets`)
-  if (te.prescribed_reps) parts.push(isTimed ? te.prescribed_reps : `${te.prescribed_reps} reps`)
-  if (te.prescribed_weight) parts.push(`${te.prescribed_weight}kg`)
-  if (te.extra_fields) {
-    for (const [k, v] of Object.entries(te.extra_fields)) parts.push(`${k}: ${v}`)
-  }
-  const summary = parts.join(' × ')
+  const videoUrl = (te.exercises && te.exercises.video_url) || ''
+  const thumb = getYouTubeThumbnail(videoUrl)
+  const targets = deriveSetTargets(te)
+  const rest = secondsToRest(te.rest_seconds)
+  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, targets.length === 1)).join('')
 
   return `
-    <li class="detail-row">
-      <span>${te.exercises ? te.exercises.name : 'Unknown exercise'}${summary ? ' — ' + summary : ''}${te.notes ? ' (' + te.notes + ')' : ''}</span>
-      <span style="display:flex; gap:8px">
-        <button class="btn-edit-entry" data-action="edit" data-id="${te.id}">✏</button>
-        <button class="btn-delete-measurement" data-action="delete" data-id="${te.id}">🗑</button>
-      </span>
-    </li>
+    <div class="builder-exercise-card" data-id="${te.id}">
+      <div class="builder-exercise-card-header">
+        <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
+        </button>
+        <div class="builder-exercise-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
+        <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from training">🗑</button>
+      </div>
+      <div class="builder-exercise-rest-row">
+        <span>Rest between sets:</span>
+        <input type="number" class="rest-value-input" value="${rest.value}" placeholder="e.g. 90">
+        <select class="rest-unit-select">
+          <option value="sec" ${rest.unit === 'sec' ? 'selected' : ''}>sec</option>
+          <option value="min" ${rest.unit === 'min' ? 'selected' : ''}>min</option>
+        </select>
+      </div>
+      <div class="set-target-rows">
+        ${rowsHtml}
+      </div>
+      <button type="button" class="builder-add-set-btn" data-action="add-set">+ Add Set</button>
+      <div class="builder-exercise-notes" style="margin-top:16px">
+        <label>Extra Fields (optional)</label>
+        <div class="extra-fields-container" id="extraFields-${te.id}"></div>
+        <button type="button" class="btn-create-metric" data-action="add-extra-field" style="margin-top:6px">+ Add Field</button>
+      </div>
+      <div class="builder-exercise-notes">
+        <label>Notes (visible to the athlete)</label>
+        <input type="text" class="exercise-notes-input" value="${te.notes || ''}" placeholder="e.g. Focus on controlled tempo">
+      </div>
+      <div class="builder-exercise-footer">
+        <span></span>
+        <button type="button" class="btn-save" data-action="save-exercise">💾 Save</button>
+      </div>
+    </div>
   `
 }
 
-document.getElementById('trainingExercisesList').addEventListener('click', function(e) {
+async function saveExerciseCard(teId) {
+  const card = document.querySelector(`.builder-exercise-card[data-id="${teId}"]`)
+  if (!card) return
+
+  const rows = [...card.querySelectorAll('.set-target-row')]
+  const setTargets = rows.map(row => {
+    const reps = row.querySelector('.set-reps-input').value.trim() || null
+    const weightInput = row.querySelector('.set-weight-input')
+    const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
+    return { reps, weight }
+  })
+
+  const restSeconds = restToSeconds(card.querySelector('.rest-value-input').value, card.querySelector('.rest-unit-select').value)
+  const notes = card.querySelector('.exercise-notes-input').value.trim() || null
+  const extraFields = collectExtraFields(`extraFields-${teId}`)
+  const first = setTargets[0] || { reps: null, weight: null }
+
+  const { error } = await supabase
+    .from('training_exercises')
+    .update({
+      set_targets: setTargets,
+      prescribed_sets: setTargets.length,
+      prescribed_reps: first.reps,
+      prescribed_weight: first.weight,
+      rest_seconds: restSeconds,
+      extra_fields: extraFields,
+      notes
+    })
+    .eq('id', teId)
+
+  if (error) { console.log(error); alert('Something went wrong'); return }
+  await loadExercisesList()
+}
+
+async function deleteExerciseRow(id) {
+  if (!confirm('Remove this exercise from the training?')) return
+
+  const { error } = await supabase.from('training_exercises').delete().eq('id', id)
+  if (error) { console.log(error); alert('Something went wrong'); return }
+  loadExercisesList()
+}
+
+document.getElementById('trainingExercisesList').addEventListener('click', async function(e) {
+  const thumbBtn = e.target.closest('.builder-exercise-thumb')
+  if (thumbBtn && thumbBtn.dataset.videoUrl) {
+    playInlineVideo(thumbBtn, thumbBtn.dataset.videoUrl)
+    return
+  }
+
   const btn = e.target.closest('[data-action]')
   if (!btn) return
-  if (btn.dataset.action === 'edit') openEditModal(btn.dataset.id)
-  else if (btn.dataset.action === 'delete') deleteExerciseRow(btn.dataset.id)
+  const card = btn.closest('.builder-exercise-card')
+  const teId = card ? card.dataset.id : null
+  const te = teId ? exercisesCache.find(t => t.id === teId) : null
+  const isTimed = !!(te && te.exercises && te.exercises.type === 'timed')
+
+  if (btn.dataset.action === 'add-set') {
+    addSetTargetRow(card.querySelector('.set-target-rows'), isTimed)
+  } else if (btn.dataset.action === 'remove-set') {
+    removeSetTargetRow(btn.closest('.set-target-row'))
+  } else if (btn.dataset.action === 'save-exercise') {
+    await saveExerciseCard(teId)
+  } else if (btn.dataset.action === 'delete-exercise') {
+    await deleteExerciseRow(teId)
+  } else if (btn.dataset.action === 'add-extra-field') {
+    addExtraFieldRow(`extraFields-${teId}`)
+  }
 })
 
 // ==========================================================================
@@ -340,74 +480,6 @@ document.getElementById('saveTCreateExerciseBtn').addEventListener('click', asyn
   document.getElementById('tCreateExerciseModal').classList.remove('active')
   await addExerciseToTraining(data[0].id)
 })
-
-// ==========================================================================
-// ---- EDIT / DELETE AN EXERCISE ROW ----
-// ==========================================================================
-function openEditModal(id) {
-  currentEditTE = exercisesCache.find(te => te.id === id)
-  if (!currentEditTE) return
-
-  const isTimed = currentEditTE.exercises && currentEditTE.exercises.type === 'timed'
-  const duration = parseDuration(currentEditTE.prescribed_reps)
-
-  document.getElementById('tEditExerciseTitle').textContent =
-    'Edit ' + (currentEditTE.exercises ? currentEditTE.exercises.name : 'Exercise')
-  document.getElementById('tEditSets').value = currentEditTE.prescribed_sets || ''
-  document.getElementById('tEditReps').value = isTimed ? '' : (currentEditTE.prescribed_reps || '')
-  document.getElementById('tEditDurationValue').value = isTimed ? duration.value : ''
-  document.getElementById('tEditDurationUnit').value = isTimed ? duration.unit : 'sec'
-  document.getElementById('tEditWeight').value = currentEditTE.prescribed_weight || ''
-  const rest = secondsToRest(currentEditTE.rest_seconds)
-  document.getElementById('tEditRestValue').value = rest.value
-  document.getElementById('tEditRestUnit').value = rest.unit
-  document.getElementById('tEditNotes').value = currentEditTE.notes || ''
-  document.getElementById('tEditRepsGroup').style.display = isTimed ? 'none' : 'block'
-  document.getElementById('tEditDurationGroup').style.display = isTimed ? 'block' : 'none'
-  document.getElementById('tEditWeightGroup').style.display = isTimed ? 'none' : 'block'
-
-  document.getElementById('tEditExtraFields').innerHTML = ''
-  if (currentEditTE.extra_fields) {
-    for (const [k, v] of Object.entries(currentEditTE.extra_fields)) addExtraFieldRow('tEditExtraFields', k, v)
-  }
-
-  document.getElementById('tEditExerciseModal').classList.add('active')
-}
-
-document.getElementById('cancelTEditExerciseBtn').addEventListener('click', function() {
-  document.getElementById('tEditExerciseModal').classList.remove('active')
-})
-
-document.getElementById('saveTEditExerciseBtn').addEventListener('click', async function() {
-  const isTimed = currentEditTE.exercises && currentEditTE.exercises.type === 'timed'
-
-  const sets = document.getElementById('tEditSets').value ? parseInt(document.getElementById('tEditSets').value) : null
-  const reps = isTimed
-    ? formatDuration(document.getElementById('tEditDurationValue').value, document.getElementById('tEditDurationUnit').value)
-    : (document.getElementById('tEditReps').value.trim() || null)
-  const weight = isTimed ? null : (document.getElementById('tEditWeight').value ? parseFloat(document.getElementById('tEditWeight').value) : null)
-  const restSeconds = restToSeconds(document.getElementById('tEditRestValue').value, document.getElementById('tEditRestUnit').value)
-  const notes = document.getElementById('tEditNotes').value.trim() || null
-  const extraFields = collectExtraFields('tEditExtraFields')
-
-  const { error } = await supabase
-    .from('training_exercises')
-    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, rest_seconds: restSeconds, extra_fields: extraFields, notes })
-    .eq('id', currentEditTE.id)
-
-  if (error) { console.log(error); alert('Something went wrong'); return }
-
-  document.getElementById('tEditExerciseModal').classList.remove('active')
-  loadExercisesList()
-})
-
-async function deleteExerciseRow(id) {
-  if (!confirm('Remove this exercise from the training?')) return
-
-  const { error } = await supabase.from('training_exercises').delete().eq('id', id)
-  if (error) { console.log(error); alert('Something went wrong'); return }
-  loadExercisesList()
-}
 
 // ==========================================================================
 // ---- RENAME TRAINING ----

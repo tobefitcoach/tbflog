@@ -26,7 +26,6 @@ const { data: { session } } = await supabase.auth.getSession()
 let calendarEntriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let calendarLoaded = false
 let currentDayDateForModal = null // date currently shown in the day-detail modal
-let currentEditScheduledPE = null
 
 const today = new Date()
 let currentViewYear = today.getFullYear()
@@ -97,7 +96,7 @@ async function loadCalendarMonth(year, month) {
 
   const { data, error } = await supabase
     .from('programs')
-    .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type))))')
+    .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url))))')
     .eq('athlete_id', athleteId)
     .eq('is_template', false)
 
@@ -210,34 +209,75 @@ function openDayModal(dateStr) {
           </div>
           ${exercises.length === 0
             ? '<p class="no-metrics">No exercises</p>'
-            : `<ul class="detail-list">${exercises.map(renderScheduledExerciseRow).join('')}</ul>`}
+            : exercises.map(renderScheduledExerciseCard).join('')}
         </div>
       `
     }).join('')
   }
 
   document.getElementById('dayDetailModal').classList.add('active')
+
+  // innerHTML wipes any dynamically-built children, so extra field rows
+  // (built with document.createElement, not template strings) get
+  // re-populated here for every card
+  for (const entry of entries) {
+    for (const pe of entry.day.program_exercises) {
+      if (pe.extra_fields) {
+        for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRowCal(`extraFieldsSched-${pe.id}`, k, v)
+      }
+    }
+  }
 }
 
-function renderScheduledExerciseRow(pe) {
+// Same card look/behaviour as training-builder.js / program-builder.js -
+// video thumbnail, one row per set with its own reps/weight target, rest
+// time, notes - editing an already-scheduled exercise directly from the
+// calendar, same underlying program_exercises table program-builder.js
+// edits, just reached a different way (day already has this exercise on it
+// vs. picking one to add).
+function renderScheduledExerciseCard(pe) {
   const isTimed = pe.exercises && pe.exercises.type === 'timed'
-  const parts = []
-  if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
-  if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
-  if (pe.prescribed_weight) parts.push(`${pe.prescribed_weight}kg`)
-  if (pe.extra_fields) {
-    for (const [k, v] of Object.entries(pe.extra_fields)) parts.push(`${k}: ${v}`)
-  }
-  const summary = parts.join(' × ')
+  const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
+  const thumb = getYouTubeThumbnailCal(videoUrl)
+  const targets = deriveSetTargetsCal(pe)
+  const rest = secondsToRestCal(pe.rest_seconds)
+  const rowsHtml = targets.map((t, i) => renderSetTargetRowCal(i + 1, t, isTimed, targets.length === 1)).join('')
 
   return `
-    <li class="detail-row">
-      <span>${pe.exercises ? pe.exercises.name : 'Unknown exercise'}${summary ? ' — ' + summary : ''}${pe.notes ? ' (' + pe.notes + ')' : ''}</span>
-      <span style="display:flex; gap:8px">
-        <button class="btn-edit-entry" data-action="edit-scheduled" data-pe-id="${pe.id}">✏</button>
-        <button class="btn-delete-measurement" data-action="delete-scheduled" data-pe-id="${pe.id}">🗑</button>
-      </span>
-    </li>
+    <div class="builder-exercise-card" data-id="${pe.id}">
+      <div class="builder-exercise-card-header">
+        <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
+        </button>
+        <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+        <button type="button" class="btn-delete-measurement" data-action="delete-scheduled" title="Remove exercise">🗑</button>
+      </div>
+      <div class="builder-exercise-rest-row">
+        <span>Rest between sets:</span>
+        <input type="number" class="rest-value-input" value="${rest.value}" placeholder="e.g. 90">
+        <select class="rest-unit-select">
+          <option value="sec" ${rest.unit === 'sec' ? 'selected' : ''}>sec</option>
+          <option value="min" ${rest.unit === 'min' ? 'selected' : ''}>min</option>
+        </select>
+      </div>
+      <div class="set-target-rows">
+        ${rowsHtml}
+      </div>
+      <button type="button" class="builder-add-set-btn" data-action="add-set">+ Add Set</button>
+      <div class="builder-exercise-notes" style="margin-top:16px">
+        <label>Extra Fields (optional)</label>
+        <div class="extra-fields-container" id="extraFieldsSched-${pe.id}"></div>
+        <button type="button" class="btn-create-metric" data-action="add-extra-field" style="margin-top:6px">+ Add Field</button>
+      </div>
+      <div class="builder-exercise-notes">
+        <label>Notes (visible to the athlete)</label>
+        <input type="text" class="exercise-notes-input" value="${pe.notes || ''}" placeholder="e.g. Focus on controlled tempo">
+      </div>
+      <div class="builder-exercise-footer">
+        <span></span>
+        <button type="button" class="btn-save" data-action="save-scheduled">💾 Save</button>
+      </div>
+    </div>
   `
 }
 
@@ -251,12 +291,36 @@ function findScheduledPE(peId) {
   return null
 }
 
-document.getElementById('dayDetailContent').addEventListener('click', function(e) {
+document.getElementById('dayDetailContent').addEventListener('click', async function(e) {
+  const thumbBtn = e.target.closest('.builder-exercise-thumb')
+  if (thumbBtn && thumbBtn.dataset.videoUrl) {
+    playInlineVideoCal(thumbBtn, thumbBtn.dataset.videoUrl)
+    return
+  }
+
   const btn = e.target.closest('[data-action]')
   if (!btn) return
-  if (btn.dataset.action === 'edit-scheduled') openEditScheduledModal(btn.dataset.peId)
-  else if (btn.dataset.action === 'delete-scheduled') deleteScheduledExercise(btn.dataset.peId)
-  else if (btn.dataset.action === 'delete-training') deleteTraining(btn.dataset.mode, btn.dataset.programId, btn.dataset.programDayId)
+
+  if (btn.dataset.action === 'delete-training') {
+    deleteTraining(btn.dataset.mode, btn.dataset.programId, btn.dataset.programDayId)
+    return
+  }
+
+  const card = btn.closest('.builder-exercise-card')
+  const peId = card ? card.dataset.id : null
+
+  if (btn.dataset.action === 'delete-scheduled') {
+    await deleteScheduledExercise(peId)
+  } else if (btn.dataset.action === 'add-set') {
+    const pe = findScheduledPE(peId)
+    addSetTargetRowCal(card.querySelector('.set-target-rows'), !!(pe && pe.exercises && pe.exercises.type === 'timed'))
+  } else if (btn.dataset.action === 'remove-set') {
+    removeSetTargetRowCal(btn.closest('.set-target-row'))
+  } else if (btn.dataset.action === 'save-scheduled') {
+    await saveScheduledExercise(peId)
+  } else if (btn.dataset.action === 'add-extra-field') {
+    addExtraFieldRowCal(`extraFieldsSched-${peId}`)
+  }
 })
 
 // Ad-hoc trainings only ever cover the one day they were created for, so
@@ -285,65 +349,44 @@ document.getElementById('closeDayDetailBtn').addEventListener('click', function(
 
 // ==========================================================================
 // ---- EDIT / DELETE A SCHEDULED EXERCISE ----
+// Always-editable card (see renderScheduledExerciseCard above), same
+// pattern as training-builder.js/program-builder.js - no modal.
 // ==========================================================================
-function openEditScheduledModal(peId) {
-  currentEditScheduledPE = findScheduledPE(peId)
-  if (!currentEditScheduledPE) return
+async function saveScheduledExercise(peId) {
+  const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
+  if (!card) return
 
-  const isTimed = currentEditScheduledPE.exercises && currentEditScheduledPE.exercises.type === 'timed'
+  const rows = [...card.querySelectorAll('.set-target-row')]
+  const setTargets = rows.map(row => {
+    const reps = row.querySelector('.set-reps-input').value.trim() || null
+    const weightInput = row.querySelector('.set-weight-input')
+    const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
+    return { reps, weight }
+  })
 
-  const duration = parseDurationCal(currentEditScheduledPE.prescribed_reps)
-
-  document.getElementById('editScheduledExerciseTitle').textContent =
-    'Edit ' + (currentEditScheduledPE.exercises ? currentEditScheduledPE.exercises.name : 'Exercise')
-  document.getElementById('editScheduledSets').value = currentEditScheduledPE.prescribed_sets || ''
-  document.getElementById('editScheduledReps').value = isTimed ? '' : (currentEditScheduledPE.prescribed_reps || '')
-  document.getElementById('editScheduledDurationValue').value = isTimed ? duration.value : ''
-  document.getElementById('editScheduledDurationUnit').value = isTimed ? duration.unit : 'sec'
-  document.getElementById('editScheduledWeight').value = currentEditScheduledPE.prescribed_weight || ''
-  const rest = secondsToRestCal(currentEditScheduledPE.rest_seconds)
-  document.getElementById('editScheduledRestValue').value = rest.value
-  document.getElementById('editScheduledRestUnit').value = rest.unit
-  document.getElementById('editScheduledNotes').value = currentEditScheduledPE.notes || ''
-  document.getElementById('editScheduledRepsGroup').style.display = isTimed ? 'none' : 'block'
-  document.getElementById('editScheduledDurationGroup').style.display = isTimed ? 'block' : 'none'
-  document.getElementById('editScheduledWeightGroup').style.display = isTimed ? 'none' : 'block'
-
-  document.getElementById('editScheduledExtraFields').innerHTML = ''
-  if (currentEditScheduledPE.extra_fields) {
-    for (const [k, v] of Object.entries(currentEditScheduledPE.extra_fields)) addExtraFieldRowCal('editScheduledExtraFields', k, v)
-  }
-
-  document.getElementById('editScheduledExerciseModal').classList.add('active')
-}
-
-document.getElementById('cancelEditScheduledBtn').addEventListener('click', function() {
-  document.getElementById('editScheduledExerciseModal').classList.remove('active')
-})
-
-document.getElementById('saveEditScheduledBtn').addEventListener('click', async function() {
-  const isTimed = currentEditScheduledPE.exercises && currentEditScheduledPE.exercises.type === 'timed'
-
-  const sets = document.getElementById('editScheduledSets').value ? parseInt(document.getElementById('editScheduledSets').value) : null
-  const reps = isTimed
-    ? formatDurationCal(document.getElementById('editScheduledDurationValue').value, document.getElementById('editScheduledDurationUnit').value)
-    : (document.getElementById('editScheduledReps').value.trim() || null)
-  const weight = isTimed ? null : (document.getElementById('editScheduledWeight').value ? parseFloat(document.getElementById('editScheduledWeight').value) : null)
-  const restSeconds = restToSecondsCal(document.getElementById('editScheduledRestValue').value, document.getElementById('editScheduledRestUnit').value)
-  const notes = document.getElementById('editScheduledNotes').value.trim() || null
-  const extraFields = collectExtraFieldsCal('editScheduledExtraFields')
+  const restSeconds = restToSecondsCal(card.querySelector('.rest-value-input').value, card.querySelector('.rest-unit-select').value)
+  const notes = card.querySelector('.exercise-notes-input').value.trim() || null
+  const extraFields = collectExtraFieldsCal(`extraFieldsSched-${peId}`)
+  const first = setTargets[0] || { reps: null, weight: null }
 
   const { error } = await supabase
     .from('program_exercises')
-    .update({ prescribed_sets: sets, prescribed_reps: reps, prescribed_weight: weight, rest_seconds: restSeconds, extra_fields: extraFields, notes })
-    .eq('id', currentEditScheduledPE.id)
+    .update({
+      set_targets: setTargets,
+      prescribed_sets: setTargets.length,
+      prescribed_reps: first.reps,
+      prescribed_weight: first.weight,
+      rest_seconds: restSeconds,
+      extra_fields: extraFields,
+      notes
+    })
+    .eq('id', peId)
 
   if (error) { console.log(error); alert('Something went wrong'); return }
 
-  document.getElementById('editScheduledExerciseModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
   openDayModal(currentDayDateForModal)
-})
+}
 
 async function deleteScheduledExercise(peId) {
   if (!confirm('Remove this exercise?')) return
@@ -492,12 +535,31 @@ function renderWorkoutPreviewExercise(te) {
   `
 }
 
+// "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,
+// 8@50kg" for a real pyramid. Returns null when this exercise has no
+// per-set targets yet, so callers fall back to the old single-value summary
+function formatSetTargetsCal(setTargets, isTimed) {
+  if (!setTargets || setTargets.length === 0) return null
+  if (isTimed) return setTargets.map(s => s.reps || '-').join(' / ')
+  const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
+  if (sameWeight) {
+    const reps = setTargets.map(s => s.reps || '-').join('/')
+    return `${reps} reps${setTargets[0].weight != null ? ' @ ' + setTargets[0].weight + 'kg' : ''}`
+  }
+  return setTargets.map(s => `${s.reps || '-'}${s.weight != null ? '@' + s.weight + 'kg' : ''}`).join(', ')
+}
+
 function targetLineForTraining(te) {
   const isTimed = te.exercises && te.exercises.type === 'timed'
+  const setTargetsText = formatSetTargetsCal(te.set_targets, isTimed)
   const parts = []
-  if (te.prescribed_sets) parts.push(`${te.prescribed_sets} sets`)
-  if (te.prescribed_reps) parts.push(isTimed ? te.prescribed_reps : `${te.prescribed_reps} reps`)
-  if (te.prescribed_weight) parts.push(`${te.prescribed_weight}kg`)
+  if (setTargetsText) {
+    parts.push(setTargetsText)
+  } else {
+    if (te.prescribed_sets) parts.push(`${te.prescribed_sets} sets`)
+    if (te.prescribed_reps) parts.push(isTimed ? te.prescribed_reps : `${te.prescribed_reps} reps`)
+    if (te.prescribed_weight) parts.push(`${te.prescribed_weight}kg`)
+  }
   if (te.extra_fields) {
     for (const [k, v] of Object.entries(te.extra_fields)) parts.push(`${k}: ${v}`)
   }
@@ -813,6 +875,7 @@ async function cloneTrainingToDay(trainingId, dayId) {
       prescribed_weight: te.prescribed_weight,
       rest_seconds: te.rest_seconds,
       extra_fields: te.extra_fields,
+      set_targets: te.set_targets,
       notes: te.notes
     }])
     if (insertError) { console.log(insertError); alert('Something went wrong copying one of the exercises'); return }
@@ -860,21 +923,11 @@ async function findOrCreateAdHocDay(dateStr, name) {
 
 // ==========================================================================
 // ---- DURATION + EXTRA FIELD HELPERS ----
-// Still needed by the "edit a scheduled exercise" modal (openEditScheduledModal
-// / saveEditScheduledBtn above) even though the calendar no longer has its
-// own exercise picker - editing what's already on a day is still supported.
+// Still needed by the always-editable scheduled-exercise card
+// (renderScheduledExerciseCard/saveScheduledExercise above) even though the
+// calendar no longer has its own exercise picker - editing what's already
+// on a day is still supported.
 // ==========================================================================
-function formatDurationCal(value, unit) {
-  if (!value) return null
-  return `${value} ${unit}`
-}
-
-function parseDurationCal(text) {
-  if (!text) return { value: '', unit: 'sec' }
-  const match = String(text).match(/^(\d+(?:\.\d+)?)\s*(sec|min)/i)
-  if (match) return { value: match[1], unit: match[2].toLowerCase() }
-  return { value: text, unit: 'sec' }
-}
 
 // rest_seconds is stored as a plain int (a rest timer counts down from a
 // number, not a parsed string) - these convert to/from the value+unit inputs
@@ -913,9 +966,65 @@ function collectExtraFieldsCal(containerId) {
   return Object.keys(result).length ? result : null
 }
 
-document.getElementById('editScheduledAddFieldBtn').addEventListener('click', function() {
-  addExtraFieldRowCal('editScheduledExtraFields')
-})
+// ==========================================================================
+// ---- PER-SET TARGETS ----
+// Same shape/reasoning as training-builder.js / program-builder.js: a
+// program_exercises row keeps one set_targets array ([{reps, weight}, ...],
+// index 0 = Set 1) so each set can have its own target, with
+// prescribed_sets/prescribed_reps/prescribed_weight kept in sync (length /
+// first set's values) so every other place that only reads those old
+// columns keeps working untouched.
+// ==========================================================================
+function deriveSetTargetsCal(row) {
+  if (row.set_targets && row.set_targets.length) return row.set_targets
+  const count = row.prescribed_sets || 1
+  return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null }))
+}
+
+function renderSetTargetRowCal(setNumber, target, isTimed, onlyRow) {
+  return `
+    <div class="set-target-row" data-set-number="${setNumber}">
+      <span class="set-label">Set ${setNumber}</span>
+      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}">
+      ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">`}
+      <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
+    </div>
+  `
+}
+
+function addSetTargetRowCal(rowsEl, isTimed) {
+  const rows = [...rowsEl.querySelectorAll('.set-target-row')]
+  if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRowCal(rows.length + 1, { reps: null, weight: null }, isTimed, false))
+}
+
+// Removal can happen from the middle of the list, so every remaining row
+// needs relabelling, not just a length check
+function removeSetTargetRowCal(row) {
+  const rowsEl = row.parentElement
+  row.remove()
+  const remaining = [...rowsEl.querySelectorAll('.set-target-row')]
+  remaining.forEach((r, i) => {
+    r.dataset.setNumber = i + 1
+    r.querySelector('.set-label').textContent = `Set ${i + 1}`
+  })
+  if (remaining.length === 1) remaining[0].querySelector('.set-remove-btn').disabled = true
+}
+
+function getYouTubeEmbedUrlCal(url) {
+  if (!url) return null
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null
+}
+
+// Tapping a card's thumbnail swaps it for a playing embed right in place,
+// same as the athlete's own exercise card
+function playInlineVideoCal(containerEl, url) {
+  if (!url) return
+  const embedUrl = getYouTubeEmbedUrlCal(url)
+  if (!embedUrl) { window.open(url, '_blank'); return }
+  containerEl.innerHTML = `<iframe src="${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`
+}
 
 // ==========================================================================
 // ---- ASSIGN PROGRAM ----
@@ -1008,6 +1117,7 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
           prescribed_weight: pe.prescribed_weight,
           rest_seconds: pe.rest_seconds,
           extra_fields: pe.extra_fields,
+          set_targets: pe.set_targets,
           notes: pe.notes
         }])
         if (peError) throw peError

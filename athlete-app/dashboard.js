@@ -379,12 +379,33 @@ function dayIsFullyLogged(entries) {
   return totalSets > 0 && doneSets >= totalSets
 }
 
+// "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,
+// 8@50kg" for a real pyramid (both reps and weight differ per set). Returns
+// null when this exercise has no per-set targets yet, so targetLine() can
+// fall back to its old single-value summary for pre-pyramid data.
+function formatSetTargets(setTargets, isTimed) {
+  if (!setTargets || setTargets.length === 0) return null
+  const unit = athlete.weight_unit || 'kg'
+  if (isTimed) return setTargets.map(s => s.reps || '-').join(' / ')
+  const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
+  if (sameWeight) {
+    const reps = setTargets.map(s => s.reps || '-').join('/')
+    return `${reps} reps${setTargets[0].weight != null ? ' @ ' + formatWeight(setTargets[0].weight, unit) + unit : ''}`
+  }
+  return setTargets.map(s => `${s.reps || '-'}${s.weight != null ? '@' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
+}
+
 function targetLine(pe) {
   const isTimed = pe.exercises && pe.exercises.type === 'timed'
+  const setTargetsText = formatSetTargets(pe.set_targets, isTimed)
   const parts = []
-  if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
-  if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
-  if (pe.prescribed_weight) parts.push(`${formatWeight(pe.prescribed_weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'}`)
+  if (setTargetsText) {
+    parts.push(setTargetsText)
+  } else {
+    if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
+    if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
+    if (pe.prescribed_weight) parts.push(`${formatWeight(pe.prescribed_weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'}`)
+  }
   if (pe.extra_fields) {
     for (const [k, v] of Object.entries(pe.extra_fields)) parts.push(`${k}: ${v}`)
   }
@@ -1071,12 +1092,17 @@ function renderWorkoutSummary(finishedSession, entry) {
 // ==========================================================================
 function renderSetRow(pe, setNumber, logged, isTimed, isExtra) {
   const checked = !!(logged && logged.completed_at)
-  const repsVal = logged ? (logged.actual_reps || '') : (pe.prescribed_reps || '')
+  // Each set can have its own coach-set target now (a pyramid) - fall back
+  // to the old shared prescribed_reps/prescribed_weight for sets beyond
+  // what the coach targeted (an athlete-added extra set) or for
+  // pre-pyramid data that has no set_targets at all
+  const target = pe.set_targets && pe.set_targets[setNumber - 1]
+  const repsVal = logged ? (logged.actual_reps || '') : ((target ? target.reps : pe.prescribed_reps) || '')
   // Each row starts out in the athlete's default unit (data-unit), but can
   // be flipped per-row with the unit toggle button below - actual_weight is
   // always stored in kg regardless of which unit was used to type it in
   const unit = athlete.weight_unit || 'kg'
-  const weightKg = logged ? logged.actual_weight : pe.prescribed_weight
+  const weightKg = logged ? logged.actual_weight : (target ? target.weight : pe.prescribed_weight)
   const weightVal = weightKg != null ? formatWeight(weightKg, unit) : ''
 
   return `

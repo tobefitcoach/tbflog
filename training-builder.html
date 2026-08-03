@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Training Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=7" />
-    <link rel="stylesheet" href="athlete.css?v=12" />
+    <link rel="stylesheet" href="athlete.css?v=13" />
   </head>
   <body>
 
@@ -50,7 +50,7 @@
           <button class="btn-profile-action" id="renameTrainingBtn">✏ Rename</button>
         </div>
         <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:16px">Drag an exercise from the library to add it here.</p>
-        <ul class="detail-list" id="trainingExercisesList"></ul>
+        <div id="trainingExercisesList"></div>
       </div>
     </div>
 
@@ -115,60 +115,7 @@
       </div>
     </div>
 
-    <!-- Edit Exercise Modal: only prescribed sets/reps/weight/extra
-         fields/notes are editable, not the exercise itself -->
-    <div class="modal-overlay" id="tEditExerciseModal">
-      <div class="modal">
-        <h2 id="tEditExerciseTitle">Edit Exercise</h2>
-        <div class="form-group">
-          <label>Sets</label>
-          <input type="number" id="tEditSets" />
-        </div>
-        <div class="form-group" id="tEditRepsGroup">
-          <label>Reps</label>
-          <input type="text" id="tEditReps" />
-        </div>
-        <div class="form-group" id="tEditDurationGroup" style="display:none">
-          <label>Duration</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="tEditDurationValue" placeholder="e.g. 45" style="flex:1" />
-            <select id="tEditDurationUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group" id="tEditWeightGroup">
-          <label>Weight (kg, optional)</label>
-          <input type="number" id="tEditWeight" />
-        </div>
-        <div class="form-group">
-          <label>Rest Between Sets (optional)</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="tEditRestValue" placeholder="e.g. 90" style="flex:1" />
-            <select id="tEditRestUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Extra Fields (optional)</label>
-          <div id="tEditExtraFields"></div>
-          <button type="button" class="btn-create-metric" id="tEditAddFieldBtn">+ Add Field</button>
-        </div>
-        <div class="form-group">
-          <label>Notes (optional)</label>
-          <input type="text" id="tEditNotes" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelTEditExerciseBtn">Cancel</button>
-          <button class="btn-save" id="saveTEditExerciseBtn">Save Changes</button>
-        </div>
-      </div>
-    </div>
-
-    <script type="module" src="training-builder.js?v=1"></script>
+    <script type="module" src="training-builder.js?v=2"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=7" />
-  <link rel="stylesheet" href="athlete.css?v=12" />
+  <link rel="stylesheet" href="athlete.css?v=13" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
@@ -878,62 +878,9 @@
       </div>
     </div>
 
-    <!-- Edit Scheduled Exercise Modal: only prescribed sets/reps/weight/
-         notes are editable, same reasoning as program-builder.html -->
-    <div class="modal-overlay" id="editScheduledExerciseModal">
-      <div class="modal">
-        <h2 id="editScheduledExerciseTitle">Edit Exercise</h2>
-        <div class="form-group">
-          <label>Sets</label>
-          <input type="number" id="editScheduledSets" />
-        </div>
-        <div class="form-group" id="editScheduledRepsGroup">
-          <label>Reps</label>
-          <input type="text" id="editScheduledReps" />
-        </div>
-        <div class="form-group" id="editScheduledDurationGroup" style="display:none">
-          <label>Duration</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="editScheduledDurationValue" placeholder="e.g. 45" style="flex:1" />
-            <select id="editScheduledDurationUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group" id="editScheduledWeightGroup">
-          <label>Weight (kg, optional)</label>
-          <input type="number" id="editScheduledWeight" />
-        </div>
-        <div class="form-group">
-          <label>Rest Between Sets (optional)</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="editScheduledRestValue" placeholder="e.g. 90" style="flex:1" />
-            <select id="editScheduledRestUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Extra Fields (optional)</label>
-          <div id="editScheduledExtraFields"></div>
-          <button type="button" class="btn-create-metric" id="editScheduledAddFieldBtn">+ Add Field</button>
-        </div>
-        <div class="form-group">
-          <label>Notes (optional)</label>
-          <input type="text" id="editScheduledNotes" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelEditScheduledBtn">Cancel</button>
-          <button class="btn-save" id="saveEditScheduledBtn">Save Changes</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Main page logic (see athlete.js) -->
     <script type="module" src="athlete.js?v=6"></script>
-    <script type="module" src="athlete-calendar.js?v=6"></script>
+    <script type="module" src="athlete-calendar.js?v=7"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=7" />
-    <link rel="stylesheet" href="athlete.css?v=12" />
+    <link rel="stylesheet" href="athlete.css?v=13" />
   </head>
   <body>
 
@@ -76,7 +76,9 @@
 
     <!-- Exercise Picker Modal: pick an existing exercise from the library,
          or create a brand new one on the fly (opens createExerciseModal on
-         top of this), then set prescribed sets/reps/weight/notes -->
+         top of this) - it's added as a bare row, ready to edit inline as a
+         card right away (sets/reps/weight/rest/notes), same as dragging an
+         exercise into a Training -->
     <div class="modal-overlay" id="exercisePickerModal">
       <div class="modal">
         <h2>Add Exercise</h2>
@@ -88,47 +90,6 @@
         </div>
         <p style="text-align:center; color:#aaaacc; font-size:13px; margin: 8px 0">or</p>
         <button class="btn-create-metric" id="createNewExerciseBtn">+ Create New Exercise</button>
-        <div class="form-group" style="margin-top:16px">
-          <label>Sets</label>
-          <input type="number" id="pickerSets" placeholder="e.g. 3" />
-        </div>
-        <div class="form-group" id="pickerRepsGroup">
-          <label>Reps</label>
-          <input type="text" id="pickerReps" placeholder="e.g. 8-12" />
-        </div>
-        <div class="form-group" id="pickerDurationGroup" style="display:none">
-          <label>Duration</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="pickerDurationValue" placeholder="e.g. 45" style="flex:1" />
-            <select id="pickerDurationUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group" id="pickerWeightGroup">
-          <label>Weight (kg, optional)</label>
-          <input type="number" id="pickerWeight" placeholder="e.g. 60" />
-        </div>
-        <div class="form-group">
-          <label>Rest Between Sets (optional)</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="pickerRestValue" placeholder="e.g. 90" style="flex:1" />
-            <select id="pickerRestUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Notes (optional)</label>
-          <input type="text" id="pickerNotes" placeholder="e.g. tempo 3-1-1" />
-        </div>
-        <div class="form-group">
-          <label>Extra Fields (optional)</label>
-          <div id="pickerExtraFields"></div>
-          <button type="button" class="btn-create-metric" id="pickerAddFieldBtn">+ Add Field (e.g. % of 1RM, RPE)</button>
-        </div>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelExercisePickerBtn">Cancel</button>
           <button class="btn-save" id="saveExercisePickerBtn">Add to Day</button>
@@ -181,61 +142,7 @@
       </div>
     </div>
 
-    <!-- Edit Scheduled Exercise Modal: only the prescribed sets/reps/weight/
-         notes are editable here, not the exercise itself (delete + re-add
-         to swap the exercise) -->
-    <div class="modal-overlay" id="editExerciseModal">
-      <div class="modal">
-        <h2 id="editExerciseTitle">Edit Exercise</h2>
-        <div class="form-group">
-          <label>Sets</label>
-          <input type="number" id="editSets" />
-        </div>
-        <div class="form-group" id="editRepsGroup">
-          <label>Reps</label>
-          <input type="text" id="editReps" />
-        </div>
-        <div class="form-group" id="editDurationGroup" style="display:none">
-          <label>Duration</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="editDurationValue" placeholder="e.g. 45" style="flex:1" />
-            <select id="editDurationUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group" id="editWeightGroup">
-          <label>Weight (kg, optional)</label>
-          <input type="number" id="editWeight" />
-        </div>
-        <div class="form-group">
-          <label>Rest Between Sets (optional)</label>
-          <div style="display:flex; gap:8px">
-            <input type="number" id="editRestValue" placeholder="e.g. 90" style="flex:1" />
-            <select id="editRestUnit" style="flex:1">
-              <option value="sec">Seconds</option>
-              <option value="min">Minutes</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group" id="editExtraFieldsGroup">
-          <label>Extra Fields (optional)</label>
-          <div id="editExtraFields"></div>
-          <button type="button" class="btn-create-metric" id="editAddFieldBtn">+ Add Field</button>
-        </div>
-        <div class="form-group">
-          <label>Notes (optional)</label>
-          <input type="text" id="editNotes" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelEditExerciseBtn">Cancel</button>
-          <button class="btn-save" id="saveEditExerciseBtn">Save Changes</button>
-        </div>
-      </div>
-    </div>
-
-    <script type="module" src="program-builder.js?v=1"></script>
+    <script type="module" src="program-builder.js?v=2"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>
