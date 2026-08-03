@@ -438,3 +438,41 @@ alter table athletes add column if not exists weekly_recap_enabled boolean not n
 -- gets it by default" going forward, not just new signups.
 alter table athletes alter column weekly_recap_enabled set default true;
 update athletes set weekly_recap_enabled = true where weekly_recap_enabled = false;
+
+-- ==========================================================================
+-- MISSING INDEXES - the real cause of "saving takes forever". Postgres does
+-- NOT automatically index foreign key columns (only primary keys and
+-- explicit unique constraints get one for free). Almost every RLS policy in
+-- this app checks permission by walking a join chain - e.g. saving a set
+-- checks program_exercises -> program_days -> program_weeks -> programs -
+-- and every one of those join columns has been unindexed since day one.
+-- That means every single set save has been asking Postgres to scan whole
+-- tables to prove permission, and it only gets slower as more programs/
+-- weeks/days/logs pile up, which is exactly the "still happens, gets worse
+-- over time" pattern being reported. Client-side retry/timeout/parallelism
+-- work (already done) can't fix a slow query - it can only fail faster.
+-- Purely additive and safe to run anytime: indexes never change what a
+-- query returns, only how fast Postgres can find it.
+-- ==========================================================================
+create index if not exists idx_athletes_coach_id on athletes(coach_id);
+
+create index if not exists idx_exercises_coach_id on exercises(coach_id);
+
+create index if not exists idx_programs_coach_id on programs(coach_id);
+create index if not exists idx_programs_athlete_id on programs(athlete_id);
+
+create index if not exists idx_program_weeks_program_id on program_weeks(program_id);
+create index if not exists idx_program_days_week_id on program_days(week_id);
+create index if not exists idx_program_exercises_day_id on program_exercises(day_id);
+
+create index if not exists idx_trainings_coach_id on trainings(coach_id);
+create index if not exists idx_training_exercises_training_id on training_exercises(training_id);
+
+create index if not exists idx_exercise_log_sets_athlete_id on exercise_log_sets(athlete_id);
+create index if not exists idx_workout_sessions_athlete_id on workout_sessions(athlete_id);
+create index if not exists idx_workout_sessions_program_day_id on workout_sessions(program_day_id);
+
+create index if not exists idx_athlete_metrics_athlete_id on athlete_metrics(athlete_id);
+create index if not exists idx_measurements_athlete_id on measurements(athlete_id);
+create index if not exists idx_bodyweight_athlete_id on bodyweight(athlete_id);
+create index if not exists idx_athlete_notes_athlete_id on athlete_notes(athlete_id);
