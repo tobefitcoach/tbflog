@@ -422,3 +422,13 @@ alter table athletes add column if not exists weight_unit text not null default 
 drop policy if exists "athlete updates own settings" on athletes;
 create policy "athlete updates own settings" on athletes for update
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ==========================================================================
+-- Weekly recap opt-in (settings only, for now). Just capturing what each
+-- athlete wants, reusing "athlete updates own settings" above - no need
+-- for a new policy. Actually SENDING a recap is a separate, much bigger
+-- piece of work (a service worker, push subscriptions, and a scheduled job)
+-- that's deliberately not built yet. Workout-reminder timing (night
+-- before/morning of) is left out entirely for the same reason, for now.
+-- ==========================================================================
+alter table athletes add column if not exists weekly_recap_enabled boolean not null default false;

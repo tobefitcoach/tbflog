@@ -60,7 +60,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await supabase
     .from('athletes')
-    .select('id, name, can_preview_next_week, weight_unit')
+    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled')
     .eq('user_id', session.user.id)
     .maybeSingle()
 
@@ -108,17 +108,31 @@ function renderWaitingToBeLinked() {
 // A place for per-athlete settings that live outside the coach-editable
 // Settings tab (which is on the coach's own athlete page) - this one is
 // self-service, for things the athlete should be able to change themselves.
-// Just weight units for now.
+// Weekly recap here is opt-in only for now - actually sending one is a
+// separate, bigger piece of work (not built yet), this just captures the
+// preference so it's ready to use once that exists.
 function renderSettings() {
   pageContent.innerHTML = `
-    <div class="form-group">
-      <label>Weight units</label>
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">Weight units</div>
+      </div>
       <select id="weightUnitSelect">
         <option value="kg" ${athlete.weight_unit !== 'lbs' ? 'selected' : ''}>Kilograms (kg)</option>
         <option value="lbs" ${athlete.weight_unit === 'lbs' ? 'selected' : ''}>Pounds (lbs)</option>
       </select>
     </div>
-    <button class="btn-cancel" id="backFromSettingsBtn">Go Back</button>
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">Weekly recap</div>
+        <div class="settings-row-desc">Get a summary of what you completed each week</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="weeklyRecapToggle" ${athlete.weekly_recap_enabled ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <button class="btn-cancel" id="backFromSettingsBtn" style="margin-top:20px">Go Back</button>
   `
 
   document.getElementById('backFromSettingsBtn').addEventListener('click', function() {
@@ -139,6 +153,24 @@ function renderSettings() {
       console.log(error)
       athlete.weight_unit = previousUnit
       e.target.value = previousUnit
+      alert('Something went wrong saving that - try again')
+    }
+  })
+
+  document.getElementById('weeklyRecapToggle').addEventListener('change', async function(e) {
+    const newValue = e.target.checked
+    const previousValue = athlete.weekly_recap_enabled
+    athlete.weekly_recap_enabled = newValue
+
+    const { error } = await supabase
+      .from('athletes')
+      .update({ weekly_recap_enabled: newValue })
+      .eq('id', athlete.id)
+
+    if (error) {
+      console.log(error)
+      athlete.weekly_recap_enabled = previousValue
+      e.target.checked = previousValue
       alert('Something went wrong saving that - try again')
     }
   })
