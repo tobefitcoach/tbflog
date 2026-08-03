@@ -404,7 +404,6 @@ let cachedTrainingExercises = {} // training_id -> exercises array
 async function openDayAddTrainingModal(dateStr) {
   currentDayDateForAddTraining = dateStr
   document.getElementById('dayAddTrainingTitle').textContent = 'Add Training — ' + formatDisplayDateCal(dateStr)
-  document.getElementById('dayAddProgramStartDate').value = dateStr
   switchDayAddTab('workout')
   resetTrainingPreview()
 
@@ -430,6 +429,8 @@ async function openDayAddTrainingModal(dateStr) {
       })
     })
   }
+
+  await loadDayAddProgramList()
 
   document.getElementById('dayAddTrainingModal').classList.add('active')
 }
@@ -523,35 +524,212 @@ function switchDayAddTab(tab) {
   document.getElementById('dayAddTabProgram').classList.toggle('active', tab === 'program')
   document.getElementById('dayAddWorkoutPanel').classList.toggle('active', tab === 'workout')
   document.getElementById('dayAddProgramPanel').classList.toggle('active', tab === 'program')
-  if (tab === 'program') loadDayAddProgramTemplates()
 }
 
 document.getElementById('dayAddTabWorkout').addEventListener('click', function() { switchDayAddTab('workout') })
 document.getElementById('dayAddTabProgram').addEventListener('click', function() { switchDayAddTab('program') })
 
-async function loadDayAddProgramTemplates() {
-  const select = document.getElementById('dayAddProgramTemplateSelect')
+// ==========================================================================
+// ---- PROGRAM TAB: list + preview + day-range picker ----
+// Same list-then-preview pattern as the Single Workout tab, but the
+// preview is a flat "Day N - label (x exercises)" list instead of full
+// exercise detail (a program can be 100+ days long). No start-date field -
+// the calendar day that was clicked to open this popup always becomes
+// whatever day the range picker below calls "day 1". selectedProgramDays
+// stores the parsed day list so the range picker knows the program's
+// total length without a second fetch.
+// ==========================================================================
+let selectedTemplateId = null
+let selectedTemplateName = null
+let totalProgramDays = 1
+let programStartDay = 1
+let programEndDay = 1
+let cachedTemplateDays = {} // template_id -> { days, totalWeeks }
+
+async function loadDayAddProgramList() {
   const data = await getProgramTemplates()
-  select.innerHTML = '<option value="">Choose a template...</option>' +
-    (data || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('')
+  const list = document.getElementById('dayAddProgramList')
+  resetProgramPreview()
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading your programs</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No program templates saved yet - create one in the Program Library first</p>'
+  } else {
+    list.innerHTML = data.map(t => `
+      <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
+        <span>${t.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewTemplate(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
 }
 
-document.getElementById('saveDayAddProgramBtn').addEventListener('click', async function() {
-  const templateId = document.getElementById('dayAddProgramTemplateSelect').value
-  const startDate = document.getElementById('dayAddProgramStartDate').value
-  if (!templateId) { alert('Please choose a template'); return }
-  if (!startDate) { alert('Please choose a start date'); return }
+function resetProgramPreview() {
+  selectedTemplateId = null
+  selectedTemplateName = null
+  document.getElementById('dayAddProgramPreview').innerHTML = '<p class="no-metrics">Select a program to preview it</p>'
+  document.getElementById('dayRangeRow').style.display = 'none'
+  document.getElementById('saveDayAddProgramBtn').disabled = true
+}
 
-  const saveBtn = document.getElementById('saveDayAddProgramBtn')
+async function previewTemplate(templateId, templateName) {
+  selectedTemplateId = templateId
+  selectedTemplateName = templateName
+
+  const preview = document.getElementById('dayAddProgramPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading…</p>'
+
+  let details = cachedTemplateDays[templateId]
+  if (!details) {
+    const { data, error } = await supabase
+      .from('program_weeks')
+      .select('*, program_days(*, program_exercises(id))')
+      .eq('program_id', templateId)
+    if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
+    details = buildTemplateDayList(data)
+    cachedTemplateDays[templateId] = details
+  }
+
+  // A different row may have been clicked while this was still loading -
+  // don't overwrite that newer preview/range with this now-stale one
+  if (selectedTemplateId !== templateId) return
+
+  totalProgramDays = Math.max(details.totalWeeks * 7, 1)
+  programStartDay = 1
+  programEndDay = totalProgramDays
+  updateDayRangeLabels()
+  document.getElementById('dayRangeRow').style.display = 'flex'
+  document.getElementById('saveDayAddProgramBtn').disabled = false
+
+  preview.innerHTML = `
+    <div class="workout-preview-header">
+      <h3>${templateName}</h3>
+      <span class="workout-preview-count">${details.totalWeeks} week${details.totalWeeks === 1 ? '' : 's'}</span>
+    </div>
+    ${details.days.length === 0
+      ? '<p class="no-metrics">No days scheduled in this program</p>'
+      : details.days.map(d => `
+        <div class="program-preview-day-row">
+          <span class="program-preview-day-num">Day ${d.linearDay}</span>
+          <span class="program-preview-day-label">${d.label || 'Day ' + d.dayNumber}${d.exerciseCount ? ' · ' + d.exerciseCount + ' exercises' : ''}</span>
+        </div>
+      `).join('')}
+  `
+}
+
+// linearDay is the day's position counting straight through the whole
+// program (week 3, day 2 -> (3-1)*7+2 = 16th day) - the same "Day N"
+// numbering resolveDate() already uses everywhere else in this app
+function buildTemplateDayList(weeks) {
+  const days = []
+  let totalWeeks = 0
+  for (const week of weeks) {
+    totalWeeks = Math.max(totalWeeks, week.week_number)
+    for (const day of week.program_days) {
+      days.push({
+        linearDay: (week.week_number - 1) * 7 + day.day_number,
+        dayNumber: day.day_number,
+        label: day.label,
+        exerciseCount: day.program_exercises.length
+      })
+    }
+  }
+  days.sort((a, b) => a.linearDay - b.linearDay)
+  return { days, totalWeeks }
+}
+
+function updateDayRangeLabels() {
+  document.getElementById('programStartDayLabel').textContent = 'Day ' + programStartDay
+  document.getElementById('programEndDayLabel').textContent = 'Day ' + programEndDay
+}
+
+function setProgramStartDay(day) {
+  programStartDay = day
+  if (programStartDay > programEndDay) programEndDay = programStartDay
+  updateDayRangeLabels()
+}
+
+function setProgramEndDay(day) {
+  programEndDay = day
+  if (programEndDay < programStartDay) programStartDay = programEndDay
+  updateDayRangeLabels()
+}
+
+// ---- Day Picker modal: a paginated grid of day numbers (4 weeks/28 days
+// per page), reused for both the Start and End fields via dayPickerTarget ----
+let dayPickerTarget = null // 'start' | 'end'
+let dayPickerPage = 0
+
+function openDayPicker(target) {
+  dayPickerTarget = target
+  const current = target === 'start' ? programStartDay : programEndDay
+  dayPickerPage = Math.floor((current - 1) / 28)
+  renderDayPickerGrid()
+  document.getElementById('dayPickerModal').classList.add('active')
+}
+
+function renderDayPickerGrid() {
+  const totalWeeks = Math.max(Math.ceil(totalProgramDays / 7), 1)
+  const pageCount = Math.max(Math.ceil(totalWeeks / 4), 1)
+  dayPickerPage = Math.max(0, Math.min(dayPickerPage, pageCount - 1))
+
+  const firstWeek = dayPickerPage * 4 + 1
+  const lastWeek = Math.min(firstWeek + 3, totalWeeks)
+  document.getElementById('dayPickerRangeLabel').textContent = `Week ${firstWeek} - ${lastWeek} of ${totalWeeks}`
+
+  const firstDay = (firstWeek - 1) * 7 + 1
+  const lastDay = Math.min(lastWeek * 7, totalProgramDays)
+  const current = dayPickerTarget === 'start' ? programStartDay : programEndDay
+
+  let cellsHtml = ''
+  for (let d = firstDay; d <= lastDay; d++) {
+    cellsHtml += `<button type="button" class="day-picker-cell ${d === current ? 'selected' : ''}" data-day="${d}">${String(d).padStart(2, '0')}</button>`
+  }
+  const grid = document.getElementById('dayPickerGrid')
+  grid.innerHTML = cellsHtml
+
+  grid.querySelectorAll('.day-picker-cell').forEach(cell => {
+    cell.addEventListener('click', function() {
+      const day = parseInt(cell.dataset.day)
+      if (dayPickerTarget === 'start') setProgramStartDay(day)
+      else setProgramEndDay(day)
+      document.getElementById('dayPickerModal').classList.remove('active')
+    })
+  })
+
+  document.getElementById('dayPickerPrevBtn').disabled = dayPickerPage === 0
+  document.getElementById('dayPickerNextBtn').disabled = dayPickerPage >= pageCount - 1
+}
+
+document.getElementById('programStartDayField').addEventListener('click', function() { openDayPicker('start') })
+document.getElementById('programEndDayField').addEventListener('click', function() { openDayPicker('end') })
+document.getElementById('dayPickerPrevBtn').addEventListener('click', function() { dayPickerPage--; renderDayPickerGrid() })
+document.getElementById('dayPickerNextBtn').addEventListener('click', function() { dayPickerPage++; renderDayPickerGrid() })
+document.getElementById('dayPickerCancelBtn').addEventListener('click', function() {
+  document.getElementById('dayPickerModal').classList.remove('active')
+})
+
+document.getElementById('saveDayAddProgramBtn').addEventListener('click', async function() {
+  if (!selectedTemplateId) { alert('Please choose a program'); return }
+
+  const saveBtn = this
   saveBtn.disabled = true
   saveBtn.textContent = 'Assigning...'
 
   try {
-    await cloneTemplateToAthlete(templateId, startDate)
+    await cloneTemplateToAthlete(selectedTemplateId, currentDayDateForAddTraining, programStartDay, programEndDay)
     document.getElementById('dayAddTrainingModal').classList.remove('active')
-    currentDayDateForModal = startDate
+    currentDayDateForModal = currentDayDateForAddTraining
     await loadCalendarMonth(currentViewYear, currentViewMonth)
-    openDayModal(startDate)
+    openDayModal(currentDayDateForAddTraining)
   } catch (err) {
     console.log(err)
     alert('Something went wrong while assigning the program. Check Supabase for a partially-created program under this athlete and delete it before retrying.')
@@ -741,25 +919,35 @@ document.getElementById('editScheduledAddFieldBtn').addEventListener('click', fu
 
 // ==========================================================================
 // ---- ASSIGN PROGRAM ----
-// Clones a template's full weeks/days/exercises tree into a brand new set
-// of rows owned by this athlete - a real copy, not a live link, so editing
-// the template later never changes an already-assigned athlete's calendar.
-// Reached only through the "+" popup's Program tab now (see
-// saveDayAddProgramBtn above) - the standalone "+ Assign Program" button
-// and its modal were removed since the tab covers the same job.
+// Clones a SLICE of a template's weeks/days/exercises tree (rangeStart to
+// rangeEnd, both "Day N" counting straight through the whole program) into
+// a brand new set of rows owned by this athlete - a real copy, not a live
+// link, so editing the template later never changes an already-assigned
+// athlete's calendar. Reached only through the "+" popup's Program tab
+// (see saveDayAddProgramBtn above).
 // ==========================================================================
 
 // Not wrapped in a database transaction - a failure partway through leaves
 // a partial clone. Since programs -> program_weeks -> program_days ->
 // program_exercises all cascade-delete, recovery is just deleting that one
 // programs row and retrying.
-async function cloneTemplateToAthlete(templateId, startDate) {
+async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEnd) {
   const { data: template, error: templateError } = await supabase
     .from('programs')
     .select('*')
     .eq('id', templateId)
     .single()
   if (templateError) throw templateError
+
+  // startDate is the calendar day that was clicked to open this popup, and
+  // it's always meant to line up with rangeStart (day 1 of whatever slice
+  // was picked) - resolveDate() always counts from the program's own day 1,
+  // so the new program's start_date has to be shifted back by
+  // (rangeStart - 1) days for that day to land on startDate. Reusing
+  // resolveDate() itself for this (week 1, day "2 - rangeStart") instead of
+  // separate date-math: with week=1 it reduces to startDate + (day - 1),
+  // and day = 2 - rangeStart gives startDate - (rangeStart - 1).
+  const newStartDate = resolveDate(startDate, 1, 2 - rangeStart)
 
   const { data: newProgram, error: programError } = await supabase
     .from('programs')
@@ -769,7 +957,7 @@ async function cloneTemplateToAthlete(templateId, startDate) {
       is_template: false,
       is_adhoc: false,
       name: template.name,
-      start_date: startDate
+      start_date: newStartDate
     }])
     .select()
   if (programError) throw programError
@@ -784,14 +972,21 @@ async function cloneTemplateToAthlete(templateId, startDate) {
   weeks.sort((a, b) => a.week_number - b.week_number)
 
   for (const week of weeks) {
+    const days = [...week.program_days]
+      .filter(day => {
+        const linearDay = (week.week_number - 1) * 7 + day.day_number
+        return linearDay >= rangeStart && linearDay <= rangeEnd
+      })
+      .sort((a, b) => a.day_number - b.day_number)
+
+    if (days.length === 0) continue // nothing in this week falls inside the picked range
+
     const { data: newWeek, error: weekError } = await supabase
       .from('program_weeks')
       .insert([{ program_id: newProgramId, week_number: week.week_number }])
       .select()
     if (weekError) throw weekError
     const newWeekId = newWeek[0].id
-
-    const days = [...week.program_days].sort((a, b) => a.day_number - b.day_number)
 
     for (const day of days) {
       const { data: newDay, error: dayError } = await supabase

@@ -344,6 +344,7 @@
 }
 
 .btn-small-create {
+  display: inline-block;
   background-color: transparent;
   border: 1px dashed #4a4a8e;
   color: #aaaacc;
@@ -351,6 +352,7 @@
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .btn-small-create:hover {
@@ -432,6 +434,101 @@
   color: #aaaacc;
   font-size: 12px;
   margin-top: 2px;
+}
+
+/* One row of the Program preview - just a day number + label/exercise
+   count (no thumbnails), since a full program can be 100+ days long */
+.program-preview-day-row {
+  display: flex;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid #2a2a4e;
+  font-size: 13px;
+}
+
+.program-preview-day-row:first-of-type {
+  border-top: none;
+}
+
+.program-preview-day-num {
+  color: #4a4a8e;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.program-preview-day-label {
+  color: #aaaacc;
+}
+
+/* "Schedule from Day X -> Day Y" row under the Program list/preview -
+   each field opens dayPickerModal instead of being a real date input,
+   since the actual calendar date is already fixed (the day you clicked) */
+.day-range-row {
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.day-range-caption {
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+.day-range-field {
+  background-color: #0f0f1a;
+  border: 1px solid #2a2a4e;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.day-range-field:hover {
+  border-color: #4a4a8e;
+}
+
+.day-range-arrow {
+  color: #aaaacc;
+}
+
+/* ---- Day Picker modal - a paginated grid of day numbers ---- */
+.day-picker-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.day-picker-nav span {
+  color: #aaaacc;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.day-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.day-picker-cell {
+  background-color: transparent;
+  border: 1px solid #2a2a4e;
+  color: #ffffff;
+  padding: 10px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.day-picker-cell:hover {
+  border-color: #4a4a8e;
+}
+
+.day-picker-cell.selected {
+  background-color: #4a4a8e;
+  border-color: #4a4a8e;
 }
 
 @media (max-width: 700px) {

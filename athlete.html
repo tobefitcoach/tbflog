@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=7" />
-  <link rel="stylesheet" href="athlete.css?v=10" />
+  <link rel="stylesheet" href="athlete.css?v=11" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
@@ -789,23 +789,57 @@
           </div>
         </div>
 
+        <!-- Left: pick a Program template - previews its full day list on
+             the right, same pattern as the Single Workout tab. No start
+             date field: the day you clicked is always day 1 of whatever
+             range you pick below, so asking for it again would be
+             redundant. The day range fields open dayPickerModal. -->
         <div class="modal-tab-panel" id="dayAddProgramPanel">
-          <div class="form-group">
-            <label>Template</label>
-            <select id="dayAddProgramTemplateSelect">
-              <option value="">Choose a template...</option>
-            </select>
+          <div class="day-add-workout-layout">
+            <div class="day-add-workout-list-col">
+              <div class="day-add-workout-list-header">
+                <span class="day-add-workout-list-title">Programs</span>
+                <a href="programs.html" target="_blank" class="btn-small-create">+ New</a>
+              </div>
+              <div class="entries-modal-body" id="dayAddProgramList"></div>
+            </div>
+            <div class="day-add-workout-preview" id="dayAddProgramPreview">
+              <p class="no-metrics">Select a program to preview it</p>
+            </div>
           </div>
-          <p style="text-align:center; color:#aaaacc; font-size:13px; margin: 8px 0">
-            <a href="programs.html" target="_blank" style="color:#4a4a8e">+ Create New Template (opens in a new tab)</a>
-          </p>
-          <div class="form-group">
-            <label>Start Date</label>
-            <input type="date" id="dayAddProgramStartDate" />
+
+          <div class="day-range-row" id="dayRangeRow" style="display:none">
+            <span class="day-range-caption">Schedule from</span>
+            <button type="button" class="day-range-field" id="programStartDayField">
+              <span id="programStartDayLabel">Day 1</span> 📅
+            </button>
+            <span class="day-range-arrow">→</span>
+            <button type="button" class="day-range-field" id="programEndDayField">
+              <span id="programEndDayLabel">Day 1</span> 📅
+            </button>
           </div>
-          <div class="form-actions" style="justify-content:center">
-            <button class="btn-save" id="saveDayAddProgramBtn">Assign Program</button>
+
+          <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
+            <button class="btn-save" id="saveDayAddProgramBtn" disabled>Assign Program</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nested on top of the Add Training modal: a paginated grid of day
+         numbers (4 weeks/28 days per page) for picking where in a Program
+         to start/end - see openDayPicker() in athlete-calendar.js -->
+    <div class="modal-overlay" id="dayPickerModal">
+      <div class="modal">
+        <h2>Choose Day</h2>
+        <div class="day-picker-nav">
+          <button type="button" class="btn-cancel" id="dayPickerPrevBtn">‹</button>
+          <span id="dayPickerRangeLabel"></span>
+          <button type="button" class="btn-cancel" id="dayPickerNextBtn">›</button>
+        </div>
+        <div class="day-picker-grid" id="dayPickerGrid"></div>
+        <div class="form-actions" style="justify-content:center; margin-top:16px">
+          <button class="btn-cancel" id="dayPickerCancelBtn">Cancel</button>
         </div>
       </div>
     </div>
@@ -893,7 +927,7 @@
 
     <!-- Main page logic (see athlete.js) -->
     <script type="module" src="athlete.js?v=6"></script>
-    <script type="module" src="athlete-calendar.js?v=4"></script>
+    <script type="module" src="athlete-calendar.js?v=5"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>
