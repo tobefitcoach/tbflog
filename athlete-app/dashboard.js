@@ -686,28 +686,45 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
   slide.addEventListener('pointercancel', endDrag)
 }
 
-// No waiting on any in-flight set saves here - they're durable now (see
-// the pending-save queue), so ending the workout doesn't need to block on
-// them. Any that are still mid-retry keep going in the background exactly
-// as before.
+// Shows a "Saving..." state on the button so ending a workout is never
+// silent, then (1) actually waits for the pending-save queue to flush -
+// so every set logged this session is confirmed saved before the session
+// is marked ended, instead of racing ahead and leaving sets stuck in the
+// queue with nothing forcing them through - and (2) sends the session-end
+// update itself through saveWithRetry, since a plain unprotected Supabase
+// call has no timeout and could previously hang forever on a bad
+// connection with zero visible feedback (exactly what looked like
+// "pressing End Workout does nothing").
 async function finishWorkout(entry, session) {
   if (!confirm('Finish this workout?')) return
 
-  const { data, error } = await supabase
+  const btn = document.getElementById('endWorkoutBtn')
+  if (btn) {
+    btn.disabled = true
+    btn.textContent = 'Saving...'
+  }
+
+  await flushPendingQueue()
+
+  const { error } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .update({ ended_at: new Date().toISOString() })
     .eq('id', session.id)
     .select()
-    .single()
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log(error)
     alert('Something went wrong ending the workout - try again')
+    if (btn) {
+      btn.disabled = false
+      btn.textContent = 'End Workout'
+    }
     return
   }
 
   await loadTrainingData()
-  flushPendingQueue() // not awaited
   // Straight back to the week view, not the summary - the summary's still
   // reachable afterward via "View Summary" on this day's preview
   renderWeekView(currentWeekStart || startOfWeek(new Date()))
