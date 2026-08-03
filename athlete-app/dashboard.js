@@ -111,10 +111,6 @@ function renderWaitingToBeLinked() {
 // Just weight units for now.
 function renderSettings() {
   pageContent.innerHTML = `
-    <div class="day-view-header">
-      <h2>Settings</h2>
-      <button class="header-link" id="backFromSettingsBtn">← Back</button>
-    </div>
     <div class="form-group">
       <label>Weight units</label>
       <select id="weightUnitSelect">
@@ -122,7 +118,7 @@ function renderSettings() {
         <option value="lbs" ${athlete.weight_unit === 'lbs' ? 'selected' : ''}>Pounds (lbs)</option>
       </select>
     </div>
-    <p style="color:#aaaacc; font-size:14px">Changes how weights are shown and typed in when logging a workout. Everything's still saved the same either way, so switching anytime is safe - and you can always flip a single set to the other unit with the button next to its weight box.</p>
+    <button class="btn-cancel" id="backFromSettingsBtn">Go Back</button>
   `
 
   document.getElementById('backFromSettingsBtn').addEventListener('click', function() {
@@ -442,7 +438,7 @@ function renderDayPreview(dateStr) {
   pageContent.innerHTML = `
     <div class="day-view-header">
       <h2>${isToday ? 'Today' : formatDisplayDate(dateStr)}</h2>
-      <button class="header-link" id="backToWeekBtn">← Week</button>
+      <button class="btn-cancel" id="backToWeekBtn">Go Back</button>
     </div>
     ${isToday ? `<p class="day-view-date">${formatDisplayDate(dateStr)}</p>` : ''}
     <div id="dayPreviewBody">${bodyHtml}</div>
