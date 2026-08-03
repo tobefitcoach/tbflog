@@ -710,7 +710,9 @@ async function finishWorkout(entry, session) {
   }
 
   await loadTrainingData()
-  renderWorkoutSummary(data, entry)
+  // Straight back to the week view, not the summary - the summary's still
+  // reachable afterward via "View Summary" on this day's preview
+  renderWeekView(currentWeekStart || startOfWeek(new Date()))
 }
 
 function renderWorkoutSummary(finishedSession, entry) {
