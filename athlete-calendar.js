@@ -118,7 +118,9 @@ async function loadCalendarMonth(year, month) {
 
 function renderCalendarGrid(year, month) {
   const grid = document.getElementById('calendarGrid')
-  const startWeekday = new Date(year, month, 1).getDay() // 0=Sun..6=Sat
+  // getDay() is 0=Sun..6=Sat - remapped so the grid's rows start on Monday
+  // instead (0=Mon..6=Sun), matching the athlete's own week view
+  const startWeekday = (new Date(year, month, 1).getDay() + 6) % 7
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const prevMonthDays = new Date(year, month, 0).getDate()
 
