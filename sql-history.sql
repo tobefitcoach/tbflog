@@ -432,3 +432,9 @@ create policy "athlete updates own settings" on athletes for update
 -- before/morning of) is left out entirely for the same reason, for now.
 -- ==========================================================================
 alter table athletes add column if not exists weekly_recap_enabled boolean not null default false;
+
+-- Switched to opt-OUT: athletes get the recap unless they turn it off in
+-- Settings. Backfills existing rows too, since the intent is "everyone
+-- gets it by default" going forward, not just new signups.
+alter table athletes alter column weekly_recap_enabled set default true;
+update athletes set weekly_recap_enabled = true where weekly_recap_enabled = false;
