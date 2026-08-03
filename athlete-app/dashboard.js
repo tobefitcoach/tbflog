@@ -442,11 +442,14 @@ function renderWeekView(weekStart) {
     `
   }).join('')
 
+  const pendingCount = loadPendingQueue().length
+
   pageContent.innerHTML = `
     <div class="welcome-header">
       <h2>Welcome back, ${athlete.name}</h2>
       <p>Here's your training for the week</p>
     </div>
+    ${renderSyncBannerHtml(pendingCount)}
     <div class="week-nav-row">
       <button class="btn-cancel" id="weekPrevBtn">← Prev</button>
       <h3>${formatShortDate(days[0])} – ${formatShortDate(days[6])}</h3>
@@ -464,6 +467,44 @@ function renderWeekView(weekStart) {
   })
   document.getElementById('weekNextBtn').addEventListener('click', function() {
     if (nextEnabled) renderWeekView(addDays(weekStart, 7))
+  })
+
+  wireSyncBanner(function() { renderWeekView(weekStart) })
+}
+
+// ==========================================================================
+// ---- SYNC STATUS BANNER ----
+// Makes the pending-save queue visible instead of silent - a set that
+// hasn't reached the server yet shows up here with the ACTUAL error from
+// the last failed attempt (not just an invisible tooltip, which doesn't
+// work on touch anyway) and a manual "Retry now" button. Shown on the week
+// view since that's what's on screen right after finishing a workout.
+// ==========================================================================
+function renderSyncBannerHtml(pendingCount) {
+  if (pendingCount === 0) return ''
+
+  const withError = loadPendingQueue().find(e => e.lastError)
+  const errorLine = withError ? `Last error: ${withError.lastError}` : 'Still trying automatically in the background.'
+
+  return `
+    <div class="sync-banner" id="syncBanner">
+      <div>
+        <strong>${pendingCount} set${pendingCount === 1 ? '' : 's'} not synced yet</strong>
+        <div class="sync-banner-detail">${errorLine}</div>
+      </div>
+      <button type="button" class="btn-cancel" id="syncRetryBtn">Retry Now</button>
+    </div>
+  `
+}
+
+function wireSyncBanner(onDone) {
+  const btn = document.getElementById('syncRetryBtn')
+  if (!btn) return
+  btn.addEventListener('click', async function() {
+    btn.disabled = true
+    btn.textContent = 'Retrying...'
+    await flushPendingQueue()
+    onDone()
   })
 }
 
@@ -568,12 +609,15 @@ function renderDayPreview(dateStr) {
       <button class="btn-cancel" id="backToWeekBtn">Go Back</button>
     </div>
     ${isToday ? `<p class="day-view-date">${formatDisplayDate(dateStr)}</p>` : ''}
+    ${renderSyncBannerHtml(loadPendingQueue().length)}
     <div id="dayPreviewBody">${bodyHtml}</div>
   `
 
   document.getElementById('backToWeekBtn').addEventListener('click', function() {
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
   })
+
+  wireSyncBanner(function() { renderDayPreview(dateStr) })
 
   document.getElementById('dayPreviewBody').addEventListener('click', function(e) {
     const thumbBtn = e.target.closest('[data-video-url]')
@@ -919,7 +963,7 @@ async function finishWorkout(entry, session) {
 
   if (error) {
     console.log(error)
-    alert('Something went wrong ending the workout - try again')
+    alert('Something went wrong ending the workout: ' + describeError(error))
     if (btn) {
       btn.disabled = false
       btn.textContent = 'End Workout'
@@ -1148,6 +1192,8 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
 
   if (error) {
     console.log(error)
+    queueEntry.lastError = describeError(error)
+    queueUpsert(queueEntry)
     rowEl.classList.add('unsynced')
     checkBtn.title = 'Not synced yet - will keep retrying automatically'
     return
@@ -1186,6 +1232,8 @@ async function uncheckSet(peId, setNumber, dateStr, rowEl) {
 
   if (error) {
     console.log(error)
+    queueEntry.lastError = describeError(error)
+    queueUpsert(queueEntry)
     rowEl.classList.add('unsynced')
     checkBtn.title = 'Not synced yet - will keep retrying automatically'
     return
@@ -1263,8 +1311,24 @@ async function flushPendingQueue() {
   const entries = loadPendingQueue()
   await Promise.all(entries.map(async function(entry) {
     const { error } = await performQueuedSave(entry)
-    if (!error) queueRemove(entry.program_exercise_id, entry.date, entry.set_number)
+    if (!error) {
+      queueRemove(entry.program_exercise_id, entry.date, entry.set_number)
+    } else {
+      console.log(error)
+      entry.lastError = describeError(error)
+      queueUpsert(entry)
+    }
   }))
+}
+
+// Pulls a human-readable message out of whatever shape the failure came in
+// as - a Supabase/PostgREST error object (.message), a thrown DOMException
+// like AbortError (.message), or something unexpected (fall back to a raw
+// dump so nothing is ever silently blank in the sync banner)
+function describeError(error) {
+  if (!error) return 'Unknown error'
+  if (error.message) return error.message
+  try { return JSON.stringify(error) } catch (e) { return String(error) }
 }
 
 document.addEventListener('visibilitychange', function() {

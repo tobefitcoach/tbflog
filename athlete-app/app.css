@@ -196,6 +196,29 @@
   box-shadow: 0 0 0 2px #e0a030;
 }
 
+/* Same amber accent as the unsynced ring above - makes the pending-save
+   queue visible instead of silent, with the actual last error and a manual
+   retry instead of just waiting on the background sync */
+.sync-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background-color: rgba(224, 160, 48, 0.12);
+  border: 1px solid #e0a030;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.sync-banner-detail {
+  color: #aaaacc;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
 .set-remove-btn {
   flex-shrink: 0;
   background: transparent;
