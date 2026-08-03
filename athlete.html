@@ -151,8 +151,6 @@
           <button class="btn-cancel" id="calPrevBtn">← Prev</button>
           <h3 id="calMonthLabel">&nbsp;</h3>
           <button class="btn-cancel" id="calNextBtn">Next →</button>
-          <div style="flex:1"></div>
-          <button class="btn-add" id="calAssignProgramBtn">+ Assign Program</button>
         </div>
         <div class="calendar-grid" id="calendarGrid"></div>
       </div>
@@ -879,34 +877,9 @@
       </div>
     </div>
 
-    <!-- Assign Program Modal: pick a template + a start date, clones the
-         whole template onto this athlete's calendar starting that day -->
-    <div class="modal-overlay" id="assignProgramModal">
-      <div class="modal">
-        <h2>Assign Program</h2>
-        <div class="form-group">
-          <label>Template</label>
-          <select id="assignTemplateSelect">
-            <option value="">Choose a template...</option>
-          </select>
-        </div>
-        <p style="text-align:center; color:#aaaacc; font-size:13px; margin: 8px 0">
-          <a href="programs.html" target="_blank" style="color:#4a4a8e">+ Create New Template (opens in a new tab)</a>
-        </p>
-        <div class="form-group">
-          <label>Start Date</label>
-          <input type="date" id="assignStartDate" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelAssignProgramBtn">Cancel</button>
-          <button class="btn-save" id="saveAssignProgramBtn">Assign</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Main page logic (see athlete.js) -->
     <script type="module" src="athlete.js?v=6"></script>
-    <script type="module" src="athlete-calendar.js?v=2"></script>
+    <script type="module" src="athlete-calendar.js?v=3"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

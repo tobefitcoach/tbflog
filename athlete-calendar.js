@@ -649,44 +649,10 @@ document.getElementById('editScheduledAddFieldBtn').addEventListener('click', fu
 // Clones a template's full weeks/days/exercises tree into a brand new set
 // of rows owned by this athlete - a real copy, not a live link, so editing
 // the template later never changes an already-assigned athlete's calendar.
+// Reached only through the "+" popup's Program tab now (see
+// saveDayAddProgramBtn above) - the standalone "+ Assign Program" button
+// and its modal were removed since the tab covers the same job.
 // ==========================================================================
-document.getElementById('calAssignProgramBtn').addEventListener('click', async function() {
-  const data = await getProgramTemplates()
-
-  const select = document.getElementById('assignTemplateSelect')
-  select.innerHTML = '<option value="">Choose a template...</option>' +
-    (data || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('')
-
-  document.getElementById('assignStartDate').value = toDateStr(new Date())
-  document.getElementById('assignProgramModal').classList.add('active')
-})
-
-document.getElementById('cancelAssignProgramBtn').addEventListener('click', function() {
-  document.getElementById('assignProgramModal').classList.remove('active')
-})
-
-document.getElementById('saveAssignProgramBtn').addEventListener('click', async function() {
-  const templateId = document.getElementById('assignTemplateSelect').value
-  const startDate = document.getElementById('assignStartDate').value
-  if (!templateId) { alert('Please choose a template'); return }
-  if (!startDate) { alert('Please choose a start date'); return }
-
-  const saveBtn = document.getElementById('saveAssignProgramBtn')
-  saveBtn.disabled = true
-  saveBtn.textContent = 'Cloning...'
-
-  try {
-    await cloneTemplateToAthlete(templateId, startDate)
-    document.getElementById('assignProgramModal').classList.remove('active')
-    await loadCalendarMonth(currentViewYear, currentViewMonth)
-  } catch (err) {
-    console.log(err)
-    alert('Something went wrong while assigning the program. Check Supabase for a partially-created program under this athlete and delete it before retrying.')
-  } finally {
-    saveBtn.disabled = false
-    saveBtn.textContent = 'Assign'
-  }
-})
 
 // Not wrapped in a database transaction - a failure partway through leaves
 // a partial clone. Since programs -> program_weeks -> program_days ->
