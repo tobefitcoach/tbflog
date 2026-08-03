@@ -146,6 +146,26 @@
   opacity: 0.6;
 }
 
+.set-unit-toggle {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  background: transparent;
+  color: #aaaacc;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.set-unit-toggle:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.set-unit-toggle:disabled {
+  opacity: 0.6;
+}
+
 .set-check-btn {
   flex-shrink: 0;
   width: 36px;

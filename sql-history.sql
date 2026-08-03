@@ -409,3 +409,16 @@ create policy "athlete manages own sessions" on workout_sessions for all
     and exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
                 where d.id = workout_sessions.program_day_id and p.athlete_id = workout_sessions.athlete_id)
   );
+
+-- ==========================================================================
+-- Lbs/kg display preference. Weight is still always STORED in kg (the
+-- metric-units rule never changes) - weight_unit only controls what unit
+-- the athlete's own dashboard converts to for display/entry. Needs its own
+-- update policy since "athlete can view own row" (line 207) is select-only
+-- and athletes previously had no way to change their own row at all.
+-- ==========================================================================
+alter table athletes add column if not exists weight_unit text not null default 'kg' check (weight_unit in ('kg', 'lbs'));
+
+drop policy if exists "athlete updates own settings" on athletes;
+create policy "athlete updates own settings" on athletes for update
+  using (user_id = auth.uid()) with check (user_id = auth.uid());

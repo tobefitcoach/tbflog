@@ -30,6 +30,12 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
   window.location.href = 'index.html'
 })
 
+// Guarded on athlete being loaded - the button's in the header, so it's on
+// screen even during the brief "Loading..." state before athlete exists
+document.getElementById('settingsBtn').addEventListener('click', function() {
+  if (athlete) renderSettings()
+})
+
 let athlete = null
 let entriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
@@ -54,7 +60,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await supabase
     .from('athletes')
-    .select('id, name, can_preview_next_week')
+    .select('id, name, can_preview_next_week, weight_unit')
     .eq('user_id', session.user.id)
     .maybeSingle()
 
@@ -97,6 +103,49 @@ function renderWaitingToBeLinked() {
     <button class="btn-save" id="retryBtn">Try Again</button>
   `
   document.getElementById('retryBtn').addEventListener('click', checkAccountState)
+}
+
+// A place for per-athlete settings that live outside the coach-editable
+// Settings tab (which is on the coach's own athlete page) - this one is
+// self-service, for things the athlete should be able to change themselves.
+// Just weight units for now.
+function renderSettings() {
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <h2>Settings</h2>
+      <button class="header-link" id="backFromSettingsBtn">← Back</button>
+    </div>
+    <div class="form-group">
+      <label>Weight units</label>
+      <select id="weightUnitSelect">
+        <option value="kg" ${athlete.weight_unit !== 'lbs' ? 'selected' : ''}>Kilograms (kg)</option>
+        <option value="lbs" ${athlete.weight_unit === 'lbs' ? 'selected' : ''}>Pounds (lbs)</option>
+      </select>
+    </div>
+    <p style="color:#aaaacc; font-size:14px">Changes how weights are shown and typed in when logging a workout. Everything's still saved the same either way, so switching anytime is safe - and you can always flip a single set to the other unit with the button next to its weight box.</p>
+  `
+
+  document.getElementById('backFromSettingsBtn').addEventListener('click', function() {
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  document.getElementById('weightUnitSelect').addEventListener('change', async function(e) {
+    const newUnit = e.target.value
+    const previousUnit = athlete.weight_unit
+    athlete.weight_unit = newUnit // optimistic, same pattern used everywhere else in this file
+
+    const { error } = await supabase
+      .from('athletes')
+      .update({ weight_unit: newUnit })
+      .eq('id', athlete.id)
+
+    if (error) {
+      console.log(error)
+      athlete.weight_unit = previousUnit
+      e.target.value = previousUnit
+      alert('Something went wrong saving that - try again')
+    }
+  })
 }
 
 // ==========================================================================
@@ -151,6 +200,30 @@ const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 function trainingDisplayName(entry) {
   if (entry.program.is_adhoc) return entry.program.name || 'Training'
   return entry.day.label || ('Day ' + entry.day.day_number)
+}
+
+// ==========================================================================
+// ---- WEIGHT UNITS ----
+// Weight is always STORED in kg (the app-wide metric-units rule) - these
+// only convert for display/typing. kgToLbs/lbsToKg are the raw conversion,
+// formatWeight is what render code should call: converts kg into whichever
+// unit it's given and rounds to 1 decimal so the input doesn't fill up with
+// long floating-point tails (e.g. 100kg -> 220.5 lbs, not 220.46226218).
+// ==========================================================================
+function kgToLbs(kg) { return kg * 2.2046226218 }
+function lbsToKg(lbs) { return lbs / 2.2046226218 }
+
+function formatWeight(kg, unit) {
+  if (kg == null) return null
+  const val = unit === 'lbs' ? kgToLbs(kg) : kg
+  return Math.round(val * 10) / 10
+}
+
+// The inverse of formatWeight - what a set row uses to turn a typed number
+// (in whatever unit that row is currently set to) back into kg before it's
+// ever saved, so the database never has to know a set was entered in lbs
+function weightToKg(value, unit) {
+  return unit === 'lbs' ? lbsToKg(value) : value
 }
 
 // ==========================================================================
@@ -254,7 +327,7 @@ function targetLine(pe) {
   const parts = []
   if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
   if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
-  if (pe.prescribed_weight) parts.push(`${pe.prescribed_weight}kg`)
+  if (pe.prescribed_weight) parts.push(`${formatWeight(pe.prescribed_weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'}`)
   if (pe.extra_fields) {
     for (const [k, v] of Object.entries(pe.extra_fields)) parts.push(`${k}: ${v}`)
   }
@@ -436,7 +509,7 @@ function renderDayPreviewExercise(pe, showLogged) {
     const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
     loggedText = sets.map(s => isTimed
       ? (s.actual_reps || '-')
-      : `${s.actual_reps || '-'} reps${s.actual_weight != null ? ' @ ' + s.actual_weight + 'kg' : ''}`
+      : `${s.actual_reps || '-'} reps${s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''}`
     ).join(', ')
   }
 
@@ -768,7 +841,7 @@ function renderWorkoutSummary(finishedSession, entry) {
               <span>Set ${s.set_number}</span>
               <span class="detail-row-value">${isTimed
                 ? (s.actual_reps || '-')
-                : `${s.actual_reps || '-'} reps${s.actual_weight != null ? ' @ ' + s.actual_weight + 'kg' : ''}`}</span>
+                : `${s.actual_reps || '-'} reps${s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''}`}</span>
             </li>
           `).join('')}
         </ul>
@@ -785,7 +858,7 @@ function renderWorkoutSummary(finishedSession, entry) {
           <div class="workout-summary-stat-label">Duration</div>
         </div>
         <div>
-          <div class="workout-summary-stat-value">${Math.round(totalVolume)}kg</div>
+          <div class="workout-summary-stat-value">${Math.round(formatWeight(totalVolume, athlete.weight_unit))}${athlete.weight_unit || 'kg'}</div>
           <div class="workout-summary-stat-label">Total Volume</div>
         </div>
       </div>
@@ -807,17 +880,48 @@ function renderWorkoutSummary(finishedSession, entry) {
 function renderSetRow(pe, setNumber, logged, isTimed, isExtra) {
   const checked = !!(logged && logged.completed_at)
   const repsVal = logged ? (logged.actual_reps || '') : (pe.prescribed_reps || '')
-  const weightVal = logged ? (logged.actual_weight != null ? logged.actual_weight : '') : (pe.prescribed_weight != null ? pe.prescribed_weight : '')
+  // Each row starts out in the athlete's default unit (data-unit), but can
+  // be flipped per-row with the unit toggle button below - actual_weight is
+  // always stored in kg regardless of which unit was used to type it in
+  const unit = athlete.weight_unit || 'kg'
+  const weightKg = logged ? logged.actual_weight : pe.prescribed_weight
+  const weightVal = weightKg != null ? formatWeight(weightKg, unit) : ''
 
   return `
-    <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}">
+    <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}">
       <span class="set-label">Set ${setNumber}</span>
       <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}" ${checked ? 'disabled' : ''}>
-      ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${weightVal}" placeholder="kg" step="0.5" ${checked ? 'disabled' : ''}>`}
+      ${isTimed ? '' : `
+        <input type="number" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
+        <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
+      `}
       <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
       ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>
   `
+}
+
+// Flips one row's kg/lbs display without changing the weight it represents
+// - converts the number currently typed in so switching units relabels it
+// instead of silently reinterpreting it (100kg staying "100" after a
+// switch would quietly turn it into 100lbs, which is wrong)
+function toggleRowUnit(rowEl) {
+  const weightInput = rowEl.querySelector('.set-weight-input')
+  const unitBtn = rowEl.querySelector('.set-unit-toggle')
+  if (!weightInput || !unitBtn) return
+
+  const currentUnit = rowEl.dataset.unit || 'kg'
+  const nextUnit = currentUnit === 'kg' ? 'lbs' : 'kg'
+  const typed = parseFloat(weightInput.value)
+  if (!isNaN(typed)) {
+    const kgVal = weightToKg(typed, currentUnit)
+    weightInput.value = formatWeight(kgVal, nextUnit)
+  }
+
+  rowEl.dataset.unit = nextUnit
+  weightInput.placeholder = nextUnit
+  unitBtn.textContent = nextUnit
+  unitBtn.title = `Switch to ${nextUnit === 'kg' ? 'lbs' : 'kg'}`
 }
 
 function wireExerciseCardEvents(containerId, dateStr) {
@@ -829,6 +933,8 @@ function wireExerciseCardEvents(containerId, dateStr) {
 
     if (btn.dataset.action === 'add-set') {
       addSetRow(peId)
+    } else if (btn.dataset.action === 'toggle-unit') {
+      toggleRowUnit(row)
     } else if (btn.dataset.action === 'check-set') {
       const setNumber = parseInt(row.dataset.setNumber)
       if (row.classList.contains('completed')) {
@@ -875,7 +981,10 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   const repsInput = rowEl.querySelector('.set-reps-input')
   const weightInput = rowEl.querySelector('.set-weight-input')
   const actualReps = repsInput.value.trim() || null
-  const actualWeight = weightInput ? (weightInput.value ? parseFloat(weightInput.value) : null) : null
+  // Convert whatever unit this row is currently showing back to kg - that's
+  // the only thing that ever gets saved
+  const rowUnit = rowEl.dataset.unit || 'kg'
+  const actualWeight = weightInput ? (weightInput.value ? weightToKg(parseFloat(weightInput.value), rowUnit) : null) : null
   const removedBtn = rowEl.querySelector('.set-remove-btn')
 
   rowEl.classList.add('completed')
