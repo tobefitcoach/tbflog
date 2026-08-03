@@ -1300,16 +1300,21 @@ function applyPendingQueueLocally() {
 // whenever the tab becomes visible again (see the visibilitychange
 // listener below), and is raced against a timeout in finishWorkout.
 //
-// Every entry is saved in PARALLEL (Promise.all), not one at a time. With
-// several entries stuck retrying on a bad connection, saving them one at a
-// time meant the wait was entries x up to ~24s each (3 attempts x 6s
-// timeout, plus backoff) - that's exactly what turned "saving the workout"
-// into a multi-minute wait once more than a couple of sets had backed up
-// in the queue. Running them together bounds the wait to about one
-// entry's worth of retries, no matter how many are queued.
+// Entries are saved with a LIMITED amount of parallelism (3 at a time), not
+// fully sequential and not fully parallel. Sequential meant the wait was
+// entries x up to ~24s each (3 attempts x 6s timeout, plus backoff) - that's
+// what turned "saving the workout" into a multi-minute wait once several
+// sets had backed up in the queue. But firing every entry at once (plain
+// Promise.all) turned out to have its own failure mode confirmed from a real
+// sync-banner error: on a weak gym connection, a big backlog (14 stuck sets)
+// all competing for the same limited bandwidth could make EVERY one of them
+// individually blow past the per-attempt timeout and abort together
+// ("AbortError: Fetch is aborted"), so nothing ever got through. Capping
+// concurrency keeps each request's actual share of the connection
+// reasonable while still bounding total wait time.
 async function flushPendingQueue() {
   const entries = loadPendingQueue()
-  await Promise.all(entries.map(async function(entry) {
+  await runWithConcurrencyLimit(entries, 3, async function(entry) {
     const { error } = await performQueuedSave(entry)
     if (!error) {
       queueRemove(entry.program_exercise_id, entry.date, entry.set_number)
@@ -1318,7 +1323,20 @@ async function flushPendingQueue() {
       entry.lastError = describeError(error)
       queueUpsert(entry)
     }
-  }))
+  })
+}
+
+// Runs fn over items with at most `limit` in flight at once.
+async function runWithConcurrencyLimit(items, limit, fn) {
+  const queue = [...items]
+  const workerCount = Math.min(limit, queue.length)
+  const workers = new Array(workerCount).fill(null).map(async function() {
+    while (queue.length > 0) {
+      const item = queue.shift()
+      await fn(item)
+    }
+  })
+  await Promise.all(workers)
 }
 
 // Pulls a human-readable message out of whatever shape the failure came in
@@ -1373,7 +1391,7 @@ async function saveWithRetry(operationFactory, maxAttempts = 3) {
   let result = { data: null, error: null }
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 6000)
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
     try {
       result = await operationFactory(controller.signal)
     } catch (err) {
