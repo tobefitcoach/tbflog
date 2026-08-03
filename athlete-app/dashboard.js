@@ -1104,10 +1104,14 @@ function renderSetRow(pe, setNumber, logged, isTimed, isExtra) {
   const unit = athlete.weight_unit || 'kg'
   const weightKg = logged ? logged.actual_weight : (target ? target.weight : pe.prescribed_weight)
   const weightVal = weightKg != null ? formatWeight(weightKg, unit) : ''
+  // Only flag warmup/failure sets - a plain "Main Set" on every row would
+  // just be noise, since that's the default for most sets in a workout
+  const setType = target && target.type && target.type !== 'main' ? target.type : null
+  const typeLabel = setType === 'warmup' ? 'Warmup' : setType === 'failure' ? 'Failure' : ''
 
   return `
     <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}">
-      <span class="set-label">Set ${setNumber}</span>
+      <span class="set-label">Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}</span>
       <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}" ${checked ? 'disabled' : ''}>
       ${isTimed ? '' : `
         <input type="number" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>

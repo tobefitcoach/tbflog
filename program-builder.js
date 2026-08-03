@@ -254,6 +254,9 @@ function renderDayBlock(day) {
       ${day.program_exercises.length === 0
         ? '<p class="no-metrics">No exercises yet</p>'
         : day.program_exercises.map(renderExerciseCard).join('')}
+      ${day.program_exercises.length === 0 ? '' : `
+        <button type="button" class="btn-save" data-action="save-day" data-day-id="${day.id}" style="margin-top:8px">💾 Save Day</button>
+      `}
     </div>
   `
 }
@@ -287,17 +290,20 @@ function renderExerciseCard(pe) {
         <label>Notes (visible to the athlete)</label>
         <input type="text" class="exercise-notes-input" value="${pe.notes || ''}" placeholder="e.g. Focus on controlled tempo">
       </div>
-      <div class="builder-exercise-footer">
-        <span></span>
-        <button type="button" class="btn-save" data-action="save-exercise">💾 Save</button>
-      </div>
     </div>
   `
 }
 
+// Reads one card's current DOM state and saves it - called for every
+// exercise in a day at once from that day's single "Save Day" button (see
+// data-action="save-day" below), not from a per-card button, since a coach
+// builds a whole day's exercises in one sitting and only wants to press
+// Save once when that day is done. Returns true/false instead of alerting
+// on its own so the caller can report one combined error if several cards
+// in the day fail.
 async function saveExerciseCard(peId) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
-  if (!card) return
+  if (!card) return true
 
   const rows = [...card.querySelectorAll('.set-target-row')]
   const setTargets = rows.map(row => {
@@ -327,7 +333,26 @@ async function saveExerciseCard(peId) {
     })
     .eq('id', peId)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); return false }
+  return true
+}
+
+// Saves every exercise card in one day at once (see data-action="save-day")
+async function saveDay(dayId) {
+  const day = findDay(dayId)
+  if (!day) return
+  const btn = document.querySelector(`[data-action="save-day"][data-day-id="${dayId}"]`)
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...' }
+
+  const ids = day.program_exercises.map(pe => pe.id)
+  const results = await Promise.all(ids.map(saveExerciseCard))
+
+  if (results.some(ok => !ok)) {
+    alert('Something went wrong saving one or more exercises - please try again')
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Save Day' }
+    return
+  }
+
   await loadWeeks()
 }
 
@@ -368,7 +393,8 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
   else if (action === 'add-exercise') openExercisePickerModal(btn.dataset.dayId)
   else if (action === 'delete-day') deleteDay(btn.dataset.dayId)
   else if (action === 'delete-exercise') deleteExerciseRow(btn.closest('.builder-exercise-card').dataset.id)
-  else if (action === 'add-set' || action === 'remove-set' || action === 'save-exercise' || action === 'add-extra-field') {
+  else if (action === 'save-day') await saveDay(btn.dataset.dayId)
+  else if (action === 'add-set' || action === 'remove-set' || action === 'add-extra-field') {
     const card = btn.closest('.builder-exercise-card')
     const peId = card.dataset.id
     const pe = findPE(peId)
@@ -376,7 +402,6 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
 
     if (action === 'add-set') addSetTargetRow(card.querySelector('.set-target-rows'), isTimed)
     else if (action === 'remove-set') removeSetTargetRow(btn.closest('.set-target-row'))
-    else if (action === 'save-exercise') await saveExerciseCard(peId)
     else if (action === 'add-extra-field') addExtraFieldRow(`extraFields-${peId}`)
   }
 })

@@ -121,10 +121,36 @@
 }
 
 .set-label {
-  width: 44px;
+  width: 52px;
   flex-shrink: 0;
   color: #aaaacc;
   font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+/* Only shown for warmup/failure sets - a coach-set flag so the athlete
+   knows to go lighter on a warmup or push all-out on a failure set,
+   without cluttering every ordinary "main" set with a label */
+.set-type-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.set-type-badge.set-type-warmup {
+  color: #e0a030;
+  background-color: rgba(224, 160, 48, 0.15);
+}
+
+.set-type-badge.set-type-failure {
+  color: #ff4444;
+  background-color: rgba(255, 68, 68, 0.15);
 }
 
 .set-reps-input,
@@ -590,7 +616,12 @@
   }
 
   .set-label {
-    width: 36px;
+    width: 44px;
+  }
+
+  .set-type-badge {
+    font-size: 8px;
+    padding: 1px 3px;
   }
 
   /* 7 equal columns (or even a horizontally-scrolling strip of small cards)

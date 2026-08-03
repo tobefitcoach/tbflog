@@ -211,7 +211,8 @@ function openDayModal(dateStr) {
           </div>
           ${exercises.length === 0
             ? '<p class="no-metrics">No exercises</p>'
-            : exercises.map(renderScheduledExerciseCard).join('')}
+            : `${exercises.map(renderScheduledExerciseCard).join('')}
+               <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">💾 Save</button>`}
         </div>
       `
     }).join('')
@@ -266,10 +267,6 @@ function renderScheduledExerciseCard(pe) {
         <label>Notes (visible to the athlete)</label>
         <input type="text" class="exercise-notes-input" value="${pe.notes || ''}" placeholder="e.g. Focus on controlled tempo">
       </div>
-      <div class="builder-exercise-footer">
-        <span></span>
-        <button type="button" class="btn-save" data-action="save-scheduled">💾 Save</button>
-      </div>
     </div>
   `
 }
@@ -299,6 +296,11 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
     return
   }
 
+  if (btn.dataset.action === 'save-scheduled-day') {
+    await saveScheduledDay(btn.closest('.detail-group'))
+    return
+  }
+
   const card = btn.closest('.builder-exercise-card')
   const peId = card ? card.dataset.id : null
 
@@ -309,8 +311,6 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
     addSetTargetRowCal(card.querySelector('.set-target-rows'), !!(pe && pe.exercises && pe.exercises.type === 'timed'))
   } else if (btn.dataset.action === 'remove-set') {
     removeSetTargetRowCal(btn.closest('.set-target-row'))
-  } else if (btn.dataset.action === 'save-scheduled') {
-    await saveScheduledExercise(peId)
   } else if (btn.dataset.action === 'add-extra-field') {
     addExtraFieldRowCal(`extraFieldsSched-${peId}`)
   }
@@ -343,11 +343,14 @@ document.getElementById('closeDayDetailBtn').addEventListener('click', function(
 // ==========================================================================
 // ---- EDIT / DELETE A SCHEDULED EXERCISE ----
 // Always-editable card (see renderScheduledExerciseCard above), same
-// pattern as training-builder.js/program-builder.js - no modal.
+// pattern as training-builder.js/program-builder.js - no modal, and one
+// Save button for the whole day's exercises (see saveScheduledDay below)
+// instead of one per exercise, since a coach edits a whole day in one
+// sitting and only wants to press Save once when it's done.
 // ==========================================================================
 async function saveScheduledExercise(peId) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
-  if (!card) return
+  if (!card) return true
 
   const rows = [...card.querySelectorAll('.set-target-row')]
   const setTargets = rows.map(row => {
@@ -377,10 +380,28 @@ async function saveScheduledExercise(peId) {
     })
     .eq('id', peId)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); return false }
+  return true
+}
 
+// Saves every exercise card in one day-entry group at once, then closes
+// the day-detail modal back to the calendar (that's "done" for a coach
+// editing a scheduled day).
+async function saveScheduledDay(groupEl) {
+  const btn = groupEl.querySelector('[data-action="save-scheduled-day"]')
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...' }
+
+  const cardIds = [...groupEl.querySelectorAll('.builder-exercise-card')].map(card => card.dataset.id)
+  const results = await Promise.all(cardIds.map(saveScheduledExercise))
+
+  if (results.some(ok => !ok)) {
+    alert('Something went wrong saving one or more exercises - please try again')
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
+    return
+  }
+
+  document.getElementById('dayDetailModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
-  openDayModal(currentDayDateForModal)
 }
 
 async function deleteScheduledExercise(peId) {

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Training Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=7" />
-    <link rel="stylesheet" href="athlete.css?v=14" />
+    <link rel="stylesheet" href="athlete.css?v=15" />
   </head>
   <body>
 
@@ -47,7 +47,10 @@
       <div class="dashboard training-builder-main">
         <div class="dashboard-header">
           <h2 id="trainingNameHeading">Loading...</h2>
-          <button class="btn-profile-action" id="renameTrainingBtn">✏ Rename</button>
+          <div style="display:flex; gap:12px">
+            <button class="btn-profile-action" id="renameTrainingBtn">✏ Rename</button>
+            <button class="btn-save" id="saveTrainingBtn">💾 Save</button>
+          </div>
         </div>
         <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:16px">Drag an exercise from the library to add it here.</p>
         <div id="trainingExercisesList"></div>
@@ -115,7 +118,7 @@
       </div>
     </div>
 
-    <script type="module" src="training-builder.js?v=3"></script>
+    <script type="module" src="training-builder.js?v=4"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

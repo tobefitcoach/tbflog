@@ -304,17 +304,19 @@ function renderExerciseCard(te) {
         <label>Notes (visible to the athlete)</label>
         <input type="text" class="exercise-notes-input" value="${te.notes || ''}" placeholder="e.g. Focus on controlled tempo">
       </div>
-      <div class="builder-exercise-footer">
-        <span></span>
-        <button type="button" class="btn-save" data-action="save-exercise">💾 Save</button>
-      </div>
     </div>
   `
 }
 
+// Reads one card's current DOM state and saves it - called for every
+// exercise at once from the single page-level Save button (see
+// saveTrainingBtn below), not from a per-card button, since a coach builds
+// a training's whole exercise list in one sitting and only wants to press
+// Save once at the end. Returns true/false instead of alerting on its own
+// so the caller can report one combined error if several cards fail.
 async function saveExerciseCard(teId) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${teId}"]`)
-  if (!card) return
+  if (!card) return true
 
   const rows = [...card.querySelectorAll('.set-target-row')]
   const setTargets = rows.map(row => {
@@ -344,9 +346,38 @@ async function saveExerciseCard(teId) {
     })
     .eq('id', teId)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
-  await loadExercisesList()
+  if (error) { console.log(error); return false }
+  return true
 }
+
+// Saves every exercise card on the page at once. Standalone page: heads
+// back to the Training Library list afterward (that's "done" for a coach
+// building a training). Embedded in the calendar's "+ New Training"
+// overlay: stays put and just confirms, since the overlay's own Done
+// button (in athlete-calendar.js) is what actually closes it.
+document.getElementById('saveTrainingBtn').addEventListener('click', async function() {
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Saving...'
+
+  const ids = exercisesCache.map(te => te.id)
+  const results = await Promise.all(ids.map(saveExerciseCard))
+
+  if (results.some(ok => !ok)) {
+    alert('Something went wrong saving one or more exercises - please try again')
+    btn.disabled = false
+    btn.textContent = '💾 Save'
+    return
+  }
+
+  if (params.get('embed') === '1') {
+    await loadExercisesList()
+    btn.textContent = 'Saved!'
+    setTimeout(function() { btn.disabled = false; btn.textContent = '💾 Save' }, 1200)
+  } else {
+    window.location.href = 'trainings.html'
+  }
+})
 
 async function deleteExerciseRow(id) {
   if (!confirm('Remove this exercise from the training?')) return
@@ -374,8 +405,6 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
     addSetTargetRow(card.querySelector('.set-target-rows'), isTimed)
   } else if (btn.dataset.action === 'remove-set') {
     removeSetTargetRow(btn.closest('.set-target-row'))
-  } else if (btn.dataset.action === 'save-exercise') {
-    await saveExerciseCard(teId)
   } else if (btn.dataset.action === 'delete-exercise') {
     await deleteExerciseRow(teId)
   } else if (btn.dataset.action === 'add-extra-field') {
