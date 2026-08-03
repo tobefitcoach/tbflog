@@ -51,22 +51,26 @@ let currentWeekStart = null // Date (Monday) of the currently-shown week, for "b
 checkAccountState()
 
 async function checkAccountState() {
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await saveWithRetry((signal) => supabase
     .from('profiles')
     .select('role, name')
     .eq('id', session.user.id)
     .single()
+    .abortSignal(signal)
+  )
 
   if (profileError || !profile || profile.role !== 'athlete') {
     renderWrongRole()
     return
   }
 
-  const { data: foundAthlete } = await supabase
+  const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
     .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled')
     .eq('user_id', session.user.id)
     .maybeSingle()
+    .abortSignal(signal)
+  )
 
   if (foundAthlete) {
     athlete = foundAthlete
@@ -157,10 +161,12 @@ function renderSettings() {
     labels[0].classList.toggle('active', newUnit === 'kg')
     labels[1].classList.toggle('active', newUnit === 'lbs')
 
-    const { error } = await supabase
+    const { error } = await saveWithRetry((signal) => supabase
       .from('athletes')
       .update({ weight_unit: newUnit })
       .eq('id', athlete.id)
+      .abortSignal(signal)
+    )
 
     if (error) {
       console.log(error)
@@ -177,10 +183,12 @@ function renderSettings() {
     const previousValue = athlete.weekly_recap_enabled
     athlete.weekly_recap_enabled = newValue
 
-    const { error } = await supabase
+    const { error } = await saveWithRetry((signal) => supabase
       .from('athletes')
       .update({ weekly_recap_enabled: newValue })
       .eq('id', athlete.id)
+      .abortSignal(signal)
+    )
 
     if (error) {
       console.log(error)
@@ -276,11 +284,13 @@ function weightToKg(value, unit) {
 // session - small datasets for a solo coach's athlete, no date filtering.
 // ==========================================================================
 async function loadTrainingData() {
-  const { data, error } = await supabase
+  const { data, error } = await saveWithRetry((signal) => supabase
     .from('programs')
     .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url))))')
     .eq('athlete_id', athlete.id)
     .eq('is_template', false)
+    .abortSignal(signal)
+  )
 
   if (error) { console.log('Error loading training data:', error); return }
 
@@ -295,10 +305,12 @@ async function loadTrainingData() {
     }
   }
 
-  const { data: logSets, error: logError } = await supabase
+  const { data: logSets, error: logError } = await saveWithRetry((signal) => supabase
     .from('exercise_log_sets')
     .select('*')
     .eq('athlete_id', athlete.id)
+    .abortSignal(signal)
+  )
 
   if (logError) { console.log('Error loading logged sets:', logError); return }
 
@@ -311,10 +323,12 @@ async function loadTrainingData() {
     logSetsByPE[peId].sort((a, b) => a.set_number - b.set_number)
   }
 
-  const { data: sessions, error: sessionsError } = await supabase
+  const { data: sessions, error: sessionsError } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .select('*')
     .eq('athlete_id', athlete.id)
+    .abortSignal(signal)
+  )
 
   if (sessionsError) { console.log('Error loading sessions:', sessionsError); return }
 
@@ -698,22 +712,26 @@ function renderDayPreviewExercise(pe, showLogged) {
 // ---- ACTIVE WORKOUT (one exercise at a time) ----
 // ==========================================================================
 async function findOrCreateSession(programDayId) {
-  const { data: existing, error: findError } = await supabase
+  const { data: existing, error: findError } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .select('*')
     .eq('program_day_id', programDayId)
     .eq('athlete_id', athlete.id)
     .is('ended_at', null)
     .maybeSingle()
+    .abortSignal(signal)
+  )
 
   if (findError) { console.log(findError) }
   if (existing) return existing
 
-  const { data: newSession, error: insertError } = await supabase
+  const { data: newSession, error: insertError } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .insert([{ program_day_id: programDayId, athlete_id: athlete.id }])
     .select()
     .single()
+    .abortSignal(signal)
+  )
 
   if (insertError) { console.log(insertError); alert('Something went wrong starting the workout'); throw insertError }
   return newSession
