@@ -1371,6 +1371,22 @@ document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible' && athlete) flushPendingQueue()
 })
 
+// Belt-and-suspenders on top of the visibilitychange retry above: iOS kills
+// a backgrounded tab's in-flight network requests the moment the screen
+// locks or the app switches away (confirmed - a set saved instantly with
+// the screen kept on and Chrome in the foreground, but consistently aborted
+// otherwise). The one retry on returning to the tab can itself land in a
+// bad moment (e.g. wifi still reconnecting right after unlock) and then just
+// sits there until the athlete notices the banner and taps Retry Now. This
+// keeps quietly trying every 20s in the background instead, only while the
+// tab is actually visible (no point racing a request that's guaranteed to
+// be killed anyway).
+setInterval(function() {
+  if (document.visibilityState === 'visible' && athlete && loadPendingQueue().length > 0) {
+    flushPendingQueue()
+  }
+}, 20000)
+
 function performQueuedSave(entry) {
   if (entry.deleted) {
     return saveWithRetry((signal) => supabase
