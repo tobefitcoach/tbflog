@@ -283,7 +283,8 @@
   background-color: #5a5aae;
 }
 
-/* One clickable training row in the "Add Training" popup */
+/* One clickable training row in the "Add Training" popup - selecting one
+   (not applying it yet) highlights it here and fills the preview column */
 .training-pick-row {
   display: flex;
   justify-content: space-between;
@@ -293,11 +294,155 @@
   border-radius: 8px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s;
 }
 
 .training-pick-row:hover {
   border-color: #4a4a8e;
+}
+
+.training-pick-row.selected {
+  border-color: #4a4a8e;
+  background-color: rgba(74, 74, 142, 0.15);
+}
+
+/* ==========================================================================
+   ADD TRAINING POPUP — LIST + PREVIEW LAYOUT
+   Left: the Training Library list (picking a row previews it here, doesn't
+   apply it - see selectTrainingForDayBtn in athlete-calendar.js). Right: a
+   read-only preview of the selected training's exercises, same idea as the
+   athlete app's own day-preview cards.
+   ========================================================================== */
+
+.modal-wide {
+  max-width: 820px;
+}
+
+.day-add-workout-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.day-add-workout-list-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.day-add-workout-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.day-add-workout-list-title {
+  color: #aaaacc;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.btn-small-create {
+  background-color: transparent;
+  border: 1px dashed #4a4a8e;
+  color: #aaaacc;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-small-create:hover {
+  border-color: #5a5aae;
+  color: white;
+}
+
+.day-add-workout-preview {
+  flex: 1;
+  min-width: 0;
+  background-color: #0f0f1a;
+  border: 1px solid #2a2a4e;
+  border-radius: 12px;
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.workout-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.workout-preview-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #ffffff;
+}
+
+.workout-preview-count {
+  color: #aaaacc;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.workout-preview-exercise {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid #2a2a4e;
+}
+
+.workout-preview-exercise:first-of-type {
+  border-top: none;
+}
+
+.workout-preview-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.workout-preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workout-preview-info {
+  min-width: 0;
+}
+
+.workout-preview-name {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.workout-preview-target {
+  color: #aaaacc;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+@media (max-width: 700px) {
+  .day-add-workout-layout {
+    flex-direction: column;
+  }
+
+  .day-add-workout-preview {
+    max-height: 260px;
+    width: 100%;
+  }
 }
 
 .calendar-day-outside {

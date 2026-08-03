@@ -392,11 +392,21 @@ async function getProgramTemplates() {
   return cachedTemplates
 }
 
+// Selecting a row in the list previews it here rather than applying it
+// straight away - selectedTraining* remembers what's currently previewed so
+// the "Select" button (disabled until something's picked) knows what to
+// apply. cachedTrainingExercises avoids re-fetching a preview already seen
+// once in this session (e.g. clicking back and forth between two rows).
+let selectedTrainingId = null
+let selectedTrainingName = null
+let cachedTrainingExercises = {} // training_id -> exercises array
+
 async function openDayAddTrainingModal(dateStr) {
   currentDayDateForAddTraining = dateStr
   document.getElementById('dayAddTrainingTitle').textContent = 'Add Training — ' + formatDisplayDateCal(dateStr)
   document.getElementById('dayAddProgramStartDate').value = dateStr
   switchDayAddTab('workout')
+  resetTrainingPreview()
 
   const data = await getTrainingsList()
   const list = document.getElementById('dayAddTrainingList')
@@ -409,19 +419,104 @@ async function openDayAddTrainingModal(dateStr) {
     list.innerHTML = data.map(t => `
       <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
         <span>${t.name}</span>
-        <span class="btn-edit-entry">+ Add</span>
       </div>
     `).join('')
 
     list.querySelectorAll('.training-pick-row').forEach(row => {
       row.addEventListener('click', function() {
-        applyTrainingToDay(row.dataset.id, row.dataset.name, dateStr)
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewTraining(row.dataset.id, row.dataset.name)
       })
     })
   }
 
   document.getElementById('dayAddTrainingModal').classList.add('active')
 }
+
+function resetTrainingPreview() {
+  selectedTrainingId = null
+  selectedTrainingName = null
+  document.getElementById('dayAddTrainingPreview').innerHTML = '<p class="no-metrics">Select a training to preview it</p>'
+  document.getElementById('selectTrainingForDayBtn').disabled = true
+}
+
+async function previewTraining(trainingId, trainingName) {
+  selectedTrainingId = trainingId
+  selectedTrainingName = trainingName
+  document.getElementById('selectTrainingForDayBtn').disabled = false
+
+  const preview = document.getElementById('dayAddTrainingPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading…</p>'
+
+  let exercises = cachedTrainingExercises[trainingId]
+  if (!exercises) {
+    const { data, error } = await supabase
+      .from('training_exercises')
+      .select('*, exercises(name, type, video_url)')
+      .eq('training_id', trainingId)
+      .order('order_index')
+    if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
+    exercises = data
+    cachedTrainingExercises[trainingId] = exercises
+  }
+
+  // A different row may have been clicked while this was still loading -
+  // don't overwrite that newer preview with this now-stale one
+  if (selectedTrainingId !== trainingId) return
+
+  preview.innerHTML = `
+    <div class="workout-preview-header">
+      <h3>${trainingName}</h3>
+      <span class="workout-preview-count">${exercises.length} Exercise${exercises.length === 1 ? '' : 's'}</span>
+    </div>
+    ${exercises.length === 0
+      ? '<p class="no-metrics">No exercises in this training</p>'
+      : exercises.map(renderWorkoutPreviewExercise).join('')}
+  `
+}
+
+function renderWorkoutPreviewExercise(te) {
+  const thumb = getYouTubeThumbnailCal((te.exercises && te.exercises.video_url) || '')
+  const target = targetLineForTraining(te)
+
+  return `
+    <div class="workout-preview-exercise">
+      <div class="workout-preview-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '🏋'}</div>
+      <div class="workout-preview-info">
+        <div class="workout-preview-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
+        ${target ? `<div class="workout-preview-target">${target}</div>` : ''}
+      </div>
+    </div>
+  `
+}
+
+function targetLineForTraining(te) {
+  const isTimed = te.exercises && te.exercises.type === 'timed'
+  const parts = []
+  if (te.prescribed_sets) parts.push(`${te.prescribed_sets} sets`)
+  if (te.prescribed_reps) parts.push(isTimed ? te.prescribed_reps : `${te.prescribed_reps} reps`)
+  if (te.prescribed_weight) parts.push(`${te.prescribed_weight}kg`)
+  if (te.extra_fields) {
+    for (const [k, v] of Object.entries(te.extra_fields)) parts.push(`${k}: ${v}`)
+  }
+  return parts.join(' × ')
+}
+
+function getYouTubeThumbnailCal(url) {
+  if (!url) return null
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
+}
+
+document.getElementById('selectTrainingForDayBtn').addEventListener('click', async function() {
+  if (!selectedTrainingId) return
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Adding...'
+  await applyTrainingToDay(selectedTrainingId, selectedTrainingName, currentDayDateForAddTraining)
+  btn.textContent = 'Select'
+})
 
 function switchDayAddTab(tab) {
   document.getElementById('dayAddTabWorkout').classList.toggle('active', tab === 'workout')
