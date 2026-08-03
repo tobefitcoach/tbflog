@@ -35,7 +35,6 @@ let entriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
 let openSessionsByDayId = {} // program_days.id -> in-progress workout_sessions row (ended_at is null)
 let completedSessionsByDayId = {} // program_days.id -> most recently-ended workout_sessions row
-let pendingSaves = [] // in-flight exercise_log_sets save promises - finishWorkout waits for these so a slow connection can't race ahead and end the session before a just-checked set has actually saved
 let restTimerInterval = null
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 
@@ -63,6 +62,7 @@ async function checkAccountState() {
     athlete = foundAthlete
     await loadTrainingData()
     renderWeekView(startOfWeek(new Date()))
+    flushPendingQueue() // not awaited - picks up anything left over from a previous session
     return
   }
 
@@ -214,6 +214,11 @@ async function loadTrainingData() {
     const existing = completedSessionsByDayId[s.program_day_id]
     if (!existing || s.ended_at > existing.ended_at) completedSessionsByDayId[s.program_day_id] = s
   }
+
+  // Re-apply anything still waiting in the local outbox on top of the
+  // server data just loaded - a set that hasn't synced yet should still
+  // show as checked/unchecked after a reload, not silently reset
+  applyPendingQueueLocally()
 }
 
 // A program_exercise only ever resolves to one calendar date, so scanning
@@ -681,19 +686,12 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
   slide.addEventListener('pointercancel', endDrag)
 }
 
+// No waiting on any in-flight set saves here - they're durable now (see
+// the pending-save queue), so ending the workout doesn't need to block on
+// them. Any that are still mid-retry keep going in the background exactly
+// as before.
 async function finishWorkout(entry, session) {
   if (!confirm('Finish this workout?')) return
-
-  const endBtn = document.getElementById('endWorkoutBtn')
-
-  // Wait for any set still saving in the background before ending the
-  // session - on a slow connection, a set checked seconds ago can still be
-  // in flight, and ending the workout right away would build the summary
-  // (and mark the session done) without it
-  if (pendingSaves.length > 0) {
-    if (endBtn) { endBtn.disabled = true; endBtn.textContent = 'Saving...' }
-    await Promise.all(pendingSaves)
-  }
 
   const { data, error } = await supabase
     .from('workout_sessions')
@@ -705,11 +703,11 @@ async function finishWorkout(entry, session) {
   if (error) {
     console.log(error)
     alert('Something went wrong ending the workout - try again')
-    if (endBtn) { endBtn.disabled = false; endBtn.textContent = 'End Workout' }
     return
   }
 
   await loadTrainingData()
+  flushPendingQueue() // not awaited
   // Straight back to the week view, not the summary - the summary's still
   // reachable afterward via "View Summary" on this day's preview
   renderWeekView(currentWeekStart || startOfWeek(new Date()))
@@ -842,14 +840,17 @@ function addSetRow(peId) {
 // slow save finished and then swiping back would re-render this row from
 // stale data and show it as unchecked again, even though the tap "worked".
 //
-// A failed save never reverts what you tapped - it retries in the
-// background (saveWithRetry, a handful of attempts with backoff) since a
-// slow/flaky connection eventually gets there, so you can swipe on to the
-// next exercise right away without worrying whether it saved. The save
-// promise (covering every retry) is tracked in pendingSaves so
-// finishWorkout can wait for it before ending the session - see the
-// comment there. Only if every retry is exhausted does the row get flagged
-// "unsynced", and even then it stays checked rather than silently reverting.
+// A failed save never reverts what you tapped. It's also durable: every
+// check/uncheck is written to a small localStorage queue *before* the
+// network call even starts, so if the connection is bad enough that
+// saveWithRetry (a few attempts with backoff and a per-attempt timeout)
+// exhausts all its attempts - or the tab gets backgrounded/killed by the
+// phone mid-retry, which a purely in-memory retry can't survive - the
+// pending change is still sitting in the queue. It gets flushed again on
+// the next page load and whenever the tab becomes visible again (see
+// flushPendingQueue). Only once every attempt (live + later retries) has
+// failed does the row get flagged "unsynced", and even then it stays as
+// tapped rather than reverting.
 // Upsert on (program_exercise_id, date, set_number) - re-checking an
 // already-logged set updates it instead of creating a duplicate row.
 async function checkSet(peId, setNumber, dateStr, rowEl) {
@@ -871,54 +872,40 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   if (removedBtn) removedBtn.remove()
   maybeStartRestTimer(pe, rowEl)
 
-  if (!logSetsByPE[peId]) logSetsByPE[peId] = []
-  logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
-  logSetsByPE[peId].push({
+  const queueEntry = {
     program_exercise_id: peId,
     athlete_id: athlete.id,
     date: dateStr,
     set_number: setNumber,
     actual_reps: actualReps,
     actual_weight: actualWeight,
-    completed_at: new Date().toISOString()
-  })
+    completed_at: new Date().toISOString(),
+    deleted: false
+  }
 
-  const savePromise = saveWithRetry(() => supabase
-    .from('exercise_log_sets')
-    .upsert([{
-      program_exercise_id: peId,
-      athlete_id: athlete.id,
-      date: dateStr,
-      set_number: setNumber,
-      actual_reps: actualReps,
-      actual_weight: actualWeight,
-      completed_at: new Date().toISOString()
-    }], { onConflict: 'program_exercise_id,date,set_number' })
-    .select()
-  )
+  if (!logSetsByPE[peId]) logSetsByPE[peId] = []
+  logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
+  logSetsByPE[peId].push(queueEntry)
 
-  pendingSaves.push(savePromise)
-  const { data, error } = await savePromise
-  pendingSaves = pendingSaves.filter(p => p !== savePromise)
+  queueUpsert(queueEntry)
+  const { data, error } = await performQueuedSave(queueEntry)
 
   if (error) {
-    // Every retry failed (still offline, most likely) - leave it checked
-    // rather than silently discarding what the athlete just logged. Flags
-    // as unsynced so it's visible something still needs to go through.
     console.log(error)
     rowEl.classList.add('unsynced')
-    checkBtn.title = 'Not synced yet - will retry next time you check a set'
+    checkBtn.title = 'Not synced yet - will keep retrying automatically'
     return
   }
 
+  queueRemove(peId, dateStr, setNumber)
   // Replace the optimistic placeholder with the real saved row
   logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
   logSetsByPE[peId].push(data[0])
 }
 
-// Same reasoning as checkSet - unchecks immediately, retries the delete in
-// the background, and only flags "unsynced" (staying visually unchecked)
-// if every retry fails, rather than silently snapping back to checked
+// Same reasoning as checkSet - unchecks immediately, queues + retries the
+// delete, and only flags "unsynced" (staying visually unchecked) if every
+// attempt fails, rather than silently snapping back to checked
 async function uncheckSet(peId, setNumber, dateStr, rowEl) {
   const pe = findPE(peId)
   const repsInput = rowEl.querySelector('.set-reps-input')
@@ -937,35 +924,133 @@ async function uncheckSet(peId, setNumber, dateStr, rowEl) {
   }
   logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
 
-  const savePromise = saveWithRetry(() => supabase
-    .from('exercise_log_sets')
-    .delete()
-    .eq('program_exercise_id', peId)
-    .eq('date', dateStr)
-    .eq('set_number', setNumber)
-  )
-
-  pendingSaves.push(savePromise)
-  const { error } = await savePromise
-  pendingSaves = pendingSaves.filter(p => p !== savePromise)
+  const queueEntry = { program_exercise_id: peId, date: dateStr, set_number: setNumber, deleted: true }
+  queueUpsert(queueEntry)
+  const { error } = await performQueuedSave(queueEntry)
 
   if (error) {
     console.log(error)
     rowEl.classList.add('unsynced')
-    checkBtn.title = 'Not synced yet - will retry next time you check a set'
+    checkBtn.title = 'Not synced yet - will keep retrying automatically'
+    return
+  }
+
+  queueRemove(peId, dateStr, setNumber)
+}
+
+// ==========================================================================
+// ---- PENDING SAVE QUEUE ----
+// A tiny durable outbox in localStorage, keyed by (program_exercise_id,
+// date, set_number) so only the latest action for a given set is ever
+// queued. checkSet/uncheckSet write here before attempting to save, so the
+// change survives even if the tab is killed mid-retry - flushPendingQueue
+// picks up anything still sitting here on the next load or tab-foreground.
+// ==========================================================================
+function loadPendingQueue() {
+  try {
+    return JSON.parse(localStorage.getItem('tbflog-pending-sets') || '[]')
+  } catch (e) {
+    return []
   }
 }
 
-// Retries a Supabase call a few times with backoff before giving up -
-// covers a temporary drop or a slow connection that eventually comes
-// through, without the caller having to think about it. Wrapped as its own
-// async function so the whole retry sequence is one real Promise, safe to
-// await both from the caller and later from finishWorkout's Promise.all
-// without re-triggering anything.
-async function saveWithRetry(operation, maxAttempts = 5) {
+function savePendingQueueToStorage(queue) {
+  try {
+    localStorage.setItem('tbflog-pending-sets', JSON.stringify(queue))
+  } catch (e) { /* storage full/unavailable - falls back to in-memory-only behavior for this session */ }
+}
+
+function queueKey(entry) {
+  return `${entry.program_exercise_id}|${entry.date}|${entry.set_number}`
+}
+
+function queueUpsert(entry) {
+  const queue = loadPendingQueue().filter(q => queueKey(q) !== queueKey(entry))
+  queue.push(entry)
+  savePendingQueueToStorage(queue)
+}
+
+function queueRemove(peId, dateStr, setNumber) {
+  const target = queueKey({ program_exercise_id: peId, date: dateStr, set_number: setNumber })
+  savePendingQueueToStorage(loadPendingQueue().filter(q => queueKey(q) !== target))
+}
+
+// Applies every still-pending queue entry onto logSetsByPE - called at the
+// end of loadTrainingData() so a set that hasn't synced yet still shows as
+// checked/unchecked after a fresh reload, instead of the server's
+// (temporarily out of date) version winning
+function applyPendingQueueLocally() {
+  for (const entry of loadPendingQueue()) {
+    if (entry.deleted) {
+      logSetsByPE[entry.program_exercise_id] = (logSetsByPE[entry.program_exercise_id] || []).filter(s => s.set_number !== entry.set_number)
+    } else {
+      if (!logSetsByPE[entry.program_exercise_id]) logSetsByPE[entry.program_exercise_id] = []
+      logSetsByPE[entry.program_exercise_id] = logSetsByPE[entry.program_exercise_id].filter(s => s.set_number !== entry.set_number)
+      logSetsByPE[entry.program_exercise_id].push(entry)
+    }
+  }
+}
+
+// Not awaited by its callers on purpose - nothing in this app should make
+// an athlete wait on a network retry. Runs on load and whenever the tab
+// becomes visible again (see the visibilitychange listener below).
+async function flushPendingQueue() {
+  for (const entry of loadPendingQueue()) {
+    const { error } = await performQueuedSave(entry)
+    if (!error) queueRemove(entry.program_exercise_id, entry.date, entry.set_number)
+  }
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && athlete) flushPendingQueue()
+})
+
+function performQueuedSave(entry) {
+  if (entry.deleted) {
+    return saveWithRetry((signal) => supabase
+      .from('exercise_log_sets')
+      .delete()
+      .eq('program_exercise_id', entry.program_exercise_id)
+      .eq('date', entry.date)
+      .eq('set_number', entry.set_number)
+      .abortSignal(signal)
+    )
+  }
+  return saveWithRetry((signal) => supabase
+    .from('exercise_log_sets')
+    .upsert([{
+      program_exercise_id: entry.program_exercise_id,
+      athlete_id: entry.athlete_id,
+      date: entry.date,
+      set_number: entry.set_number,
+      actual_reps: entry.actual_reps,
+      actual_weight: entry.actual_weight,
+      completed_at: entry.completed_at
+    }], { onConflict: 'program_exercise_id,date,set_number' })
+    .select()
+    .abortSignal(signal)
+  )
+}
+
+// Retries a Supabase call a few times with backoff before giving up.
+// Each attempt is capped with an AbortController timeout - fetch() has no
+// timeout by default, so a stalled (not failed, just stuck) connection
+// would otherwise hang on a single attempt indefinitely instead of ever
+// reaching a retry. Normalizes a thrown/aborted attempt into the same
+// {data, error} shape as a normal Supabase response so this never throws -
+// safe to await from anywhere, including in a loop from flushPendingQueue.
+async function saveWithRetry(operationFactory, maxAttempts = 3) {
   let result = { data: null, error: null }
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    result = await operation()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 6000)
+    try {
+      result = await operationFactory(controller.signal)
+    } catch (err) {
+      result = { data: null, error: err }
+    } finally {
+      clearTimeout(timeoutId)
+    }
     if (!result.error) return result
     if (attempt < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, attempt * 2000))
