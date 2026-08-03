@@ -727,9 +727,7 @@ document.getElementById('saveDayAddProgramBtn').addEventListener('click', async 
   try {
     await cloneTemplateToAthlete(selectedTemplateId, currentDayDateForAddTraining, programStartDay, programEndDay)
     document.getElementById('dayAddTrainingModal').classList.remove('active')
-    currentDayDateForModal = currentDayDateForAddTraining
     await loadCalendarMonth(currentViewYear, currentViewMonth)
-    openDayModal(currentDayDateForAddTraining)
   } catch (err) {
     console.log(err)
     alert('Something went wrong while assigning the program. Check Supabase for a partially-created program under this athlete and delete it before retrying.')
@@ -780,13 +778,15 @@ document.getElementById('doneTrainingBuilderBtn').addEventListener('click', func
   openDayAddTrainingModal(currentDayDateForAddTraining)
 })
 
+// Just closes back to the calendar month view afterward - already saw a
+// preview of this training before hitting Select, so popping the day
+// detail modal open again on top of that would just be showing it a
+// second time. Clicking the day itself still opens it if wanted.
 async function applyTrainingToDay(trainingId, trainingName, dateStr) {
   const dayId = await findOrCreateAdHocDay(dateStr, trainingName)
   await cloneTrainingToDay(trainingId, dayId)
   document.getElementById('dayAddTrainingModal').classList.remove('active')
-  currentDayDateForModal = dateStr
   await loadCalendarMonth(currentViewYear, currentViewMonth)
-  openDayModal(dateStr)
 }
 
 // Copies a saved training's exercise list onto an ad-hoc day - a real copy,
