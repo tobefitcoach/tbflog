@@ -606,6 +606,144 @@
   margin-top: 2px;
 }
 
+.duration-edit-btn {
+  margin-top: 4px;
+  background: transparent;
+  border: none;
+  color: #aaaacc;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.duration-edit-btn:hover {
+  color: #ffffff;
+}
+
+.duration-warning {
+  color: #e0a030;
+  font-size: 13px;
+  margin: -12px 0 12px;
+}
+
+.duration-edit-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.duration-edit-row input {
+  width: 70px;
+  padding: 8px 10px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  /* Under 16px triggers iOS Safari's auto-zoom-on-focus, same reasoning as
+     the set-reps-input/set-weight-input fields above */
+  font-size: 16px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+  text-align: center;
+}
+
+.duration-edit-row span {
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+/* --- Session RPE picker --- */
+.rpe-picker {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.rpe-picker-label {
+  color: #ffffff;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.rpe-picker-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rpe-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #2a2a4e;
+  background: transparent;
+  color: #aaaacc;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.rpe-btn:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.rpe-btn.selected {
+  background-color: #4a4a8e;
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.rpe-picker-hint {
+  color: #aaaacc;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+/* --- PR badges: one color per PR type, shown under the exercise name in
+   the workout summary's per-exercise breakdown --- */
+.pr-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.pr-badges:empty {
+  margin: 0;
+}
+
+.pr-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.pr-badge-volume {
+  color: #e0a030;
+  background-color: rgba(224, 160, 48, 0.15);
+}
+
+.pr-badge-weight {
+  color: #b388ff;
+  background-color: rgba(179, 136, 255, 0.15);
+}
+
+.pr-badge-reps {
+  color: #4caf50;
+  background-color: rgba(76, 175, 80, 0.15);
+}
+
+.pr-badge-sets {
+  color: #4fc3f7;
+  background-color: rgba(79, 195, 247, 0.15);
+}
+
+.pr-badge-onerm {
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.15);
+}
+
 @media (max-width: 768px) {
   .athlete-app-page.wide {
     padding: 16px 12px;

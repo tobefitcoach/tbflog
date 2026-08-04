@@ -478,6 +478,24 @@ create index if not exists idx_bodyweight_athlete_id on bodyweight(athlete_id);
 create index if not exists idx_athlete_notes_athlete_id on athlete_notes(athlete_id);
 
 -- ==========================================================================
+-- Training load tracking, Phase 1: session RPE. Entered by the athlete right
+-- after finishing a workout (post-workout summary screen, dashboard.js) -
+-- session_load itself (RPE x duration) is intentionally NOT stored here,
+-- same as every other derived number in this app (volume, duration) - it's
+-- always computed on demand from this column plus the already-existing
+-- started_at/ended_at, so there's never a stale cached value to keep in
+-- sync. No RLS change needed - already covered by the existing "athlete
+-- manages own sessions"/"coach views sessions for own athletes" policies.
+--
+-- Also indexes program_exercises.exercise_id, used by the new PR-detection
+-- query (finding every past session logged for a given exercise, across
+-- every program/week it's ever been assigned in) - same "unindexed foreign
+-- key = slow query" issue as the indexes added above.
+-- ==========================================================================
+alter table workout_sessions add column if not exists session_rpe int check (session_rpe between 1 and 10);
+create index if not exists idx_program_exercises_exercise_id on program_exercises(exercise_id);
+
+-- ==========================================================================
 -- Per-set targets: lets a coach give each individual set within an exercise
 -- its own reps/weight (a pyramid: 12/10/8 reps at increasing weight),
 -- instead of one shared prescribed_reps/prescribed_weight applied to every

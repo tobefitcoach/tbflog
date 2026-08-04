@@ -1033,11 +1033,12 @@ async function finishWorkout(entry, session) {
     new Promise(resolve => setTimeout(resolve, 8000))
   ])
 
-  const { error } = await saveWithRetry((signal) => supabase
+  const { data, error } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .update({ ended_at: new Date().toISOString() })
     .eq('id', session.id)
     .select()
+    .single()
     .abortSignal(signal)
   )
 
@@ -1052,9 +1053,7 @@ async function finishWorkout(entry, session) {
   }
 
   await loadTrainingData()
-  // Straight back to the week view, not the summary - the summary's still
-  // reachable afterward via "View Summary" on this day's preview
-  renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  renderWorkoutSummary(data, entry)
 }
 
 function renderWorkoutSummary(finishedSession, entry) {
@@ -1066,6 +1065,10 @@ function renderWorkoutSummary(finishedSession, entry) {
   const durationMin = Math.floor(durationMs / 60000)
   const durationSec = Math.floor((durationMs % 60000) / 1000)
   const durationText = durationMin > 0 ? `${durationMin}m ${durationSec}s` : `${durationSec}s`
+  // Rounded minutes, not the exact floor above - both the >180 cap check and
+  // the edit input default work in whole minutes, not minutes+seconds
+  const durationMinRounded = Math.round(durationMs / 60000)
+  const needsDurationReview = durationMinRounded > 180
 
   // Volume = actual_weight x actual_reps, summed across every completed set
   // logged for this day's exercises - skips sets whose reps didn't parse as
@@ -1089,6 +1092,7 @@ function renderWorkoutSummary(finishedSession, entry) {
     return `
       <div class="detail-group">
         <h4 class="detail-group-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</h4>
+        <div class="pr-badges" id="prBadges-${pe.id}"></div>
         <ul class="detail-list">
           ${sets.map(s => `
             <li class="detail-row">
@@ -1110,13 +1114,30 @@ function renderWorkoutSummary(finishedSession, entry) {
         <div>
           <div class="workout-summary-stat-value">${durationText}</div>
           <div class="workout-summary-stat-label">Duration</div>
+          <button type="button" class="duration-edit-btn" id="durationEditBtn">✏ Edit</button>
         </div>
         <div>
           <div class="workout-summary-stat-value">${Math.round(formatWeight(totalVolume, athlete.weight_unit))}${athlete.weight_unit || 'kg'}</div>
           <div class="workout-summary-stat-label">Total Volume</div>
         </div>
       </div>
+      ${needsDurationReview ? `<p class="duration-warning">This looks long — ${durationMinRounded}m. Forget to stop the timer? Tap Edit to fix it.</p>` : ''}
+      <div class="duration-edit-row" id="durationEditRow" style="display:none">
+        <input type="number" id="durationEditInput" min="1" value="${durationMinRounded}">
+        <span>minutes</span>
+        <button type="button" class="btn-save" id="durationSaveBtn">Save</button>
+        <button type="button" class="btn-cancel" id="durationCancelBtn">Cancel</button>
+      </div>
     </div>
+
+    <div class="rpe-picker">
+      <p class="rpe-picker-label">How hard did this workout feel? (Session RPE)</p>
+      <div class="rpe-picker-row" id="rpePickerRow">
+        ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button type="button" class="rpe-btn ${finishedSession.session_rpe === n ? 'selected' : ''}" data-rpe="${n}">${n}</button>`).join('')}
+      </div>
+      <p class="rpe-picker-hint">1 = very easy, 10 = maximal effort</p>
+    </div>
+
     ${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}
     <button class="btn-save start-workout-btn" id="summaryDoneBtn">Done</button>
   `
@@ -1124,6 +1145,207 @@ function renderWorkoutSummary(finishedSession, entry) {
   document.getElementById('summaryDoneBtn').addEventListener('click', function() {
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
   })
+
+  wireSummaryRpePicker(finishedSession)
+  wireSummaryDurationEdit(finishedSession, entry)
+  // Not awaited - the summary above is already fully usable from data
+  // already in memory, same reasoning as why Start Workout no longer waits
+  // on a network round trip before rendering. PR badges patch in once ready.
+  loadAndRenderPRBadges(finishedSession, entry)
+}
+
+// Tapping a number saves instantly - same optimistic + saveWithRetry
+// pattern as checkSet/uncheckSet, since this is one tap of one value, not a
+// multi-field form (the coach builders' "one Save button" rule doesn't
+// apply here)
+function wireSummaryRpePicker(session) {
+  const row = document.getElementById('rpePickerRow')
+  if (!row) return
+
+  row.addEventListener('click', async function(e) {
+    const btn = e.target.closest('.rpe-btn')
+    if (!btn) return
+    const rpe = parseInt(btn.dataset.rpe)
+
+    row.querySelectorAll('.rpe-btn').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+    session.session_rpe = rpe
+
+    const { error } = await saveWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .update({ session_rpe: rpe })
+      .eq('id', session.id)
+      .abortSignal(signal)
+    )
+
+    if (error) {
+      console.log(error)
+      customAlert('Something went wrong saving your effort rating: ' + describeError(error))
+    }
+  })
+}
+
+// A correction, not part of the tap-to-log flow - reveals a plain minutes
+// input rather than editing the raw timestamps directly, since athletes
+// think in "it took about 50 minutes," not clock times
+function wireSummaryDurationEdit(session, entry) {
+  const editBtn = document.getElementById('durationEditBtn')
+  const editRow = document.getElementById('durationEditRow')
+  const input = document.getElementById('durationEditInput')
+  const saveBtn = document.getElementById('durationSaveBtn')
+  const cancelBtn = document.getElementById('durationCancelBtn')
+  if (!editBtn) return
+
+  editBtn.addEventListener('click', function() {
+    editBtn.style.display = 'none'
+    editRow.style.display = 'flex'
+    input.focus()
+  })
+
+  cancelBtn.addEventListener('click', function() {
+    editRow.style.display = 'none'
+    editBtn.style.display = ''
+  })
+
+  saveBtn.addEventListener('click', async function() {
+    const minutes = parseInt(input.value)
+    if (isNaN(minutes) || minutes < 1) { customAlert('Enter a duration of at least 1 minute'); return }
+
+    saveBtn.disabled = true
+    saveBtn.textContent = 'Saving...'
+
+    const newEndedAt = new Date(new Date(session.started_at).getTime() + minutes * 60000).toISOString()
+    const { data, error } = await saveWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .update({ ended_at: newEndedAt })
+      .eq('id', session.id)
+      .select()
+      .single()
+      .abortSignal(signal)
+    )
+
+    if (error) {
+      console.log(error)
+      customAlert('Something went wrong saving the corrected duration: ' + describeError(error))
+      saveBtn.disabled = false
+      saveBtn.textContent = 'Save'
+      return
+    }
+
+    // Re-render from scratch - recomputes the duration text/warning and
+    // re-runs PR detection against the (now differently-dated) session
+    renderWorkoutSummary(data, entry)
+  })
+}
+
+// ==========================================================================
+// ---- PR DETECTION ----
+// Compares this session against every OTHER session ever logged for the
+// same underlying exercise (matched by exercise_id, so history carries
+// across different programs/weeks a coach has assigned it in - not just
+// program_exercise_id, which is a new row every time it's reprogrammed).
+// ==========================================================================
+
+// Epley formula - the standard estimated-1RM most lifting apps use, since
+// it fairly compares a heavy low-rep set against a lighter high-rep set,
+// which comparing raw heaviest weight alone can't do
+function estimatedOneRM(weight, reps) {
+  return weight * (1 + reps / 30)
+}
+
+// One session's aggregate stats for one exercise, from its completed sets
+function sessionExerciseStats(sets) {
+  let volume = 0, totalReps = 0, maxWeight = 0, maxOneRM = 0
+  for (const s of sets) {
+    const reps = parseInt(s.actual_reps)
+    const hasReps = !isNaN(reps)
+    if (hasReps) totalReps += reps
+    if (s.actual_weight != null) {
+      if (s.actual_weight > maxWeight) maxWeight = s.actual_weight
+      if (hasReps) {
+        volume += reps * s.actual_weight
+        const oneRM = estimatedOneRM(s.actual_weight, reps)
+        if (oneRM > maxOneRM) maxOneRM = oneRM
+      }
+    }
+  }
+  return { volume, totalReps, maxWeight, maxOneRM, setCount: sets.length }
+}
+
+async function loadAndRenderPRBadges(session, entry) {
+  const exerciseIds = [...new Set(entry.day.program_exercises.map(pe => pe.exercise_id))]
+  if (exerciseIds.length === 0) return
+
+  // Every program_exercises row (across every program/week this athlete has
+  // ever had) that's ever pointed at one of today's exercises - RLS already
+  // scopes this to the athlete's own programs
+  const { data: pastPEs, error: peError } = await fetchWithRetry((signal) => supabase
+    .from('program_exercises')
+    .select('id, exercise_id')
+    .in('exercise_id', exerciseIds)
+    .abortSignal(signal)
+  )
+  if (peError) { console.log(peError); return }
+
+  const exerciseIdByPEId = {}
+  for (const pe of pastPEs) exerciseIdByPEId[pe.id] = pe.exercise_id
+  const allPEIds = pastPEs.map(pe => pe.id)
+  if (allPEIds.length === 0) return
+
+  const { data: pastSets, error: setsError } = await fetchWithRetry((signal) => supabase
+    .from('exercise_log_sets')
+    .select('*')
+    .in('program_exercise_id', allPEIds)
+    .not('completed_at', 'is', null)
+    .abortSignal(signal)
+  )
+  if (setsError) { console.log(setsError); return }
+
+  // One bucket per (exercise_id, date) - a proxy for "one session", the
+  // same date-based grouping this app already uses elsewhere (there's no
+  // workout_sessions link on exercise_log_sets to group by directly)
+  const buckets = {}
+  for (const s of pastSets) {
+    const exerciseId = exerciseIdByPEId[s.program_exercise_id]
+    const key = `${exerciseId}|${s.date}`
+    if (!buckets[key]) buckets[key] = []
+    buckets[key].push(s)
+  }
+
+  const todayStr = toDateStr(new Date(session.started_at))
+
+  for (const pe of entry.day.program_exercises) {
+    const todayKey = `${pe.exercise_id}|${todayStr}`
+    const todaySets = buckets[todayKey] || []
+    if (todaySets.length === 0) continue
+    const todayStats = sessionExerciseStats(todaySets)
+
+    let bestVolume = 0, bestReps = 0, bestWeight = 0, bestOneRM = 0, bestSets = 0
+    let hasHistory = false
+    for (const key in buckets) {
+      if (key === todayKey || !key.startsWith(pe.exercise_id + '|')) continue
+      hasHistory = true
+      const stats = sessionExerciseStats(buckets[key])
+      bestVolume = Math.max(bestVolume, stats.volume)
+      bestReps = Math.max(bestReps, stats.totalReps)
+      bestWeight = Math.max(bestWeight, stats.maxWeight)
+      bestOneRM = Math.max(bestOneRM, stats.maxOneRM)
+      bestSets = Math.max(bestSets, stats.setCount)
+    }
+    // Nothing to beat yet - a first-time exercise isn't a PR
+    if (!hasHistory) continue
+
+    const badges = []
+    if (todayStats.volume > bestVolume) badges.push({ type: 'volume', label: 'Volume PR' })
+    if (todayStats.maxWeight > bestWeight) badges.push({ type: 'weight', label: 'Weight PR' })
+    if (todayStats.totalReps > bestReps) badges.push({ type: 'reps', label: 'Reps PR' })
+    if (todayStats.setCount > bestSets) badges.push({ type: 'sets', label: 'Sets PR' })
+    if (todayStats.maxOneRM > bestOneRM) badges.push({ type: 'onerm', label: 'Est. 1RM PR' })
+    if (badges.length === 0) continue
+
+    const container = document.getElementById(`prBadges-${pe.id}`)
+    if (container) container.innerHTML = badges.map(b => `<span class="pr-badge pr-badge-${b.type}">🏆 ${b.label}</span>`).join('')
+  }
 }
 
 // ==========================================================================
