@@ -284,15 +284,39 @@ function weightToKg(value, unit) {
 // session - small datasets for a solo coach's athlete, no date filtering.
 // ==========================================================================
 async function loadTrainingData() {
-  const { data, error } = await saveWithRetry((signal) => supabase
-    .from('programs')
-    .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url))))')
-    .eq('athlete_id', athlete.id)
-    .eq('is_template', false)
-    .abortSignal(signal)
-  )
+  // These 3 queries don't depend on each other's results, so they fire
+  // together instead of waiting on each other one at a time - on a slow
+  // connection this also means one retry sequence doesn't delay the start
+  // of the other two
+  const [
+    { data, error },
+    { data: logSets, error: logError },
+    { data: sessions, error: sessionsError }
+  ] = await Promise.all([
+    saveWithRetry((signal) => supabase
+      .from('programs')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url))))')
+      .eq('athlete_id', athlete.id)
+      .eq('is_template', false)
+      .abortSignal(signal)
+    ),
+    saveWithRetry((signal) => supabase
+      .from('exercise_log_sets')
+      .select('*')
+      .eq('athlete_id', athlete.id)
+      .abortSignal(signal)
+    ),
+    saveWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('athlete_id', athlete.id)
+      .abortSignal(signal)
+    )
+  ])
 
   if (error) { console.log('Error loading training data:', error); return }
+  if (logError) { console.log('Error loading logged sets:', logError); return }
+  if (sessionsError) { console.log('Error loading sessions:', sessionsError); return }
 
   entriesByDate = {}
   for (const program of data) {
@@ -305,15 +329,6 @@ async function loadTrainingData() {
     }
   }
 
-  const { data: logSets, error: logError } = await saveWithRetry((signal) => supabase
-    .from('exercise_log_sets')
-    .select('*')
-    .eq('athlete_id', athlete.id)
-    .abortSignal(signal)
-  )
-
-  if (logError) { console.log('Error loading logged sets:', logError); return }
-
   logSetsByPE = {}
   for (const row of logSets) {
     if (!logSetsByPE[row.program_exercise_id]) logSetsByPE[row.program_exercise_id] = []
@@ -322,15 +337,6 @@ async function loadTrainingData() {
   for (const peId in logSetsByPE) {
     logSetsByPE[peId].sort((a, b) => a.set_number - b.set_number)
   }
-
-  const { data: sessions, error: sessionsError } = await saveWithRetry((signal) => supabase
-    .from('workout_sessions')
-    .select('*')
-    .eq('athlete_id', athlete.id)
-    .abortSignal(signal)
-  )
-
-  if (sessionsError) { console.log('Error loading sessions:', sessionsError); return }
 
   openSessionsByDayId = {}
   completedSessionsByDayId = {}

@@ -945,8 +945,12 @@ async function cloneTrainingToDay(trainingId, dayId) {
 
   trainingExercises.sort((a, b) => a.order_index - b.order_index)
 
-  for (const te of trainingExercises) {
-    const { error: insertError } = await supabase.from('program_exercises').insert([{
+  if (trainingExercises.length === 0) return
+
+  // One bulk insert instead of one insert per exercise - used to be N
+  // sequential round-trips for an N-exercise training
+  const { error: insertError } = await supabase.from('program_exercises').insert(
+    trainingExercises.map(te => ({
       day_id: dayId,
       exercise_id: te.exercise_id,
       order_index: te.order_index,
@@ -957,9 +961,9 @@ async function cloneTrainingToDay(trainingId, dayId) {
       extra_fields: te.extra_fields,
       set_targets: te.set_targets,
       notes: te.notes
-    }])
-    if (insertError) { console.log(insertError); customAlert('Something went wrong copying one of the exercises'); return }
-  }
+    }))
+  )
+  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 }
 
 // name is only used the first time a training is created for this date -
@@ -1116,12 +1120,16 @@ function playInlineVideoCal(containerEl, url) {
 // program_exercises all cascade-delete, recovery is just deleting that one
 // programs row and retrying.
 async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEnd) {
-  const { data: template, error: templateError } = await supabase
-    .from('programs')
-    .select('*')
-    .eq('id', templateId)
-    .single()
+  // These 2 don't depend on each other's results, so they fire together
+  const [
+    { data: template, error: templateError },
+    { data: weeks, error: weeksError }
+  ] = await Promise.all([
+    supabase.from('programs').select('*').eq('id', templateId).single(),
+    supabase.from('program_weeks').select('*, program_days(*, program_exercises(*))').eq('program_id', templateId)
+  ])
   if (templateError) throw templateError
+  if (weeksError) throw weeksError
 
   // startDate is the calendar day that was clicked to open this popup, and
   // it's always meant to line up with rangeStart (day 1 of whatever slice
@@ -1147,56 +1155,78 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
   if (programError) throw programError
   const newProgramId = newProgram[0].id
 
-  const { data: weeks, error: weeksError } = await supabase
-    .from('program_weeks')
-    .select('*, program_days(*, program_exercises(*))')
-    .eq('program_id', templateId)
-  if (weeksError) throw weeksError
-
   weeks.sort((a, b) => a.week_number - b.week_number)
 
-  for (const week of weeks) {
-    const days = [...week.program_days]
-      .filter(day => {
-        const linearDay = (week.week_number - 1) * 7 + day.day_number
-        return linearDay >= rangeStart && linearDay <= rangeEnd
+  // Only weeks that have at least one day inside the picked range
+  const weeksInRange = weeks
+    .map(week => ({
+      week,
+      days: [...week.program_days]
+        .filter(day => {
+          const linearDay = (week.week_number - 1) * 7 + day.day_number
+          return linearDay >= rangeStart && linearDay <= rangeEnd
+        })
+        .sort((a, b) => a.day_number - b.day_number)
+    }))
+    .filter(w => w.days.length > 0)
+
+  if (weeksInRange.length === 0) return
+
+  // ---- Bulk-insert every week, then every day, then every exercise, one
+  // insert call per table instead of one insert call per row - a 12-week
+  // program used to mean 100+ sequential round-trips here, now it's 3-4.
+  // Rows are matched back up to their new parent by a real key (week_number,
+  // then week_id+day_number) rather than by array position, since a bulk
+  // insert's response order isn't something to rely on. ----
+  const { data: newWeeks, error: weeksInsertError } = await supabase
+    .from('program_weeks')
+    .insert(weeksInRange.map(w => ({ program_id: newProgramId, week_number: w.week.week_number })))
+    .select()
+  if (weeksInsertError) throw weeksInsertError
+
+  const newWeekIdByNumber = {}
+  newWeeks.forEach(w => { newWeekIdByNumber[w.week_number] = w.id })
+
+  const dayRows = [] // flat list of { weekNumber, day } - remembers which template day each planned insert came from
+  weeksInRange.forEach(w => {
+    w.days.forEach(day => { dayRows.push({ weekNumber: w.week.week_number, day }) })
+  })
+
+  const { data: newDays, error: daysInsertError } = await supabase
+    .from('program_days')
+    .insert(dayRows.map(r => ({
+      week_id: newWeekIdByNumber[r.weekNumber],
+      day_number: r.day.day_number,
+      label: r.day.label
+    })))
+    .select()
+  if (daysInsertError) throw daysInsertError
+
+  const newDayIdByKey = {}
+  newDays.forEach(d => { newDayIdByKey[`${d.week_id}:${d.day_number}`] = d.id })
+
+  const exerciseRows = []
+  dayRows.forEach(r => {
+    const newDayId = newDayIdByKey[`${newWeekIdByNumber[r.weekNumber]}:${r.day.day_number}`]
+    const exercisesInDay = [...r.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
+    exercisesInDay.forEach(pe => {
+      exerciseRows.push({
+        day_id: newDayId,
+        exercise_id: pe.exercise_id,
+        order_index: pe.order_index,
+        prescribed_sets: pe.prescribed_sets,
+        prescribed_reps: pe.prescribed_reps,
+        prescribed_weight: pe.prescribed_weight,
+        rest_seconds: pe.rest_seconds,
+        extra_fields: pe.extra_fields,
+        set_targets: pe.set_targets,
+        notes: pe.notes
       })
-      .sort((a, b) => a.day_number - b.day_number)
+    })
+  })
 
-    if (days.length === 0) continue // nothing in this week falls inside the picked range
-
-    const { data: newWeek, error: weekError } = await supabase
-      .from('program_weeks')
-      .insert([{ program_id: newProgramId, week_number: week.week_number }])
-      .select()
-    if (weekError) throw weekError
-    const newWeekId = newWeek[0].id
-
-    for (const day of days) {
-      const { data: newDay, error: dayError } = await supabase
-        .from('program_days')
-        .insert([{ week_id: newWeekId, day_number: day.day_number, label: day.label }])
-        .select()
-      if (dayError) throw dayError
-      const newDayId = newDay[0].id
-
-      const exercisesInDay = [...day.program_exercises].sort((a, b) => a.order_index - b.order_index)
-
-      for (const pe of exercisesInDay) {
-        const { error: peError } = await supabase.from('program_exercises').insert([{
-          day_id: newDayId,
-          exercise_id: pe.exercise_id,
-          order_index: pe.order_index,
-          prescribed_sets: pe.prescribed_sets,
-          prescribed_reps: pe.prescribed_reps,
-          prescribed_weight: pe.prescribed_weight,
-          rest_seconds: pe.rest_seconds,
-          extra_fields: pe.extra_fields,
-          set_targets: pe.set_targets,
-          notes: pe.notes
-        }])
-        if (peError) throw peError
-      }
-    }
+  if (exerciseRows.length > 0) {
+    const { error: exercisesInsertError } = await supabase.from('program_exercises').insert(exerciseRows)
+    if (exercisesInsertError) throw exercisesInsertError
   }
 }

@@ -200,13 +200,39 @@ let volumeChartData = { labels: [], values: [] }
 let durationEvents = [] // { dateStr, name, minutes }, filled in by loadOverviewStats, read by the duration detail modal
 
 async function loadOverviewStats() {
-  const { data: programs, error: programsError } = await supabase
-    .from('programs')
-    .select('*, program_weeks(*, program_days(*, program_exercises(*)))')
-    .eq('athlete_id', athleteId)
-    .eq('is_template', false)
+  const ninetyDaysAgo = toDateStrOv(addDaysOv(new Date(), -89))
+  const ninetyDaysAgoISO = addDaysOv(new Date(), -89).toISOString()
+
+  // These 3 queries don't depend on each other's results, so they fire
+  // together instead of waiting on each other one at a time - this alone
+  // cuts this page's load time roughly in half to a third
+  const [
+    { data: programs, error: programsError },
+    { data: logSets, error: logError },
+    { data: sessions, error: sessionsError }
+  ] = await Promise.all([
+    supabase
+      .from('programs')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*)))')
+      .eq('athlete_id', athleteId)
+      .eq('is_template', false),
+    supabase
+      .from('exercise_log_sets')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .gte('date', ninetyDaysAgo),
+    supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .not('ended_at', 'is', null)
+      .gte('started_at', ninetyDaysAgoISO)
+      .order('started_at', { ascending: false })
+  ])
 
   if (programsError) { console.log('Error loading schedule for stats:', programsError); return }
+  if (logError) { console.log('Error loading logged sets for stats:', logError); return }
+  if (sessionsError) { console.log('Error loading sessions for stats:', sessionsError); return }
 
   // One entry per program_days row - i.e. per workout, not per calendar
   // date. Two workouts landing on the same date (an assigned program day
@@ -225,15 +251,6 @@ async function loadOverviewStats() {
       }
     }
   }
-
-  const ninetyDaysAgo = toDateStrOv(addDaysOv(new Date(), -89))
-  const { data: logSets, error: logError } = await supabase
-    .from('exercise_log_sets')
-    .select('*')
-    .eq('athlete_id', athleteId)
-    .gte('date', ninetyDaysAgo)
-
-  if (logError) { console.log('Error loading logged sets for stats:', logError); return }
 
   const logSetsByPE = {}
   for (const row of logSets) {
@@ -310,17 +327,6 @@ async function loadOverviewStats() {
 
   // ---- Duration: completed workout_sessions rows only (still-open sessions
   // have no ended_at yet, nothing to measure) ----
-  const ninetyDaysAgoISO = addDaysOv(new Date(), -89).toISOString()
-  const { data: sessions, error: sessionsError } = await supabase
-    .from('workout_sessions')
-    .select('*')
-    .eq('athlete_id', athleteId)
-    .not('ended_at', 'is', null)
-    .gte('started_at', ninetyDaysAgoISO)
-    .order('started_at', { ascending: false })
-
-  if (sessionsError) { console.log('Error loading sessions for stats:', sessionsError); return }
-
   durationEvents = sessions.map(s => {
     const info = dayInfoById[s.program_day_id]
     const minutes = Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000)
@@ -670,6 +676,50 @@ async function loadAthleteMetrics() {
     return
   }
 
+  // Every tracked metric's last 3 months of measurements, fetched in ONE
+  // query instead of one query per metric (and reused below for the
+  // mini-graphs too, instead of fetching the exact same data a second
+  // time) - this used to be up to 2-3 sequential database round-trips per
+  // tracked metric, which made this tab noticeably slow to open with more
+  // than a few metrics tracked.
+  const metricIds = athleteMetrics.map(am => am.metrics.id)
+  const threeMonthsAgo = new Date()
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+  const fromDate = threeMonthsAgo.toISOString().split('T')[0]
+
+  const { data: recentMeasurements } = await supabase
+    .from('measurements')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .in('metric_id', metricIds)
+    .gte('date', fromDate)
+    .order('date', { ascending: true })
+
+  const measurementsByMetric = {}
+  for (const m of recentMeasurements || []) {
+    if (!measurementsByMetric[m.metric_id]) measurementsByMetric[m.metric_id] = []
+    measurementsByMetric[m.metric_id].push(m)
+  }
+
+  // Zone2 metrics need their FULL history (not just 3 months) for the
+  // 30-vs-60-day comparison below - same one-query-for-everyone approach,
+  // and only run at all if there's actually a Zone2 metric tracked
+  const zone2MetricIds = athleteMetrics.filter(am => am.metrics.type === 'zone2').map(am => am.metrics.id)
+  const zone2AllByMetric = {}
+  if (zone2MetricIds.length > 0) {
+    const { data: allZone2Measurements } = await supabase
+      .from('measurements')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .in('metric_id', zone2MetricIds)
+      .order('date', { ascending: false })
+
+    for (const m of allZone2Measurements || []) {
+      if (!zone2AllByMetric[m.metric_id]) zone2AllByMetric[m.metric_id] = []
+      zone2AllByMetric[m.metric_id].push(m)
+    }
+  }
+
   // Group metrics by category
   const categories = {}
   for (const am of athleteMetrics) {
@@ -689,25 +739,13 @@ async function loadAthleteMetrics() {
 
     for (const am of items) {
       const metric = am.metrics
-
-      // Load last 3 months of measurements for mini graph
-      const threeMonthsAgo = new Date()
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-      const fromDate = threeMonthsAgo.toISOString().split('T')[0]
-
-      const { data: measurements } = await supabase
-        .from('measurements')
-        .select('*')
-        .eq('athlete_id', athleteId)
-        .eq('metric_id', metric.id)
-        .gte('date', fromDate)
-        .order('date', { ascending: true })
+      const measurements = measurementsByMetric[metric.id] || []
 
       const item = document.createElement('div')
       item.classList.add('metric-item')
       item.dataset.metricId = metric.id
 
-     const latest = measurements && measurements.length > 0 ? measurements[measurements.length - 1] : null
+     const latest = measurements.length > 0 ? measurements[measurements.length - 1] : null
       let latestText = 'No measurements yet'
       let changeHTML = ''
 
@@ -726,14 +764,9 @@ async function loadAthleteMetrics() {
         // --- Calculate % change badge (▲/▼ x%) shown next to the metric name ---
         if (metric.type === 'zone2') {
           // Zone2: compare average score of last 30 days vs the 30 days before that
-          const { data: allZone2 } = await supabase
-            .from('measurements')
-            .select('*')
-            .eq('athlete_id', athleteId)
-            .eq('metric_id', metric.id)
-            .order('date', { ascending: false })
+          const allZone2 = zone2AllByMetric[metric.id] || []
 
-          if (allZone2 && allZone2.length >= 2) {
+          if (allZone2.length >= 2) {
             const now = new Date()
             const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
             const sixtyDaysAgo = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -838,24 +871,15 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
   })
 
   // --- Draw the small trend chart (Chart.js) inside each metric card ---
+  // Reuses measurementsByMetric (fetched once, up top) instead of querying
+  // the same 3-months-of-measurements data a second time per metric
   for (const am of athleteMetrics) {
     const metric = am.metrics
     const canvas = document.getElementById(`mini-graph-${metric.id}`)
     if (!canvas) continue
 
-    const threeMonthsAgo2 = new Date()
-    threeMonthsAgo2.setMonth(threeMonthsAgo2.getMonth() - 3)
-    const fromDate2 = threeMonthsAgo2.toISOString().split('T')[0]
-
-    const { data: graphData } = await supabase
-      .from('measurements')
-      .select('*')
-      .eq('athlete_id', athleteId)
-      .eq('metric_id', metric.id)
-      .gte('date', fromDate2)
-      .order('date', { ascending: true })
-
-    if (!graphData || graphData.length < 2) continue
+    const graphData = measurementsByMetric[metric.id] || []
+    if (graphData.length < 2) continue
 
     const labels = graphData.map(m => m.date)
     const values = graphData.map(m => metric.type === 'pogo' ? m.rsi : m.value)
