@@ -226,7 +226,7 @@ function renderWeeks(weeks) {
 
 function renderWeekBlock(week) {
   return `
-    <div class="metric-category">
+    <div class="metric-category" data-week-id="${week.id}">
       <div class="metrics-header">
         <h3 class="category-title">Week ${week.week_number}</h3>
         <div style="display:flex; gap:8px">
@@ -243,7 +243,7 @@ function renderWeekBlock(week) {
 
 function renderDayBlock(day) {
   return `
-    <div class="exercise-item" style="margin-bottom:16px">
+    <div class="exercise-item" style="margin-bottom:16px" data-day-id="${day.id}">
       <div class="metric-item-header">
         <h4>${day.label || ('Day ' + day.day_number)}</h4>
         <div style="display:flex; gap:8px">
@@ -409,23 +409,43 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
 // ==========================================================================
 // ---- ADD / DELETE WEEK ----
 // ==========================================================================
+// Appends just the new week block instead of reloading + re-rendering the
+// whole tree, so any unsaved edits sitting in other days' cards aren't
+// wiped out by the refresh
 document.getElementById('addWeekBtn').addEventListener('click', async function() {
   const nextNumber = weeksCache.length ? Math.max(...weeksCache.map(w => w.week_number)) + 1 : 1
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('program_weeks')
     .insert([{ program_id: programId, week_number: nextNumber }])
+    .select()
 
   if (error) { console.log(error); alert('Something went wrong'); return }
-  loadWeeks()
+
+  const newWeek = { ...data[0], program_days: [] }
+  weeksCache.push(newWeek)
+
+  const container = document.getElementById('weeksList')
+  if (weeksCache.length === 1) {
+    container.innerHTML = renderWeekBlock(newWeek)
+  } else {
+    container.insertAdjacentHTML('beforeend', renderWeekBlock(newWeek))
+  }
 })
 
+// Removes just this one week block instead of reloading the whole tree
 async function deleteWeek(weekId) {
   if (!confirm('Delete this week and everything in it?')) return
 
   const { error } = await supabase.from('program_weeks').delete().eq('id', weekId)
   if (error) { console.log(error); alert('Something went wrong'); return }
-  loadWeeks()
+
+  weeksCache = weeksCache.filter(w => w.id !== weekId)
+  const block = document.querySelector(`.metric-category[data-week-id="${weekId}"]`)
+  if (block) block.remove()
+  if (weeksCache.length === 0) {
+    document.getElementById('weeksList').innerHTML = '<p class="no-metrics">No weeks yet — click "+ Add Week" to get started</p>'
+  }
 }
 
 // ==========================================================================
@@ -441,27 +461,53 @@ document.getElementById('cancelAddDayBtn').addEventListener('click', function() 
   document.getElementById('addDayModal').classList.remove('active')
 })
 
+// Appends just the new day block instead of reloading the whole tree, so
+// unsaved edits sitting in other days' cards aren't wiped out
 document.getElementById('saveAddDayBtn').addEventListener('click', async function() {
   const label = document.getElementById('addDayLabel').value.trim()
   const week = weeksCache.find(w => w.id === currentWeekIdForAddDay)
   const nextNumber = week.program_days.length ? Math.max(...week.program_days.map(d => d.day_number)) + 1 : 1
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('program_days')
     .insert([{ week_id: currentWeekIdForAddDay, day_number: nextNumber, label }])
+    .select()
 
   if (error) { console.log(error); alert('Something went wrong'); return }
 
+  const newDay = { ...data[0], program_exercises: [] }
+  week.program_days.push(newDay)
+
+  const weekBlock = document.querySelector(`.metric-category[data-week-id="${week.id}"]`)
+  const noDaysMsg = weekBlock.querySelector('.no-metrics')
+  if (noDaysMsg) {
+    noDaysMsg.outerHTML = renderDayBlock(newDay)
+  } else {
+    weekBlock.insertAdjacentHTML('beforeend', renderDayBlock(newDay))
+  }
+
   document.getElementById('addDayModal').classList.remove('active')
-  loadWeeks()
 })
 
+// Removes just this one day block instead of reloading the whole tree
 async function deleteDay(dayId) {
   if (!confirm('Delete this day and its exercises?')) return
 
   const { error } = await supabase.from('program_days').delete().eq('id', dayId)
   if (error) { console.log(error); alert('Something went wrong'); return }
-  loadWeeks()
+
+  for (const week of weeksCache) {
+    const idx = week.program_days.findIndex(d => d.id === dayId)
+    if (idx === -1) continue
+    week.program_days.splice(idx, 1)
+    const dayBlock = document.querySelector(`.exercise-item[data-day-id="${dayId}"]`)
+    if (dayBlock) dayBlock.remove()
+    if (week.program_days.length === 0) {
+      const weekBlock = document.querySelector(`.metric-category[data-week-id="${week.id}"]`)
+      if (weekBlock) weekBlock.insertAdjacentHTML('beforeend', '<p class="no-metrics">No days yet</p>')
+    }
+    break
+  }
 }
 
 // ==========================================================================
@@ -480,6 +526,8 @@ document.getElementById('cancelExercisePickerBtn').addEventListener('click', fun
   document.getElementById('exercisePickerModal').classList.remove('active')
 })
 
+// Appends just the new card instead of reloading + re-rendering the whole
+// tree, so any unsaved edits sitting in other cards' rows aren't wiped out
 document.getElementById('saveExercisePickerBtn').addEventListener('click', async function() {
   const exerciseId = document.getElementById('pickerExerciseSelect').value
   if (!exerciseId) { alert('Please choose an exercise'); return }
@@ -487,16 +535,29 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
   const day = findDay(currentDayIdForAddExercise)
   const nextOrder = day.program_exercises.length ? Math.max(...day.program_exercises.map(pe => pe.order_index)) + 1 : 0
 
-  const { error } = await supabase.from('program_exercises').insert([{
+  const { data, error } = await supabase.from('program_exercises').insert([{
     day_id: currentDayIdForAddExercise,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }])
+  }]).select('*, exercises(id, name, category, type, video_url)')
 
   if (error) { console.log(error); alert('Something went wrong'); return }
 
+  const newPE = data[0]
+  day.program_exercises.push(newPE)
+
+  const dayBlock = document.querySelector(`.exercise-item[data-day-id="${day.id}"]`)
+  const noExMsg = dayBlock.querySelector('.no-metrics')
+  const saveBtn = dayBlock.querySelector('[data-action="save-day"]')
+  if (noExMsg) {
+    noExMsg.outerHTML = renderExerciseCard(newPE) + `<button type="button" class="btn-save" data-action="save-day" data-day-id="${day.id}" style="margin-top:8px">💾 Save Day</button>`
+  } else if (saveBtn) {
+    saveBtn.insertAdjacentHTML('beforebegin', renderExerciseCard(newPE))
+  } else {
+    dayBlock.insertAdjacentHTML('beforeend', renderExerciseCard(newPE))
+  }
+
   document.getElementById('exercisePickerModal').classList.remove('active')
-  loadWeeks()
 })
 
 // ---- Create New Exercise, inline (opens on top of the picker) ----
@@ -587,12 +648,30 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
 // Swapping which exercise a row points to isn't supported inline - delete +
 // re-add covers it
 // ==========================================================================
+// Removes just this one card instead of reloading the whole tree, so
+// unsaved edits sitting in other cards aren't wiped out
 async function deleteExerciseRow(peId) {
   if (!confirm('Remove this exercise from the day?')) return
 
   const { error } = await supabase.from('program_exercises').delete().eq('id', peId)
   if (error) { console.log(error); alert('Something went wrong'); return }
-  loadWeeks()
+
+  for (const week of weeksCache) {
+    for (const day of week.program_days) {
+      const idx = day.program_exercises.findIndex(pe => pe.id === peId)
+      if (idx === -1) continue
+      day.program_exercises.splice(idx, 1)
+      const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
+      if (card) card.remove()
+      if (day.program_exercises.length === 0) {
+        const dayBlock = document.querySelector(`.exercise-item[data-day-id="${day.id}"]`)
+        const saveBtn = dayBlock ? dayBlock.querySelector('[data-action="save-day"]') : null
+        if (saveBtn) saveBtn.remove()
+        if (dayBlock) dayBlock.insertAdjacentHTML('beforeend', '<p class="no-metrics">No exercises yet</p>')
+      }
+      return
+    }
+  }
 }
 
 // ==========================================================================

@@ -143,18 +143,29 @@ trainingDropZone.addEventListener('drop', async function(e) {
 
 // Dropped in with no prescribed values yet - renders immediately as one
 // blank, empty set row (see deriveSetTargets) ready to edit right there,
-// no separate step needed
+// no separate step needed. Appends just this one new card instead of
+// reloading + re-rendering the whole list, so any unsaved edits sitting in
+// other cards' rows aren't wiped out by the refresh.
 async function addExerciseToTraining(exerciseId) {
   const nextOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
 
-  const { error } = await supabase.from('training_exercises').insert([{
+  const { data, error } = await supabase.from('training_exercises').insert([{
     training_id: trainingId,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }])
+  }]).select('*, exercises(id, name, category, type, video_url)')
 
   if (error) { console.log(error); alert('Something went wrong'); return }
-  loadExercisesList()
+
+  const newRow = data[0]
+  exercisesCache.push(newRow)
+
+  const container = document.getElementById('trainingExercisesList')
+  if (exercisesCache.length === 1) {
+    container.innerHTML = renderExerciseCard(newRow)
+  } else {
+    container.insertAdjacentHTML('beforeend', renderExerciseCard(newRow))
+  }
 }
 
 // ==========================================================================
@@ -379,12 +390,20 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
   }
 })
 
+// Removes just this one card instead of reloading + re-rendering the whole
+// list, so any unsaved edits sitting in other cards' rows aren't wiped out
 async function deleteExerciseRow(id) {
   if (!confirm('Remove this exercise from the training?')) return
 
   const { error } = await supabase.from('training_exercises').delete().eq('id', id)
   if (error) { console.log(error); alert('Something went wrong'); return }
-  loadExercisesList()
+
+  exercisesCache = exercisesCache.filter(te => te.id !== id)
+  const card = document.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+  if (card) card.remove()
+  if (exercisesCache.length === 0) {
+    document.getElementById('trainingExercisesList').innerHTML = '<p class="no-metrics">No exercises yet — drag one in from the library on the left</p>'
+  }
 }
 
 document.getElementById('trainingExercisesList').addEventListener('click', async function(e) {

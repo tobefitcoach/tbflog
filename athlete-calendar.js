@@ -404,14 +404,30 @@ async function saveScheduledDay(groupEl) {
   await loadCalendarMonth(currentViewYear, currentViewMonth)
 }
 
+// Removes just this one card instead of reloading the whole month + rebuilding
+// the modal, so unsaved edits sitting in this day's other cards aren't wiped out
 async function deleteScheduledExercise(peId) {
   if (!confirm('Remove this exercise?')) return
 
   const { error } = await supabase.from('program_exercises').delete().eq('id', peId)
   if (error) { console.log(error); alert('Something went wrong'); return }
 
-  await loadCalendarMonth(currentViewYear, currentViewMonth)
-  openDayModal(currentDayDateForModal)
+  const entries = calendarEntriesByDate[currentDayDateForModal] || []
+  for (const entry of entries) {
+    const idx = entry.day.program_exercises.findIndex(pe => pe.id === peId)
+    if (idx === -1) continue
+
+    entry.day.program_exercises.splice(idx, 1)
+    const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
+    const group = card ? card.closest('.detail-group') : null
+    if (card) card.remove()
+    if (group && group.querySelectorAll('.builder-exercise-card').length === 0) {
+      const saveBtn = group.querySelector('[data-action="save-scheduled-day"]')
+      if (saveBtn) saveBtn.remove()
+      group.insertAdjacentHTML('beforeend', '<p class="no-metrics">No exercises</p>')
+    }
+    break
+  }
 }
 
 // ==========================================================================
