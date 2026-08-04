@@ -1734,8 +1734,8 @@
   background-color: #1a1a2e;
   border: 1px solid #2a2a4e;
   border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
 }
 
 /* Dragged via the ⠿ handle to reorder exercises - see the dragstart/
@@ -1749,7 +1749,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .builder-drag-handle {
@@ -1804,7 +1804,7 @@
 .set-target-rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 /* Left to right: set number, type (warmup/main/failure), reps, kg, rest
@@ -1839,7 +1839,7 @@
 .set-target-row .set-rest-input {
   flex: 0 0 56px;
   width: 56px;
-  padding: 8px 6px;
+  padding: 6px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
   font-size: 14px;
@@ -1868,12 +1868,12 @@
 }
 
 .builder-add-set-btn {
-  margin-top: 10px;
+  margin-top: 6px;
   background: transparent;
   border: 1px dashed #2a2a4e;
   color: #aaaacc;
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 6px 14px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -1884,14 +1884,14 @@
 }
 
 .builder-exercise-notes {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .builder-exercise-notes label {
   display: block;
   color: #aaaacc;
   font-size: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .builder-exercise-notes input {
@@ -1900,7 +1900,7 @@
   border: 1px solid #2a2a4e;
   color: #ffffff;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   font-size: 13px;
 }
 

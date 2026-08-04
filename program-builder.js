@@ -287,7 +287,7 @@ function renderExerciseCard(pe) {
         ${rowsHtml}
       </div>
       <button type="button" class="builder-add-set-btn" data-action="add-set">+ Add Set</button>
-      <div class="builder-exercise-notes" style="margin-top:16px">
+      <div class="builder-exercise-notes">
         <label>Extra Fields (optional)</label>
         <div class="extra-fields-container" id="extraFields-${pe.id}"></div>
         <button type="button" class="btn-create-metric" data-action="add-extra-field" style="margin-top:6px">+ Add Field</button>
