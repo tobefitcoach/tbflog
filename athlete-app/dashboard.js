@@ -825,7 +825,6 @@ function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, 
   const isLast = index === exercises.length - 1
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
-  const target = targetLine(pe)
 
   const loggedSets = logSetsByPE[pe.id] || []
   const rowCount = Math.max(pe.prescribed_sets || 1, loggedSets.length)
@@ -843,7 +842,6 @@ function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, 
         ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
       </button>
       <div class="active-exercise-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
-      ${target ? `<p class="exercise-log-target">Target: ${target}</p>` : ''}
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
       <div class="set-rows" data-pe-id="${pe.id}">${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set">+ Add Set</button>
@@ -863,9 +861,15 @@ function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, 
       if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, sessionPromise, 1)
       else renderActiveExercise(entry, dateStr, exercises, index + 1, sessionPromise, 1)
     },
-    function onSwipeRight() {
-      if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, sessionPromise, -1)
-    }
+    // Passing null (instead of a function that no-ops on index 0) matters:
+    // attachSwipeHandlers plays the slide-out-off-screen animation whenever
+    // a callback is present at all, whether or not it actually goes
+    // anywhere - on the first exercise that meant the card would slide
+    // fully off screen and just leave a blank gap, since there's no
+    // previous exercise to replace it with.
+    index > 0 ? function onSwipeRight() {
+      renderActiveExercise(entry, dateStr, exercises, index - 1, sessionPromise, -1)
+    } : null
   )
 
   mountSlide(direction)
