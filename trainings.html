@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Training Library — TBFlog</title>
+    <title>Workout Library — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=7" />
     <link rel="stylesheet" href="athlete.css?v=15" />
   </head>
@@ -25,7 +25,7 @@
             <span class="sidebar-link active">Library</span>
             <div class="sidebar-submenu">
               <a href="exercises.html">Exercise Library</a>
-              <a href="trainings.html">Training Library</a>
+              <a href="trainings.html">Workout Library</a>
               <a href="programs.html">Program Library</a>
             </div>
           </div>
@@ -34,10 +34,10 @@
 
       <div class="dashboard">
         <div class="dashboard-header">
-          <h2>Training Library</h2>
-          <button class="btn-add" id="newTrainingBtn">+ New Training</button>
+          <h2>Workout Library</h2>
+          <button class="btn-add" id="newTrainingBtn">+ New Workout</button>
         </div>
-        <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:24px">A training is a single reusable workout (a flat list of exercises) - build once, then drop it onto any athlete's calendar.</p>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:24px">A workout is a flat list of exercises - build once, then drop it onto any athlete's calendar.</p>
         <div class="athlete-grid" id="trainingGrid"></div>
       </div>
     </div>
@@ -46,7 +46,7 @@
          training-builder.html after this redirects there -->
     <div class="modal-overlay" id="newTrainingModal">
       <div class="modal">
-        <h2>New Training</h2>
+        <h2>New Workout</h2>
         <div class="form-group">
           <label>Name</label>
           <input type="text" id="newTrainingName" placeholder="e.g. Leg Day" />
@@ -60,7 +60,7 @@
 
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
-    <script type="module" src="trainings.js?v=2"></script>
+    <script type="module" src="trainings.js?v=3"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

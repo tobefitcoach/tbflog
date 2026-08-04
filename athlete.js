@@ -184,7 +184,7 @@ function setVolumeOv(s) {
 // Same is_adhoc/label fallback used everywhere else a training's display
 // name is derived (athlete-calendar.js, dashboard.js)
 function trainingDisplayNameOv(program, day) {
-  if (program.is_adhoc) return program.name || 'Training'
+  if (program.is_adhoc) return program.name || 'Workout'
   return day.label || ('Day ' + day.day_number)
 }
 
@@ -324,7 +324,7 @@ async function loadOverviewStats() {
   durationEvents = sessions.map(s => {
     const info = dayInfoById[s.program_day_id]
     const minutes = Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000)
-    return { dateStr: info ? info.dateStr : s.started_at.split('T')[0], name: info ? info.name : 'Training', minutes }
+    return { dateStr: info ? info.dateStr : s.started_at.split('T')[0], name: info ? info.name : 'Workout', minutes }
   })
 
   const thirtyDaysAgo = toDateStrOv(addDaysOv(new Date(), -29))

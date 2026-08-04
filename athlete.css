@@ -1660,11 +1660,32 @@
   margin-bottom: 14px;
 }
 
+/* Dragged via the ⠿ handle to reorder exercises - see the dragstart/
+   dragover/dragend listeners in training-builder.js/program-builder.js/
+   athlete-calendar.js */
+.builder-exercise-card.dragging {
+  opacity: 0.4;
+}
+
 .builder-exercise-card-header {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.builder-drag-handle {
+  flex-shrink: 0;
+  cursor: grab;
+  color: #666699;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px;
+  touch-action: none;
+}
+
+.builder-drag-handle:active {
+  cursor: grabbing;
 }
 
 .builder-exercise-thumb {

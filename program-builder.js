@@ -271,6 +271,7 @@ function renderExerciseCard(pe) {
   return `
     <div class="builder-exercise-card" data-id="${pe.id}">
       <div class="builder-exercise-card-header">
+        <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
           ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
         </button>
@@ -301,7 +302,7 @@ function renderExerciseCard(pe) {
 // Save once when that day is done. Returns true/false instead of alerting
 // on its own so the caller can report one combined error if several cards
 // in the day fail.
-async function saveExerciseCard(peId) {
+async function saveExerciseCard(peId, orderIndex) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
   if (!card) return true
 
@@ -329,7 +330,8 @@ async function saveExerciseCard(peId) {
       prescribed_weight: first.weight,
       rest_seconds: first.rest,
       extra_fields: extraFields,
-      notes
+      notes,
+      order_index: orderIndex
     })
     .eq('id', peId)
 
@@ -344,7 +346,8 @@ async function saveDay(dayId) {
   const btn = document.querySelector(`[data-action="save-day"][data-day-id="${dayId}"]`)
   if (btn) { btn.disabled = true; btn.textContent = 'Saving...' }
 
-  const ids = day.program_exercises.map(pe => pe.id)
+  const dayBlock = document.querySelector(`.exercise-item[data-day-id="${dayId}"]`)
+  const ids = [...dayBlock.querySelectorAll('.builder-exercise-card')].map(card => card.dataset.id)
   const results = await Promise.all(ids.map(saveExerciseCard))
 
   if (results.some(ok => !ok)) {
@@ -404,6 +407,56 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
     else if (action === 'remove-set') removeSetTargetRow(btn.closest('.set-target-row'))
     else if (action === 'add-extra-field') addExtraFieldRow(`extraFields-${peId}`)
   }
+})
+
+// ---- Reorder exercises within a day by dragging the ⠿ handle ----
+// Purely a DOM reorder while dragging (no network call), scoped to stay
+// within the same day - the new order is only written to order_index when
+// that day's own Save button is pressed, same as every other edit here.
+// Dragging between different days isn't supported.
+let draggingCard = null
+let draggingDayId = null
+
+document.getElementById('weeksList').addEventListener('dragstart', function(e) {
+  const handle = e.target.closest('.builder-drag-handle')
+  if (!handle) return
+  draggingCard = handle.closest('.builder-exercise-card')
+  draggingDayId = draggingCard.closest('.exercise-item').dataset.dayId
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', '')
+  e.dataTransfer.setDragImage(draggingCard, 20, 20)
+  setTimeout(function() { draggingCard.classList.add('dragging') }, 0)
+})
+
+document.getElementById('weeksList').addEventListener('dragover', function(e) {
+  if (!draggingCard) return
+  const dayBlock = e.target.closest(`.exercise-item[data-day-id="${draggingDayId}"]`)
+  if (!dayBlock) return
+  e.preventDefault()
+
+  const cards = [...dayBlock.querySelectorAll('.builder-exercise-card:not(.dragging)')]
+  const after = cards.reduce(function(closest, card) {
+    const box = card.getBoundingClientRect()
+    const offset = e.clientY - box.top - box.height / 2
+    return (offset < 0 && offset > closest.offset) ? { offset, element: card } : closest
+  }, { offset: -Infinity, element: null }).element
+
+  if (after) {
+    dayBlock.insertBefore(draggingCard, after)
+  } else {
+    // Nothing to insert before means "goes last" - but the Save Day button
+    // is also a sibling in this container, so insert before that instead
+    // of appendChild (which would drop the card below the Save button)
+    const saveBtn = dayBlock.querySelector('[data-action="save-day"]')
+    if (saveBtn) dayBlock.insertBefore(draggingCard, saveBtn)
+    else dayBlock.appendChild(draggingCard)
+  }
+})
+
+document.getElementById('weeksList').addEventListener('dragend', function() {
+  if (draggingCard) draggingCard.classList.remove('dragging')
+  draggingCard = null
+  draggingDayId = null
 })
 
 // ==========================================================================

@@ -28,7 +28,7 @@
             <span class="sidebar-link">Library</span>
             <div class="sidebar-submenu">
               <a href="exercises.html">Exercise Library</a>
-              <a href="trainings.html">Training Library</a>
+              <a href="trainings.html">Workout Library</a>
               <a href="programs.html">Program Library</a>
             </div>
           </div>
@@ -170,7 +170,7 @@
         <div class="settings-row">
           <div class="settings-row-info">
             <div class="settings-row-title">Preview next week's program early</div>
-            <div class="settings-row-desc">Lets this athlete see next week's scheduled training before it becomes the current week.</div>
+            <div class="settings-row-desc">Lets this athlete see next week's scheduled workout before it becomes the current week.</div>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="settingsNextWeekToggle" />
@@ -412,10 +412,10 @@
     <div class="modal-overlay" id="completionDetailModal">
       <div class="modal">
         <div class="graph-modal-header">
-          <h2>Training Completion</h2>
+          <h2>Workout Completion</h2>
           <button class="btn-cancel" id="closeCompletionModalBtn">✕</button>
         </div>
-        <p style="color:#aaaacc; font-size:13px; margin-top:-8px; margin-bottom:16px">Share of scheduled training days where every prescribed set was logged. Rest days aren't counted either way.</p>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px; margin-bottom:16px">Share of scheduled workout days where every prescribed set was logged. Rest days aren't counted either way.</p>
         <div class="stats-bar" id="completionDetailBar">
           <div class="stat-item">
             <span class="stat-value" id="statCompletion30">—</span>
@@ -438,7 +438,7 @@
     <div class="modal-overlay" id="volumeDetailModal">
       <div class="modal">
         <div class="graph-modal-header">
-          <h2>Weekly Training Volume</h2>
+          <h2>Weekly Workout Volume</h2>
           <button class="btn-cancel" id="closeVolumeModalBtn">✕</button>
         </div>
         <p style="color:#aaaacc; font-size:13px; margin-top:-8px; margin-bottom:16px">Total weight × reps logged per week, last 12 weeks.</p>
@@ -750,7 +750,7 @@
     <div class="modal-overlay" id="dayDetailModal">
       <div class="modal">
         <div class="graph-modal-header">
-          <h2 id="dayDetailTitle">Training</h2>
+          <h2 id="dayDetailTitle">Workout</h2>
           <button class="btn-cancel" id="closeDayDetailBtn">✕</button>
         </div>
         <div class="entries-modal-body" id="dayDetailContent"></div>
@@ -765,7 +765,7 @@
     <div class="modal-overlay" id="dayAddTrainingModal">
       <div class="modal modal-wide">
         <div class="graph-modal-header">
-          <h2 id="dayAddTrainingTitle">Add Training</h2>
+          <h2 id="dayAddTrainingTitle">Add Workout</h2>
           <button class="btn-cancel" id="closeDayAddTrainingBtn">✕</button>
         </div>
 
@@ -781,13 +781,13 @@
           <div class="day-add-workout-layout">
             <div class="day-add-workout-list-col">
               <div class="day-add-workout-list-header">
-                <span class="day-add-workout-list-title">Trainings</span>
+                <span class="day-add-workout-list-title">Workouts</span>
                 <button type="button" class="btn-small-create" id="newTrainingFromDayBtn">+ New</button>
               </div>
               <div class="entries-modal-body" id="dayAddTrainingList"></div>
             </div>
             <div class="day-add-workout-preview" id="dayAddTrainingPreview">
-              <p class="no-metrics">Select a training to preview it</p>
+              <p class="no-metrics">Select a workout to preview it</p>
             </div>
           </div>
           <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
@@ -853,7 +853,7 @@
     <!-- Quick "name it" step before opening the Training Builder overlay -->
     <div class="modal-overlay" id="newTrainingNameModal">
       <div class="modal">
-        <h2>New Training</h2>
+        <h2>New Workout</h2>
         <div class="form-group">
           <label>Name</label>
           <input type="text" id="newTrainingNameInput" placeholder="e.g. Leg Day" />
@@ -871,7 +871,7 @@
     <div class="modal-overlay" id="trainingBuilderOverlayModal">
       <div class="modal modal-large">
         <div class="graph-modal-header">
-          <h2>Build Training</h2>
+          <h2>Build Workout</h2>
           <button class="btn-save" id="doneTrainingBuilderBtn">Done</button>
         </div>
         <iframe id="trainingBuilderFrame" class="training-builder-frame" src="about:blank"></iframe>
@@ -881,8 +881,8 @@
     <!-- Main page logic (see athlete.js) -->
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
-    <script type="module" src="athlete.js?v=7"></script>
-    <script type="module" src="athlete-calendar.js?v=12"></script>
+    <script type="module" src="athlete.js?v=8"></script>
+    <script type="module" src="athlete-calendar.js?v=13"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

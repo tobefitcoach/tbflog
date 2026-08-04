@@ -49,7 +49,7 @@ async function loadTraining() {
 
   if (error) {
     console.log('Error loading training:', error)
-    document.getElementById('trainingNameHeading').textContent = 'Training not found'
+    document.getElementById('trainingNameHeading').textContent = 'Workout not found'
     return
   }
 
@@ -127,7 +127,7 @@ const trainingDropZone = document.getElementById('trainingExercisesList')
 
 trainingDropZone.addEventListener('dragover', function(e) {
   e.preventDefault()
-  trainingDropZone.classList.add('drag-over')
+  if (!draggingCard) trainingDropZone.classList.add('drag-over')
 })
 
 trainingDropZone.addEventListener('dragleave', function() {
@@ -139,6 +139,44 @@ trainingDropZone.addEventListener('drop', async function(e) {
   trainingDropZone.classList.remove('drag-over')
   const exerciseId = e.dataTransfer.getData('text/plain')
   if (exerciseId) await addExerciseToTraining(exerciseId)
+})
+
+// ---- Reorder exercises already in the training by dragging the ⠿ handle ----
+// Purely a DOM reorder while dragging (no network call) - the new order is
+// only written to order_index when the page's own Save button is pressed,
+// same as every other edit on this page.
+let draggingCard = null
+
+trainingDropZone.addEventListener('dragstart', function(e) {
+  const handle = e.target.closest('.builder-drag-handle')
+  if (!handle) return
+  draggingCard = handle.closest('.builder-exercise-card')
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', '') // Firefox requires data to be set for drag to start
+  e.dataTransfer.setDragImage(draggingCard, 20, 20)
+  setTimeout(function() { draggingCard.classList.add('dragging') }, 0)
+})
+
+trainingDropZone.addEventListener('dragover', function(e) {
+  if (!draggingCard) return
+  e.preventDefault()
+  const cards = [...trainingDropZone.querySelectorAll('.builder-exercise-card:not(.dragging)')]
+  const after = cards.reduce(function(closest, card) {
+    const box = card.getBoundingClientRect()
+    const offset = e.clientY - box.top - box.height / 2
+    return (offset < 0 && offset > closest.offset) ? { offset, element: card } : closest
+  }, { offset: -Infinity, element: null }).element
+
+  if (after) {
+    trainingDropZone.insertBefore(draggingCard, after)
+  } else {
+    trainingDropZone.appendChild(draggingCard)
+  }
+})
+
+trainingDropZone.addEventListener('dragend', function() {
+  if (draggingCard) draggingCard.classList.remove('dragging')
+  draggingCard = null
 })
 
 // Dropped in with no prescribed values yet - renders immediately as one
@@ -296,11 +334,12 @@ function renderExerciseCard(te) {
   return `
     <div class="builder-exercise-card" data-id="${te.id}">
       <div class="builder-exercise-card-header">
+        <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
           ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
         </button>
         <div class="builder-exercise-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
-        <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from training">🗑</button>
+        <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from workout">🗑</button>
       </div>
       <div class="set-target-rows">
         ${rowsHtml}
@@ -325,7 +364,7 @@ function renderExerciseCard(te) {
 // a training's whole exercise list in one sitting and only wants to press
 // Save once at the end. Returns true/false instead of alerting on its own
 // so the caller can report one combined error if several cards fail.
-async function saveExerciseCard(teId) {
+async function saveExerciseCard(teId, orderIndex) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${teId}"]`)
   if (!card) return true
 
@@ -353,7 +392,8 @@ async function saveExerciseCard(teId) {
       prescribed_weight: first.weight,
       rest_seconds: first.rest,
       extra_fields: extraFields,
-      notes
+      notes,
+      order_index: orderIndex
     })
     .eq('id', teId)
 
@@ -371,7 +411,7 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
   btn.disabled = true
   btn.textContent = 'Saving...'
 
-  const ids = exercisesCache.map(te => te.id)
+  const ids = [...document.querySelectorAll('#trainingExercisesList .builder-exercise-card')].map(card => card.dataset.id)
   const results = await Promise.all(ids.map(saveExerciseCard))
 
   if (results.some(ok => !ok)) {
@@ -393,7 +433,7 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
 // Removes just this one card instead of reloading + re-rendering the whole
 // list, so any unsaved edits sitting in other cards' rows aren't wiped out
 async function deleteExerciseRow(id) {
-  if (!(await customConfirm('Remove this exercise from the training?'))) return
+  if (!(await customConfirm('Remove this exercise from the workout?'))) return
 
   const { error } = await supabase.from('training_exercises').delete().eq('id', id)
   if (error) { console.log(error); customAlert('Something went wrong'); return }

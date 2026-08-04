@@ -84,7 +84,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 // template show the day's own label (falling back to "Day N"), since that's
 // more useful at a glance than the template's overall name
 function trainingDisplayName(entry) {
-  if (entry.program.is_adhoc) return entry.program.name || 'Training'
+  if (entry.program.is_adhoc) return entry.program.name || 'Workout'
   return entry.day.label || ('Day ' + entry.day.day_number)
 }
 
@@ -207,7 +207,7 @@ function openDayModal(dateStr) {
         <div class="detail-group">
           <div style="display:flex; justify-content:space-between; align-items:center">
             <h4 class="detail-group-title">${label}</h4>
-            <button class="btn-delete-metric" ${deleteAction}>🗑 Delete Training</button>
+            <button class="btn-delete-metric" ${deleteAction}>🗑 Delete Workout</button>
           </div>
           ${exercises.length === 0
             ? '<p class="no-metrics">No exercises</p>'
@@ -248,6 +248,7 @@ function renderScheduledExerciseCard(pe) {
   return `
     <div class="builder-exercise-card" data-id="${pe.id}">
       <div class="builder-exercise-card-header">
+        <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
           ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
         </button>
@@ -316,6 +317,52 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
   }
 })
 
+// ---- Reorder exercises within a day-entry group by dragging the ⠿ handle ----
+// Purely a DOM reorder while dragging (no network call), scoped to stay
+// within the same group - the new order is only written to order_index
+// when that group's own Save button is pressed, same as every other edit
+// here. Dragging between different day-entry groups isn't supported.
+let draggingCardCal = null
+let draggingGroupCal = null
+
+document.getElementById('dayDetailContent').addEventListener('dragstart', function(e) {
+  const handle = e.target.closest('.builder-drag-handle')
+  if (!handle) return
+  draggingCardCal = handle.closest('.builder-exercise-card')
+  draggingGroupCal = draggingCardCal.closest('.detail-group')
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', '')
+  e.dataTransfer.setDragImage(draggingCardCal, 20, 20)
+  setTimeout(function() { draggingCardCal.classList.add('dragging') }, 0)
+})
+
+document.getElementById('dayDetailContent').addEventListener('dragover', function(e) {
+  if (!draggingCardCal) return
+  if (e.target.closest('.detail-group') !== draggingGroupCal) return
+  e.preventDefault()
+
+  const cards = [...draggingGroupCal.querySelectorAll('.builder-exercise-card:not(.dragging)')]
+  const after = cards.reduce(function(closest, card) {
+    const box = card.getBoundingClientRect()
+    const offset = e.clientY - box.top - box.height / 2
+    return (offset < 0 && offset > closest.offset) ? { offset, element: card } : closest
+  }, { offset: -Infinity, element: null }).element
+
+  if (after) {
+    draggingGroupCal.insertBefore(draggingCardCal, after)
+  } else {
+    const saveBtn = draggingGroupCal.querySelector('[data-action="save-scheduled-day"]')
+    if (saveBtn) draggingGroupCal.insertBefore(draggingCardCal, saveBtn)
+    else draggingGroupCal.appendChild(draggingCardCal)
+  }
+})
+
+document.getElementById('dayDetailContent').addEventListener('dragend', function() {
+  if (draggingCardCal) draggingCardCal.classList.remove('dragging')
+  draggingCardCal = null
+  draggingGroupCal = null
+})
+
 // Ad-hoc trainings only ever cover the one day they were created for, so
 // deleting the whole `programs` row is exactly "delete this training"
 // (cascades its week/day/exercises). An assigned template instance can span
@@ -323,7 +370,7 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
 // the assigned program stays on the calendar untouched.
 async function deleteTraining(mode, programId, programDayId) {
   if (!(await customConfirm(mode === 'adhoc'
-    ? 'Delete this training?'
+    ? 'Delete this workout?'
     : 'Remove this day from the assigned program? (The rest of the program stays intact.)'))) return
 
   const { error } = mode === 'adhoc'
@@ -348,7 +395,7 @@ document.getElementById('closeDayDetailBtn').addEventListener('click', function(
 // instead of one per exercise, since a coach edits a whole day in one
 // sitting and only wants to press Save once when it's done.
 // ==========================================================================
-async function saveScheduledExercise(peId) {
+async function saveScheduledExercise(peId, orderIndex) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
   if (!card) return true
 
@@ -376,7 +423,8 @@ async function saveScheduledExercise(peId) {
       prescribed_weight: first.weight,
       rest_seconds: first.rest,
       extra_fields: extraFields,
-      notes
+      notes,
+      order_index: orderIndex
     })
     .eq('id', peId)
 
@@ -478,7 +526,7 @@ let cachedTrainingExercises = {} // training_id -> exercises array
 
 async function openDayAddTrainingModal(dateStr) {
   currentDayDateForAddTraining = dateStr
-  document.getElementById('dayAddTrainingTitle').textContent = 'Add Training — ' + formatDisplayDateCal(dateStr)
+  document.getElementById('dayAddTrainingTitle').textContent = 'Add Workout — ' + formatDisplayDateCal(dateStr)
   switchDayAddTab('workout')
   resetTrainingPreview()
 
@@ -486,9 +534,9 @@ async function openDayAddTrainingModal(dateStr) {
   const list = document.getElementById('dayAddTrainingList')
 
   if (data === null) {
-    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Training Library</p>'
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Workout Library</p>'
   } else if (data.length === 0) {
-    list.innerHTML = '<p class="no-metrics">No trainings saved yet - create one in the Training Library first</p>'
+    list.innerHTML = '<p class="no-metrics">No workouts saved yet - create one in the Workout Library first</p>'
   } else {
     list.innerHTML = data.map(t => `
       <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
@@ -513,7 +561,7 @@ async function openDayAddTrainingModal(dateStr) {
 function resetTrainingPreview() {
   selectedTrainingId = null
   selectedTrainingName = null
-  document.getElementById('dayAddTrainingPreview').innerHTML = '<p class="no-metrics">Select a training to preview it</p>'
+  document.getElementById('dayAddTrainingPreview').innerHTML = '<p class="no-metrics">Select a workout to preview it</p>'
   document.getElementById('selectTrainingForDayBtn').disabled = true
 }
 
@@ -547,7 +595,7 @@ async function previewTraining(trainingId, trainingName) {
       <span class="workout-preview-count">${exercises.length} Exercise${exercises.length === 1 ? '' : 's'}</span>
     </div>
     ${exercises.length === 0
-      ? '<p class="no-metrics">No exercises in this training</p>'
+      ? '<p class="no-metrics">No exercises in this workout</p>'
       : exercises.map(renderWorkoutPreviewExercise).join('')}
   `
 }
@@ -934,7 +982,7 @@ async function findOrCreateAdHocDay(dateStr, name) {
 
   const { data: newProgram, error: programError } = await supabase
     .from('programs')
-    .insert([{ coach_id: session.user.id, athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: name || 'Training' }])
+    .insert([{ coach_id: session.user.id, athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: name || 'Workout' }])
     .select()
   if (programError) { console.log(programError); customAlert('Something went wrong'); throw programError }
 

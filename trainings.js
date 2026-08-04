@@ -36,7 +36,7 @@ async function loadTrainings() {
   }
 
   if (data.length === 0) {
-    grid.innerHTML = '<p>No trainings yet — create your first one!</p>'
+    grid.innerHTML = '<p>No workouts yet — create your first one!</p>'
     return
   }
 
@@ -54,7 +54,7 @@ function createTrainingCard(training) {
       <div class="kebab-menu">
         <button class="kebab-btn" data-id="${training.id}">⋮</button>
         <div class="kebab-dropdown" id="dropdown-${training.id}">
-          <button class="kebab-delete" data-id="${training.id}">🗑 Delete training</button>
+          <button class="kebab-delete" data-id="${training.id}">🗑 Delete workout</button>
         </div>
       </div>
     </div>
