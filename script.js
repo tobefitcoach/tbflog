@@ -11,13 +11,21 @@ const cancelBtn = document.getElementById('cancelBtn');
 const saveBtn = document.getElementById('saveBtn');
 const athleteGrid = document.querySelector('.athlete-grid');
  
-// Require a logged-in coach before loading anything. RLS isn't turned on
-// for the athlete data yet, so this is just a UX gate for now - real
-// enforcement comes once RLS is enabled on the existing tables.
+// Require a logged-in coach before loading anything. RLS is on, so the
+// database itself only ever returns this coach's own athletes - this is
+// just an extra UX gate so a logged-out visitor gets bounced to the login
+// page instead of seeing an empty dashboard.
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
   window.location.href = 'login.html'
 } else {
+  // Shows which account is logged in - each device remembers its own
+  // session, so it's possible to be logged into a different coach account
+  // (e.g. one made by tapping "Sign up" instead of "Log In" on a new
+  // device) without realizing it, since the login screen looks the same
+  // either way. Comparing this text between devices is the fastest way to
+  // check if that's what's happening.
+  document.getElementById('loggedInAs').textContent = session.user.email
   loadAthletes();
 }
 
