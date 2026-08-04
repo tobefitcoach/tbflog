@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=9" />
-    <link rel="stylesheet" href="athlete.css?v=18" />
+    <link rel="stylesheet" href="athlete.css?v=19" />
   </head>
   <body>
 
@@ -120,12 +120,13 @@
           <select id="createExerciseType">
             <option value="weights">Weightlifting (sets, reps, weight)</option>
             <option value="timed">Timed (sets, duration)</option>
+            <option value="plyometric">Plyometric (sets, foot contacts, intensity)</option>
             <option value="__new__">+ Add New Type</option>
           </select>
         </div>
         <div class="form-group" id="createExerciseNewTypeGroup" style="display:none">
           <label>New Type Name</label>
-          <input type="text" id="createExerciseNewType" placeholder="e.g. Plyometric" />
+          <input type="text" id="createExerciseNewType" placeholder="e.g. Sprints" />
         </div>
         <div class="form-group">
           <label>Video Link (optional)</label>
@@ -145,7 +146,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=8"></script>
+    <script type="module" src="program-builder.js?v=9"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

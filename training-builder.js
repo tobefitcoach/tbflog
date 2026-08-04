@@ -564,7 +564,7 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
 // searchable library and straight onto the training (it was made
 // specifically to use here, no need for a separate drag step).
 // ==========================================================================
-const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)' }
+const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)', plyometric: 'Plyometric (sets, foot contacts, intensity)' }
 
 function populateCreateCategorySelect() {
   const select = document.getElementById('tCreateExerciseCategory')

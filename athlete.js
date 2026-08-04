@@ -202,6 +202,15 @@ let volumeChart = null
 let volumeChartData = { labels: [], values: [] }
 let durationEvents = [] // { dateStr, name, minutes }, filled in by loadOverviewStats, read by the duration detail modal
 
+// Training load (Foster's session-RPE method) - all filled in by
+// loadOverviewStats, read by the 4 detail modals below
+let last7DailyLoad = [] // { dateStr, load }, oldest first
+let acuteLoadValue = 0
+let chronicLoadValue = 0
+let acwrValue = null
+let monotonyValue = null
+let strainValue = null
+
 async function loadOverviewStats() {
   const ninetyDaysAgo = toDateStrOv(addDaysOv(new Date(), -89))
   const ninetyDaysAgoISO = addDaysOv(new Date(), -89).toISOString()
@@ -219,7 +228,7 @@ async function loadOverviewStats() {
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*)))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(type))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -254,12 +263,19 @@ async function loadOverviewStats() {
   // only has a program_day_id) can be labeled in the duration list below.
   const workoutEntries = [] // { dateStr, exercises }
   const dayInfoById = {}
+  // Every program_exercise whose underlying exercise is type='weights' -
+  // volume only makes sense for weight-bearing sets, so it's scoped to
+  // just these (a plyo drill or timed exercise has no "weight" to sum)
+  const weightsPEIds = new Set()
   for (const program of programs) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
         const dateStr = resolveDateOv(program.start_date, week.week_number, day.day_number)
         workoutEntries.push({ dateStr, exercises: day.program_exercises })
         dayInfoById[day.id] = { dateStr, name: trainingDisplayNameOv(program, day) }
+        for (const pe of day.program_exercises) {
+          if (pe.exercises && pe.exercises.type === 'weights') weightsPEIds.add(pe.id)
+        }
       }
     }
   }
@@ -312,10 +328,10 @@ async function loadOverviewStats() {
   document.getElementById('statCompletion60').textContent = rate60 === null ? '—' : `${rate60}%`
   document.getElementById('statCompletion90').textContent = rate90 === null ? '—' : `${rate90}%`
 
-  // ---- Volume ----
+  // ---- Volume (weights exercises only - see weightsPEIds above) ----
   const sevenDaysAgo = toDateStrOv(addDaysOv(new Date(), -6))
   const volume7d = logSets
-    .filter(s => s.date >= sevenDaysAgo)
+    .filter(s => s.date >= sevenDaysAgo && weightsPEIds.has(s.program_exercise_id))
     .reduce((sum, s) => sum + setVolumeOv(s), 0)
 
   document.getElementById('statVolume').textContent = `${Math.round(volume7d).toLocaleString()}kg`
@@ -323,6 +339,7 @@ async function loadOverviewStats() {
   // Weekly buckets for the trend chart, oldest of the last 12 weeks first
   const weeklyVolume = {} // 'YYYY-MM-DD' (week start) -> kg
   for (const s of logSets) {
+    if (!weightsPEIds.has(s.program_exercise_id)) continue
     const weekStart = toDateStrOv(startOfWeekOv(parseDateStrOv(s.date)))
     weeklyVolume[weekStart] = (weeklyVolume[weekStart] || 0) + setVolumeOv(s)
   }
@@ -352,6 +369,48 @@ async function loadOverviewStats() {
     : null
 
   document.getElementById('statDuration').textContent = avgMinutes === null ? '—' : formatDurationOv(avgMinutes)
+
+  // ---- Training Load (Foster's session-RPE method: RPE x duration) ----
+  // sessions already covers a 90-day window with session_rpe included
+  // (select('*') above) - no extra query needed.
+  const dailyLoad = {} // dateStr -> summed session_load that day
+  for (const s of sessions) {
+    if (s.session_rpe == null) continue // no rating entered - excluded, not treated as 0
+    const dateStr = toDateStrOv(new Date(s.started_at))
+    const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
+    dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
+  }
+
+  function loadSum(days) {
+    const cutoff = toDateStrOv(addDaysOv(new Date(), -(days - 1)))
+    const todayStr = toDateStrOv(new Date())
+    return Object.entries(dailyLoad)
+      .filter(([d]) => d >= cutoff && d <= todayStr)
+      .reduce((sum, [, v]) => sum + v, 0)
+  }
+
+  acuteLoadValue = loadSum(7)
+  chronicLoadValue = loadSum(28) / 4
+  acwrValue = chronicLoadValue > 0 ? acuteLoadValue / chronicLoadValue : null
+  const highRisk = acwrValue !== null && acwrValue > 1.5
+
+  // Rest days count as 0, not skipped - monotony measures variation across
+  // the whole week, and a rest day lowering it is the entire point
+  last7DailyLoad = []
+  for (let i = 6; i >= 0; i--) {
+    const dateStr = toDateStrOv(addDaysOv(new Date(), -i))
+    last7DailyLoad.push({ dateStr, load: dailyLoad[dateStr] || 0 })
+  }
+  const mean7 = last7DailyLoad.reduce((sum, d) => sum + d.load, 0) / 7
+  const stddev7 = Math.sqrt(last7DailyLoad.reduce((sum, d) => sum + (d.load - mean7) ** 2, 0) / 7)
+  monotonyValue = stddev7 > 0 ? mean7 / stddev7 : null
+  strainValue = monotonyValue !== null ? acuteLoadValue * monotonyValue : null
+
+  document.getElementById('statWeeklyLoad').textContent = acuteLoadValue > 0 ? Math.round(acuteLoadValue).toLocaleString() : '—'
+  document.getElementById('statAcwr').textContent = acwrValue === null ? '—' : acwrValue.toFixed(2)
+  document.getElementById('statAcwrRisk').style.display = highRisk ? 'inline-block' : 'none'
+  document.getElementById('statMonotony').textContent = monotonyValue === null ? '—' : monotonyValue.toFixed(2)
+  document.getElementById('statStrain').textContent = strainValue === null ? '—' : Math.round(strainValue).toLocaleString()
 }
 
 // Opened by clicking the "Avg Duration (30d)" stat tile. Individual
@@ -438,6 +497,64 @@ document.getElementById('statVolumeCard').addEventListener('click', function() {
 
 document.getElementById('closeVolumeModalBtn').addEventListener('click', function() {
   document.getElementById('volumeDetailModal').classList.remove('active')
+})
+
+// ==========================================================================
+// ---- TRAINING LOAD MODALS ----
+// Weekly Load / ACWR / Monotony / Strain - all derived from
+// last7DailyLoad/acuteLoadValue/chronicLoadValue/acwrValue/monotonyValue/
+// strainValue, filled in by loadOverviewStats above. Same
+// stat-item-clickable -> modal-overlay pattern as Duration/Completion/
+// Volume above.
+// ==========================================================================
+function renderWeeklyLoadModal() {
+  const container = document.getElementById('weeklyLoadList')
+  container.innerHTML = `
+    <ul class="detail-list">
+      ${last7DailyLoad.map(d => `
+        <li class="detail-row">
+          <span>${d.dateStr}</span>
+          <span class="detail-row-value">${d.load > 0 ? Math.round(d.load).toLocaleString() : '—'}</span>
+        </li>
+      `).join('')}
+    </ul>
+  `
+}
+
+document.getElementById('statWeeklyLoadCard').addEventListener('click', function() {
+  document.getElementById('weeklyLoadDetailModal').classList.add('active')
+  renderWeeklyLoadModal()
+})
+
+document.getElementById('closeWeeklyLoadModalBtn').addEventListener('click', function() {
+  document.getElementById('weeklyLoadDetailModal').classList.remove('active')
+})
+
+document.getElementById('statAcwrCard').addEventListener('click', function() {
+  document.getElementById('acwrDetailModal').classList.add('active')
+  document.getElementById('statAcuteLoad').textContent = acuteLoadValue > 0 ? Math.round(acuteLoadValue).toLocaleString() : '—'
+  document.getElementById('statChronicLoad').textContent = chronicLoadValue > 0 ? Math.round(chronicLoadValue).toLocaleString() : '—'
+  document.getElementById('statAcwrDetail').textContent = acwrValue === null ? '—' : acwrValue.toFixed(2)
+})
+
+document.getElementById('closeAcwrModalBtn').addEventListener('click', function() {
+  document.getElementById('acwrDetailModal').classList.remove('active')
+})
+
+document.getElementById('statMonotonyCard').addEventListener('click', function() {
+  document.getElementById('monotonyDetailModal').classList.add('active')
+})
+
+document.getElementById('closeMonotonyModalBtn').addEventListener('click', function() {
+  document.getElementById('monotonyDetailModal').classList.remove('active')
+})
+
+document.getElementById('statStrainCard').addEventListener('click', function() {
+  document.getElementById('strainDetailModal').classList.add('active')
+})
+
+document.getElementById('closeStrainModalBtn').addEventListener('click', function() {
+  document.getElementById('strainDetailModal').classList.remove('active')
 })
 
 // ==========================================================================

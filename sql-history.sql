@@ -496,6 +496,19 @@ alter table workout_sessions add column if not exists session_rpe int check (ses
 create index if not exists idx_program_exercises_exercise_id on program_exercises(exercise_id);
 
 -- ==========================================================================
+-- Training load tracking, Phase 2: plyometric load. foot_contacts/
+-- intensity_tier are fixed per exercise (set once in the Exercise Library,
+-- exercises.js), not logged per set by the athlete - same reasoning as
+-- video_url/instructions already being fixed exercise metadata, not
+-- per-assignment data. plyo_load itself (foot_contacts x intensity
+-- multiplier x completed sets) is computed on demand in dashboard.js, never
+-- stored, matching every other derived number in this app. No RLS change -
+-- covered by the existing "coach manages own exercise library" policy.
+-- ==========================================================================
+alter table exercises add column if not exists foot_contacts int;
+alter table exercises add column if not exists intensity_tier text check (intensity_tier in ('low', 'moderate', 'high'));
+
+-- ==========================================================================
 -- Per-set targets: lets a coach give each individual set within an exercise
 -- its own reps/weight (a pyramid: 12/10/8 reps at increasing weight),
 -- instead of one shared prescribed_reps/prescribed_weight applied to every

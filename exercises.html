@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Exercise Library — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=9" />
-    <link rel="stylesheet" href="athlete.css?v=18" />
+    <link rel="stylesheet" href="athlete.css?v=19" />
   </head>
   <body>
 
@@ -68,12 +68,27 @@
           <select id="exerciseType">
             <option value="weights">Weightlifting (sets, reps, weight)</option>
             <option value="timed">Timed (sets, duration)</option>
+            <option value="plyometric">Plyometric (sets, foot contacts, intensity)</option>
             <option value="__new__">+ Add New Type</option>
           </select>
         </div>
         <div class="form-group" id="exerciseNewTypeGroup" style="display:none">
           <label>New Type Name</label>
-          <input type="text" id="exerciseNewType" placeholder="e.g. Plyometric" />
+          <input type="text" id="exerciseNewType" placeholder="e.g. Sprints" />
+        </div>
+        <div id="exercisePlyoFields" style="display:none">
+          <div class="form-group">
+            <label>Foot Contacts (per set)</label>
+            <input type="number" id="exerciseFootContacts" min="0" placeholder="e.g. 20" />
+          </div>
+          <div class="form-group">
+            <label>Intensity</label>
+            <select id="exerciseIntensityTier">
+              <option value="low">Low (×1)</option>
+              <option value="moderate">Moderate (×1.5)</option>
+              <option value="high">High (×2)</option>
+            </select>
+          </div>
         </div>
         <div class="form-group">
           <label>Video Link (optional)</label>
@@ -93,7 +108,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="exercises.js?v=3"></script>
+    <script type="module" src="exercises.js?v=4"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

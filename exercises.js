@@ -68,10 +68,10 @@ function toggleNewCategoryField() {
 
 document.getElementById('exerciseCategory').addEventListener('change', toggleNewCategoryField)
 
-// Type dropdown: always offers the two built-in types, plus any custom
-// type a coach has already made up, plus "+ Add New Type" - same
-// extensible pattern as Category
-const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)' }
+// Type dropdown: always offers the built-in types, plus any custom type a
+// coach has already made up, plus "+ Add New Type" - same extensible
+// pattern as Category
+const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)', plyometric: 'Plyometric (sets, foot contacts, intensity)' }
 
 function populateTypeSelect(selectedType) {
   const select = document.getElementById('exerciseType')
@@ -92,8 +92,9 @@ function populateTypeSelect(selectedType) {
 }
 
 function toggleNewTypeField() {
-  const isNew = document.getElementById('exerciseType').value === '__new__'
-  document.getElementById('exerciseNewTypeGroup').style.display = isNew ? 'block' : 'none'
+  const type = document.getElementById('exerciseType').value
+  document.getElementById('exerciseNewTypeGroup').style.display = type === '__new__' ? 'block' : 'none'
+  document.getElementById('exercisePlyoFields').style.display = type === 'plyometric' ? 'block' : 'none'
 }
 
 document.getElementById('exerciseType').addEventListener('change', toggleNewTypeField)
@@ -225,6 +226,8 @@ function openExerciseModal(exercise) {
   populateCategorySelect(exercise ? exercise.category : null)
   document.getElementById('exerciseNewType').value = ''
   populateTypeSelect(exercise ? exercise.type : null)
+  document.getElementById('exerciseFootContacts').value = exercise ? (exercise.foot_contacts ?? '') : ''
+  document.getElementById('exerciseIntensityTier').value = (exercise && exercise.intensity_tier) || 'low'
   document.getElementById('exerciseVideoUrl').value = exercise ? (exercise.video_url || '') : ''
   document.getElementById('exerciseInstructions').value = exercise ? (exercise.instructions || '') : ''
 
@@ -255,6 +258,12 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
     : typeSelect
   const videoUrl = document.getElementById('exerciseVideoUrl').value.trim()
   const instructions = document.getElementById('exerciseInstructions').value.trim()
+  // Only kept when the exercise is actually plyometric - switching a type
+  // away from plyometric clears these instead of leaving stale values
+  // sitting behind a hidden field
+  const isPlyo = type === 'plyometric'
+  const footContacts = isPlyo ? (parseInt(document.getElementById('exerciseFootContacts').value) || null) : null
+  const intensityTier = isPlyo ? document.getElementById('exerciseIntensityTier').value : null
 
   if (!name) { customAlert('Please enter a name'); return }
 
@@ -262,12 +271,12 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   if (currentExercise) {
     ({ error } = await supabase
       .from('exercises')
-      .update({ name, category, type, video_url: videoUrl, instructions })
+      .update({ name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier })
       .eq('id', currentExercise.id))
   } else {
     ({ error } = await supabase
       .from('exercises')
-      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }]))
+      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier }]))
   }
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }

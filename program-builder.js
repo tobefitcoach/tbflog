@@ -638,7 +638,7 @@ document.getElementById('createExerciseCategory').addEventListener('change', tog
 
 // Type dropdown: always offers the two built-ins, plus any custom type a
 // coach has already made up, plus "+ Add New Type" - same pattern as Category
-const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)' }
+const BUILT_IN_TYPES = { weights: 'Weightlifting (sets, reps, weight)', timed: 'Timed (sets, duration)', plyometric: 'Plyometric (sets, foot contacts, intensity)' }
 
 function populateCreateTypeSelect() {
   const select = document.getElementById('createExerciseType')

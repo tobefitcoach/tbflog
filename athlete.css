@@ -1438,6 +1438,20 @@
   border-color: #4a4a8e;
 }
 
+/* ACWR > 1.5 - same red already used for delete buttons/warnings elsewhere */
+.stat-risk-badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;
+  color: #ff4444;
+  background-color: rgba(255, 68, 68, 0.15);
+}
+
 /* --- Responsive: 4 stats collapse to 2 columns on mobile --- */
 @media (max-width: 768px) {
   .stats-bar {

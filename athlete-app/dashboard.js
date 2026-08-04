@@ -295,7 +295,7 @@ async function loadTrainingData() {
   ] = await Promise.all([
     saveWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, foot_contacts, intensity_tier))))')
       .eq('athlete_id', athlete.id)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -1072,9 +1072,12 @@ function renderWorkoutSummary(finishedSession, entry) {
 
   // Volume = actual_weight x actual_reps, summed across every completed set
   // logged for this day's exercises - skips sets whose reps didn't parse as
-  // a plain number (duration text, rep ranges left un-edited, etc.)
+  // a plain number (duration text, rep ranges left un-edited, etc.), and
+  // skips non-weights exercises entirely (a plyo drill's "weight" input
+  // doesn't exist, and timed exercises don't have one either)
   let totalVolume = 0
   for (const pe of entry.day.program_exercises) {
+    if (!pe.exercises || pe.exercises.type !== 'weights') continue
     const sets = logSetsByPE[pe.id] || []
     for (const s of sets) {
       if (!s.completed_at || s.actual_weight == null) continue
@@ -1086,13 +1089,21 @@ function renderWorkoutSummary(finishedSession, entry) {
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   const breakdownHtml = exercises.map(pe => {
     const isTimed = pe.exercises && pe.exercises.type === 'timed'
+    const isPlyo = pe.exercises && pe.exercises.type === 'plyometric'
     const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
     if (sets.length === 0) return ''
+
+    // foot_contacts/intensity_tier are fixed per exercise (set once in the
+    // Exercise Library), not logged per set - plyo_load is just that fixed
+    // rate applied across however many sets were actually completed today
+    const plyoMultiplier = { low: 1, moderate: 1.5, high: 2 }[pe.exercises && pe.exercises.intensity_tier] || 1
+    const plyoLoad = isPlyo ? (pe.exercises.foot_contacts || 0) * plyoMultiplier * sets.length : null
 
     return `
       <div class="detail-group">
         <h4 class="detail-group-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</h4>
         <div class="pr-badges" id="prBadges-${pe.id}"></div>
+        ${plyoLoad != null ? `<p class="plyo-load-line">Plyo Load: ${Math.round(plyoLoad)}</p>` : ''}
         <ul class="detail-list">
           ${sets.map(s => `
             <li class="detail-row">
