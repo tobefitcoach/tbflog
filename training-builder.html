@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workout Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=7" />
-    <link rel="stylesheet" href="athlete.css?v=15" />
+    <link rel="stylesheet" href="athlete.css?v=16" />
   </head>
   <body>
 
@@ -54,6 +54,18 @@
         </div>
         <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:16px">Drag an exercise from the library to add it here.</p>
         <div id="trainingExercisesList"></div>
+      </div>
+
+      <!-- Exercise order outline: just names, in order - dragging one of
+           these rows is a lot easier than dragging a whole tall exercise
+           card, so it's a second, quicker way to reorder the same list
+           (see training-builder.js's outline drag handlers, which keep
+           this and the exercise cards on the left in sync with each
+           other). -->
+      <div class="workout-outline-panel">
+        <h3>Exercise Order</h3>
+        <p style="color:#aaaacc; font-size:11px; margin-top:-8px; margin-bottom:12px">Drag to reorder</p>
+        <div class="workout-outline-list" id="workoutOutlineList"></div>
       </div>
     </div>
 
@@ -120,7 +132,7 @@
 
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
-    <script type="module" src="training-builder.js?v=7"></script>
+    <script type="module" src="training-builder.js?v=8"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

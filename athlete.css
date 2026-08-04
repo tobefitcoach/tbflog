@@ -109,6 +109,71 @@
 
 .training-builder-main {
   flex: 1;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   WORKOUT BUILDER — EXERCISE ORDER OUTLINE
+   Narrow list of just exercise names on the right, each row draggable -
+   a quicker way to reorder than dragging a whole exercise card (see
+   training-builder.js's outline drag handlers)
+   ========================================================================== */
+
+.workout-outline-panel {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 24px 16px;
+  border-left: 1px solid #2a2a4e;
+}
+
+.workout-outline-panel h3 {
+  font-size: 14px;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.workout-outline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+.workout-outline-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  background-color: #1a1a2e;
+  cursor: grab;
+}
+
+.workout-outline-item:active {
+  cursor: grabbing;
+}
+
+.workout-outline-item.dragging {
+  opacity: 0.4;
+}
+
+.workout-outline-num {
+  flex-shrink: 0;
+  min-width: 16px;
+  color: #666699;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workout-outline-name {
+  min-width: 0;
+  color: #ffffff;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Drop zone highlight while dragging a card over the training's list */
@@ -1602,6 +1667,19 @@
     max-height: 180px;
   }
 
+  /* Same treatment as the Exercise Library panel above - a fixed 200px
+     right column doesn't fit a phone, so it becomes a horizontal strip */
+  .workout-outline-panel {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid #2a2a4e;
+    padding: 16px;
+  }
+
+  .workout-outline-list {
+    max-height: 140px;
+  }
+
   /* Calendar: still needs all 7 columns (one per weekday), just smaller */
   .calendar-day {
     min-height: 56px;
@@ -1759,14 +1837,15 @@
 .set-target-row .set-reps-input,
 .set-target-row .set-weight-input,
 .set-target-row .set-rest-input {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 10px;
+  flex: 0 0 56px;
+  width: 56px;
+  padding: 8px 6px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
   font-size: 14px;
   color: #ffffff;
   background-color: #0f0f1a;
+  text-align: center;
 }
 
 .set-target-row .set-remove-btn {

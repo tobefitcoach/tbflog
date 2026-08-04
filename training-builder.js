@@ -177,6 +177,84 @@ trainingDropZone.addEventListener('dragover', function(e) {
 trainingDropZone.addEventListener('dragend', function() {
   if (draggingCard) draggingCard.classList.remove('dragging')
   draggingCard = null
+  renderWorkoutOutline()
+})
+
+// ---- Exercise order outline (right side panel) ----
+// Just names, in order - a much quicker drag target than a whole tall
+// exercise card. Dragging a row here reorders the outline first, then
+// applies that same order to the real cards on the left (syncCardOrder
+// below) - so either list can be dragged and they stay in sync.
+function renderWorkoutOutline() {
+  const panel = document.getElementById('workoutOutlineList')
+  const cards = [...trainingDropZone.querySelectorAll('.builder-exercise-card')]
+
+  if (cards.length === 0) {
+    panel.innerHTML = '<p class="no-metrics" style="font-size:12px">No exercises yet</p>'
+    return
+  }
+
+  panel.innerHTML = cards.map(function(card, i) {
+    const name = card.querySelector('.builder-exercise-name').textContent
+    return `
+      <div class="workout-outline-item" draggable="true" data-id="${card.dataset.id}">
+        <span class="workout-outline-num">${i + 1}</span>
+        <span class="workout-outline-name">${name}</span>
+      </div>
+    `
+  }).join('')
+}
+
+function renumberOutline() {
+  document.querySelectorAll('#workoutOutlineList .workout-outline-item').forEach(function(item, i) {
+    item.querySelector('.workout-outline-num').textContent = i + 1
+  })
+}
+
+// Reorders the real exercise cards to match the outline's current order
+function syncCardOrderToOutline() {
+  const order = [...document.querySelectorAll('#workoutOutlineList .workout-outline-item')].map(item => item.dataset.id)
+  order.forEach(function(id) {
+    const card = trainingDropZone.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+    if (card) trainingDropZone.appendChild(card)
+  })
+}
+
+let draggingOutlineItem = null
+const workoutOutlineList = document.getElementById('workoutOutlineList')
+
+workoutOutlineList.addEventListener('dragstart', function(e) {
+  const item = e.target.closest('.workout-outline-item')
+  if (!item) return
+  draggingOutlineItem = item
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', '')
+  setTimeout(function() { item.classList.add('dragging') }, 0)
+})
+
+workoutOutlineList.addEventListener('dragover', function(e) {
+  if (!draggingOutlineItem) return
+  e.preventDefault()
+  const items = [...workoutOutlineList.querySelectorAll('.workout-outline-item:not(.dragging)')]
+  const after = items.reduce(function(closest, item) {
+    const box = item.getBoundingClientRect()
+    const offset = e.clientY - box.top - box.height / 2
+    return (offset < 0 && offset > closest.offset) ? { offset, element: item } : closest
+  }, { offset: -Infinity, element: null }).element
+
+  if (after) {
+    workoutOutlineList.insertBefore(draggingOutlineItem, after)
+  } else {
+    workoutOutlineList.appendChild(draggingOutlineItem)
+  }
+})
+
+workoutOutlineList.addEventListener('dragend', function() {
+  if (!draggingOutlineItem) return
+  draggingOutlineItem.classList.remove('dragging')
+  draggingOutlineItem = null
+  syncCardOrderToOutline()
+  renumberOutline()
 })
 
 // Dropped in with no prescribed values yet - renders immediately as one
@@ -204,6 +282,7 @@ async function addExerciseToTraining(exerciseId) {
   } else {
     container.insertAdjacentHTML('beforeend', renderExerciseCard(newRow))
   }
+  renderWorkoutOutline()
 }
 
 // ==========================================================================
@@ -322,6 +401,8 @@ function renderExercisesList() {
       for (const [k, v] of Object.entries(te.extra_fields)) addExtraFieldRow(`extraFields-${te.id}`, k, v)
     }
   }
+
+  renderWorkoutOutline()
 }
 
 function renderExerciseCard(te) {
@@ -444,6 +525,7 @@ async function deleteExerciseRow(id) {
   if (exercisesCache.length === 0) {
     document.getElementById('trainingExercisesList').innerHTML = '<p class="no-metrics">No exercises yet — drag one in from the library on the left</p>'
   }
+  renderWorkoutOutline()
 }
 
 document.getElementById('trainingExercisesList').addEventListener('click', async function(e) {
