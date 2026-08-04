@@ -793,20 +793,29 @@ function findResumeIndex(exercises) {
   return Math.max(exercises.length - 1, 0)
 }
 
-async function startWorkout(entry, dateStr) {
+// Renders the first exercise immediately - findResumeIndex only needs data
+// already loaded in memory, no network required. findOrCreateSession does
+// need a round trip (look up an in-progress session, or create one), but
+// nothing on screen actually needs the session row until End Workout is
+// pressed, so it's kicked off in the background instead of being awaited
+// here - awaiting it first was the actual cause of "pressing Start Workout
+// does nothing for a second or more", especially on a slow connection.
+function startWorkout(entry, dateStr) {
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   if (exercises.length === 0) { customAlert('No exercises in this training'); return }
 
-  const session = await findOrCreateSession(entry.day.id)
-  openSessionsByDayId[entry.day.id] = session
+  const sessionPromise = findOrCreateSession(entry.day.id).then(function(session) {
+    openSessionsByDayId[entry.day.id] = session
+    return session
+  })
   const resumeIndex = findResumeIndex(exercises)
-  renderActiveExercise(entry, dateStr, exercises, resumeIndex, session)
+  renderActiveExercise(entry, dateStr, exercises, resumeIndex, sessionPromise)
 }
 
 // direction: 1 when arriving from a Next/swipe-left (new slide enters from
 // the right), -1 from Previous/swipe-right (enters from the left), omitted
 // for the very first exercise shown (no animation, nothing to slide from)
-function renderActiveExercise(entry, dateStr, exercises, index, session, direction) {
+function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, direction) {
   clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
@@ -851,11 +860,11 @@ function renderActiveExercise(entry, dateStr, exercises, index, session, directi
 
   attachSwipeHandlers(
     function onSwipeLeft() {
-      if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, session, 1)
-      else renderActiveExercise(entry, dateStr, exercises, index + 1, session, 1)
+      if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, sessionPromise, 1)
+      else renderActiveExercise(entry, dateStr, exercises, index + 1, sessionPromise, 1)
     },
     function onSwipeRight() {
-      if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, session, -1)
+      if (index > 0) renderActiveExercise(entry, dateStr, exercises, index - 1, sessionPromise, -1)
     }
   )
 
@@ -865,7 +874,7 @@ function renderActiveExercise(entry, dateStr, exercises, index, session, directi
 // Reached by pressing Next (or swiping left) on the last exercise - the
 // only place "End Workout" lives now, instead of a persistent link on
 // every slide
-function renderEndOfWorkoutSlide(entry, dateStr, exercises, session, direction) {
+function renderEndOfWorkoutSlide(entry, dateStr, exercises, sessionPromise, direction) {
   clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
@@ -881,13 +890,13 @@ function renderEndOfWorkoutSlide(entry, dateStr, exercises, session, direction) 
   `
 
   document.getElementById('endWorkoutBtn').addEventListener('click', function() {
-    finishWorkout(entry, session)
+    finishWorkout(entry, sessionPromise)
   })
 
   attachSwipeHandlers(
     null, // already the last slide, nothing to swipe forward to
     function onSwipeRight() {
-      renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, session, -1)
+      renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, sessionPromise, -1)
     }
   )
 
@@ -1000,6 +1009,11 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
 // nothing").
 async function finishWorkout(entry, session) {
   if (!(await customConfirm('Finish this workout?'))) return
+
+  // session is the promise kicked off back in startWorkout - by now (after
+  // swiping through the whole workout) it's almost always already resolved,
+  // so this await is normally instant
+  session = await session
 
   const btn = document.getElementById('endWorkoutBtn')
   if (btn) {
