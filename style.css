@@ -461,23 +461,19 @@ header h1 {
     min-height: 0;
   }
 
-  .sidebar.collapsed .sidebar-links {
+  /* Collapsing exists to reclaim desktop's narrow side column - there's no
+     equivalent space to reclaim on mobile, so the whole toggle is hidden
+     here and the nav always stays visible. The !important is needed
+     because a collapsed state from a desktop visit is remembered in
+     localStorage (see sidebar.js) and can carry over to a phone, where
+     there'd otherwise be no visible button left to un-collapse it with. */
+  .sidebar-toggle-btn {
     display: none;
   }
 
-  /* On mobile the toggle sits inside the bar (it can't stick out past a
-     100%-wide element the way it does on desktop's narrow vertical column) */
-  .sidebar-toggle-btn {
-    position: static;
-    width: 100%;
-    height: 44px;
-    border-radius: 0;
-    border: none;
-    border-bottom: 1px solid #2a2a4e;
-  }
-
-  .sidebar-links {
-    display: flex;
+  .sidebar-links,
+  .sidebar.collapsed .sidebar-links {
+    display: flex !important;
   }
 
   .sidebar-link {
