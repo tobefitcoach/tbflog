@@ -41,15 +41,18 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 // ---- LOAD TRAINING NAME ----
 // ==========================================================================
 async function loadTraining() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('trainings')
     .select('*')
     .eq('id', trainingId)
     .single()
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading training:', error)
     document.getElementById('trainingNameHeading').textContent = 'Workout not found'
+    customAlert('Something went wrong loading this workout - check your connection and try again')
     return
   }
 
@@ -60,8 +63,8 @@ async function loadTraining() {
 // ---- EXERCISE LIBRARY PANEL (search + drag source) ----
 // ==========================================================================
 async function loadAllExercises() {
-  const { data, error } = await supabase.from('exercises').select('*').order('name')
-  if (error) { console.log('Error loading exercises:', error); return }
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('exercises').select('*').order('name').abortSignal(signal))
+  if (error) { console.log('Error loading exercises:', error); customAlert('Something went wrong loading the exercise library - check your connection and try again'); return }
   allExercises = data
   renderLibraryPanel()
 }
@@ -371,12 +374,14 @@ function removeSetTargetRow(row) {
 // ---- LOAD + RENDER EXERCISE LIST ----
 // ==========================================================================
 async function loadExercisesList() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('training_exercises')
     .select('*, exercises(id, name, category, type, video_url)')
     .eq('training_id', trainingId)
+    .abortSignal(signal)
+  )
 
-  if (error) { console.log('Error loading training exercises:', error); return }
+  if (error) { console.log('Error loading training exercises:', error); customAlert('Something went wrong loading this workout\'s exercises - check your connection and try again'); return }
 
   data.sort((a, b) => a.order_index - b.order_index)
   exercisesCache = data

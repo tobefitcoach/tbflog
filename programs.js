@@ -29,14 +29,17 @@ async function loadTemplates() {
   const grid = document.getElementById('programGrid')
   grid.innerHTML = ''
 
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('programs')
     .select('*, program_weeks(id, program_days(id))')
     .eq('is_template', true)
     .order('name')
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading templates:', error)
+    customAlert('Something went wrong loading your programs - check your connection and try again')
     return
   }
 

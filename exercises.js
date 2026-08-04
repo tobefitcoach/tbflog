@@ -26,13 +26,16 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 // ---- LOAD + RENDER ----
 // ==========================================================================
 async function loadExercises() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('exercises')
     .select('*')
     .order('name')
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading exercises:', error)
+    customAlert('Something went wrong loading your exercises - check your connection and try again')
     return
   }
 

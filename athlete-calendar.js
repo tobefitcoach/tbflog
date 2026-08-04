@@ -94,13 +94,15 @@ function trainingDisplayName(entry) {
 async function loadCalendarMonth(year, month) {
   document.getElementById('calMonthLabel').textContent = `${MONTH_NAMES[month]} ${year}`
 
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('programs')
     .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url))))')
     .eq('athlete_id', athleteId)
     .eq('is_template', false)
+    .abortSignal(signal)
+  )
 
-  if (error) { console.log('Error loading calendar:', error); return }
+  if (error) { console.log('Error loading calendar:', error); customAlert('Something went wrong loading the calendar - check your connection and try again'); return }
 
   calendarEntriesByDate = {}
   for (const program of data) {
@@ -501,16 +503,16 @@ let cachedTemplates = null
 
 async function getTrainingsList() {
   if (cachedTrainings) return cachedTrainings
-  const { data, error } = await supabase.from('trainings').select('*').order('created_at', { ascending: false })
-  if (error) { console.log(error); return null }
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('trainings').select('*').order('created_at', { ascending: false }).abortSignal(signal))
+  if (error) { console.log(error); customAlert('Something went wrong loading your workouts - check your connection and try again'); return null }
   cachedTrainings = data
   return cachedTrainings
 }
 
 async function getProgramTemplates() {
   if (cachedTemplates) return cachedTemplates
-  const { data, error } = await supabase.from('programs').select('*').eq('is_template', true).order('name')
-  if (error) { console.log(error); return null }
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('programs').select('*').eq('is_template', true).order('name').abortSignal(signal))
+  if (error) { console.log(error); customAlert('Something went wrong loading your programs - check your connection and try again'); return null }
   cachedTemplates = data
   return cachedTemplates
 }

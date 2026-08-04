@@ -85,14 +85,17 @@ function initTabs() {
 // kicks off the bodyweight graph load.
 // ==========================================================================
 async function loadAthlete() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('athletes')
     .select('*')
     .eq('id', athleteId)
     .single()
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading athlete:', error)
+    customAlert('Something went wrong loading this athlete - check your connection and try again')
     return
   }
 
@@ -205,34 +208,43 @@ async function loadOverviewStats() {
 
   // These 3 queries don't depend on each other's results, so they fire
   // together instead of waiting on each other one at a time - this alone
-  // cuts this page's load time roughly in half to a third
+  // cuts this page's load time roughly in half to a third. Each also goes
+  // through fetchWithRetry (network-retry.js) so a slow/flaky connection
+  // gets a couple of automatic retries instead of these stats just staying
+  // blank with no explanation.
   const [
     { data: programs, error: programsError },
     { data: logSets, error: logError },
     { data: sessions, error: sessionsError }
   ] = await Promise.all([
-    supabase
+    fetchWithRetry((signal) => supabase
       .from('programs')
       .select('*, program_weeks(*, program_days(*, program_exercises(*)))')
       .eq('athlete_id', athleteId)
-      .eq('is_template', false),
-    supabase
+      .eq('is_template', false)
+      .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
       .from('exercise_log_sets')
       .select('*')
       .eq('athlete_id', athleteId)
-      .gte('date', ninetyDaysAgo),
-    supabase
+      .gte('date', ninetyDaysAgo)
+      .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
       .from('workout_sessions')
       .select('*')
       .eq('athlete_id', athleteId)
       .not('ended_at', 'is', null)
       .gte('started_at', ninetyDaysAgoISO)
       .order('started_at', { ascending: false })
+      .abortSignal(signal)
+    )
   ])
 
-  if (programsError) { console.log('Error loading schedule for stats:', programsError); return }
-  if (logError) { console.log('Error loading logged sets for stats:', logError); return }
-  if (sessionsError) { console.log('Error loading sessions for stats:', sessionsError); return }
+  if (programsError) { console.log('Error loading schedule for stats:', programsError); customAlert('Something went wrong loading this athlete\'s stats - check your connection and try again'); return }
+  if (logError) { console.log('Error loading logged sets for stats:', logError); customAlert('Something went wrong loading this athlete\'s stats - check your connection and try again'); return }
+  if (sessionsError) { console.log('Error loading sessions for stats:', sessionsError); customAlert('Something went wrong loading this athlete\'s stats - check your connection and try again'); return }
 
   // One entry per program_days row - i.e. per workout, not per calendar
   // date. Two workouts landing on the same date (an assigned program day
@@ -612,12 +624,15 @@ function convertInput(value, displayUnit) {
 // from the DB and populates the "add metric" dropdown with them.
 // ==========================================================================
 async function loadAllMetrics() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('metrics')
     .select('*')
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading metrics:', error)
+    customAlert('Something went wrong loading metrics - check your connection and try again')
     return
   }
 
@@ -639,13 +654,16 @@ allMetrics = data
 // the metric definition (name/unit/type) from allMetrics, then renders them.
 // ==========================================================================
 async function loadAthleteMetrics() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('athlete_metrics')
     .select('*')
     .eq('athlete_id', athleteId)
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading athlete metrics:', error)
+    customAlert('Something went wrong loading tracked metrics - check your connection and try again')
     return
   }
 
@@ -687,13 +705,15 @@ async function loadAthleteMetrics() {
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
   const fromDate = threeMonthsAgo.toISOString().split('T')[0]
 
-  const { data: recentMeasurements } = await supabase
+  const { data: recentMeasurements } = await fetchWithRetry((signal) => supabase
     .from('measurements')
     .select('*')
     .eq('athlete_id', athleteId)
     .in('metric_id', metricIds)
     .gte('date', fromDate)
     .order('date', { ascending: true })
+    .abortSignal(signal)
+  )
 
   const measurementsByMetric = {}
   for (const m of recentMeasurements || []) {
@@ -707,12 +727,14 @@ async function loadAthleteMetrics() {
   const zone2MetricIds = athleteMetrics.filter(am => am.metrics.type === 'zone2').map(am => am.metrics.id)
   const zone2AllByMetric = {}
   if (zone2MetricIds.length > 0) {
-    const { data: allZone2Measurements } = await supabase
+    const { data: allZone2Measurements } = await fetchWithRetry((signal) => supabase
       .from('measurements')
       .select('*')
       .eq('athlete_id', athleteId)
       .in('metric_id', zone2MetricIds)
       .order('date', { ascending: false })
+      .abortSignal(signal)
+    )
 
     for (const m of allZone2Measurements || []) {
       if (!zone2AllByMetric[m.metric_id]) zone2AllByMetric[m.metric_id] = []
@@ -1094,12 +1116,15 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
 // ==========================================================================
 async function loadStatsBar() {
   // Get all measurements for this athlete
-  const { data: allMeasurements } = await supabase
+  const { data: allMeasurements, error } = await fetchWithRetry((signal) => supabase
     .from('measurements')
     .select('*')
     .eq('athlete_id', athleteId)
     .order('date', { ascending: false })
+    .abortSignal(signal)
+  )
 
+  if (error) { console.log('Error loading stats bar:', error) }
   if (!allMeasurements) return
 
   allMeasurementsCache = allMeasurements // so the stats-bar detail modals can reuse this without re-querying

@@ -33,28 +33,37 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 // ==========================================================================
 async function loadAthletes() {
   athleteGrid.innerHTML = ''
- 
-  const { data, error } = await supabase
-    .from('athletes')
-    .select('*')
- 
+
+  // These 2 don't depend on each other's results, so they fire together -
+  // both go through fetchWithRetry (network-retry.js) so a slow/flaky
+  // connection gets a couple of automatic retries instead of silently
+  // leaving this page looking like the athletes are missing
+  const [
+    { data, error },
+    { data: bodyweightData }
+  ] = await Promise.all([
+    fetchWithRetry((signal) => supabase.from('athletes').select('*').abortSignal(signal)),
+    // Every athlete's most recent bodyweight entry, so the card shows
+    // what's actually been logged instead of the static weight set when
+    // the athlete was created
+    fetchWithRetry((signal) => supabase
+      .from('bodyweight')
+      .select('athlete_id, weight, date')
+      .order('date', { ascending: false })
+      .abortSignal(signal)
+    )
+  ])
+
   if (error) {
     console.log('Error loading athletes:', error)
+    customAlert('Something went wrong loading your athletes - check your connection and try again')
     return
   }
- 
+
   if (data.length === 0) {
     athleteGrid.innerHTML = '<p>No athletes yet — add your first one!</p>'
     return
   }
-
-  // Get every athlete's most recent bodyweight entry in one query, so the
-  // card shows what's actually been logged instead of the static weight
-  // set when the athlete was created
-  const { data: bodyweightData } = await supabase
-    .from('bodyweight')
-    .select('athlete_id, weight, date')
-    .order('date', { ascending: false })
 
   // Since bodyweightData is sorted newest-first, the first entry we see for
   // each athlete_id is their most recent one

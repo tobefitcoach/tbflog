@@ -440,8 +440,17 @@ header h1 {
    ========================================================================== */
 
 @media (max-width: 768px) {
+  /* align-items: flex-start (set above for the desktop side-by-side row)
+     means every child only sizes to its own content once flex-direction
+     switches to column here, instead of stretching to fill the screen's
+     width - .sidebar patches around this itself further down with an
+     explicit width:100%, but everything else (.dashboard, .profile, etc.)
+     was left shrink-wrapped, which is why buttons/cards on those pages
+     looked squeezed to one side instead of spanning/centering properly.
+     Overriding to stretch here fixes all of them at once. */
   .app-layout {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .dashboard {

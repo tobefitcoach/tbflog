@@ -25,13 +25,16 @@ async function loadTrainings() {
   const grid = document.getElementById('trainingGrid')
   grid.innerHTML = ''
 
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('trainings')
     .select('*, training_exercises(id)')
     .order('name')
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading trainings:', error)
+    customAlert('Something went wrong loading your workouts - check your connection and try again')
     return
   }
 

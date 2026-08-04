@@ -38,15 +38,18 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 // ---- LOAD PROGRAM NAME ----
 // ==========================================================================
 async function loadProgram() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('programs')
     .select('*')
     .eq('id', programId)
     .single()
+    .abortSignal(signal)
+  )
 
   if (error) {
     console.log('Error loading program:', error)
     document.getElementById('programNameHeading').textContent = 'Program not found'
+    customAlert('Something went wrong loading this program - check your connection and try again')
     return
   }
 
@@ -57,8 +60,8 @@ async function loadProgram() {
 // ---- EXERCISE LIBRARY CACHE (for the "Add Exercise" picker dropdown) ----
 // ==========================================================================
 async function loadAllExercises() {
-  const { data, error } = await supabase.from('exercises').select('*').order('name')
-  if (error) { console.log('Error loading exercises:', error); return }
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('exercises').select('*').order('name').abortSignal(signal))
+  if (error) { console.log('Error loading exercises:', error); customAlert('Something went wrong loading the exercise library - check your connection and try again'); return }
   allExercises = data
   populateExerciseSelect()
 }
@@ -181,12 +184,14 @@ function removeSetTargetRow(row) {
 // dataset per template is always small.
 // ==========================================================================
 async function loadWeeks() {
-  const { data, error } = await supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('program_weeks')
     .select('*, program_days(*, program_exercises(*, exercises(id, name, category, type, video_url)))')
     .eq('program_id', programId)
+    .abortSignal(signal)
+  )
 
-  if (error) { console.log('Error loading weeks:', error); return }
+  if (error) { console.log('Error loading weeks:', error); customAlert('Something went wrong loading this program - check your connection and try again'); return }
 
   data.sort((a, b) => a.week_number - b.week_number)
   data.forEach(week => {
