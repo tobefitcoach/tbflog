@@ -96,7 +96,7 @@ async function loadCalendarMonth(year, month) {
 
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('programs')
-    .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url))))')
+    .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, tracks_weight, is_timed, is_unilateral))))')
     .eq('athlete_id', athleteId)
     .eq('is_template', false)
     .abortSignal(signal)
@@ -241,11 +241,13 @@ function openDayModal(dateStr) {
 // edits, just reached a different way (day already has this exercise on it
 // vs. picking one to add).
 function renderScheduledExerciseCard(pe) {
-  const isTimed = pe.exercises && pe.exercises.type === 'timed'
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  const isUnilateral = pe.exercises && pe.exercises.is_unilateral
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnailCal(videoUrl)
   const targets = deriveSetTargetsCal(pe)
-  const rowsHtml = targets.map((t, i) => renderSetTargetRowCal(i + 1, t, isTimed, targets.length === 1)).join('')
+  const rowsHtml = targets.map((t, i) => renderSetTargetRowCal(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
 
   return `
     <div class="builder-exercise-card" data-id="${pe.id}">
@@ -311,7 +313,12 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
     await deleteScheduledExercise(peId)
   } else if (btn.dataset.action === 'add-set') {
     const pe = findScheduledPE(peId)
-    addSetTargetRowCal(card.querySelector('.set-target-rows'), !!(pe && pe.exercises && pe.exercises.type === 'timed'))
+    addSetTargetRowCal(
+      card.querySelector('.set-target-rows'),
+      !!(pe && pe.exercises && pe.exercises.is_timed),
+      !!(pe && (!pe.exercises || pe.exercises.tracks_weight)),
+      !!(pe && pe.exercises && pe.exercises.is_unilateral)
+    )
   } else if (btn.dataset.action === 'remove-set') {
     removeSetTargetRowCal(btn.closest('.set-target-row'))
   } else if (btn.dataset.action === 'add-extra-field') {
@@ -579,7 +586,7 @@ async function previewTraining(trainingId, trainingName) {
   if (!exercises) {
     const { data, error } = await supabase
       .from('training_exercises')
-      .select('*, exercises(name, type, video_url)')
+      .select('*, exercises(name, type, video_url, tracks_weight, is_timed, is_unilateral)')
       .eq('training_id', trainingId)
       .order('order_index')
     if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
@@ -620,9 +627,10 @@ function renderWorkoutPreviewExercise(te) {
 // "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,
 // 8@50kg" for a real pyramid. Returns null when this exercise has no
 // per-set targets yet, so callers fall back to the old single-value summary
-function formatSetTargetsCal(setTargets, isTimed) {
+function formatSetTargetsCal(setTargets, isTimed, tracksWeight) {
   if (!setTargets || setTargets.length === 0) return null
-  if (isTimed) return setTargets.map(s => s.reps || '-').join(' / ')
+  if (isTimed && !tracksWeight) return setTargets.map(s => s.reps || '-').join(' / ')
+  if (isTimed && tracksWeight) return setTargets.map(s => `${s.reps || '-'}${s.weight != null ? ' @ ' + s.weight + 'kg' : ''}`).join(', ')
   const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
   if (sameWeight) {
     const reps = setTargets.map(s => s.reps || '-').join('/')
@@ -632,15 +640,16 @@ function formatSetTargetsCal(setTargets, isTimed) {
 }
 
 function targetLineForTraining(te) {
-  const isTimed = te.exercises && te.exercises.type === 'timed'
-  const setTargetsText = formatSetTargetsCal(te.set_targets, isTimed)
+  const isTimed = te.exercises && te.exercises.is_timed
+  const tracksWeight = !te.exercises || te.exercises.tracks_weight
+  const setTargetsText = formatSetTargetsCal(te.set_targets, isTimed, tracksWeight)
   const parts = []
   if (setTargetsText) {
     parts.push(setTargetsText)
   } else {
     if (te.prescribed_sets) parts.push(`${te.prescribed_sets} sets`)
     if (te.prescribed_reps) parts.push(isTimed ? te.prescribed_reps : `${te.prescribed_reps} reps`)
-    if (te.prescribed_weight) parts.push(`${te.prescribed_weight}kg`)
+    if (te.prescribed_weight && tracksWeight) parts.push(`${te.prescribed_weight}kg`)
   }
   if (te.extra_fields) {
     for (const [k, v] of Object.entries(te.extra_fields)) parts.push(`${k}: ${v}`)
@@ -1058,25 +1067,26 @@ function deriveSetTargetsCal(row) {
   return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null, rest: row.rest_seconds || null, type: 'main' }))
 }
 
-function renderSetTargetRowCal(setNumber, target, isTimed, onlyRow) {
+function renderSetTargetRowCal(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
+  const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
       <span class="set-label">Set ${setNumber}</span>
       <select class="set-type-select">
         ${Object.entries(SET_TYPES_CAL).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
-      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}">
-      ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">`}
+      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">
+      ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
       <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>
   `
 }
 
-function addSetTargetRowCal(rowsEl, isTimed) {
+function addSetTargetRowCal(rowsEl, isTimed, tracksWeight, isUnilateral) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRowCal(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, false))
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRowCal(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, false))
 }
 
 // Removal can happen from the middle of the list, so every remaining row

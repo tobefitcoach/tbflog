@@ -521,3 +521,24 @@ alter table exercises add column if not exists intensity_tier text check (intens
 -- ==========================================================================
 alter table training_exercises add column if not exists set_targets jsonb;
 alter table program_exercises add column if not exists set_targets jsonb;
+
+-- ==========================================================================
+-- Exercise field flexibility: weight-tracking, timed, and unilateral are now
+-- independent per exercise instead of one exclusive `type` choice - a
+-- weighted timed hold needs both a kg field and a duration field at once,
+-- which the old type='weights' XOR type='timed' logic couldn't represent.
+-- `type` itself is untouched - it keeps its existing jobs (the freeform
+-- coach-facing label, and gating the Plyometric foot_contacts/
+-- intensity_tier fields above).
+--
+-- Backfill: only type='timed' currently hides the weight input (everything
+-- else, including Plyometric and custom types, already shows reps+weight
+-- today), so it's the only case that needs correcting away from the new
+-- columns' defaults to keep every existing exercise behaving exactly as it
+-- does right now.
+-- ==========================================================================
+alter table exercises add column if not exists tracks_weight boolean not null default true;
+alter table exercises add column if not exists is_timed boolean not null default false;
+alter table exercises add column if not exists is_unilateral boolean not null default false;
+
+update exercises set tracks_weight = false, is_timed = true where type = 'timed';

@@ -228,6 +228,11 @@ function openExerciseModal(exercise) {
   populateTypeSelect(exercise ? exercise.type : null)
   document.getElementById('exerciseFootContacts').value = exercise ? (exercise.foot_contacts ?? '') : ''
   document.getElementById('exerciseIntensityTier').value = (exercise && exercise.intensity_tier) || 'low'
+  // Independent of Type - defaults for a brand-new exercise match the old
+  // 'weights' behavior (weight tracked, not timed, not unilateral)
+  document.getElementById('exerciseTracksWeight').checked = exercise ? !!exercise.tracks_weight : true
+  document.getElementById('exerciseIsTimed').checked = exercise ? !!exercise.is_timed : false
+  document.getElementById('exerciseIsUnilateral').checked = exercise ? !!exercise.is_unilateral : false
   document.getElementById('exerciseVideoUrl').value = exercise ? (exercise.video_url || '') : ''
   document.getElementById('exerciseInstructions').value = exercise ? (exercise.instructions || '') : ''
 
@@ -264,6 +269,10 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   const isPlyo = type === 'plyometric'
   const footContacts = isPlyo ? (parseInt(document.getElementById('exerciseFootContacts').value) || null) : null
   const intensityTier = isPlyo ? document.getElementById('exerciseIntensityTier').value : null
+  // Independent of Type - any combination is valid (e.g. a weighted timed hold)
+  const tracksWeight = document.getElementById('exerciseTracksWeight').checked
+  const isTimed = document.getElementById('exerciseIsTimed').checked
+  const isUnilateral = document.getElementById('exerciseIsUnilateral').checked
 
   if (!name) { customAlert('Please enter a name'); return }
 
@@ -271,12 +280,12 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   if (currentExercise) {
     ({ error } = await supabase
       .from('exercises')
-      .update({ name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier })
+      .update({ name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral })
       .eq('id', currentExercise.id))
   } else {
     ({ error } = await supabase
       .from('exercises')
-      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier }]))
+      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral }]))
   }
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }

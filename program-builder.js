@@ -144,25 +144,26 @@ function deriveSetTargets(row) {
   return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null, rest: row.rest_seconds || null, type: 'main' }))
 }
 
-function renderSetTargetRow(setNumber, target, isTimed, onlyRow) {
+function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
+  const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
       <span class="set-label">Set ${setNumber}</span>
       <select class="set-type-select">
         ${Object.entries(SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
-      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}">
-      ${isTimed ? '' : `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">`}
+      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">
+      ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
       <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>
   `
 }
 
-function addSetTargetRow(rowsEl, isTimed) {
+function addSetTargetRow(rowsEl, isTimed, tracksWeight, isUnilateral) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, false))
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, false))
 }
 
 // Removal can happen from the middle of the list, so every remaining row
@@ -186,7 +187,7 @@ function removeSetTargetRow(row) {
 async function loadWeeks() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('program_weeks')
-    .select('*, program_days(*, program_exercises(*, exercises(id, name, category, type, video_url)))')
+    .select('*, program_days(*, program_exercises(*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)))')
     .eq('program_id', programId)
     .abortSignal(signal)
   )
@@ -267,11 +268,13 @@ function renderDayBlock(day) {
 }
 
 function renderExerciseCard(pe) {
-  const isTimed = pe.exercises && pe.exercises.type === 'timed'
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  const isUnilateral = pe.exercises && pe.exercises.is_unilateral
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
   const targets = deriveSetTargets(pe)
-  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, targets.length === 1)).join('')
+  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
 
   return `
     <div class="builder-exercise-card" data-id="${pe.id}">
@@ -406,9 +409,11 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
     const card = btn.closest('.builder-exercise-card')
     const peId = card.dataset.id
     const pe = findPE(peId)
-    const isTimed = !!(pe && pe.exercises && pe.exercises.type === 'timed')
+    const isTimed = !!(pe && pe.exercises && pe.exercises.is_timed)
+    const tracksWeight = !!(pe && (!pe.exercises || pe.exercises.tracks_weight))
+    const isUnilateral = !!(pe && pe.exercises && pe.exercises.is_unilateral)
 
-    if (action === 'add-set') addSetTargetRow(card.querySelector('.set-target-rows'), isTimed)
+    if (action === 'add-set') addSetTargetRow(card.querySelector('.set-target-rows'), isTimed, tracksWeight, isUnilateral)
     else if (action === 'remove-set') removeSetTargetRow(btn.closest('.set-target-row'))
     else if (action === 'add-extra-field') addExtraFieldRow(`extraFields-${peId}`)
   }
@@ -597,7 +602,7 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
     day_id: currentDayIdForAddExercise,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }]).select('*, exercises(id, name, category, type, video_url)')
+  }]).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -664,6 +669,9 @@ document.getElementById('createNewExerciseBtn').addEventListener('click', functi
   populateCreateCategorySelect()
   document.getElementById('createExerciseNewType').value = ''
   populateCreateTypeSelect()
+  document.getElementById('createExerciseTracksWeight').checked = true
+  document.getElementById('createExerciseIsTimed').checked = false
+  document.getElementById('createExerciseIsUnilateral').checked = false
   document.getElementById('createExerciseVideoUrl').value = ''
   document.getElementById('createExerciseInstructions').value = ''
   document.getElementById('createExerciseModal').classList.add('active')
@@ -685,12 +693,15 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
     : typeSelect
   const videoUrl = document.getElementById('createExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('createExerciseInstructions').value.trim()
+  const tracksWeight = document.getElementById('createExerciseTracksWeight').checked
+  const isTimed = document.getElementById('createExerciseIsTimed').checked
+  const isUnilateral = document.getElementById('createExerciseIsUnilateral').checked
 
   if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('exercises')
-    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }])
+    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral }])
     .select()
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }

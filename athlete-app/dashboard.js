@@ -296,7 +296,7 @@ async function loadTrainingData() {
   ] = await Promise.all([
     saveWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, foot_contacts, intensity_tier))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral))))')
       .eq('athlete_id', athlete.id)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -390,10 +390,11 @@ function dayIsFullyLogged(entries) {
 // 8@50kg" for a real pyramid (both reps and weight differ per set). Returns
 // null when this exercise has no per-set targets yet, so targetLine() can
 // fall back to its old single-value summary for pre-pyramid data.
-function formatSetTargets(setTargets, isTimed) {
+function formatSetTargets(setTargets, isTimed, tracksWeight) {
   if (!setTargets || setTargets.length === 0) return null
   const unit = athlete.weight_unit || 'kg'
-  if (isTimed) return setTargets.map(s => s.reps || '-').join(' / ')
+  if (isTimed && !tracksWeight) return setTargets.map(s => s.reps || '-').join(' / ')
+  if (isTimed && tracksWeight) return setTargets.map(s => `${s.reps || '-'}${s.weight != null ? ' @ ' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
   const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
   if (sameWeight) {
     const reps = setTargets.map(s => s.reps || '-').join('/')
@@ -403,15 +404,16 @@ function formatSetTargets(setTargets, isTimed) {
 }
 
 function targetLine(pe) {
-  const isTimed = pe.exercises && pe.exercises.type === 'timed'
-  const setTargetsText = formatSetTargets(pe.set_targets, isTimed)
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  const setTargetsText = formatSetTargets(pe.set_targets, isTimed, tracksWeight)
   const parts = []
   if (setTargetsText) {
     parts.push(setTargetsText)
   } else {
     if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
     if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
-    if (pe.prescribed_weight) parts.push(`${formatWeight(pe.prescribed_weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'}`)
+    if (pe.prescribed_weight && tracksWeight) parts.push(`${formatWeight(pe.prescribed_weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'}`)
   }
   if (pe.extra_fields) {
     for (const [k, v] of Object.entries(pe.extra_fields)) parts.push(`${k}: ${v}`)
@@ -725,7 +727,8 @@ function renderDayPreviewGroup(entry, isToday) {
 }
 
 function renderDayPreviewExercise(pe, showLogged) {
-  const isTimed = pe.exercises && pe.exercises.type === 'timed'
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
   const target = targetLine(pe)
@@ -733,10 +736,11 @@ function renderDayPreviewExercise(pe, showLogged) {
   let loggedText = ''
   if (showLogged) {
     const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
-    loggedText = sets.map(s => isTimed
-      ? (s.actual_reps || '-')
-      : `${s.actual_reps || '-'} reps${s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''}`
-    ).join(', ')
+    loggedText = sets.map(s => {
+      const repsPart = isTimed ? (s.actual_reps || '-') : `${s.actual_reps || '-'} reps`
+      const weightPart = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
+      return repsPart + weightPart
+    }).join(', ')
   }
 
   return `
@@ -822,7 +826,8 @@ function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, 
   cardWrap.classList.add('wide')
 
   const pe = exercises[index]
-  const isTimed = pe.exercises && pe.exercises.type === 'timed'
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const isLast = index === exercises.length - 1
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
@@ -833,7 +838,7 @@ function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, 
   for (let setNumber = 1; setNumber <= rowCount; setNumber++) {
     const logged = loggedSets.find(s => s.set_number === setNumber)
     const isExtra = setNumber > (pe.prescribed_sets || 0)
-    rowsHtml += renderSetRow(pe, setNumber, logged, isTimed, isExtra)
+    rowsHtml += renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra)
   }
 
   pageContent.innerHTML = `
@@ -1052,11 +1057,10 @@ function renderWorkoutSummary(finishedSession, entry) {
   // Volume = actual_weight x actual_reps, summed across every completed set
   // logged for this day's exercises - skips sets whose reps didn't parse as
   // a plain number (duration text, rep ranges left un-edited, etc.), and
-  // skips non-weights exercises entirely (a plyo drill's "weight" input
-  // doesn't exist, and timed exercises don't have one either)
+  // skips any exercise that doesn't track weight at all
   let totalVolume = 0
   for (const pe of entry.day.program_exercises) {
-    if (!pe.exercises || pe.exercises.type !== 'weights') continue
+    if (!pe.exercises || !pe.exercises.tracks_weight) continue
     const sets = logSetsByPE[pe.id] || []
     for (const s of sets) {
       if (!s.completed_at || s.actual_weight == null) continue
@@ -1067,7 +1071,8 @@ function renderWorkoutSummary(finishedSession, entry) {
 
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   const breakdownHtml = exercises.map(pe => {
-    const isTimed = pe.exercises && pe.exercises.type === 'timed'
+    const isTimed = pe.exercises && pe.exercises.is_timed
+    const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
     const isPlyo = pe.exercises && pe.exercises.type === 'plyometric'
     const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
     if (sets.length === 0) return ''
@@ -1087,9 +1092,7 @@ function renderWorkoutSummary(finishedSession, entry) {
           ${sets.map(s => `
             <li class="detail-row">
               <span>Set ${s.set_number}</span>
-              <span class="detail-row-value">${isTimed
-                ? (s.actual_reps || '-')
-                : `${s.actual_reps || '-'} reps${s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''}`}</span>
+              <span class="detail-row-value">${(isTimed ? (s.actual_reps || '-') : `${s.actual_reps || '-'} reps`) + (tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : '')}</span>
             </li>
           `).join('')}
         </ul>
@@ -1343,7 +1346,7 @@ async function loadAndRenderPRBadges(session, entry) {
 // Unchanged from the per-set logging built earlier - now dropped into the
 // single active-exercise card above instead of an all-exercises list.
 // ==========================================================================
-function renderSetRow(pe, setNumber, logged, isTimed, isExtra) {
+function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra) {
   const checked = !!(logged && logged.completed_at)
   // Each set can have its own coach-set target now (a pyramid) - fall back
   // to the old shared prescribed_reps/prescribed_weight for sets beyond
@@ -1361,15 +1364,17 @@ function renderSetRow(pe, setNumber, logged, isTimed, isExtra) {
   // just be noise, since that's the default for most sets in a workout
   const setType = target && target.type && target.type !== 'main' ? target.type : null
   const typeLabel = setType === 'warmup' ? 'Warmup' : setType === 'failure' ? 'Failure' : ''
+  const isUnilateral = pe.exercises && pe.exercises.is_unilateral
+  const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
 
   return `
     <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}">
-      <span class="set-label">Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}</span>
-      <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${isTimed ? 'e.g. 45 sec' : 'reps'}" ${checked ? 'disabled' : ''}>
-      ${isTimed ? '' : `
+      <span class="set-label">Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
+      <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>
+      ${tracksWeight ? `
         <input type="number" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
         <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
-      `}
+      ` : ''}
       <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
       ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>
@@ -1428,8 +1433,9 @@ function addSetRow(peId) {
   if (!pe) return
   const rowsContainer = document.querySelector(`.set-rows[data-pe-id="${peId}"]`)
   const nextNumber = rowsContainer.children.length + 1
-  const isTimed = pe.exercises && pe.exercises.type === 'timed'
-  rowsContainer.insertAdjacentHTML('beforeend', renderSetRow(pe, nextNumber, null, isTimed, true))
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  rowsContainer.insertAdjacentHTML('beforeend', renderSetRow(pe, nextNumber, null, isTimed, tracksWeight, true))
 }
 
 // Optimistic UI: the row flips to "checked" instantly, and logSetsByPE

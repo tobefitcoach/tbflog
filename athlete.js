@@ -228,7 +228,7 @@ async function loadOverviewStats() {
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(type))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(tracks_weight))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -263,9 +263,10 @@ async function loadOverviewStats() {
   // only has a program_day_id) can be labeled in the duration list below.
   const workoutEntries = [] // { dateStr, exercises }
   const dayInfoById = {}
-  // Every program_exercise whose underlying exercise is type='weights' -
-  // volume only makes sense for weight-bearing sets, so it's scoped to
-  // just these (a plyo drill or timed exercise has no "weight" to sum)
+  // Every program_exercise whose underlying exercise tracks weight - volume
+  // only makes sense for weight-bearing sets, so it's scoped to just these
+  // (tracks_weight is independent of Timed/Plyometric now, so a weighted
+  // timed hold still counts, but a bodyweight-only exercise doesn't)
   const weightsPEIds = new Set()
   for (const program of programs) {
     for (const week of program.program_weeks) {
@@ -274,7 +275,7 @@ async function loadOverviewStats() {
         workoutEntries.push({ dateStr, exercises: day.program_exercises })
         dayInfoById[day.id] = { dateStr, name: trainingDisplayNameOv(program, day) }
         for (const pe of day.program_exercises) {
-          if (pe.exercises && pe.exercises.type === 'weights') weightsPEIds.add(pe.id)
+          if (pe.exercises && pe.exercises.tracks_weight) weightsPEIds.add(pe.id)
         }
       }
     }
