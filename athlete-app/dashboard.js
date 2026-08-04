@@ -78,6 +78,7 @@ async function checkAccountState() {
     renderWeekView(startOfWeek(new Date()))
     maybeShowWeeklyRecap()
     flushPendingQueue() // not awaited - picks up anything left over from a previous session
+    flushPendingSessionEnds()
     return
   }
 
@@ -1001,16 +1002,15 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
   slide.addEventListener('pointercancel', endDrag)
 }
 
-// Shows a "Saving..." state on the button so ending a workout is never
-// silent, then (1) gives the pending-save queue a bounded window to flush
-// - flushPendingQueue is durable and keeps retrying in the background on
-// its own regardless (localStorage queue + visibilitychange + next page
-// load), so this only needs to give it a head start, not block on it
-// finishing completely - and (2) sends the session-end update itself
-// through saveWithRetry, since a plain unprotected Supabase call has no
-// timeout and could previously hang forever on a bad connection with zero
-// visible feedback (exactly what looked like "pressing End Workout does
-// nothing").
+// Goes straight to the summary the instant this is confirmed - it's built
+// entirely from data already in memory (logSetsByPE, entry), so there's
+// nothing worth waiting on here. Both saves below happen in the
+// background: flushPendingQueue for any not-yet-synced sets (already
+// durable on its own), and saveSessionEnd for marking this session ended,
+// which falls into its own durable queue (see PENDING SESSION-END QUEUE
+// below) if the immediate attempt fails - so a bad connection just means
+// that timestamp syncs a little late, invisibly, instead of blocking the
+// athlete with an error the way a single unprotected save used to.
 async function finishWorkout(entry, session) {
   if (!(await customConfirm('Finish this workout?'))) return
 
@@ -1019,41 +1019,20 @@ async function finishWorkout(entry, session) {
   // so this await is normally instant
   session = await session
 
-  const btn = document.getElementById('endWorkoutBtn')
-  if (btn) {
-    btn.disabled = true
-    btn.textContent = 'Saving...'
-  }
+  const endedAt = new Date().toISOString()
+  const finishedSession = { ...session, ended_at: endedAt }
 
-  // Whichever finishes first - either the queue actually flushes, or 8
-  // seconds pass and we move on anyway (flushPendingQueue itself just
-  // keeps running in the background if it's still mid-retry)
-  await Promise.race([
-    flushPendingQueue(),
-    new Promise(resolve => setTimeout(resolve, 8000))
-  ])
+  // Update local state directly instead of a full loadTrainingData()
+  // reload - the week view (reached via the summary's Done button) needs
+  // this day to show "View Summary" instead of "Continue Workout" right
+  // away, without waiting on a fresh fetch
+  completedSessionsByDayId[entry.day.id] = finishedSession
+  delete openSessionsByDayId[entry.day.id]
 
-  const { data, error } = await saveWithRetry((signal) => supabase
-    .from('workout_sessions')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('id', session.id)
-    .select()
-    .single()
-    .abortSignal(signal)
-  )
+  flushPendingQueue() // not awaited - runs in the background regardless
+  saveSessionEnd(session.id, endedAt) // not awaited
 
-  if (error) {
-    console.log(error)
-    customAlert('Something went wrong ending the workout: ' + describeError(error))
-    if (btn) {
-      btn.disabled = false
-      btn.textContent = 'End Workout'
-    }
-    return
-  }
-
-  await loadTrainingData()
-  renderWorkoutSummary(data, entry)
+  renderWorkoutSummary(finishedSession, entry)
 }
 
 function renderWorkoutSummary(finishedSession, entry) {
@@ -1661,6 +1640,66 @@ async function runWithConcurrencyLimit(items, limit, fn) {
   await Promise.all(workers)
 }
 
+// ==========================================================================
+// ---- PENDING SESSION-END QUEUE ----
+// Same durable-retry idea as the set-logging queue above, but much smaller:
+// just session_id -> ended_at. finishWorkout no longer waits on this save
+// at all (the summary screen is built entirely from data already in
+// memory), so a slow/killed connection never blocks the athlete - this
+// queue is what makes that safe, by making sure the "ended" timestamp
+// eventually reaches the server even if the first attempt fails.
+// ==========================================================================
+function loadPendingSessionEnds() {
+  try {
+    return JSON.parse(localStorage.getItem('tbflog-pending-session-ends') || '[]')
+  } catch (e) {
+    return []
+  }
+}
+
+function savePendingSessionEndsToStorage(queue) {
+  try {
+    localStorage.setItem('tbflog-pending-session-ends', JSON.stringify(queue))
+  } catch (e) { /* storage full/unavailable - falls back to in-memory-only behavior for this session */ }
+}
+
+function queueSessionEnd(sessionId, endedAt) {
+  const queue = loadPendingSessionEnds().filter(e => e.session_id !== sessionId)
+  queue.push({ session_id: sessionId, ended_at: endedAt })
+  savePendingSessionEndsToStorage(queue)
+}
+
+// Tries to save immediately; only falls into the durable queue if that
+// attempt (already 3 tries via saveWithRetry) fails entirely - not awaited
+// by finishWorkout, since nothing on screen needs this to finish
+async function saveSessionEnd(sessionId, endedAt) {
+  const { error } = await saveWithRetry((signal) => supabase
+    .from('workout_sessions')
+    .update({ ended_at: endedAt })
+    .eq('id', sessionId)
+    .abortSignal(signal)
+  )
+  if (error) {
+    console.log(error)
+    queueSessionEnd(sessionId, endedAt)
+  }
+}
+
+async function flushPendingSessionEnds() {
+  const queue = loadPendingSessionEnds()
+  await runWithConcurrencyLimit(queue, 3, async function(entry) {
+    const { error } = await saveWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .update({ ended_at: entry.ended_at })
+      .eq('id', entry.session_id)
+      .abortSignal(signal)
+    )
+    if (!error) {
+      savePendingSessionEndsToStorage(loadPendingSessionEnds().filter(e => e.session_id !== entry.session_id))
+    }
+  })
+}
+
 // Pulls a human-readable message out of whatever shape the failure came in
 // as - a Supabase/PostgREST error object (.message), a thrown DOMException
 // like AbortError (.message), or something unexpected (fall back to a raw
@@ -1672,7 +1711,10 @@ function describeError(error) {
 }
 
 document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'visible' && athlete) flushPendingQueue()
+  if (document.visibilityState === 'visible' && athlete) {
+    flushPendingQueue()
+    flushPendingSessionEnds()
+  }
 })
 
 // Belt-and-suspenders on top of the visibilitychange retry above: iOS kills
@@ -1686,9 +1728,9 @@ document.addEventListener('visibilitychange', function() {
 // tab is actually visible (no point racing a request that's guaranteed to
 // be killed anyway).
 setInterval(function() {
-  if (document.visibilityState === 'visible' && athlete && loadPendingQueue().length > 0) {
-    flushPendingQueue()
-  }
+  if (document.visibilityState !== 'visible' || !athlete) return
+  if (loadPendingQueue().length > 0) flushPendingQueue()
+  if (loadPendingSessionEnds().length > 0) flushPendingSessionEnds()
 }, 20000)
 
 function performQueuedSave(entry) {
