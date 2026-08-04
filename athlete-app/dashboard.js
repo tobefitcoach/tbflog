@@ -533,18 +533,35 @@ function renderSyncBannerHtml(pendingCount) {
         <strong>${pendingCount} set${pendingCount === 1 ? '' : 's'} not synced yet</strong>
         <div class="sync-banner-detail">${errorLine}</div>
       </div>
-      <button type="button" class="btn-cancel" id="syncRetryBtn">Retry Now</button>
+      <div style="display:flex; gap:8px">
+        <button type="button" class="btn-cancel" id="syncRetryBtn">Retry Now</button>
+        <button type="button" class="btn-cancel" id="syncDismissBtn">Dismiss</button>
+      </div>
     </div>
   `
 }
 
 function wireSyncBanner(onDone) {
-  const btn = document.getElementById('syncRetryBtn')
-  if (!btn) return
-  btn.addEventListener('click', async function() {
-    btn.disabled = true
-    btn.textContent = 'Retrying...'
+  const retryBtn = document.getElementById('syncRetryBtn')
+  const dismissBtn = document.getElementById('syncDismissBtn')
+  if (!retryBtn) return
+
+  retryBtn.addEventListener('click', async function() {
+    retryBtn.disabled = true
+    retryBtn.textContent = 'Retrying...'
     await flushPendingQueue()
+    onDone()
+  })
+
+  // Only offered as a last resort once retrying keeps failing - this
+  // permanently throws away whatever wasn't saved, since there's no other
+  // way to clear a stuck queue from a phone (no browser console access
+  // there the way there is on desktop)
+  dismissBtn.addEventListener('click', async function() {
+    const count = loadPendingQueue().length
+    const ok = await customConfirm(`Discard ${count} unsynced set${count === 1 ? '' : 's'}? They never saved to the server, so this can't be undone - only do this if you don't need this data.`)
+    if (!ok) return
+    savePendingQueueToStorage([])
     onDone()
   })
 }
