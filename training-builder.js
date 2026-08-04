@@ -155,7 +155,7 @@ async function addExerciseToTraining(exerciseId) {
     order_index: nextOrder
   }]).select('*, exercises(id, name, category, type, video_url)')
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   const newRow = data[0]
   exercisesCache.push(newRow)
@@ -375,7 +375,7 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
   const results = await Promise.all(ids.map(saveExerciseCard))
 
   if (results.some(ok => !ok)) {
-    alert('Something went wrong saving one or more exercises - please try again')
+    customAlert('Something went wrong saving one or more exercises - please try again')
     btn.disabled = false
     btn.textContent = '💾 Save'
     return
@@ -393,10 +393,10 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
 // Removes just this one card instead of reloading + re-rendering the whole
 // list, so any unsaved edits sitting in other cards' rows aren't wiped out
 async function deleteExerciseRow(id) {
-  if (!confirm('Remove this exercise from the training?')) return
+  if (!(await customConfirm('Remove this exercise from the training?'))) return
 
   const { error } = await supabase.from('training_exercises').delete().eq('id', id)
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   exercisesCache = exercisesCache.filter(te => te.id !== id)
   const card = document.querySelector(`.builder-exercise-card[data-id="${id}"]`)
@@ -502,14 +502,14 @@ document.getElementById('saveTCreateExerciseBtn').addEventListener('click', asyn
   const videoUrl = document.getElementById('tCreateExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('tCreateExerciseInstructions').value.trim()
 
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('exercises')
     .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }])
     .select()
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   allExercises.push(data[0])
   allExercises.sort((a, b) => a.name.localeCompare(b.name))
@@ -532,10 +532,10 @@ document.getElementById('cancelRenameTrainingBtn').addEventListener('click', fun
 
 document.getElementById('saveRenameTrainingBtn').addEventListener('click', async function() {
   const name = document.getElementById('renameTrainingInput').value.trim()
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { error } = await supabase.from('trainings').update({ name }).eq('id', trainingId)
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('trainingNameHeading').textContent = name
   document.getElementById('renameTrainingModal').classList.remove('active')

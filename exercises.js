@@ -253,7 +253,7 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   const videoUrl = document.getElementById('exerciseVideoUrl').value.trim()
   const instructions = document.getElementById('exerciseInstructions').value.trim()
 
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   let error
   if (currentExercise) {
@@ -267,7 +267,7 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
       .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }]))
   }
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('exerciseModal').classList.remove('active')
   loadExercises()
@@ -281,7 +281,7 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
 // generic "Something went wrong"
 // ==========================================================================
 async function deleteExercise(id) {
-  if (!confirm('Delete this exercise?')) return
+  if (!(await customConfirm('Delete this exercise?'))) return
 
   const { error } = await supabase
     .from('exercises')
@@ -291,9 +291,9 @@ async function deleteExercise(id) {
   if (error) {
     console.log(error)
     if (error.code === '23503') {
-      alert("This exercise is used in one or more programs and can't be deleted. Remove it from those programs first.")
+      customAlert("This exercise is used in one or more programs and can't be deleted. Remove it from those programs first.")
     } else {
-      alert('Something went wrong')
+      customAlert('Something went wrong')
     }
     return
   }
@@ -311,14 +311,14 @@ async function deleteExercise(id) {
 async function deleteCategory(categoryName, exercises) {
   const count = exercises.filter(ex => (ex.category || '').trim() === categoryName).length
 
-  if (!confirm(`Remove the "${categoryName}" category from ${count} exercise${count === 1 ? '' : 's'}? They'll become Uncategorized - this doesn't delete the exercises themselves.`)) return
+  if (!(await customConfirm(`Remove the "${categoryName}" category from ${count} exercise${count === 1 ? '' : 's'}? They'll become Uncategorized - this doesn't delete the exercises themselves.`))) return
 
   const { error } = await supabase
     .from('exercises')
     .update({ category: null })
     .eq('category', categoryName)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   loadExercises()
 }

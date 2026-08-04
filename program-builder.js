@@ -348,7 +348,7 @@ async function saveDay(dayId) {
   const results = await Promise.all(ids.map(saveExerciseCard))
 
   if (results.some(ok => !ok)) {
-    alert('Something went wrong saving one or more exercises - please try again')
+    customAlert('Something went wrong saving one or more exercises - please try again')
     if (btn) { btn.disabled = false; btn.textContent = '💾 Save Day' }
     return
   }
@@ -420,7 +420,7 @@ document.getElementById('addWeekBtn').addEventListener('click', async function()
     .insert([{ program_id: programId, week_number: nextNumber }])
     .select()
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   const newWeek = { ...data[0], program_days: [] }
   weeksCache.push(newWeek)
@@ -435,10 +435,10 @@ document.getElementById('addWeekBtn').addEventListener('click', async function()
 
 // Removes just this one week block instead of reloading the whole tree
 async function deleteWeek(weekId) {
-  if (!confirm('Delete this week and everything in it?')) return
+  if (!(await customConfirm('Delete this week and everything in it?'))) return
 
   const { error } = await supabase.from('program_weeks').delete().eq('id', weekId)
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   weeksCache = weeksCache.filter(w => w.id !== weekId)
   const block = document.querySelector(`.metric-category[data-week-id="${weekId}"]`)
@@ -473,7 +473,7 @@ document.getElementById('saveAddDayBtn').addEventListener('click', async functio
     .insert([{ week_id: currentWeekIdForAddDay, day_number: nextNumber, label }])
     .select()
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   const newDay = { ...data[0], program_exercises: [] }
   week.program_days.push(newDay)
@@ -491,10 +491,10 @@ document.getElementById('saveAddDayBtn').addEventListener('click', async functio
 
 // Removes just this one day block instead of reloading the whole tree
 async function deleteDay(dayId) {
-  if (!confirm('Delete this day and its exercises?')) return
+  if (!(await customConfirm('Delete this day and its exercises?'))) return
 
   const { error } = await supabase.from('program_days').delete().eq('id', dayId)
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   for (const week of weeksCache) {
     const idx = week.program_days.findIndex(d => d.id === dayId)
@@ -530,7 +530,7 @@ document.getElementById('cancelExercisePickerBtn').addEventListener('click', fun
 // tree, so any unsaved edits sitting in other cards' rows aren't wiped out
 document.getElementById('saveExercisePickerBtn').addEventListener('click', async function() {
   const exerciseId = document.getElementById('pickerExerciseSelect').value
-  if (!exerciseId) { alert('Please choose an exercise'); return }
+  if (!exerciseId) { customAlert('Please choose an exercise'); return }
 
   const day = findDay(currentDayIdForAddExercise)
   const nextOrder = day.program_exercises.length ? Math.max(...day.program_exercises.map(pe => pe.order_index)) + 1 : 0
@@ -541,7 +541,7 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
     order_index: nextOrder
   }]).select('*, exercises(id, name, category, type, video_url)')
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   const newPE = data[0]
   day.program_exercises.push(newPE)
@@ -628,14 +628,14 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
   const videoUrl = document.getElementById('createExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('createExerciseInstructions').value.trim()
 
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('exercises')
     .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions }])
     .select()
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   allExercises.push(data[0])
   allExercises.sort((a, b) => a.name.localeCompare(b.name))
@@ -651,10 +651,10 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
 // Removes just this one card instead of reloading the whole tree, so
 // unsaved edits sitting in other cards aren't wiped out
 async function deleteExerciseRow(peId) {
-  if (!confirm('Remove this exercise from the day?')) return
+  if (!(await customConfirm('Remove this exercise from the day?'))) return
 
   const { error } = await supabase.from('program_exercises').delete().eq('id', peId)
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   for (const week of weeksCache) {
     for (const day of week.program_days) {
@@ -688,10 +688,10 @@ document.getElementById('cancelRenameProgramBtn').addEventListener('click', func
 
 document.getElementById('saveRenameProgramBtn').addEventListener('click', async function() {
   const name = document.getElementById('renameProgramInput').value.trim()
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { error } = await supabase.from('programs').update({ name }).eq('id', programId)
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('programNameHeading').textContent = name
   document.getElementById('renameProgramModal').classList.remove('active')

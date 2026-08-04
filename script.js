@@ -121,7 +121,7 @@ card.innerHTML = `
   card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
     e.stopPropagation()
  
-    if (!confirm('Delete this athlete? This cannot be undone.')) return
+    if (!(await customConfirm('Delete this athlete? This cannot be undone.'))) return
  
     const { error } = await supabase
       .from('athletes')
@@ -130,7 +130,7 @@ card.innerHTML = `
  
     if (error) {
       console.log('Error deleting athlete:', error)
-      alert('Something went wrong')
+      customAlert('Something went wrong')
       return
     }
  
@@ -160,7 +160,7 @@ saveBtn.addEventListener('click', async function() {
   const weight = parseInt(document.getElementById('athleteWeight').value);
  
   if (name === '') {
-    alert('Please enter a name');
+    customAlert('Please enter a name');
     return;
   }
  
@@ -180,7 +180,7 @@ saveBtn.addEventListener('click', async function() {
  
   if (error) {
     console.log('Error saving athlete:', error)
-    alert('Something went wrong saving the athlete')
+    customAlert('Something went wrong saving the athlete')
     return
   }
  

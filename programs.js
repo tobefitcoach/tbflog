@@ -81,7 +81,7 @@ function createTemplateCard(template) {
 
   card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
     e.stopPropagation()
-    if (!confirm(`Delete "${template.name}"? This cannot be undone.`)) return
+    if (!(await customConfirm(`Delete "${template.name}"? This cannot be undone.`))) return
 
     const { error } = await supabase
       .from('programs')
@@ -90,7 +90,7 @@ function createTemplateCard(template) {
 
     if (error) {
       console.log('Error deleting template:', error)
-      alert('Something went wrong')
+      customAlert('Something went wrong')
       return
     }
 
@@ -116,7 +116,7 @@ document.getElementById('cancelNewTemplateBtn').addEventListener('click', functi
 
 document.getElementById('saveNewTemplateBtn').addEventListener('click', async function() {
   const name = document.getElementById('newTemplateName').value.trim()
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('programs')
@@ -125,7 +125,7 @@ document.getElementById('saveNewTemplateBtn').addEventListener('click', async fu
 
   if (error) {
     console.log('Error creating template:', error)
-    alert('Something went wrong')
+    customAlert('Something went wrong')
     return
   }
 

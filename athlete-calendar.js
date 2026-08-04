@@ -322,15 +322,15 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
 // many weeks, so only that one program_days row is removed - the rest of
 // the assigned program stays on the calendar untouched.
 async function deleteTraining(mode, programId, programDayId) {
-  if (!confirm(mode === 'adhoc'
+  if (!(await customConfirm(mode === 'adhoc'
     ? 'Delete this training?'
-    : 'Remove this day from the assigned program? (The rest of the program stays intact.)')) return
+    : 'Remove this day from the assigned program? (The rest of the program stays intact.)'))) return
 
   const { error } = mode === 'adhoc'
     ? await supabase.from('programs').delete().eq('id', programId)
     : await supabase.from('program_days').delete().eq('id', programDayId)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('dayDetailModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
@@ -395,7 +395,7 @@ async function saveScheduledDay(groupEl) {
   const results = await Promise.all(cardIds.map(saveScheduledExercise))
 
   if (results.some(ok => !ok)) {
-    alert('Something went wrong saving one or more exercises - please try again')
+    customAlert('Something went wrong saving one or more exercises - please try again')
     if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
     return
   }
@@ -407,10 +407,10 @@ async function saveScheduledDay(groupEl) {
 // Removes just this one card instead of reloading the whole month + rebuilding
 // the modal, so unsaved edits sitting in this day's other cards aren't wiped out
 async function deleteScheduledExercise(peId) {
-  if (!confirm('Remove this exercise?')) return
+  if (!(await customConfirm('Remove this exercise?'))) return
 
   const { error } = await supabase.from('program_exercises').delete().eq('id', peId)
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   const entries = calendarEntriesByDate[currentDayDateForModal] || []
   for (const entry of entries) {
@@ -812,7 +812,7 @@ document.getElementById('dayPickerCancelBtn').addEventListener('click', function
 })
 
 document.getElementById('saveDayAddProgramBtn').addEventListener('click', async function() {
-  if (!selectedTemplateId) { alert('Please choose a program'); return }
+  if (!selectedTemplateId) { customAlert('Please choose a program'); return }
 
   const saveBtn = this
   saveBtn.disabled = true
@@ -824,7 +824,7 @@ document.getElementById('saveDayAddProgramBtn').addEventListener('click', async 
     await loadCalendarMonth(currentViewYear, currentViewMonth)
   } catch (err) {
     console.log(err)
-    alert('Something went wrong while assigning the program. Check Supabase for a partially-created program under this athlete and delete it before retrying.')
+    customAlert('Something went wrong while assigning the program. Check Supabase for a partially-created program under this athlete and delete it before retrying.')
   } finally {
     saveBtn.disabled = false
     saveBtn.textContent = 'Assign Program'
@@ -850,14 +850,14 @@ document.getElementById('cancelNewTrainingNameBtn').addEventListener('click', fu
 
 document.getElementById('saveNewTrainingNameBtn').addEventListener('click', async function() {
   const name = document.getElementById('newTrainingNameInput').value.trim()
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('trainings')
     .insert([{ coach_id: session.user.id, name }])
     .select()
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   cachedTrainings = null // force a fresh fetch so the one just created shows up
   document.getElementById('newTrainingNameModal').classList.remove('active')
@@ -893,7 +893,7 @@ async function cloneTrainingToDay(trainingId, dayId) {
     .select('*')
     .eq('training_id', trainingId)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   trainingExercises.sort((a, b) => a.order_index - b.order_index)
 
@@ -910,7 +910,7 @@ async function cloneTrainingToDay(trainingId, dayId) {
       set_targets: te.set_targets,
       notes: te.notes
     }])
-    if (insertError) { console.log(insertError); alert('Something went wrong copying one of the exercises'); return }
+    if (insertError) { console.log(insertError); customAlert('Something went wrong copying one of the exercises'); return }
   }
 }
 
@@ -936,19 +936,19 @@ async function findOrCreateAdHocDay(dateStr, name) {
     .from('programs')
     .insert([{ coach_id: session.user.id, athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: name || 'Training' }])
     .select()
-  if (programError) { console.log(programError); alert('Something went wrong'); throw programError }
+  if (programError) { console.log(programError); customAlert('Something went wrong'); throw programError }
 
   const { data: newWeek, error: weekError } = await supabase
     .from('program_weeks')
     .insert([{ program_id: newProgram[0].id, week_number: 1 }])
     .select()
-  if (weekError) { console.log(weekError); alert('Something went wrong'); throw weekError }
+  if (weekError) { console.log(weekError); customAlert('Something went wrong'); throw weekError }
 
   const { data: newDay, error: dayError } = await supabase
     .from('program_days')
     .insert([{ week_id: newWeek[0].id, day_number: 1 }])
     .select()
-  if (dayError) { console.log(dayError); alert('Something went wrong'); throw dayError }
+  if (dayError) { console.log(dayError); customAlert('Something went wrong'); throw dayError }
 
   return newDay[0].id
 }

@@ -174,7 +174,7 @@ function renderSettings() {
       e.target.checked = previousUnit === 'lbs'
       labels[0].classList.toggle('active', previousUnit === 'kg')
       labels[1].classList.toggle('active', previousUnit === 'lbs')
-      alert('Something went wrong saving that - try again')
+      customAlert('Something went wrong saving that - try again')
     }
   })
 
@@ -194,7 +194,7 @@ function renderSettings() {
       console.log(error)
       athlete.weekly_recap_enabled = previousValue
       e.target.checked = previousValue
-      alert('Something went wrong saving that - try again')
+      customAlert('Something went wrong saving that - try again')
     }
   })
 }
@@ -754,7 +754,7 @@ async function findOrCreateSession(programDayId) {
     .abortSignal(signal)
   )
 
-  if (insertError) { console.log(insertError); alert('Something went wrong starting the workout'); throw insertError }
+  if (insertError) { console.log(insertError); customAlert('Something went wrong starting the workout'); throw insertError }
   return newSession
 }
 
@@ -772,7 +772,7 @@ function findResumeIndex(exercises) {
 
 async function startWorkout(entry, dateStr) {
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
-  if (exercises.length === 0) { alert('No exercises in this training'); return }
+  if (exercises.length === 0) { customAlert('No exercises in this training'); return }
 
   const session = await findOrCreateSession(entry.day.id)
   openSessionsByDayId[entry.day.id] = session
@@ -976,7 +976,7 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
 // visible feedback (exactly what looked like "pressing End Workout does
 // nothing").
 async function finishWorkout(entry, session) {
-  if (!confirm('Finish this workout?')) return
+  if (!(await customConfirm('Finish this workout?'))) return
 
   const btn = document.getElementById('endWorkoutBtn')
   if (btn) {
@@ -1002,7 +1002,7 @@ async function finishWorkout(entry, session) {
 
   if (error) {
     console.log(error)
-    alert('Something went wrong ending the workout: ' + describeError(error))
+    customAlert('Something went wrong ending the workout: ' + describeError(error))
     if (btn) {
       btn.disabled = false
       btn.textContent = 'End Workout'

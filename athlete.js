@@ -46,7 +46,7 @@ document.getElementById('settingsNextWeekToggle').addEventListener('change', asy
 
   if (error) {
     console.log(error)
-    alert('Something went wrong saving that setting')
+    customAlert('Something went wrong saving that setting')
     e.target.checked = !e.target.checked // revert the toggle visually
   }
 })
@@ -472,13 +472,13 @@ document.getElementById('saveNoteBtn').addEventListener('click', async function(
   const date = document.getElementById('noteDate').value
   const note = document.getElementById('noteText').value.trim()
 
-  if (!date || !note) { alert('Please fill in date and note'); return }
+  if (!date || !note) { customAlert('Please fill in date and note'); return }
 
   const { error } = await supabase
     .from('athlete_notes')
     .insert([{ athlete_id: parseInt(athleteId), date, note }])
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('addNoteModal').classList.remove('active')
   loadLatestNote()
@@ -534,14 +534,14 @@ async function loadNotesList() {
   list.querySelectorAll('.btn-delete-measurement').forEach(btn => {
     btn.addEventListener('click', async function() {
       const noteId = parseInt(this.dataset.noteId)
-      if (!confirm('Delete this note?')) return
+      if (!(await customConfirm('Delete this note?'))) return
 
       const { error } = await supabase
         .from('athlete_notes')
         .delete()
         .eq('id', noteId)
 
-      if (error) { alert('Something went wrong'); return }
+      if (error) { customAlert('Something went wrong'); return }
 
       loadNotesList()
       loadLatestNote()
@@ -557,14 +557,14 @@ document.getElementById('saveEditNoteBtn').addEventListener('click', async funct
   const date = document.getElementById('editNoteDate').value
   const note = document.getElementById('editNoteText').value.trim()
 
-  if (!date || !note) { alert('Please fill in date and note'); return }
+  if (!date || !note) { customAlert('Please fill in date and note'); return }
 
   const { error } = await supabase
     .from('athlete_notes')
     .update({ date, note })
     .eq('id', currentNoteEntry.id)
 
-  if (error) { alert('Something went wrong'); return }
+  if (error) { customAlert('Something went wrong'); return }
 
   document.getElementById('editNoteModal').classList.remove('active')
   loadNotesList()
@@ -807,14 +807,14 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
   document.querySelectorAll('.btn-delete-metric').forEach(btn => {
     btn.addEventListener('click', async function() {
       const athleteMetricId = parseInt(this.dataset.athleteMetricId)
-      if (!confirm('Remove this metric from the athlete?')) return
+      if (!(await customConfirm('Remove this metric from the athlete?'))) return
 
       const { error } = await supabase
         .from('athlete_metrics')
         .delete()
         .eq('id', athleteMetricId)
 
-      if (error) { console.log('Error deleting metric:', error); alert('Something went wrong'); return }
+      if (error) { console.log('Error deleting metric:', error); customAlert('Something went wrong'); return }
 
       loadAthleteMetrics()
     })
@@ -824,14 +824,14 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
   document.querySelectorAll('.btn-delete-measurement').forEach(btn => {
     btn.addEventListener('click', async function() {
       const measurementId = parseInt(this.dataset.measurementId)
-      if (!confirm('Delete this measurement?')) return
+      if (!(await customConfirm('Delete this measurement?'))) return
 
       const { error } = await supabase
         .from('measurements')
         .delete()
         .eq('id', measurementId)
 
-      if (error) { console.log('Error deleting measurement:', error); alert('Something went wrong'); return }
+      if (error) { console.log('Error deleting measurement:', error); customAlert('Something went wrong'); return }
 
       loadAthleteMetrics()
     })
@@ -972,7 +972,7 @@ document.getElementById('saveMetricBtn').addEventListener('click', async functio
   const metricId = parseInt(document.getElementById('metricSelect').value)
 
   if (!metricId) {
-    alert('Please select a metric')
+    customAlert('Please select a metric')
     return
   }
 
@@ -985,7 +985,7 @@ document.getElementById('saveMetricBtn').addEventListener('click', async functio
 
   if (error) {
     console.log('Error adding metric:', error)
-    alert('Something went wrong')
+    customAlert('Something went wrong')
     return
   }
 
@@ -1006,7 +1006,7 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
   const date = document.getElementById('measurementDate').value
 
   if (!date) {
-    alert('Please select a date')
+    customAlert('Please select a date')
     return
   }
 
@@ -1055,7 +1055,7 @@ document.getElementById('saveMeasurementBtn').addEventListener('click', async fu
 
   if (error) {
     console.log('Error saving measurement:', error)
-    alert('Something went wrong')
+    customAlert('Something went wrong')
     return
   }
 
@@ -1802,7 +1802,7 @@ document.getElementById('saveNewMetricBtn').addEventListener('click', async func
   const type = document.getElementById('newMetricType').value
 
   if (!name || !unit) {
-    alert('Please fill in both name and unit')
+    customAlert('Please fill in both name and unit')
     return
   }
 
@@ -1814,7 +1814,7 @@ document.getElementById('saveNewMetricBtn').addEventListener('click', async func
 
   if (error) {
     console.log('Error creating metric:', error)
-    alert('Something went wrong')
+    customAlert('Something went wrong')
     return
   }
 
@@ -1835,7 +1835,7 @@ document.getElementById('saveNewMetricBtn').addEventListener('click', async func
   document.getElementById('createMetricModal').classList.remove('active')
   document.getElementById('addMetricModal').classList.add('active')
 
-  alert(`"${name}" created and selected!`)
+  customAlert(`"${name}" created and selected!`)
 })
 // ==========================================================================
 // ---- ENTRIES MODAL ----
@@ -1909,14 +1909,14 @@ async function loadEntries(metric) {
   list.querySelectorAll('.btn-delete-measurement').forEach(btn => {
     btn.addEventListener('click', async function() {
       const measurementId = parseInt(this.dataset.measurementId)
-      if (!confirm('Delete this entry?')) return
+      if (!(await customConfirm('Delete this entry?'))) return
 
       const { error } = await supabase
         .from('measurements')
         .delete()
         .eq('id', measurementId)
 
-      if (error) { alert('Something went wrong'); return }
+      if (error) { customAlert('Something went wrong'); return }
 
       await loadEntries(metric)
       loadAthleteMetrics()
@@ -1996,7 +1996,7 @@ document.getElementById('cancelEditEntryBtn').addEventListener('click', function
 // Saves edits to an existing measurement, rebuilding the payload per metric type
 document.getElementById('saveEditEntryBtn').addEventListener('click', async function() {
   const date = document.getElementById('editEntryDate').value
-  if (!date) { alert('Please select a date'); return }
+  if (!date) { customAlert('Please select a date'); return }
 
   let updateData = {
     date,
@@ -2038,7 +2038,7 @@ document.getElementById('saveEditEntryBtn').addEventListener('click', async func
     .update(updateData)
     .eq('id', currentEditEntry.id)
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('editEntryModal').classList.remove('active')
   await loadEntries(currentEntriesMetric)
@@ -2068,7 +2068,7 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   // the database, and two blank emails would otherwise count as duplicates
   const email = document.getElementById('editAthleteEmail').value.trim() || null
 
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { error } = await supabase
     .from('athletes')
@@ -2078,9 +2078,9 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   if (error) {
     console.log(error)
     if (error.code === '23505') {
-      alert('Another athlete is already using that email')
+      customAlert('Another athlete is already using that email')
     } else {
-      alert('Something went wrong')
+      customAlert('Something went wrong')
     }
     return
   }
@@ -2168,13 +2168,13 @@ document.getElementById('saveBodyweightBtn').addEventListener('click', async fun
   const weight = inputUnit === 'lbs' ? +(rawWeight / 2.20462).toFixed(2) : rawWeight
   const notes = document.getElementById('bodyweightNotes').value
 
-  if (!date || !weight) { alert('Please fill in date and weight'); return }
+  if (!date || !weight) { customAlert('Please fill in date and weight'); return }
 
   const { error } = await supabase
     .from('bodyweight')
     .insert([{ athlete_id: parseInt(athleteId), date, weight, notes }])
 
-  if (error) { console.log(error); alert('Something went wrong'); return }
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('bodyweightModal').classList.remove('active')
   document.getElementById('bodyweightValue').value = ''
@@ -2258,14 +2258,14 @@ async function loadBWEntries() {
   list.querySelectorAll('.btn-delete-measurement').forEach(btn => {
     btn.addEventListener('click', async function() {
       const entryId = parseInt(this.dataset.entryId)
-      if (!confirm('Delete this entry?')) return
+      if (!(await customConfirm('Delete this entry?'))) return
 
       const { error } = await supabase
         .from('bodyweight')
         .delete()
         .eq('id', entryId)
 
-      if (error) { alert('Something went wrong'); return }
+      if (error) { customAlert('Something went wrong'); return }
 
       loadBWEntries()
       loadBodyweightGraph()
@@ -2296,14 +2296,14 @@ document.getElementById('saveEditBWBtn').addEventListener('click', async functio
   const weight = unit === 'lbs' ? +(rawWeight / 2.20462).toFixed(2) : rawWeight
   const notes = document.getElementById('editBWNotes').value
 
-  if (!date || !weight) { alert('Please fill in date and weight'); return }
+  if (!date || !weight) { customAlert('Please fill in date and weight'); return }
 
   const { error } = await supabase
     .from('bodyweight')
     .update({ date, weight, notes })
     .eq('id', currentBWEntry.id)
 
-  if (error) { alert('Something went wrong'); return }
+  if (error) { customAlert('Something went wrong'); return }
 
   document.getElementById('editBWEntryModal').classList.remove('active')
   loadBWEntries()

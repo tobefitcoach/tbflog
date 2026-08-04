@@ -75,7 +75,7 @@ function createTrainingCard(training) {
 
   card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
     e.stopPropagation()
-    if (!confirm(`Delete "${training.name}"? This cannot be undone.`)) return
+    if (!(await customConfirm(`Delete "${training.name}"? This cannot be undone.`))) return
 
     const { error } = await supabase
       .from('trainings')
@@ -84,7 +84,7 @@ function createTrainingCard(training) {
 
     if (error) {
       console.log('Error deleting training:', error)
-      alert('Something went wrong')
+      customAlert('Something went wrong')
       return
     }
 
@@ -108,7 +108,7 @@ document.getElementById('cancelNewTrainingBtn').addEventListener('click', functi
 
 document.getElementById('saveNewTrainingBtn').addEventListener('click', async function() {
   const name = document.getElementById('newTrainingName').value.trim()
-  if (!name) { alert('Please enter a name'); return }
+  if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('trainings')
@@ -117,7 +117,7 @@ document.getElementById('saveNewTrainingBtn').addEventListener('click', async fu
 
   if (error) {
     console.log('Error creating training:', error)
-    alert('Something went wrong')
+    customAlert('Something went wrong')
     return
   }
 
