@@ -26,6 +26,7 @@ const { data: { session } } = await supabase.auth.getSession()
 let calendarEntriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let sessionByDayId = {} // program_days.id -> the workout_sessions row to show (in-progress wins over done, done wins over older done), absent = not started yet
 let logSetsByPECal = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
+let mobilityEntriesByDateCal = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
 let calendarLoaded = false
 let currentDayDateForModal = null // date currently shown in the day-detail modal
 
@@ -111,7 +112,7 @@ async function loadCalendarMonth(year, month) {
     ),
     fetchWithRetry((signal) => supabase
       .from('workout_sessions')
-      .select('program_day_id, started_at, ended_at, session_rpe')
+      .select('program_day_id, started_at, ended_at, session_rpe, session_type')
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
     ),
@@ -143,7 +144,12 @@ async function loadCalendarMonth(year, month) {
   // wins if any session is still open, otherwise the most recently ended one
   // decides "done"
   sessionByDayId = {}
+  mobilityEntriesByDateCal = {}
   for (const s of sessions || []) {
+    if (s.session_type === 'mobility') {
+      mobilityEntriesByDateCal[toDateStr(new Date(s.started_at))] = s
+      continue
+    }
     if (!s.ended_at) {
       sessionByDayId[s.program_day_id] = s
       continue
@@ -199,6 +205,7 @@ function renderCalendarGrid(year, month) {
     // planned (no session yet), orange while the athlete's in the middle of
     // it, green once they've finished it.
     const badges = [...new Map(entries.map(entry => [entry.day.id, entry])).values()]
+    const mobility = mobilityEntriesByDateCal[dateStr]
 
     const classes = ['calendar-day']
     if (cell.outside) classes.push('calendar-day-outside')
@@ -212,8 +219,10 @@ function renderCalendarGrid(year, month) {
           const session = sessionByDayId[entry.day.id]
           const status = session ? (session.ended_at ? 'done' : 'in-progress') : undefined
           const statusClass = status === 'in-progress' ? 'calendar-day-badge-in-progress' : status === 'done' ? 'calendar-day-badge-done' : 'calendar-day-badge-planned'
-          return `<span class="calendar-day-badge ${statusClass}">${trainingDisplayName(entry)}</span>`
+          const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
+          return `<span class="calendar-day-badge ${statusClass}">${selfLogged}${trainingDisplayName(entry)}</span>`
         }).join('')}
+        ${mobility ? '<span class="calendar-day-badge calendar-day-badge-done">🧘 Mobility</span>' : ''}
       </div>
     `
   }).join('')
@@ -245,10 +254,21 @@ function openDayModal(dateStr) {
   const entries = calendarEntriesByDate[dateStr] || []
   const content = document.getElementById('dayDetailContent')
 
+  // A day can have both a scheduled workout AND a mobility session -
+  // independent of the entries.length check below, since mobility never
+  // creates a programs/program_days row
+  const mobility = mobilityEntriesByDateCal[dateStr]
+  const mobilityHtml = mobility ? `
+    <div class="detail-group">
+      <h4 class="detail-group-title">🧘 Mobility / Stretching</h4>
+      <p class="workout-preview-target">${Math.round((new Date(mobility.ended_at) - new Date(mobility.started_at)) / 60000)} min</p>
+    </div>
+  ` : ''
+
   if (entries.length === 0) {
-    content.innerHTML = '<p class="no-metrics">Nothing scheduled on this day</p>'
+    content.innerHTML = mobilityHtml || '<p class="no-metrics">Nothing scheduled on this day</p>'
   } else {
-    content.innerHTML = entries.map(entry => {
+    content.innerHTML = mobilityHtml + entries.map(entry => {
       const label = entry.program.is_adhoc
         ? entry.program.name
         : `${entry.program.name} — Week ${entry.week.week_number}, ${entry.day.label || ('Day ' + entry.day.day_number)}`

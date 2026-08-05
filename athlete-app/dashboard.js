@@ -45,7 +45,9 @@ let entriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
 let openSessionsByDayId = {} // program_days.id -> in-progress workout_sessions row (ended_at is null)
 let completedSessionsByDayId = {} // program_days.id -> most recently-ended workout_sessions row
+let mobilitySessionsByDate = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
 let restTimerInterval = null
+let mobilityTimerInterval = null
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 
 checkAccountState()
@@ -66,7 +68,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled')
+    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, coach_id')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -349,7 +351,12 @@ async function loadTrainingData() {
 
   openSessionsByDayId = {}
   completedSessionsByDayId = {}
+  mobilitySessionsByDate = {}
   for (const s of sessions) {
+    if (s.session_type === 'mobility') {
+      mobilitySessionsByDate[toDateStr(new Date(s.started_at))] = s
+      continue
+    }
     if (!s.ended_at) {
       openSessionsByDayId[s.program_day_id] = s
       continue
@@ -478,8 +485,12 @@ function renderWeekView(weekStart) {
   const cardsHtml = days.map(date => {
     const dateStr = toDateStr(date)
     const entries = entriesByDate[dateStr] || []
-    const names = [...new Set(entries.map(trainingDisplayName))]
+    // One badge per distinct training name, prefixed with 🙋 for a workout
+    // the athlete added themselves (see Add Own Workout) so it's visually
+    // distinct from what the coach actually assigned
+    const names = [...new Set(entries.map(entry => (entry.program.created_by_athlete ? '🙋 ' : '') + trainingDisplayName(entry)))]
     const done = dayIsFullyLogged(entries)
+    const mobility = mobilitySessionsByDate[dateStr]
 
     const classes = ['week-day-card']
     if (dateStr === todayStr) classes.push('today')
@@ -490,6 +501,7 @@ function renderWeekView(weekStart) {
         <span class="week-day-name">${DAY_NAMES[date.getDay() === 0 ? 6 : date.getDay() - 1]}</span>
         <span class="week-day-number">${date.getDate()}</span>
         ${names.map(name => `<span class="week-day-badge">${done ? '✓ ' : ''}${name}</span>`).join('')}
+        ${mobility ? '<span class="week-day-badge week-day-badge-mobility">🧘 Mobility</span>' : ''}
       </div>
     `
   }).join('')
@@ -508,6 +520,17 @@ function renderWeekView(weekStart) {
       <button class="btn-cancel" id="weekNextBtn" ${nextEnabled ? '' : 'disabled'}>Next →</button>
     </div>
     <div class="week-strip">${cardsHtml}</div>
+    <div class="home-tile-row">
+      <button type="button" class="home-tile ${athlete.can_self_log_workouts ? '' : 'disabled'}" id="addOwnWorkoutTile">
+        <span class="home-tile-icon">🏋</span>
+        <span class="home-tile-label">Add Own Workout</span>
+        ${athlete.can_self_log_workouts ? '' : '<span class="home-tile-sublabel">Ask your coach to enable this</span>'}
+      </button>
+      <button type="button" class="home-tile" id="mobilityTile">
+        <span class="home-tile-icon">🧘</span>
+        <span class="home-tile-label">Daily Mobility/Stretching</span>
+      </button>
+    </div>
   `
 
   document.querySelectorAll('.week-day-card').forEach(cardEl => {
@@ -519,6 +542,17 @@ function renderWeekView(weekStart) {
   })
   document.getElementById('weekNextBtn').addEventListener('click', function() {
     if (nextEnabled) renderWeekView(addDays(weekStart, 7))
+  })
+
+  document.getElementById('addOwnWorkoutTile').addEventListener('click', function() {
+    if (!athlete.can_self_log_workouts) {
+      customAlert('Ask your coach to turn this on for your account.')
+      return
+    }
+    renderAddWorkoutChoice()
+  })
+  document.getElementById('mobilityTile').addEventListener('click', function() {
+    renderMobilityPicker()
   })
 
   wireSyncBanner(function() { renderWeekView(weekStart) })
@@ -575,6 +609,551 @@ function wireSyncBanner(onDone) {
     savePendingQueueToStorage([])
     onDone()
   })
+}
+
+// ==========================================================================
+// ---- DAILY MOBILITY / STRETCHING (V1: timer + log, no guided content) ----
+// Nothing is written until the timer actually finishes or "Finish Early" is
+// tapped - cancelling mid-timer is a pure client-side abort, unlike the
+// guided workout flow which creates a workout_sessions row up front. A
+// mobility row never gets a program_day_id (see the mobility RLS policy),
+// so it can't collide with or affect anything the coach assigned.
+// ==========================================================================
+function renderMobilityPicker() {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  const presets = [10, 15, 20]
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="mobilityBackBtn">← Back</button>
+      <h2 class="day-view-date">Daily Mobility/Stretching</h2>
+    </div>
+    <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">Pick how long you want to stretch or work on mobility.</p>
+    <div class="duration-preset-row">
+      ${presets.map(m => `<button type="button" class="duration-preset-btn" data-minutes="${m}">${m} min</button>`).join('')}
+    </div>
+    <div class="form-group" style="margin-top:16px">
+      <label>Or a custom length (minutes)</label>
+      <input type="number" id="mobilityCustomMinutes" min="1" placeholder="e.g. 12">
+    </div>
+    <button type="button" class="btn-save start-workout-btn" id="mobilityStartBtn" style="margin-top:16px">▶ Start</button>
+  `
+
+  document.getElementById('mobilityBackBtn').addEventListener('click', function() {
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  document.querySelectorAll('.duration-preset-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.getElementById('mobilityCustomMinutes').value = btn.dataset.minutes
+    })
+  })
+
+  document.getElementById('mobilityStartBtn').addEventListener('click', function() {
+    const minutes = parseInt(document.getElementById('mobilityCustomMinutes').value)
+    if (!minutes || minutes < 1) { customAlert('Pick a duration first'); return }
+    renderMobilityTimer(minutes * 60)
+  })
+}
+
+function renderMobilityTimer(totalSeconds) {
+  const startedAt = new Date()
+  let remaining = totalSeconds
+
+  pageContent.innerHTML = `
+    <div class="mobility-timer-screen">
+      <p class="mobility-timer-label">🧘 Mobility / Stretching</p>
+      <p class="mobility-timer-time" id="mobilityTimerTime">${formatTimer(remaining)}</p>
+      <div style="display:flex; gap:12px; margin-top:24px">
+        <button type="button" class="btn-cancel" id="mobilityCancelBtn">Cancel</button>
+        <button type="button" class="btn-save" id="mobilityFinishBtn">Finish Early</button>
+      </div>
+    </div>
+  `
+
+  mobilityTimerInterval = setInterval(function() {
+    remaining--
+    const timeEl = document.getElementById('mobilityTimerTime')
+    if (timeEl) timeEl.textContent = formatTimer(remaining)
+    if (remaining <= 0) {
+      clearMobilityTimer()
+      playRestDoneSound()
+      finishMobilitySession(startedAt)
+    }
+  }, 1000)
+
+  document.getElementById('mobilityCancelBtn').addEventListener('click', function() {
+    clearMobilityTimer()
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+  document.getElementById('mobilityFinishBtn').addEventListener('click', function() {
+    clearMobilityTimer()
+    finishMobilitySession(startedAt)
+  })
+}
+
+function clearMobilityTimer() {
+  if (mobilityTimerInterval) clearInterval(mobilityTimerInterval)
+  mobilityTimerInterval = null
+}
+
+async function finishMobilitySession(startedAt) {
+  const { error } = await saveWithRetry((signal) => supabase
+    .from('workout_sessions')
+    .insert([{
+      athlete_id: athlete.id,
+      program_day_id: null,
+      session_type: 'mobility',
+      started_at: startedAt.toISOString(),
+      ended_at: new Date().toISOString()
+    }])
+    .abortSignal(signal)
+  )
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that mobility session - check your connection and try again')
+  } else {
+    customAlert('Mobility session logged!')
+  }
+
+  await loadTrainingData()
+  renderWeekView(currentWeekStart || startOfWeek(new Date()))
+}
+
+// ==========================================================================
+// ---- ADD OWN WORKOUT (Strength + Field/Training) ----
+// Gated by athlete.can_self_log_workouts (see the tile in renderWeekView).
+// Always logs against today. Strength becomes a completely normal
+// programs/program_weeks/program_days/program_exercises tree
+// (created_by_athlete=true is the only difference from a coach-assigned
+// one), so it flows through the exact same startWorkout -> checkSet/
+// uncheckSet -> finishWorkout pipeline a coach-assigned workout uses -
+// Total Volume, PR detection, and Training Load all pick it up with zero
+// extra code. Field/Training skips exercises entirely and writes straight
+// to workout_sessions (duration + RPE), which Training Load already
+// consumes via session_rpe x duration_minutes.
+// ==========================================================================
+let exerciseLibraryCache = null
+let addWorkoutSelectedExercises = [] // exercises picked in the Strength flow, in pick order
+
+async function loadExerciseLibrary() {
+  if (exerciseLibraryCache) return exerciseLibraryCache
+  const { data, error } = await saveWithRetry((signal) => supabase
+    .from('exercises')
+    .select('*')
+    .order('name')
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); customAlert('Something went wrong loading the exercise library - check your connection and try again'); return null }
+  exerciseLibraryCache = data
+  return exerciseLibraryCache
+}
+
+function renderAddWorkoutChoice() {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
+      <h2 class="day-view-date">Add Own Workout</h2>
+    </div>
+    <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">What kind of workout did you do today?</p>
+    <div class="home-tile-row">
+      <button type="button" class="home-tile" id="addWorkoutStrengthChoice">
+        <span class="home-tile-icon">🏋</span>
+        <span class="home-tile-label">Strength (Gym)</span>
+      </button>
+      <button type="button" class="home-tile" id="addWorkoutFieldChoice">
+        <span class="home-tile-icon">🏃</span>
+        <span class="home-tile-label">Field / Training</span>
+      </button>
+    </div>
+  `
+
+  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+  document.getElementById('addWorkoutStrengthChoice').addEventListener('click', function() {
+    addWorkoutSelectedExercises = []
+    renderAddWorkoutExercisePicker()
+  })
+  document.getElementById('addWorkoutFieldChoice').addEventListener('click', function() {
+    renderAddWorkoutFieldForm()
+  })
+}
+
+// ---- Strength: exercise picker (search + click-to-toggle-select) ----
+async function renderAddWorkoutExercisePicker() {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
+      <h2 class="day-view-date">Pick Exercises</h2>
+    </div>
+    <input type="text" id="addWorkoutSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
+    <div id="addWorkoutExerciseList"></div>
+    <button type="button" class="btn-save start-workout-btn" id="addWorkoutContinueBtn" style="margin-top:16px" disabled>Continue</button>
+  `
+
+  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
+    renderAddWorkoutChoice()
+  })
+
+  const library = await loadExerciseLibrary()
+  if (library === null) return
+
+  function renderList() {
+    const filter = document.getElementById('addWorkoutSearchInput').value.trim().toLowerCase()
+    const filtered = filter ? library.filter(ex => ex.name.toLowerCase().includes(filter)) : library
+    const selectedIds = new Set(addWorkoutSelectedExercises.map(ex => ex.id))
+    const list = document.getElementById('addWorkoutExerciseList')
+
+    list.innerHTML = filtered.length === 0
+      ? '<p class="no-metrics">No exercises found</p>'
+      : filtered.map(ex => `
+          <div class="training-pick-row ${selectedIds.has(ex.id) ? 'selected' : ''}" data-id="${ex.id}">
+            <span>${ex.name}</span>
+          </div>
+        `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        const ex = library.find(e => e.id === row.dataset.id)
+        const idx = addWorkoutSelectedExercises.findIndex(e => e.id === ex.id)
+        if (idx === -1) addWorkoutSelectedExercises.push(ex)
+        else addWorkoutSelectedExercises.splice(idx, 1)
+        renderList()
+        updateContinueBtn()
+      })
+    })
+  }
+
+  function updateContinueBtn() {
+    const btn = document.getElementById('addWorkoutContinueBtn')
+    btn.disabled = addWorkoutSelectedExercises.length === 0
+    btn.textContent = addWorkoutSelectedExercises.length > 0 ? `Continue (${addWorkoutSelectedExercises.length} selected)` : 'Continue'
+  }
+
+  document.getElementById('addWorkoutSearchInput').addEventListener('input', renderList)
+  document.getElementById('addWorkoutContinueBtn').addEventListener('click', function() {
+    renderAddWorkoutSetTargets()
+  })
+
+  renderList()
+  updateContinueBtn()
+}
+
+// ---- Strength: set targets, one card per picked exercise ----
+// Same set_targets shape ([{reps, weight, rest, type}, ...]) and the same
+// row markup as the coach's own builders (athlete-calendar.js's
+// renderSetTargetRowCal) - ported under plain names since this file
+// doesn't use the "Cal" suffix convention.
+const OWN_SET_TYPES = { main: 'Main Set', warmup: 'Warmup Set', failure: 'Set to Failure' }
+
+function renderOwnSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
+  const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
+  return `
+    <div class="set-target-row" data-set-number="${setNumber}">
+      <span class="set-label">Set ${setNumber}</span>
+      <select class="set-type-select">
+        ${Object.entries(OWN_SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
+      </select>
+      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">
+      ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
+      <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
+      <button type="button" class="set-remove-btn" data-action="remove-own-set" ${onlyRow ? 'disabled' : ''}>✕</button>
+    </div>
+  `
+}
+
+function addOwnSetTargetRow(rowsEl, isTimed, tracksWeight, isUnilateral) {
+  const rows = [...rowsEl.querySelectorAll('.set-target-row')]
+  if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
+  rowsEl.insertAdjacentHTML('beforeend', renderOwnSetTargetRow(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, false))
+}
+
+// Removal can happen from the middle of the list, so every remaining row
+// needs relabelling, not just a length check
+function removeOwnSetTargetRow(row) {
+  const rowsEl = row.parentElement
+  row.remove()
+  const remaining = [...rowsEl.querySelectorAll('.set-target-row')]
+  remaining.forEach((r, i) => {
+    r.dataset.setNumber = i + 1
+    r.querySelector('.set-label').textContent = `Set ${i + 1}`
+  })
+  if (remaining.length === 1) remaining[0].querySelector('.set-remove-btn').disabled = true
+}
+
+function renderOwnExerciseCard(ex, idx) {
+  const isTimed = !!ex.is_timed
+  const tracksWeight = ex.tracks_weight !== false
+  const isUnilateral = !!ex.is_unilateral
+  const thumb = getYouTubeThumbnail(ex.video_url)
+  const rowHtml = renderOwnSetTargetRow(1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, true)
+
+  return `
+    <div class="builder-exercise-card" data-idx="${idx}">
+      <div class="builder-exercise-card-header">
+        <button type="button" class="builder-exercise-thumb" ${ex.video_url ? `data-video-url="${ex.video_url}"` : 'disabled'}>
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
+        </button>
+        <div class="builder-exercise-name">${ex.name}</div>
+        ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
+      </div>
+      <div class="set-target-rows">${rowHtml}</div>
+      <button type="button" class="builder-add-set-btn" data-action="add-own-set">+ Add Set</button>
+    </div>
+  `
+}
+
+function renderAddWorkoutSetTargets() {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
+      <h2 class="day-view-date">Set Your Targets</h2>
+    </div>
+    <div id="addWorkoutExerciseCards">
+      ${addWorkoutSelectedExercises.map((ex, idx) => renderOwnExerciseCard(ex, idx)).join('')}
+    </div>
+    <button type="button" class="btn-save start-workout-btn" id="addWorkoutSaveBtn" style="margin-top:16px">💾 Save Workout</button>
+  `
+
+  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
+    renderAddWorkoutExercisePicker()
+  })
+
+  document.getElementById('addWorkoutExerciseCards').addEventListener('click', function(e) {
+    const thumbBtn = e.target.closest('.builder-exercise-thumb')
+    if (thumbBtn && thumbBtn.dataset.videoUrl) {
+      playInlineVideo(thumbBtn, thumbBtn.dataset.videoUrl)
+      return
+    }
+    const btn = e.target.closest('[data-action]')
+    if (!btn) return
+    const card = btn.closest('.builder-exercise-card')
+    const ex = addWorkoutSelectedExercises[parseInt(card.dataset.idx)]
+    if (btn.dataset.action === 'add-own-set') {
+      addOwnSetTargetRow(card.querySelector('.set-target-rows'), !!ex.is_timed, ex.tracks_weight !== false, !!ex.is_unilateral)
+    } else if (btn.dataset.action === 'remove-own-set') {
+      removeOwnSetTargetRow(btn.closest('.set-target-row'))
+    }
+  })
+
+  document.getElementById('addWorkoutSaveBtn').addEventListener('click', async function() {
+    const btn = document.getElementById('addWorkoutSaveBtn')
+    btn.disabled = true
+    btn.textContent = 'Saving...'
+
+    const exercisesWithTargets = [...document.querySelectorAll('#addWorkoutExerciseCards .builder-exercise-card')].map(card => {
+      const ex = addWorkoutSelectedExercises[parseInt(card.dataset.idx)]
+      const rows = [...card.querySelectorAll('.set-target-row')]
+      const setTargets = rows.map(row => {
+        const reps = row.querySelector('.set-reps-input').value.trim() || null
+        const weightInput = row.querySelector('.set-weight-input')
+        const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
+        const restInput = row.querySelector('.set-rest-input')
+        const rest = restInput.value ? parseInt(restInput.value) : null
+        const type = row.querySelector('.set-type-select').value
+        return { reps, weight, rest, type }
+      })
+      return { exercise: ex, setTargets }
+    })
+
+    await saveOwnWorkout(exercisesWithTargets)
+  })
+}
+
+// name is only used the first time a self-logged workout is created for
+// this date - repeated adds on the same day reuse the same container,
+// same convention as the coach's own findOrCreateAdHocDay
+async function findOrCreateSelfLoggedDay(dateStr, name) {
+  const { data: existing, error: findError } = await supabase
+    .from('programs')
+    .select('*, program_weeks(*, program_days(*))')
+    .eq('athlete_id', athlete.id)
+    .eq('is_adhoc', true)
+    .eq('created_by_athlete', true)
+    .eq('start_date', dateStr)
+    .maybeSingle()
+
+  if (findError) { console.log(findError) }
+  if (existing) return existing.program_weeks[0].program_days[0].id
+
+  const { data: newProgram, error: programError } = await supabase
+    .from('programs')
+    .insert([{ coach_id: athlete.coach_id, athlete_id: athlete.id, is_template: false, is_adhoc: true, created_by_athlete: true, start_date: dateStr, name: name || 'My Workout' }])
+    .select()
+  if (programError) { console.log(programError); customAlert('Something went wrong saving your workout'); throw programError }
+
+  const { data: newWeek, error: weekError } = await supabase
+    .from('program_weeks')
+    .insert([{ program_id: newProgram[0].id, week_number: 1 }])
+    .select()
+  if (weekError) { console.log(weekError); customAlert('Something went wrong saving your workout'); throw weekError }
+
+  const { data: newDay, error: dayError } = await supabase
+    .from('program_days')
+    .insert([{ week_id: newWeek[0].id, day_number: 1 }])
+    .select()
+  if (dayError) { console.log(dayError); customAlert('Something went wrong saving your workout'); throw dayError }
+
+  return newDay[0].id
+}
+
+async function saveOwnWorkout(exercisesWithTargets) {
+  const dateStr = toDateStr(new Date())
+  let dayId
+  try {
+    dayId = await findOrCreateSelfLoggedDay(dateStr, 'My Workout')
+  } catch (err) {
+    resetAddWorkoutSaveBtn()
+    return
+  }
+
+  const rows = exercisesWithTargets.map((item, idx) => {
+    const first = item.setTargets[0] || { reps: null, weight: null, rest: null }
+    return {
+      day_id: dayId,
+      exercise_id: item.exercise.id,
+      order_index: idx,
+      prescribed_sets: item.setTargets.length,
+      prescribed_reps: first.reps,
+      prescribed_weight: first.weight,
+      rest_seconds: first.rest,
+      set_targets: item.setTargets
+    }
+  })
+
+  const { error } = await supabase.from('program_exercises').insert(rows)
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving your workout - please try again')
+    resetAddWorkoutSaveBtn()
+    return
+  }
+
+  await loadTrainingData()
+  renderDayPreview(dateStr)
+}
+
+function resetAddWorkoutSaveBtn() {
+  const btn = document.getElementById('addWorkoutSaveBtn')
+  if (btn) { btn.disabled = false; btn.textContent = '💾 Save Workout' }
+}
+
+// ---- Field/Training: duration + RPE, no exercises at all ----
+function renderAddWorkoutFieldForm() {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  const presets = [20, 30, 45, 60, 90]
+  let selectedRpe = null
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
+      <h2 class="day-view-date">Field / Training</h2>
+    </div>
+    <div class="form-group">
+      <label>Activity (optional)</label>
+      <input type="text" id="fieldActivityInput" placeholder="e.g. Soccer practice, 5k run">
+    </div>
+    <div class="form-group">
+      <label>Duration</label>
+      <div class="duration-preset-row">
+        ${presets.map(m => `<button type="button" class="duration-preset-btn" data-minutes="${m}">${m} min</button>`).join('')}
+      </div>
+      <input type="number" id="fieldCustomMinutes" min="1" placeholder="Or a custom number of minutes" style="margin-top:8px">
+    </div>
+    <div class="rpe-picker">
+      <p class="rpe-picker-label">How hard did it feel? (RPE)</p>
+      <div class="rpe-picker-row" id="fieldRpeRow">
+        ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button type="button" class="rpe-btn" data-rpe="${n}">${n}</button>`).join('')}
+      </div>
+      <p class="rpe-picker-hint">1 = very easy, 10 = maximal effort</p>
+    </div>
+    <button type="button" class="btn-save start-workout-btn" id="fieldSaveBtn" style="margin-top:16px">💾 Save</button>
+  `
+
+  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
+    renderAddWorkoutChoice()
+  })
+
+  document.querySelectorAll('.duration-preset-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.getElementById('fieldCustomMinutes').value = btn.dataset.minutes
+    })
+  })
+
+  document.getElementById('fieldRpeRow').addEventListener('click', function(e) {
+    const btn = e.target.closest('.rpe-btn')
+    if (!btn) return
+    document.querySelectorAll('#fieldRpeRow .rpe-btn').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+    selectedRpe = parseInt(btn.dataset.rpe)
+  })
+
+  document.getElementById('fieldSaveBtn').addEventListener('click', async function() {
+    const minutes = parseInt(document.getElementById('fieldCustomMinutes').value)
+    if (!minutes || minutes < 1) { customAlert('Pick a duration first'); return }
+    if (!selectedRpe) { customAlert('Pick an RPE first'); return }
+
+    const btn = document.getElementById('fieldSaveBtn')
+    btn.disabled = true
+    btn.textContent = 'Saving...'
+
+    const activity = document.getElementById('fieldActivityInput').value.trim() || 'Field Training'
+    await saveFieldTraining(activity, minutes, selectedRpe)
+  })
+}
+
+async function saveFieldTraining(activityName, durationMinutes, rpe) {
+  const dateStr = toDateStr(new Date())
+  let dayId
+  try {
+    dayId = await findOrCreateSelfLoggedDay(dateStr, activityName)
+  } catch (err) {
+    const btn = document.getElementById('fieldSaveBtn')
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
+    return
+  }
+
+  const endedAt = new Date()
+  const startedAt = new Date(endedAt.getTime() - durationMinutes * 60000)
+
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .insert([{
+      program_day_id: dayId,
+      athlete_id: athlete.id,
+      started_at: startedAt.toISOString(),
+      ended_at: endedAt.toISOString(),
+      session_rpe: rpe
+    }])
+    .select()
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving your workout - please try again')
+    const btn = document.getElementById('fieldSaveBtn')
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
+    return
+  }
+
+  await loadTrainingData()
+  const entries = entriesByDate[dateStr] || []
+  const entry = entries.find(e => e.day.id === dayId)
+  renderWorkoutSummary(data[0], entry)
 }
 
 // ==========================================================================
@@ -716,13 +1295,14 @@ function renderDayPreviewGroup(entry, isToday) {
   const isActive = isToday && !completedSession
   const showLoggedValues = !isActive
 
+  // completedSession's View Summary isn't gated on exercises.length - a
+  // self-logged Field/Training day has zero program_exercises by design
+  // (see saveFieldTraining) but still has a real summary to show
   let actionButton = ''
-  if (exercises.length > 0) {
-    if (completedSession && !openSession) {
-      actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}">📋 View Summary</button>`
-    } else if (isToday) {
-      actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
-    }
+  if (completedSession && !openSession) {
+    actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}">📋 View Summary</button>`
+  } else if (isToday && exercises.length > 0) {
+    actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
   }
 
   return `

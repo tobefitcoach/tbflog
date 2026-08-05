@@ -90,6 +90,19 @@ document.getElementById('settingsNextWeekToggle').addEventListener('change', asy
   }
 })
 
+document.getElementById('settingsSelfLogToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ can_self_log_workouts: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked // revert the toggle visually
+  }
+})
+
 // ==========================================================================
 // ---- TABS ----
 // Switches which .tab-panel is visible. Metrics data loads lazily, the first
@@ -154,9 +167,10 @@ document.getElementById('profileDetails').textContent =
   // Show the most recent dated note in the header
   loadLatestNote()
 
-  // Settings tab - populated here (not lazily) since it's just this one
-  // field already loaded above, no chart-canvas-sizing concern like Metrics
+  // Settings tab - populated here (not lazily) since it's just these
+  // fields already loaded above, no chart-canvas-sizing concern like Metrics
   document.getElementById('settingsNextWeekToggle').checked = !!data.can_preview_next_week
+  document.getElementById('settingsSelfLogToggle').checked = !!data.can_self_log_workouts
 
  // Edit info button
   document.getElementById('editAthleteBtn').addEventListener('click', function() {

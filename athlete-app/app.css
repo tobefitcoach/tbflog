@@ -108,6 +108,49 @@
   margin: 0 0 20px 0;
 }
 
+/* --- Duration presets: reused by the Mobility picker and the Field/Training
+   quick-log form --- */
+.duration-preset-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.duration-preset-btn {
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.duration-preset-btn:hover {
+  border-color: #4a4a8e;
+}
+
+/* --- Mobility countdown --- */
+.mobility-timer-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 0;
+  text-align: center;
+}
+
+.mobility-timer-label {
+  font-size: 16px;
+  color: #aaaacc;
+  margin-bottom: 12px;
+}
+
+.mobility-timer-time {
+  font-size: 56px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .exercise-log-card {
   background-color: #1a1a2e;
   border: 1px solid #2a2a4e;
@@ -455,6 +498,57 @@
 
 .week-day-card.done .week-day-badge {
   background-color: #4caf50;
+}
+
+.week-day-badge-mobility {
+  background-color: #4caf50;
+}
+
+/* --- Home screen tiles: Add Own Workout / Daily Mobility, below the week
+   strip. Same tap-target weight as .start-workout-btn, just side by side. --- */
+.home-tile-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.home-tile {
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 10px;
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  color: #ffffff;
+  transition: border-color 0.2s;
+}
+
+.home-tile:hover {
+  border-color: #4a4a8e;
+}
+
+.home-tile.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.home-tile-icon {
+  font-size: 28px;
+}
+
+.home-tile-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.home-tile-sublabel {
+  font-size: 11px;
+  color: #aaaacc;
 }
 
 /* --- Day preview (read-only exercise list before starting a workout) --- */

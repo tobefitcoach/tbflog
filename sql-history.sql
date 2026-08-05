@@ -880,3 +880,87 @@ create policy "athlete manages own sessions" on workout_sessions for all
     is_own_athlete_as_athlete(athlete_id)
     and program_day_matches_athlete(program_day_id, athlete_id)
   );
+
+-- ==========================================================================
+-- Athlete self-logged workouts (Strength + Field/Training) + mobility
+-- sessions. Lets an athlete log their own workout on any day (gated by a
+-- new per-athlete coach setting) or a quick mobility/stretching session
+-- (always allowed, doesn't touch programs/program_exercises at all).
+-- ==========================================================================
+
+alter table athletes add column if not exists can_self_log_workouts boolean not null default false;
+alter table programs add column if not exists created_by_athlete boolean not null default false;
+
+create or replace function public.athlete_can_self_log(check_athlete_id bigint)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from athletes where id = check_athlete_id and user_id = (select auth.uid()) and can_self_log_workouts = true);
+$$;
+
+-- athlete_owns_program*() only check "is this my program" - equally true of
+-- a coach-assigned program, so they can't gate writes. These variants also
+-- require created_by_athlete = true.
+create or replace function public.athlete_owns_self_logged_program(check_program_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from programs p join athletes a on a.id = p.athlete_id
+    where p.id = check_program_id and a.user_id = (select auth.uid()) and p.created_by_athlete = true);
+$$;
+
+create or replace function public.athlete_owns_self_logged_program_week(check_week_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from program_weeks w join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where w.id = check_week_id and a.user_id = (select auth.uid()) and p.created_by_athlete = true);
+$$;
+
+create or replace function public.athlete_owns_self_logged_program_day(check_day_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where d.id = check_day_id and a.user_id = (select auth.uid()) and p.created_by_athlete = true);
+$$;
+
+drop policy if exists "athlete creates own self-logged programs" on programs;
+create policy "athlete creates own self-logged programs" on programs for insert
+  with check (
+    is_own_athlete_as_athlete(athlete_id) and athlete_can_self_log(athlete_id)
+    and is_adhoc = true and not is_template and created_by_athlete = true
+    and coach_id = (select coach_id from athletes where id = athlete_id)
+  );
+
+drop policy if exists "athlete deletes own self-logged programs" on programs;
+create policy "athlete deletes own self-logged programs" on programs for delete
+  using (is_own_athlete_as_athlete(athlete_id) and created_by_athlete = true);
+
+drop policy if exists "athlete manages own self-logged program weeks" on program_weeks;
+create policy "athlete manages own self-logged program weeks" on program_weeks for all
+  using (athlete_owns_self_logged_program_week(id))
+  with check (athlete_owns_self_logged_program(program_id));
+
+drop policy if exists "athlete manages own self-logged program days" on program_days;
+create policy "athlete manages own self-logged program days" on program_days for all
+  using (athlete_owns_self_logged_program_day(id))
+  with check (athlete_owns_self_logged_program_week(week_id));
+
+drop policy if exists "athlete manages own self-logged program exercises" on program_exercises;
+create policy "athlete manages own self-logged program exercises" on program_exercises for all
+  using (athlete_owns_self_logged_program_day(day_id))
+  with check (athlete_owns_self_logged_program_day(day_id));
+
+-- ---- Mobility sessions (no programs/program_days involved) ----
+
+alter table workout_sessions add column if not exists session_type text not null default 'training'
+  check (session_type in ('training', 'mobility'));
+alter table workout_sessions alter column program_day_id drop not null;
+
+alter table workout_sessions drop constraint if exists workout_sessions_training_needs_day;
+alter table workout_sessions add constraint workout_sessions_training_needs_day
+  check (session_type <> 'training' or program_day_id is not null);
+
+drop policy if exists "athlete manages own sessions" on workout_sessions;
+create policy "athlete manages own sessions" on workout_sessions for all
+  using (is_own_athlete_as_athlete(athlete_id))
+  with check (
+    is_own_athlete_as_athlete(athlete_id)
+    and (
+      (session_type = 'training' and program_day_matches_athlete(program_day_id, athlete_id))
+      or (session_type = 'mobility' and program_day_id is null)
+    )
+  );
