@@ -24,7 +24,8 @@ const { data: { session } } = await supabase.auth.getSession()
 // to run before that redirect happens.
 
 let calendarEntriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
-let sessionStatusByDayId = {} // program_days.id -> 'in-progress' | 'done', absent = not started yet
+let sessionByDayId = {} // program_days.id -> the workout_sessions row to show (in-progress wins over done, done wins over older done), absent = not started yet
+let logSetsByPECal = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
 let calendarLoaded = false
 let currentDayDateForModal = null // date currently shown in the day-detail modal
 
@@ -95,10 +96,11 @@ function trainingDisplayName(entry) {
 async function loadCalendarMonth(year, month) {
   document.getElementById('calMonthLabel').textContent = `${MONTH_NAMES[month]} ${year}`
 
-  // Programs and sessions don't depend on each other, so they fire together
+  // Programs, sessions, and logged sets don't depend on each other, so they fire together
   const [
     { data, error },
-    { data: sessions, error: sessionsError }
+    { data: sessions, error: sessionsError },
+    { data: logSets, error: logSetsError }
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
@@ -109,7 +111,13 @@ async function loadCalendarMonth(year, month) {
     ),
     fetchWithRetry((signal) => supabase
       .from('workout_sessions')
-      .select('program_day_id, started_at, ended_at')
+      .select('program_day_id, started_at, ended_at, session_rpe')
+      .eq('athlete_id', athleteId)
+      .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
+      .from('exercise_log_sets')
+      .select('*')
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
     )
@@ -117,6 +125,7 @@ async function loadCalendarMonth(year, month) {
 
   if (error) { console.log('Error loading calendar:', error); customAlert('Something went wrong loading the calendar - check your connection and try again'); return }
   if (sessionsError) { console.log('Error loading sessions for calendar:', sessionsError) }
+  if (logSetsError) { console.log('Error loading logged sets for calendar:', logSetsError) }
 
   calendarEntriesByDate = {}
   for (const program of data) {
@@ -133,13 +142,26 @@ async function loadCalendarMonth(year, month) {
   // it, it got abandoned, and they started again later) - in-progress always
   // wins if any session is still open, otherwise the most recently ended one
   // decides "done"
-  sessionStatusByDayId = {}
+  sessionByDayId = {}
   for (const s of sessions || []) {
     if (!s.ended_at) {
-      sessionStatusByDayId[s.program_day_id] = 'in-progress'
-    } else if (sessionStatusByDayId[s.program_day_id] !== 'in-progress') {
-      sessionStatusByDayId[s.program_day_id] = 'done'
+      sessionByDayId[s.program_day_id] = s
+      continue
     }
+    const existing = sessionByDayId[s.program_day_id]
+    if (existing && !existing.ended_at) continue
+    if (!existing || new Date(s.ended_at) > new Date(existing.ended_at)) {
+      sessionByDayId[s.program_day_id] = s
+    }
+  }
+
+  logSetsByPECal = {}
+  for (const row of logSets || []) {
+    if (!logSetsByPECal[row.program_exercise_id]) logSetsByPECal[row.program_exercise_id] = []
+    logSetsByPECal[row.program_exercise_id].push(row)
+  }
+  for (const peId in logSetsByPECal) {
+    logSetsByPECal[peId].sort((a, b) => a.set_number - b.set_number)
   }
 
   renderCalendarGrid(year, month)
@@ -187,7 +209,8 @@ function renderCalendarGrid(year, month) {
         <button type="button" class="calendar-day-add-btn" data-date="${dateStr}">+</button>
         <span class="calendar-day-number">${cell.date.getDate()}</span>
         ${badges.map(entry => {
-          const status = sessionStatusByDayId[entry.day.id] // undefined | 'in-progress' | 'done'
+          const session = sessionByDayId[entry.day.id]
+          const status = session ? (session.ended_at ? 'done' : 'in-progress') : undefined
           const statusClass = status === 'in-progress' ? 'calendar-day-badge-in-progress' : status === 'done' ? 'calendar-day-badge-done' : 'calendar-day-badge-planned'
           return `<span class="calendar-day-badge ${statusClass}">${trainingDisplayName(entry)}</span>`
         }).join('')}
@@ -237,16 +260,27 @@ function openDayModal(dateStr) {
         ? `data-action="delete-training" data-mode="adhoc" data-program-id="${entry.program.id}"`
         : `data-action="delete-training" data-mode="day" data-program-day-id="${entry.day.id}"`
 
+      // Once the athlete has started (or finished) this day, show what they
+      // actually logged instead of the editable plan - that's what a coach
+      // clicking on a done/in-progress workout actually wants to see. The
+      // plan is still reachable via "Edit Plan Instead" for fixing mistakes.
+      const session = sessionByDayId[entry.day.id]
+      const showReview = !!session
+
       return `
-        <div class="detail-group">
+        <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
           <div style="display:flex; justify-content:space-between; align-items:center">
             <h4 class="detail-group-title">${label}</h4>
             <button class="btn-delete-metric" ${deleteAction}>🗑 Delete Workout</button>
           </div>
+          ${showReview ? renderSessionSummaryCal(session) : ''}
           ${exercises.length === 0
             ? '<p class="no-metrics">No exercises</p>'
-            : `${exercises.map(renderScheduledExerciseCard).join('')}
-               <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">💾 Save</button>`}
+            : showReview
+              ? `${exercises.map(pe => renderLoggedExerciseCardCal(pe)).join('')}
+                 <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px">✏ Edit Plan Instead</button>`
+              : `${exercises.map(renderScheduledExerciseCard).join('')}
+                 <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">💾 Save</button>`}
         </div>
       `
     }).join('')
@@ -256,8 +290,10 @@ function openDayModal(dateStr) {
 
   // innerHTML wipes any dynamically-built children, so extra field rows
   // (built with document.createElement, not template strings) get
-  // re-populated here for every card
+  // re-populated here for every card - only editable (non-review) cards
+  // have an extra-fields container at all
   for (const entry of entries) {
+    if (sessionByDayId[entry.day.id]) continue
     for (const pe of entry.day.program_exercises) {
       if (pe.extra_fields) {
         for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRowCal(`extraFieldsSched-${pe.id}`, k, v)
@@ -309,6 +345,54 @@ function renderScheduledExerciseCard(pe) {
   `
 }
 
+// Shown at the top of a done/in-progress day's review - just duration + RPE,
+// same numbers the athlete's own post-workout summary shows (see
+// renderWorkoutSummary in dashboard.js), formatted for a one-line glance
+function renderSessionSummaryCal(session) {
+  if (!session.ended_at) {
+    const startedTime = new Date(session.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    return `<p class="workout-preview-target" style="margin-bottom:12px">🟠 In progress — started ${startedTime}</p>`
+  }
+  const durationMin = Math.round((new Date(session.ended_at) - new Date(session.started_at)) / 60000)
+  const parts = [`⏱ ${durationMin} min`]
+  if (session.session_rpe != null) parts.push(`💪 RPE ${session.session_rpe}/10`)
+  return `<p class="workout-preview-target" style="margin-bottom:12px">${parts.join(' · ')}</p>`
+}
+
+// Read-only version of renderScheduledExerciseCard - what the athlete
+// actually logged (actual_reps/actual_weight) instead of the coach's
+// editable set_targets, so a coach opening a done workout sees a real
+// review instead of the still-blank plan they set beforehand
+function renderLoggedExerciseCardCal(pe) {
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  const isUnilateral = pe.exercises && pe.exercises.is_unilateral
+  const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
+  const thumb = getYouTubeThumbnailCal(videoUrl)
+  const sets = (logSetsByPECal[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
+
+  const rowsHtml = sets.length === 0
+    ? '<p class="no-metrics">Not logged yet</p>'
+    : `<div class="detail-list">${sets.map(s => {
+        const repsPart = isTimed ? formatTimedRepsCal(s.actual_reps) : `${s.actual_reps || '-'} reps`
+        const weightPart = tracksWeight && s.actual_weight != null ? ` @ ${s.actual_weight}kg` : ''
+        return `<div class="detail-row"><span>Set ${s.set_number}</span><span class="detail-row-value">${repsPart}${weightPart}</span></div>`
+      }).join('')}</div>`
+
+  return `
+    <div class="builder-exercise-card">
+      <div class="builder-exercise-card-header">
+        <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
+        </button>
+        <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+        ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
+      </div>
+      ${rowsHtml}
+    </div>
+  `
+}
+
 function findScheduledPE(peId) {
   for (const dateStr in calendarEntriesByDate) {
     for (const entry of calendarEntriesByDate[dateStr]) {
@@ -336,6 +420,11 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
 
   if (btn.dataset.action === 'save-scheduled-day') {
     await saveScheduledDay(btn.closest('.detail-group'))
+    return
+  }
+
+  if (btn.dataset.action === 'toggle-review-edit') {
+    switchGroupToEditCal(btn.closest('.detail-group'))
     return
   }
 
@@ -492,6 +581,33 @@ async function saveScheduledDay(groupEl) {
 
   document.getElementById('dayDetailModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
+}
+
+// Swaps one day-entry group from the read-only review (what the athlete
+// logged) into the editable plan view, for the rare case a coach needs to
+// fix a mistake in the plan after the athlete's already done the workout.
+// Local-only swap (re-reads calendarEntriesByDate already in memory) - no
+// query, no page reload.
+function switchGroupToEditCal(groupEl) {
+  const dayId = groupEl.dataset.programDayId
+  const entries = calendarEntriesByDate[currentDayDateForModal] || []
+  const entry = entries.find(e => String(e.day.id) === dayId)
+  if (!entry) return
+
+  const exercises = entry.day.program_exercises
+  groupEl.dataset.review = 'false'
+  const headerEl = groupEl.firstElementChild
+  while (headerEl.nextSibling) headerEl.nextSibling.remove()
+  headerEl.insertAdjacentHTML('afterend', exercises.length === 0
+    ? '<p class="no-metrics">No exercises</p>'
+    : `${exercises.map(renderScheduledExerciseCard).join('')}
+       <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">💾 Save</button>`)
+
+  for (const pe of exercises) {
+    if (pe.extra_fields) {
+      for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRowCal(`extraFieldsSched-${pe.id}`, k, v)
+    }
+  }
 }
 
 // Removes just this one card instead of reloading the whole month + rebuilding
