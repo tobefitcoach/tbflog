@@ -782,7 +782,20 @@ async function findOrCreateSession(programDayId) {
     .abortSignal(signal)
   )
 
-  if (insertError) { console.log(insertError); customAlert('Something went wrong starting the workout'); throw insertError }
+  if (insertError) {
+    console.log(insertError)
+    // Never let a failed session-creation insert take down the whole
+    // workout - this used to throw, which silently killed "End Workout"
+    // (the button's own click handler awaits this promise with no
+    // try/catch, so the throw just vanished with zero feedback). Sets save
+    // independently of this row (they're keyed by program_exercise_id, not
+    // session id) - this session object only backs the duration/RPE
+    // display, so a local placeholder lets the workout keep working
+    // smoothly even when this one insert is down. That session's duration/
+    // RPE just won't have a database row to attach to - a much smaller
+    // loss than the workout appearing to do nothing.
+    return { id: `local-${programDayId}`, program_day_id: programDayId, athlete_id: athlete.id, started_at: new Date().toISOString(), ended_at: null }
+  }
   return newSession
 }
 
@@ -1165,6 +1178,10 @@ function wireSummaryRpePicker(session) {
     btn.classList.add('selected')
     session.session_rpe = rpe
 
+    // This session was never actually created in the database (see the
+    // local- placeholder in findOrCreateSession) - nothing to update there
+    if (session.id.startsWith('local-')) return
+
     const { error } = await saveWithRetry((signal) => supabase
       .from('workout_sessions')
       .update({ session_rpe: rpe })
@@ -1204,6 +1221,14 @@ function wireSummaryDurationEdit(session, entry) {
   saveBtn.addEventListener('click', async function() {
     const minutes = parseInt(input.value)
     if (isNaN(minutes) || minutes < 1) { customAlert('Enter a duration of at least 1 minute'); return }
+
+    // This session was never actually created in the database (see the
+    // local- placeholder in findOrCreateSession) - just update it locally
+    // and re-render, since there's no row to save the correction to
+    if (session.id.startsWith('local-')) {
+      renderWorkoutSummary({ ...session, ended_at: new Date(new Date(session.started_at).getTime() + minutes * 60000).toISOString() }, entry)
+      return
+    }
 
     saveBtn.disabled = true
     saveBtn.textContent = 'Saving...'
@@ -1709,6 +1734,11 @@ function queueSessionEnd(sessionId, endedAt) {
 // attempt (already 3 tries via saveWithRetry) fails entirely - not awaited
 // by finishWorkout, since nothing on screen needs this to finish
 async function saveSessionEnd(sessionId, endedAt) {
+  // This session was never actually created in the database (see the
+  // local- placeholder in findOrCreateSession) - nothing to update, and
+  // queueing it would just retry a doomed update against a fake id forever
+  if (sessionId.startsWith('local-')) return
+
   const { error } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .update({ ended_at: endedAt })
