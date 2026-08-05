@@ -1580,8 +1580,8 @@ function applyPendingQueueLocally() {
 
 // Checking/unchecking a set no longer saves it directly - it queues the
 // change and calls scheduleFlush(), which debounces a run of taps into one
-// batched request instead of one-per-tap. flushPendingQueue itself is also
-// called directly (bypassing the debounce) from a few "catch up now"
+// flush cycle instead of firing on every tap. flushPendingQueue itself is
+// also called directly (bypassing the debounce) from a few "catch up now"
 // moments: page load, visibilitychange, the 20s interval below, the sync
 // banner's Retry Now button, and finishWorkout. flushInFlight makes all of
 // these safe to call at any time, even while another flush is already
@@ -1599,8 +1599,8 @@ let firstQueuedAt = null
 
 // Tapping a set schedules a flush ~1.5s later; each further tap within that
 // window pushes it back out again, so a quick run of taps becomes one
-// request - capped at 5s so a long flurry of taps still flushes promptly
-// instead of being postponed indefinitely.
+// flush cycle - capped at 5s so a long flurry of taps still flushes
+// promptly instead of being postponed indefinitely.
 function scheduleFlush() {
   if (!firstQueuedAt) firstQueuedAt = Date.now()
   clearTimeout(flushTimer)
@@ -1608,15 +1608,13 @@ function scheduleFlush() {
   flushTimer = setTimeout(flushPendingQueue, waitedTooLong ? 0 : 1500)
 }
 
-// Sends every pending set as ONE batched upsert (instead of one request per
-// set) so a whole workout's worth of taps costs a handful of round trips,
-// not dozens - directly what was creating the lock contention above. Deletes
-// (unchecked sets) can't be batched the same way (each is its own DELETE),
-// but they're rare compared to checks, so they keep the older per-row path
-// with LIMITED parallelism (3 at a time) - the same cap added after a real
+// Entries are saved with a LIMITED amount of parallelism (3 at a time), not
+// fully sequential and not fully parallel - the same cap added after a real
 // past incident where firing every entry at once (plain Promise.all) on a
 // weak gym connection made a 14-set backlog blow past the per-attempt
-// timeout and abort together ("AbortError: Fetch is aborted").
+// timeout and abort together ("AbortError: Fetch is aborted"). The guard
+// above is what changed here, not this part - each entry still saves with
+// its own request via performQueuedSave, same as before.
 async function flushPendingQueue() {
   if (flushInFlight) { flushAgainNeeded = true; return }
   flushInFlight = true
@@ -1625,47 +1623,9 @@ async function flushPendingQueue() {
   try {
     const entries = loadPendingQueue()
     if (entries.length === 0) return
-
-    const toSave = entries.filter(e => !e.deleted)
-    const toDelete = entries.filter(e => e.deleted)
-
-    if (toSave.length > 0) {
-      const { data, error } = await saveWithRetry((signal) => supabase
-        .from('exercise_log_sets')
-        .upsert(toSave.map(function(e) {
-          return {
-            program_exercise_id: e.program_exercise_id,
-            athlete_id: e.athlete_id,
-            date: e.date,
-            set_number: e.set_number,
-            actual_reps: e.actual_reps,
-            actual_weight: e.actual_weight,
-            completed_at: e.completed_at
-          }
-        }), { onConflict: 'program_exercise_id,date,set_number' })
-        .select()
-        .abortSignal(signal)
-      )
-      if (!error) {
-        for (const entry of toSave) {
-          const saved = (data || []).find(d => d.program_exercise_id === entry.program_exercise_id && d.date === entry.date && d.set_number === entry.set_number)
-          settleEntry(entry, true, null, saved)
-        }
-      } else {
-        console.log(error)
-        // One bad/orphaned row (e.g. its exercise got deleted mid-workout)
-        // would otherwise block every other pending set from saving forever -
-        // fall back to saving each individually, same as before batching
-        await runWithConcurrencyLimit(toSave, 3, async function(entry) {
-          const { data, error } = await performQueuedSave(entry)
-          settleEntry(entry, !error, error, data && data[0])
-        })
-      }
-    }
-
-    await runWithConcurrencyLimit(toDelete, 3, async function(entry) {
-      const { error } = await performQueuedSave(entry)
-      settleEntry(entry, !error, error)
+    await runWithConcurrencyLimit(entries, 3, async function(entry) {
+      const { data, error } = await performQueuedSave(entry)
+      settleEntry(entry, !error, error, data && data[0])
     })
   } finally {
     flushInFlight = false
