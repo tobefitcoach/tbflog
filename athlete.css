@@ -685,6 +685,19 @@
   border-radius: 10px;
 }
 
+/* Status colors: blue = scheduled but not started, orange = athlete is
+   mid-workout (an open workout_sessions row, no ended_at yet), green =
+   finished. See sessionStatusByDayId in athlete-calendar.js. */
+.calendar-day-badge-planned {
+  background-color: #3b82f6;
+}
+.calendar-day-badge-in-progress {
+  background-color: #ff9800;
+}
+.calendar-day-badge-done {
+  background-color: #4caf50;
+}
+
 .profile-header {
   display: flex;
   justify-content: space-between;

@@ -24,6 +24,7 @@ const { data: { session } } = await supabase.auth.getSession()
 // to run before that redirect happens.
 
 let calendarEntriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
+let sessionStatusByDayId = {} // program_days.id -> 'in-progress' | 'done', absent = not started yet
 let calendarLoaded = false
 let currentDayDateForModal = null // date currently shown in the day-detail modal
 
@@ -94,15 +95,28 @@ function trainingDisplayName(entry) {
 async function loadCalendarMonth(year, month) {
   document.getElementById('calMonthLabel').textContent = `${MONTH_NAMES[month]} ${year}`
 
-  const { data, error } = await fetchWithRetry((signal) => supabase
-    .from('programs')
-    .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, tracks_weight, is_timed, is_unilateral))))')
-    .eq('athlete_id', athleteId)
-    .eq('is_template', false)
-    .abortSignal(signal)
-  )
+  // Programs and sessions don't depend on each other, so they fire together
+  const [
+    { data, error },
+    { data: sessions, error: sessionsError }
+  ] = await Promise.all([
+    fetchWithRetry((signal) => supabase
+      .from('programs')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, tracks_weight, is_timed, is_unilateral))))')
+      .eq('athlete_id', athleteId)
+      .eq('is_template', false)
+      .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('program_day_id, started_at, ended_at')
+      .eq('athlete_id', athleteId)
+      .abortSignal(signal)
+    )
+  ])
 
   if (error) { console.log('Error loading calendar:', error); customAlert('Something went wrong loading the calendar - check your connection and try again'); return }
+  if (sessionsError) { console.log('Error loading sessions for calendar:', sessionsError) }
 
   calendarEntriesByDate = {}
   for (const program of data) {
@@ -112,6 +126,19 @@ async function loadCalendarMonth(year, month) {
         if (!calendarEntriesByDate[dateStr]) calendarEntriesByDate[dateStr] = []
         calendarEntriesByDate[dateStr].push({ program, week, day })
       }
+    }
+  }
+
+  // A day can in theory have more than one session (e.g. the athlete started
+  // it, it got abandoned, and they started again later) - in-progress always
+  // wins if any session is still open, otherwise the most recently ended one
+  // decides "done"
+  sessionStatusByDayId = {}
+  for (const s of sessions || []) {
+    if (!s.ended_at) {
+      sessionStatusByDayId[s.program_day_id] = 'in-progress'
+    } else if (sessionStatusByDayId[s.program_day_id] !== 'in-progress') {
+      sessionStatusByDayId[s.program_day_id] = 'done'
     }
   }
 
@@ -144,11 +171,12 @@ function renderCalendarGrid(year, month) {
   grid.innerHTML = cells.map(cell => {
     const dateStr = toDateStr(cell.date)
     const entries = calendarEntriesByDate[dateStr] || []
-    // Show the training's own name (ad-hoc) or its day label (assigned
-    // template) rather than a generic "N exercises" count - one badge per
-    // distinct training, since an ad-hoc add and an assigned program can
-    // both land on the same date
-    const names = [...new Set(entries.map(trainingDisplayName))]
+    // One badge per training (keyed by day.id, always unique - two different
+    // trainings that happen to share a display name used to incorrectly
+    // collapse into one badge here). Color shows where it's at: blue for
+    // planned (no session yet), orange while the athlete's in the middle of
+    // it, green once they've finished it.
+    const badges = [...new Map(entries.map(entry => [entry.day.id, entry])).values()]
 
     const classes = ['calendar-day']
     if (cell.outside) classes.push('calendar-day-outside')
@@ -158,7 +186,11 @@ function renderCalendarGrid(year, month) {
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <button type="button" class="calendar-day-add-btn" data-date="${dateStr}">+</button>
         <span class="calendar-day-number">${cell.date.getDate()}</span>
-        ${names.map(name => `<span class="calendar-day-badge">${name}</span>`).join('')}
+        ${badges.map(entry => {
+          const status = sessionStatusByDayId[entry.day.id] // undefined | 'in-progress' | 'done'
+          const statusClass = status === 'in-progress' ? 'calendar-day-badge-in-progress' : status === 'done' ? 'calendar-day-badge-done' : 'calendar-day-badge-planned'
+          return `<span class="calendar-day-badge ${statusClass}">${trainingDisplayName(entry)}</span>`
+        }).join('')}
       </div>
     `
   }).join('')
