@@ -717,3 +717,166 @@ create policy "athlete manages own sessions" on workout_sessions for all
     and exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
                 where d.id = workout_sessions.program_day_id and p.athlete_id = workout_sessions.athlete_id)
   );
+
+-- ==========================================================================
+-- REAL FIX for "canceling statement due to statement timeout" - confirmed
+-- via EXPLAIN ANALYZE that the query itself is fast in isolation (~10-80ms)
+-- and the Postgres error logs confirmed every single failure is the same
+-- 8-second statement_timeout being hit, consistently, not intermittently.
+-- The gap between "fast in isolation" and "always times out for real":
+--
+-- Several tables' RLS policies check ownership by querying ANOTHER table
+-- that ALSO has RLS enabled - e.g. exercise_log_sets' policy joins through
+-- program_exercises -> program_days -> program_weeks -> programs. Each of
+-- those tables has its OWN "coach manages own X" / "athlete views own X"
+-- policy, and a plain query against an RLS-enabled table always re-runs
+-- that table's own policy - so the permission check doesn't just add one
+-- lookup per join level, it RE-RUNS THE FULL PERMISSION LOGIC of every
+-- level below it, every time. Confirmed directly: EXPLAIN ANALYZE on a
+-- single-row update showed the exact same "is this your athlete?" check
+-- repeated over 30 times for ONE row. That's fine on a near-empty table
+-- (the whole thing still finished in ~80ms during testing) but explodes
+-- as real data grows - which is exactly why it now fails 100% of the time
+-- instead of "sometimes."
+--
+-- The fix: SECURITY DEFINER helper functions, same pattern this file
+-- already uses for is_coach() (line 39). A SECURITY DEFINER function runs
+-- with its owner's privileges, which bypasses RLS for whatever it queries
+-- internally - same principle as a table owner never being subject to
+-- their own table's RLS. That breaks the recursive "policy re-triggers
+-- policy re-triggers policy" chain entirely: each ownership check now
+-- happens exactly ONCE, as a plain indexed join, no matter how many tables
+-- deep the relationship is. Every function below does the EXACT SAME
+-- logical check the policies were already doing - this changes how fast
+-- it's computed, not who can access what.
+-- ==========================================================================
+
+create or replace function public.is_own_athlete_as_athlete(check_athlete_id bigint)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from athletes where id = check_athlete_id and user_id = (select auth.uid()));
+$$;
+
+create or replace function public.is_own_athlete_as_coach(check_athlete_id bigint)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from athletes where id = check_athlete_id and coach_id = (select auth.uid()));
+$$;
+
+create or replace function public.coach_owns_program(check_program_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from programs where id = check_program_id and coach_id = (select auth.uid()));
+$$;
+
+create or replace function public.athlete_owns_program(check_program_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from programs p join athletes a on a.id = p.athlete_id
+    where p.id = check_program_id and a.user_id = (select auth.uid())
+  );
+$$;
+
+create or replace function public.coach_owns_program_week(check_week_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_weeks w join programs p on p.id = w.program_id
+    where w.id = check_week_id and p.coach_id = (select auth.uid())
+  );
+$$;
+
+create or replace function public.athlete_owns_program_week(check_week_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_weeks w join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where w.id = check_week_id and a.user_id = (select auth.uid())
+  );
+$$;
+
+create or replace function public.coach_owns_program_day(check_day_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
+    where d.id = check_day_id and p.coach_id = (select auth.uid())
+  );
+$$;
+
+create or replace function public.athlete_owns_program_day(check_day_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where d.id = check_day_id and a.user_id = (select auth.uid())
+  );
+$$;
+
+-- These two are data-integrity checks, not permission checks - they verify
+-- the athlete_id column being written on the row actually matches the
+-- program this program_exercise/program_day belongs to (so an athlete
+-- can't log a set against someone else's program_exercise id). Takes the
+-- athlete_id explicitly rather than reading auth.uid() itself, since the
+-- caller (the policy below) already separately confirmed auth.uid() owns
+-- that athlete_id via is_own_athlete_as_athlete().
+create or replace function public.program_exercise_matches_athlete(check_pe_id uuid, check_athlete_id bigint)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_exercises pe
+    join program_days d on d.id = pe.day_id
+    join program_weeks w on w.id = d.week_id
+    join programs p on p.id = w.program_id
+    where pe.id = check_pe_id and p.athlete_id = check_athlete_id
+  );
+$$;
+
+create or replace function public.program_day_matches_athlete(check_day_id uuid, check_athlete_id bigint)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_days d
+    join program_weeks w on w.id = d.week_id
+    join programs p on p.id = w.program_id
+    where d.id = check_day_id and p.athlete_id = check_athlete_id
+  );
+$$;
+
+-- Rewrite every policy that had a multi-table join through another
+-- RLS-protected table to call the helpers above instead - same access
+-- rules as before, just computed once instead of recursively.
+
+drop policy if exists "coach manages own program weeks" on program_weeks;
+create policy "coach manages own program weeks" on program_weeks for all
+  using (coach_owns_program(program_id)) with check (coach_owns_program(program_id));
+drop policy if exists "athlete views own program weeks" on program_weeks;
+create policy "athlete views own program weeks" on program_weeks for select
+  using (athlete_owns_program(program_id));
+
+drop policy if exists "coach manages own program days" on program_days;
+create policy "coach manages own program days" on program_days for all
+  using (coach_owns_program_week(week_id)) with check (coach_owns_program_week(week_id));
+drop policy if exists "athlete views own program days" on program_days;
+create policy "athlete views own program days" on program_days for select
+  using (athlete_owns_program_week(week_id));
+
+drop policy if exists "coach manages own program exercises" on program_exercises;
+create policy "coach manages own program exercises" on program_exercises for all
+  using (coach_owns_program_day(day_id)) with check (coach_owns_program_day(day_id));
+drop policy if exists "athlete views own program exercises" on program_exercises;
+create policy "athlete views own program exercises" on program_exercises for select
+  using (athlete_owns_program_day(day_id));
+
+drop policy if exists "coach views log sets for own athletes" on exercise_log_sets;
+create policy "coach views log sets for own athletes" on exercise_log_sets for select
+  using (is_own_athlete_as_coach(athlete_id));
+drop policy if exists "athlete manages own log sets" on exercise_log_sets;
+create policy "athlete manages own log sets" on exercise_log_sets for all
+  using (is_own_athlete_as_athlete(athlete_id))
+  with check (
+    is_own_athlete_as_athlete(athlete_id)
+    and program_exercise_matches_athlete(program_exercise_id, athlete_id)
+  );
+
+drop policy if exists "coach views sessions for own athletes" on workout_sessions;
+create policy "coach views sessions for own athletes" on workout_sessions for select
+  using (is_own_athlete_as_coach(athlete_id));
+drop policy if exists "athlete manages own sessions" on workout_sessions;
+create policy "athlete manages own sessions" on workout_sessions for all
+  using (is_own_athlete_as_athlete(athlete_id))
+  with check (
+    is_own_athlete_as_athlete(athlete_id)
+    and program_day_matches_athlete(program_day_id, athlete_id)
+  );
