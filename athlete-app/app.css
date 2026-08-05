@@ -1,4 +1,39 @@
 /* ==========================================================================
+   SPLASH SCREEN
+   Pure CSS, no JS needed - the animation itself hides the overlay (opacity
+   0 + visibility hidden) at the 3s mark so it stops blocking clicks without
+   any timer/cleanup code required.
+   ========================================================================== */
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0f0f1a;
+  animation: splashOverlayOut 3s ease forwards;
+}
+
+.splash-logo {
+  width: min(70vw, 320px);
+  animation: splashLogoPop 3s ease forwards;
+}
+
+@keyframes splashLogoPop {
+  0% { opacity: 0; transform: scale(0.82); }
+  22% { opacity: 1; transform: scale(1); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+@keyframes splashOverlayOut {
+  0% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+/* ==========================================================================
    ATHLETE DASHBOARD (placeholder)
    Centered message card, reused for every state (loading / wrong role /
    waiting to be linked / placeholder dashboard) - only the text and button

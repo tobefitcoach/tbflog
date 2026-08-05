@@ -6,9 +6,17 @@
     <title>Dashboard — TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=9" />
     <link rel="stylesheet" href="../athlete.css?v=21" />
-    <link rel="stylesheet" href="app.css?v=20" />
+    <link rel="stylesheet" href="app.css?v=21" />
   </head>
   <body>
+
+    <!-- Covers the screen for exactly 3s on every app open, logo animating
+         in then out, so the athlete sees a branded moment instead of the
+         bare "Loading..." text underneath (which is still there for the
+         rare case data takes longer than 3s to arrive) -->
+    <div class="splash-screen" id="splashScreen" aria-hidden="true">
+      <img src="logo.jpg?v=1" alt="" class="splash-logo" />
+    </div>
 
     <header>
       <h1>TBFLOG</h1>
