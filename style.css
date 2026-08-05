@@ -30,9 +30,10 @@ header {
   border-bottom: 1px solid #2a2a4e;
 }
  
-header h1 {
-  font-size: 24px;
-  letter-spacing: 2px;
+.header-logo {
+  height: 44px;
+  width: auto;
+  display: block;
 }
 
 /* Small text link/button in the header (e.g. "Log Out") - shared so both
