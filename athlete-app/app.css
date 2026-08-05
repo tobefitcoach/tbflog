@@ -811,41 +811,29 @@
     padding: 1px 3px;
   }
 
-  /* 7 equal columns (or even a horizontally-scrolling strip of small cards)
-     are still too small to read comfortably on a phone - stack the days
-     into a full-width vertical list instead, one big row per day */
+  /* Same 7-column grid as the coach's calendar on mobile - just smaller
+     cards/text, not a different (vertical) layout */
   .week-strip {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    gap: 4px;
   }
 
   .week-day-card {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    text-align: left;
-    min-height: auto;
-    padding: 16px;
-    gap: 12px;
+    min-height: 90px;
+    padding: 8px 4px;
+    gap: 4px;
   }
 
   .week-day-name {
-    width: 34px;
-    flex-shrink: 0;
-    font-size: 14px;
+    font-size: 11px;
   }
 
   .week-day-number {
-    width: 26px;
-    flex-shrink: 0;
-    font-size: 18px;
+    font-size: 15px;
   }
 
   .week-day-badge {
-    flex: 1;
-    max-width: none;
-    font-size: 13px;
+    font-size: 9px;
+    padding: 2px 4px;
   }
 
   .day-preview-thumb {
