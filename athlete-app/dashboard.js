@@ -278,6 +278,14 @@ function weightToKg(value, unit) {
   return unit === 'lbs' ? lbsToKg(value) : value
 }
 
+// A timed set's reps field is free text (the athlete could type "45", "45s",
+// "1 min", etc) - only append "sec" when it's a plain number, so we don't
+// double up on a unit the athlete already typed themselves
+function formatTimedReps(val) {
+  if (!val && val !== 0) return '-'
+  return /^\d+(\.\d+)?$/.test(String(val).trim()) ? `${val} sec` : val
+}
+
 // ==========================================================================
 // ---- LOAD TRAINING DATA ----
 // One nested query for the whole schedule, one flat query for every set
@@ -393,8 +401,8 @@ function dayIsFullyLogged(entries) {
 function formatSetTargets(setTargets, isTimed, tracksWeight) {
   if (!setTargets || setTargets.length === 0) return null
   const unit = athlete.weight_unit || 'kg'
-  if (isTimed && !tracksWeight) return setTargets.map(s => s.reps || '-').join(' / ')
-  if (isTimed && tracksWeight) return setTargets.map(s => `${s.reps || '-'}${s.weight != null ? ' @ ' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
+  if (isTimed && !tracksWeight) return setTargets.map(s => formatTimedReps(s.reps)).join(' / ')
+  if (isTimed && tracksWeight) return setTargets.map(s => `${formatTimedReps(s.reps)}${s.weight != null ? ' @ ' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
   const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
   if (sameWeight) {
     const reps = setTargets.map(s => s.reps || '-').join('/')
@@ -412,7 +420,7 @@ function targetLine(pe) {
     parts.push(setTargetsText)
   } else {
     if (pe.prescribed_sets) parts.push(`${pe.prescribed_sets} sets`)
-    if (pe.prescribed_reps) parts.push(isTimed ? pe.prescribed_reps : `${pe.prescribed_reps} reps`)
+    if (pe.prescribed_reps) parts.push(isTimed ? formatTimedReps(pe.prescribed_reps) : `${pe.prescribed_reps} reps`)
     if (pe.prescribed_weight && tracksWeight) parts.push(`${formatWeight(pe.prescribed_weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'}`)
   }
   if (pe.extra_fields) {
@@ -737,7 +745,7 @@ function renderDayPreviewExercise(pe, showLogged) {
   if (showLogged) {
     const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
     loggedText = sets.map(s => {
-      const repsPart = isTimed ? (s.actual_reps || '-') : `${s.actual_reps || '-'} reps`
+      const repsPart = isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`
       const weightPart = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
       return repsPart + weightPart
     }).join(', ')
@@ -1106,7 +1114,7 @@ function renderWorkoutSummary(finishedSession, entry) {
           ${sets.map(s => `
             <li class="detail-row">
               <span>Set ${s.set_number}</span>
-              <span class="detail-row-value">${(isTimed ? (s.actual_reps || '-') : `${s.actual_reps || '-'} reps`) + (tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : '')}</span>
+              <span class="detail-row-value">${(isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`) + (tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : '')}</span>
             </li>
           `).join('')}
         </ul>

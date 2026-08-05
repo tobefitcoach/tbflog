@@ -657,13 +657,21 @@ function renderWorkoutPreviewExercise(te) {
   `
 }
 
+// A timed set's reps field is free text (the coach could type "45", "45s",
+// "1 min", etc) - only append "sec" when it's a plain number, so we don't
+// double up on a unit that was already typed in
+function formatTimedRepsCal(val) {
+  if (!val && val !== 0) return '-'
+  return /^\d+(\.\d+)?$/.test(String(val).trim()) ? `${val} sec` : val
+}
+
 // "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,
 // 8@50kg" for a real pyramid. Returns null when this exercise has no
 // per-set targets yet, so callers fall back to the old single-value summary
 function formatSetTargetsCal(setTargets, isTimed, tracksWeight) {
   if (!setTargets || setTargets.length === 0) return null
-  if (isTimed && !tracksWeight) return setTargets.map(s => s.reps || '-').join(' / ')
-  if (isTimed && tracksWeight) return setTargets.map(s => `${s.reps || '-'}${s.weight != null ? ' @ ' + s.weight + 'kg' : ''}`).join(', ')
+  if (isTimed && !tracksWeight) return setTargets.map(s => formatTimedRepsCal(s.reps)).join(' / ')
+  if (isTimed && tracksWeight) return setTargets.map(s => `${formatTimedRepsCal(s.reps)}${s.weight != null ? ' @ ' + s.weight + 'kg' : ''}`).join(', ')
   const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
   if (sameWeight) {
     const reps = setTargets.map(s => s.reps || '-').join('/')
@@ -681,7 +689,7 @@ function targetLineForTraining(te) {
     parts.push(setTargetsText)
   } else {
     if (te.prescribed_sets) parts.push(`${te.prescribed_sets} sets`)
-    if (te.prescribed_reps) parts.push(isTimed ? te.prescribed_reps : `${te.prescribed_reps} reps`)
+    if (te.prescribed_reps) parts.push(isTimed ? formatTimedRepsCal(te.prescribed_reps) : `${te.prescribed_reps} reps`)
     if (te.prescribed_weight && tracksWeight) parts.push(`${te.prescribed_weight}kg`)
   }
   if (te.extra_fields) {
