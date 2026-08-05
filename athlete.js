@@ -39,11 +39,37 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 // now"; the visibilitychange listener covers "I switched back to this tab" -
 // same pattern already used athlete-side (see dashboard.js) for the same
 // reason, just applied here to the coach's page-level script instead.
+//
+// Both are guarded: overviewLoadInFlight stops an overlapping call from
+// firing a second, competing round of the same 3 queries (the exact
+// mistake that caused the athlete-side statement-timeout bug this session -
+// same fix, applied here before it became a problem instead of after).
+// lastOverviewAutoRefresh additionally throttles the visibilitychange
+// trigger specifically - flipping back and forth to another tab (e.g. the
+// Supabase SQL editor) shouldn't re-fire this page's stats every single
+// time. The Refresh button ignores that cooldown - tapping it is explicit
+// intent and should always work immediately.
+let overviewLoadInFlight = false
+let lastOverviewAutoRefresh = 0
+
+async function loadOverviewStatsGuarded() {
+  if (overviewLoadInFlight) return
+  overviewLoadInFlight = true
+  try {
+    await loadOverviewStats()
+  } finally {
+    overviewLoadInFlight = false
+  }
+}
+
 document.getElementById('refreshOverviewBtn').addEventListener('click', function() {
-  loadOverviewStats()
+  loadOverviewStatsGuarded()
 })
 document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'visible' && athleteId) loadOverviewStats()
+  if (document.visibilityState !== 'visible' || !athleteId) return
+  if (Date.now() - lastOverviewAutoRefresh < 15000) return
+  lastOverviewAutoRefresh = Date.now()
+  loadOverviewStatsGuarded()
 })
 
 // ==========================================================================
