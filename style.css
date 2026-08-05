@@ -30,6 +30,11 @@ header {
   border-bottom: 1px solid #2a2a4e;
 }
  
+.header-logo-link {
+  display: block;
+  line-height: 0;
+}
+
 .header-logo {
   height: 44px;
   width: auto;
@@ -498,6 +503,10 @@ header {
     flex-wrap: wrap;
     gap: 12px;
     padding: 16px 20px;
+  }
+
+  .header-logo {
+    height: 56px;
   }
 
   .modal {
