@@ -1815,6 +1815,22 @@
   font-weight: 600;
 }
 
+/* Fixed per exercise (set in the Exercise Library), shown right on the
+   card header while building so it's clear at a glance and hard to miss -
+   a subtle placeholder hint on the reps field alone isn't enough to avoid
+   mistakes while programming sets */
+.builder-unilateral-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+  color: #4fc3f7;
+  background-color: rgba(79, 195, 247, 0.15);
+}
+
 .set-target-rows {
   display: flex;
   flex-direction: column;

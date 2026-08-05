@@ -257,6 +257,7 @@ function renderScheduledExerciseCard(pe) {
           ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
         </button>
         <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+        ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
         <button type="button" class="btn-delete-measurement" data-action="delete-scheduled" title="Remove exercise">🗑</button>
       </div>
       <div class="set-target-rows">

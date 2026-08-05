@@ -428,6 +428,7 @@ function renderExerciseCard(te) {
           ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
         </button>
         <div class="builder-exercise-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
+        ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from workout">🗑</button>
       </div>
       <div class="set-target-rows">
