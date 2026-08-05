@@ -542,3 +542,178 @@ alter table exercises add column if not exists is_timed boolean not null default
 alter table exercises add column if not exists is_unilateral boolean not null default false;
 
 update exercises set tracks_weight = false, is_timed = true where type = 'timed';
+
+-- ==========================================================================
+-- RLS PERFORMANCE FIX - the real cause of "canceling statement due to
+-- statement timeout" and multi-second/never-finishing saves.
+--
+-- Confirmed live: while an athlete's set-save was stuck, pg_stat_activity
+-- caught the actual INSERT into exercise_log_sets still ACTIVELY RUNNING
+-- 28+ seconds in, with wait_event = null - meaning Postgres was genuinely
+-- still computing, not stuck waiting on a lock (the earlier index fix
+-- already ruled locks out) and not a network problem (the request had
+-- reached the database and was executing).
+--
+-- Every policy in this file calls auth.uid()/auth.email() directly. Plain
+-- function calls like that are allowed to be re-run by Postgres once per
+-- row a policy has to check, instead of once for the whole query - and
+-- auth.uid() has to parse the request's JWT out of a session setting every
+-- single time it runs. Combined with the multi-table joins several
+-- policies here use (e.g. exercise_log_sets -> program_exercises ->
+-- program_days -> program_weeks -> programs), that's exactly the kind of
+-- thing that turns a millisecond permission check into tens of seconds.
+-- This is a well-known Supabase performance pitfall, not specific to this
+-- app - their own docs recommend this exact fix:
+-- https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select
+--
+-- The fix: wrap every auth.uid()/auth.email() call in its own
+-- `(select ...)`. That lets Postgres compute it ONCE per query and reuse
+-- the cached result, instead of re-running it per row. Every policy below
+-- is otherwise unchanged - same rules, same access, just computed
+-- efficiently. Purely a performance fix, safe to re-run any time.
+-- ==========================================================================
+
+create or replace function public.is_coach()
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from public.profiles where id = (select auth.uid()) and role = 'coach');
+$$;
+
+create or replace function public.claim_athlete_by_email()
+returns bigint language plpgsql security definer set search_path = public as $$
+declare matched_id bigint;
+begin
+  select id into matched_id from athletes
+  where user_id is null and email is not null and lower(email) = lower((select auth.email()));
+  if matched_id is null then
+    raise exception 'no unclaimed athlete found for this email';
+  end if;
+  update athletes set user_id = (select auth.uid()) where id = matched_id;
+  return matched_id;
+end; $$;
+
+drop policy if exists "select own profile" on profiles;
+create policy "select own profile" on profiles for select using (id = (select auth.uid()));
+drop policy if exists "update own profile" on profiles;
+create policy "update own profile" on profiles for update using (id = (select auth.uid())) with check (id = (select auth.uid()));
+
+drop policy if exists "coach manages own exercise library" on exercises;
+create policy "coach manages own exercise library" on exercises for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()) and is_coach());
+drop policy if exists "athlete views own coach's exercises" on exercises;
+create policy "athlete views own coach's exercises" on exercises for select
+  using (exists (select 1 from athletes a where a.user_id = (select auth.uid()) and a.coach_id = exercises.coach_id));
+
+drop policy if exists "coach manages own programs" on programs;
+create policy "coach manages own programs" on programs for all
+  using (
+    coach_id = (select auth.uid())
+    and (
+      athlete_id is null
+      or exists (select 1 from athletes a where a.id = programs.athlete_id and a.coach_id = (select auth.uid()))
+    )
+  )
+  with check (
+    coach_id = (select auth.uid()) and is_coach()
+    and (
+      (is_template and athlete_id is null)
+      or (not is_template and athlete_id is not null
+          and exists (select 1 from athletes a where a.id = programs.athlete_id and a.coach_id = (select auth.uid())))
+    )
+  );
+drop policy if exists "athlete views own programs" on programs;
+create policy "athlete views own programs" on programs for select
+  using (exists (select 1 from athletes a where a.id = programs.athlete_id and a.user_id = (select auth.uid())));
+
+drop policy if exists "coach manages own program weeks" on program_weeks;
+create policy "coach manages own program weeks" on program_weeks for all
+  using (exists (select 1 from programs p where p.id = program_weeks.program_id and p.coach_id = (select auth.uid())))
+  with check (exists (select 1 from programs p where p.id = program_weeks.program_id and p.coach_id = (select auth.uid())));
+drop policy if exists "athlete views own program weeks" on program_weeks;
+create policy "athlete views own program weeks" on program_weeks for select
+  using (exists (select 1 from programs p join athletes a on a.id = p.athlete_id
+                 where p.id = program_weeks.program_id and a.user_id = (select auth.uid())));
+
+drop policy if exists "coach manages own program days" on program_days;
+create policy "coach manages own program days" on program_days for all
+  using (exists (select 1 from program_weeks w join programs p on p.id = w.program_id
+                 where w.id = program_days.week_id and p.coach_id = (select auth.uid())))
+  with check (exists (select 1 from program_weeks w join programs p on p.id = w.program_id
+                 where w.id = program_days.week_id and p.coach_id = (select auth.uid())));
+drop policy if exists "athlete views own program days" on program_days;
+create policy "athlete views own program days" on program_days for select
+  using (exists (select 1 from program_weeks w join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+                 where w.id = program_days.week_id and a.user_id = (select auth.uid())));
+
+drop policy if exists "coach manages own program exercises" on program_exercises;
+create policy "coach manages own program exercises" on program_exercises for all
+  using (exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
+                 where d.id = program_exercises.day_id and p.coach_id = (select auth.uid())))
+  with check (exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
+                 where d.id = program_exercises.day_id and p.coach_id = (select auth.uid())));
+drop policy if exists "athlete views own program exercises" on program_exercises;
+create policy "athlete views own program exercises" on program_exercises for select
+  using (exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+                 where d.id = program_exercises.day_id and a.user_id = (select auth.uid())));
+
+drop policy if exists "coach full access to own athletes" on athletes;
+create policy "coach full access to own athletes" on athletes for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+drop policy if exists "athlete can view own row" on athletes;
+create policy "athlete can view own row" on athletes for select using (user_id = (select auth.uid()));
+drop policy if exists "athlete updates own settings" on athletes;
+create policy "athlete updates own settings" on athletes for update
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+drop policy if exists "coach manages own athletes athlete_metrics" on athlete_metrics;
+create policy "coach manages own athletes athlete_metrics" on athlete_metrics for all
+  using (exists (select 1 from athletes a where a.id = athlete_metrics.athlete_id and a.coach_id = (select auth.uid())))
+  with check (exists (select 1 from athletes a where a.id = athlete_metrics.athlete_id and a.coach_id = (select auth.uid())));
+
+drop policy if exists "coach manages own athletes measurements" on measurements;
+create policy "coach manages own athletes measurements" on measurements for all
+  using (exists (select 1 from athletes a where a.id = measurements.athlete_id and a.coach_id = (select auth.uid())))
+  with check (exists (select 1 from athletes a where a.id = measurements.athlete_id and a.coach_id = (select auth.uid())));
+
+drop policy if exists "coach manages own athletes bodyweight" on bodyweight;
+create policy "coach manages own athletes bodyweight" on bodyweight for all
+  using (exists (select 1 from athletes a where a.id = bodyweight.athlete_id and a.coach_id = (select auth.uid())))
+  with check (exists (select 1 from athletes a where a.id = bodyweight.athlete_id and a.coach_id = (select auth.uid())));
+
+drop policy if exists "coach manages own athletes notes" on athlete_notes;
+create policy "coach manages own athletes notes" on athlete_notes for all
+  using (exists (select 1 from athletes a where a.id = athlete_notes.athlete_id and a.coach_id = (select auth.uid())))
+  with check (exists (select 1 from athletes a where a.id = athlete_notes.athlete_id and a.coach_id = (select auth.uid())));
+
+drop policy if exists "coach manages own trainings" on trainings;
+create policy "coach manages own trainings" on trainings for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+
+drop policy if exists "coach manages own training exercises" on training_exercises;
+create policy "coach manages own training exercises" on training_exercises for all
+  using (exists (select 1 from trainings t where t.id = training_exercises.training_id and t.coach_id = (select auth.uid())))
+  with check (exists (select 1 from trainings t where t.id = training_exercises.training_id and t.coach_id = (select auth.uid())));
+
+drop policy if exists "coach views log sets for own athletes" on exercise_log_sets;
+create policy "coach views log sets for own athletes" on exercise_log_sets for select
+  using (exists (select 1 from athletes a where a.id = exercise_log_sets.athlete_id and a.coach_id = (select auth.uid())));
+drop policy if exists "athlete manages own log sets" on exercise_log_sets;
+create policy "athlete manages own log sets" on exercise_log_sets for all
+  using (exists (select 1 from athletes a where a.id = exercise_log_sets.athlete_id and a.user_id = (select auth.uid())))
+  with check (
+    exists (select 1 from athletes a where a.id = exercise_log_sets.athlete_id and a.user_id = (select auth.uid()))
+    and exists (select 1 from program_exercises pe join program_days d on d.id = pe.day_id
+                join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
+                where pe.id = exercise_log_sets.program_exercise_id and p.athlete_id = exercise_log_sets.athlete_id)
+  );
+
+drop policy if exists "coach views sessions for own athletes" on workout_sessions;
+create policy "coach views sessions for own athletes" on workout_sessions for select
+  using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = (select auth.uid())));
+drop policy if exists "athlete manages own sessions" on workout_sessions;
+create policy "athlete manages own sessions" on workout_sessions for all
+  using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.user_id = (select auth.uid())))
+  with check (
+    exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.user_id = (select auth.uid()))
+    and exists (select 1 from program_days d join program_weeks w on w.id = d.week_id join programs p on p.id = w.program_id
+                where d.id = workout_sessions.program_day_id and p.athlete_id = workout_sessions.athlete_id)
+  );
