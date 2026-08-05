@@ -98,6 +98,16 @@
         </div>
       </div>
 
+      <!-- Manual refresh + freshness indicator - this tab has no live
+           updates otherwise, so a coach checking on an athlete's in-progress
+           workout needs a way to know these numbers are current. Also
+           auto-refreshes on tab focus, see the visibilitychange listener in
+           athlete.js -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+        <span id="overviewUpdatedLabel" style="color:#aaaacc; font-size:12px"></span>
+        <button class="unit-btn" id="refreshOverviewBtn">🔄 Refresh</button>
+      </div>
+
       <!-- Training stats: how much of what was programmed actually got
            done, and how much volume they're moving - computed from the
            athlete's logged exercise_log_sets, see loadOverviewStats() -->
@@ -969,7 +979,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=12"></script>
+    <script type="module" src="athlete.js?v=13"></script>
     <script type="module" src="athlete-calendar.js?v=18"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>

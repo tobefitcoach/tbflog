@@ -1034,6 +1034,7 @@ async function finishWorkout(entry, session) {
   completedSessionsByDayId[entry.day.id] = finishedSession
   delete openSessionsByDayId[entry.day.id]
 
+  clearTimeout(flushTimer) // don't wait out the debounce - flush what's pending right now
   flushPendingQueue() // not awaited - runs in the background regardless
   saveSessionEnd(session.id, endedAt) // not awaited
 
@@ -1495,27 +1496,13 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   logSetsByPE[peId].push(queueEntry)
 
   queueUpsert(queueEntry)
-  const { data, error } = await performQueuedSave(queueEntry)
-
-  if (error) {
-    console.log(error)
-    queueEntry.lastError = describeError(error)
-    queueUpsert(queueEntry)
-    rowEl.classList.add('unsynced')
-    checkBtn.title = 'Not synced yet - will keep retrying automatically'
-    return
-  }
-
-  queueRemove(peId, dateStr, setNumber)
-  // Replace the optimistic placeholder with the real saved row
-  logSetsByPE[peId] = logSetsByPE[peId].filter(s => s.set_number !== setNumber)
-  logSetsByPE[peId].push(data[0])
+  scheduleFlush()
 }
 
-// Same reasoning as checkSet - unchecks immediately, queues + retries the
+// Same reasoning as checkSet - unchecks immediately, queues + schedules the
 // delete, and only flags "unsynced" (staying visually unchecked) if every
 // attempt fails, rather than silently snapping back to checked
-async function uncheckSet(peId, setNumber, dateStr, rowEl) {
+function uncheckSet(peId, setNumber, dateStr, rowEl) {
   const pe = findPE(peId)
   const repsInput = rowEl.querySelector('.set-reps-input')
   const weightInput = rowEl.querySelector('.set-weight-input')
@@ -1535,18 +1522,7 @@ async function uncheckSet(peId, setNumber, dateStr, rowEl) {
 
   const queueEntry = { program_exercise_id: peId, date: dateStr, set_number: setNumber, deleted: true }
   queueUpsert(queueEntry)
-  const { error } = await performQueuedSave(queueEntry)
-
-  if (error) {
-    console.log(error)
-    queueEntry.lastError = describeError(error)
-    queueUpsert(queueEntry)
-    rowEl.classList.add('unsynced')
-    checkBtn.title = 'Not synced yet - will keep retrying automatically'
-    return
-  }
-
-  queueRemove(peId, dateStr, setNumber)
+  scheduleFlush()
 }
 
 // ==========================================================================
@@ -1602,35 +1578,129 @@ function applyPendingQueueLocally() {
   }
 }
 
-// Not awaited by most of its callers on purpose - nothing in this app
-// should make an athlete wait on a network retry. Runs on load and
-// whenever the tab becomes visible again (see the visibilitychange
-// listener below), and is raced against a timeout in finishWorkout.
-//
-// Entries are saved with a LIMITED amount of parallelism (3 at a time), not
-// fully sequential and not fully parallel. Sequential meant the wait was
-// entries x up to ~24s each (3 attempts x 6s timeout, plus backoff) - that's
-// what turned "saving the workout" into a multi-minute wait once several
-// sets had backed up in the queue. But firing every entry at once (plain
-// Promise.all) turned out to have its own failure mode confirmed from a real
-// sync-banner error: on a weak gym connection, a big backlog (14 stuck sets)
-// all competing for the same limited bandwidth could make EVERY one of them
-// individually blow past the per-attempt timeout and abort together
-// ("AbortError: Fetch is aborted"), so nothing ever got through. Capping
-// concurrency keeps each request's actual share of the connection
-// reasonable while still bounding total wait time.
+// Checking/unchecking a set no longer saves it directly - it queues the
+// change and calls scheduleFlush(), which debounces a run of taps into one
+// batched request instead of one-per-tap. flushPendingQueue itself is also
+// called directly (bypassing the debounce) from a few "catch up now"
+// moments: page load, visibilitychange, the 20s interval below, the sync
+// banner's Retry Now button, and finishWorkout. flushInFlight makes all of
+// these safe to call at any time, even while another flush is already
+// running - an overlapping call just queues one more run afterward instead
+// of firing a second, competing request for the same rows. That overlap
+// used to be exactly how two of these triggers could both fire an upsert
+// for the same set at the same moment - the resulting Postgres row-lock
+// contention is what caused the "canceling statement due to statement
+// timeout" errors, not the RLS join chain (which resolves through primary-
+// key lookups either way).
+let flushTimer = null
+let flushInFlight = false
+let flushAgainNeeded = false
+let firstQueuedAt = null
+
+// Tapping a set schedules a flush ~1.5s later; each further tap within that
+// window pushes it back out again, so a quick run of taps becomes one
+// request - capped at 5s so a long flurry of taps still flushes promptly
+// instead of being postponed indefinitely.
+function scheduleFlush() {
+  if (!firstQueuedAt) firstQueuedAt = Date.now()
+  clearTimeout(flushTimer)
+  const waitedTooLong = Date.now() - firstQueuedAt > 5000
+  flushTimer = setTimeout(flushPendingQueue, waitedTooLong ? 0 : 1500)
+}
+
+// Sends every pending set as ONE batched upsert (instead of one request per
+// set) so a whole workout's worth of taps costs a handful of round trips,
+// not dozens - directly what was creating the lock contention above. Deletes
+// (unchecked sets) can't be batched the same way (each is its own DELETE),
+// but they're rare compared to checks, so they keep the older per-row path
+// with LIMITED parallelism (3 at a time) - the same cap added after a real
+// past incident where firing every entry at once (plain Promise.all) on a
+// weak gym connection made a 14-set backlog blow past the per-attempt
+// timeout and abort together ("AbortError: Fetch is aborted").
 async function flushPendingQueue() {
-  const entries = loadPendingQueue()
-  await runWithConcurrencyLimit(entries, 3, async function(entry) {
-    const { error } = await performQueuedSave(entry)
-    if (!error) {
-      queueRemove(entry.program_exercise_id, entry.date, entry.set_number)
-    } else {
-      console.log(error)
-      entry.lastError = describeError(error)
-      queueUpsert(entry)
+  if (flushInFlight) { flushAgainNeeded = true; return }
+  flushInFlight = true
+  clearTimeout(flushTimer)
+  firstQueuedAt = null
+  try {
+    const entries = loadPendingQueue()
+    if (entries.length === 0) return
+
+    const toSave = entries.filter(e => !e.deleted)
+    const toDelete = entries.filter(e => e.deleted)
+
+    if (toSave.length > 0) {
+      const { data, error } = await saveWithRetry((signal) => supabase
+        .from('exercise_log_sets')
+        .upsert(toSave.map(function(e) {
+          return {
+            program_exercise_id: e.program_exercise_id,
+            athlete_id: e.athlete_id,
+            date: e.date,
+            set_number: e.set_number,
+            actual_reps: e.actual_reps,
+            actual_weight: e.actual_weight,
+            completed_at: e.completed_at
+          }
+        }), { onConflict: 'program_exercise_id,date,set_number' })
+        .select()
+        .abortSignal(signal)
+      )
+      if (!error) {
+        for (const entry of toSave) {
+          const saved = (data || []).find(d => d.program_exercise_id === entry.program_exercise_id && d.date === entry.date && d.set_number === entry.set_number)
+          settleEntry(entry, true, null, saved)
+        }
+      } else {
+        console.log(error)
+        // One bad/orphaned row (e.g. its exercise got deleted mid-workout)
+        // would otherwise block every other pending set from saving forever -
+        // fall back to saving each individually, same as before batching
+        await runWithConcurrencyLimit(toSave, 3, async function(entry) {
+          const { data, error } = await performQueuedSave(entry)
+          settleEntry(entry, !error, error, data && data[0])
+        })
+      }
     }
-  })
+
+    await runWithConcurrencyLimit(toDelete, 3, async function(entry) {
+      const { error } = await performQueuedSave(entry)
+      settleEntry(entry, !error, error)
+    })
+  } finally {
+    flushInFlight = false
+    if (flushAgainNeeded) {
+      flushAgainNeeded = false
+      scheduleFlush()
+    }
+  }
+}
+
+// Reconciles one queue entry's outcome with the pending queue and, if the
+// athlete hasn't already swiped away from it, the row on screen.
+function settleEntry(entry, success, error, savedRow) {
+  const rowEl = findSetRowEl(entry.program_exercise_id, entry.set_number)
+  if (success) {
+    queueRemove(entry.program_exercise_id, entry.date, entry.set_number)
+    if (rowEl) rowEl.classList.remove('unsynced')
+    if (!entry.deleted) {
+      logSetsByPE[entry.program_exercise_id] = (logSetsByPE[entry.program_exercise_id] || []).filter(s => s.set_number !== entry.set_number)
+      logSetsByPE[entry.program_exercise_id].push(savedRow || entry)
+    }
+  } else {
+    entry.lastError = describeError(error)
+    queueUpsert(entry)
+    if (rowEl) {
+      rowEl.classList.add('unsynced')
+      const checkBtn = rowEl.querySelector('.set-check-btn')
+      if (checkBtn) checkBtn.title = 'Not synced yet - will keep retrying automatically'
+    }
+  }
+}
+
+function findSetRowEl(peId, setNumber) {
+  const container = document.querySelector(`.set-rows[data-pe-id="${peId}"]`)
+  return container ? container.querySelector(`.set-row[data-set-number="${setNumber}"]`) : null
 }
 
 // Runs fn over items with at most `limit` in flight at once.

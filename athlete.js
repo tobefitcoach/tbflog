@@ -33,6 +33,19 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
   window.location.href = 'login.html'
 })
 
+// This page otherwise only loads stats once, on open - a coach watching an
+// athlete log a workout live (in another tab, or on their phone) would never
+// see it update without a manual reload. Refresh button covers "check right
+// now"; the visibilitychange listener covers "I switched back to this tab" -
+// same pattern already used athlete-side (see dashboard.js) for the same
+// reason, just applied here to the coach's page-level script instead.
+document.getElementById('refreshOverviewBtn').addEventListener('click', function() {
+  loadOverviewStats()
+})
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && athleteId) loadOverviewStats()
+})
+
 // ==========================================================================
 // ---- SETTINGS TAB ----
 // Per-athlete settings save immediately on change, no separate Save button -
@@ -412,6 +425,9 @@ async function loadOverviewStats() {
   document.getElementById('statAcwrRisk').style.display = highRisk ? 'inline-block' : 'none'
   document.getElementById('statMonotony').textContent = monotonyValue === null ? '—' : monotonyValue.toFixed(2)
   document.getElementById('statStrain').textContent = strainValue === null ? '—' : Math.round(strainValue).toLocaleString()
+
+  const updatedLabel = document.getElementById('overviewUpdatedLabel')
+  if (updatedLabel) updatedLabel.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
 // Opened by clicking the "Avg Duration (30d)" stat tile. Individual
