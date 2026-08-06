@@ -258,6 +258,42 @@
   opacity: 0.6;
 }
 
+.set-time-input {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  background-color: #0f0f1a;
+}
+
+.set-time-mm,
+.set-time-ss {
+  width: 28px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  /* Under 16px triggers iOS Safari's auto-zoom-on-focus */
+  font-size: 16px;
+  text-align: center;
+  padding: 0;
+}
+
+.set-time-mm:disabled,
+.set-time-ss:disabled {
+  opacity: 0.6;
+}
+
+.set-time-sep {
+  color: #aaaacc;
+  font-size: 16px;
+}
+
 .set-unit-toggle {
   flex-shrink: 0;
   padding: 8px 10px;

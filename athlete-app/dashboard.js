@@ -288,6 +288,23 @@ function formatTimedReps(val) {
   return /^\d+(\.\d+)?$/.test(String(val).trim()) ? `${val} sec` : val
 }
 
+// Splits any previously-stored timed value into {mm, ss} so the mm:ss input
+// boxes can be prefilled - handles the new "M:SS" format this app now
+// saves, old plain-seconds strings ("45") from before this change, and a
+// best-effort digit grab for anything else free-typed in the past ("45s")
+function parseTimeToParts(val) {
+  if (val == null || val === '') return { mm: 0, ss: 0 }
+  const str = String(val).trim()
+  const mmss = str.match(/^(\d+):(\d{1,2})$/)
+  if (mmss) return { mm: parseInt(mmss[1]), ss: Math.min(parseInt(mmss[2]), 59) }
+  if (/^\d+$/.test(str)) {
+    const total = parseInt(str)
+    return { mm: Math.floor(total / 60), ss: total % 60 }
+  }
+  const digits = str.match(/\d+/)
+  return digits ? { mm: 0, ss: Math.min(parseInt(digits[0]), 59) } : { mm: 0, ss: 0 }
+}
+
 // ==========================================================================
 // ---- LOAD TRAINING DATA ----
 // One nested query for the whole schedule, one flat query for every set
@@ -2102,12 +2119,19 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exe
   const setType = target && target.type && target.type !== 'main' ? target.type : null
   const typeLabel = setType === 'warmup' ? 'Warmup' : setType === 'failure' ? 'Failure' : ''
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
-  const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
+  const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
+  const { mm, ss } = parseTimeToParts(repsVal)
 
   return `
     <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
       <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
-      <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>
+      ${isTimed ? `
+        <div class="set-time-input">
+          <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2" ${checked ? 'disabled' : ''}>
+          <span class="set-time-sep">:</span>
+          <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2" ${checked ? 'disabled' : ''}>
+        </div>
+      ` : `<input type="text" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>`}
       ${tracksWeight ? `
         <input type="number" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
         <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
@@ -2172,6 +2196,24 @@ function wireExerciseCardEvents(containerId, dateStr) {
       row.remove()
     }
   })
+
+  // mm:ss time boxes: strip anything non-digit as it's typed, then pad back
+  // to 2 digits (and clamp seconds to 59) once the athlete taps away - kept
+  // as two small text inputs rather than type="number" so the "00" padding
+  // actually stays visible instead of browsers stripping the leading zero
+  const container = document.getElementById(containerId)
+  container.addEventListener('input', function(e) {
+    if (e.target.matches('.set-time-mm, .set-time-ss')) {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2)
+    }
+  })
+  container.addEventListener('focusout', function(e) {
+    if (e.target.matches('.set-time-mm, .set-time-ss')) {
+      const max = e.target.classList.contains('set-time-ss') ? 59 : 99
+      const val = Math.min(parseInt(e.target.value) || 0, max)
+      e.target.value = String(val).padStart(2, '0')
+    }
+  })
 }
 
 function addSetRow(peId) {
@@ -2214,9 +2256,19 @@ function addSetRow(peId) {
 // already-logged set updates it instead of creating a duplicate row.
 async function checkSet(peId, setNumber, dateStr, rowEl) {
   const pe = findPE(peId)
+  const isTimed = pe.exercises && pe.exercises.is_timed
   const repsInput = rowEl.querySelector('.set-reps-input')
+  const mmInput = rowEl.querySelector('.set-time-mm')
+  const ssInput = rowEl.querySelector('.set-time-ss')
   const weightInput = rowEl.querySelector('.set-weight-input')
-  const actualReps = repsInput.value.trim() || null
+  let actualReps
+  if (isTimed) {
+    const mm = parseInt(mmInput.value) || 0
+    const ss = parseInt(ssInput.value) || 0
+    actualReps = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
+  } else {
+    actualReps = repsInput.value.trim() || null
+  }
   // Convert whatever unit this row is currently showing back to kg - that's
   // the only thing that ever gets saved
   const rowUnit = rowEl.dataset.unit || 'kg'
@@ -2225,7 +2277,7 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
 
   rowEl.classList.add('completed')
   rowEl.classList.remove('unsynced')
-  repsInput.disabled = true
+  if (isTimed) { mmInput.disabled = true; ssInput.disabled = true } else { repsInput.disabled = true }
   if (weightInput) weightInput.disabled = true
   const checkBtn = rowEl.querySelector('.set-check-btn')
   checkBtn.textContent = '✓'
@@ -2258,13 +2310,16 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
 // attempt fails, rather than silently snapping back to checked
 function uncheckSet(peId, setNumber, dateStr, rowEl) {
   const pe = findPE(peId)
+  const isTimed = pe.exercises && pe.exercises.is_timed
   const repsInput = rowEl.querySelector('.set-reps-input')
+  const mmInput = rowEl.querySelector('.set-time-mm')
+  const ssInput = rowEl.querySelector('.set-time-ss')
   const weightInput = rowEl.querySelector('.set-weight-input')
   const checkBtn = rowEl.querySelector('.set-check-btn')
   const isExtra = setNumber > (pe.prescribed_sets || 0)
 
   rowEl.classList.remove('completed', 'unsynced')
-  repsInput.disabled = false
+  if (isTimed) { mmInput.disabled = false; ssInput.disabled = false } else { repsInput.disabled = false }
   if (weightInput) weightInput.disabled = false
   checkBtn.textContent = ''
   checkBtn.classList.remove('checked')
