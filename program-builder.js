@@ -247,6 +247,22 @@ function renderWeekBlock(week) {
   `
 }
 
+// One header per run of consecutive exercises sharing the same non-null
+// section_label - list must already be sorted by order_index. Manually/
+// individually added exercises (section_label null) never get a header.
+function renderExerciseListHtml(list) {
+  let html = ''
+  let lastLabel // undefined sentinel - a run of nulls never gets a header
+  for (const item of list) {
+    if (item.section_label !== lastLabel) {
+      if (item.section_label) html += `<div class="builder-section-header">${item.section_label}</div>`
+      lastLabel = item.section_label
+    }
+    html += renderExerciseCard(item, list)
+  }
+  return html
+}
+
 function renderDayBlock(day) {
   return `
     <div class="exercise-item" style="margin-bottom:16px" data-day-id="${day.id}">
@@ -254,12 +270,13 @@ function renderDayBlock(day) {
         <h4>${day.label || ('Day ' + day.day_number)}</h4>
         <div style="display:flex; gap:8px">
           <button class="btn-edit-entry" data-action="add-exercise" data-day-id="${day.id}">+ Add Exercise</button>
+          <button class="btn-edit-entry" data-action="add-section" data-day-id="${day.id}">🧩 Add Section</button>
           <button class="btn-delete-measurement" data-action="delete-day" data-day-id="${day.id}">🗑 Delete Day</button>
         </div>
       </div>
       ${day.program_exercises.length === 0
         ? '<p class="no-metrics">No exercises yet</p>'
-        : day.program_exercises.map(renderExerciseCard).join('')}
+        : renderExerciseListHtml(day.program_exercises)}
       ${day.program_exercises.length === 0 ? '' : `
         <button type="button" class="btn-save" data-action="save-day" data-day-id="${day.id}" style="margin-top:8px">💾 Save Day</button>
       `}
@@ -267,7 +284,7 @@ function renderDayBlock(day) {
   `
 }
 
-function renderExerciseCard(pe) {
+function renderExerciseCard(pe, siblingExercises) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
@@ -275,9 +292,10 @@ function renderExerciseCard(pe) {
   const thumb = getYouTubeThumbnail(videoUrl)
   const targets = deriveSetTargets(pe)
   const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
+  const partner = pe.superset_group_id ? (siblingExercises || []).find(other => other.id !== pe.id && other.superset_group_id === pe.superset_group_id) : null
 
   return `
-    <div class="builder-exercise-card" data-id="${pe.id}">
+    <div class="builder-exercise-card" data-id="${pe.id}" data-superset-group-id="${pe.superset_group_id || ''}">
       <div class="builder-exercise-card-header">
         <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
@@ -285,6 +303,8 @@ function renderExerciseCard(pe) {
         </button>
         <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
+        ${partner ? `<span class="builder-superset-badge">🔗 Linked with ${partner.exercises ? partner.exercises.name : 'exercise'}</span>` : ''}
+        <button type="button" class="builder-link-btn ${pe.superset_group_id ? 'linked' : ''}" data-action="toggle-link" title="${pe.superset_group_id ? 'Unlink superset' : 'Link with another exercise (superset)'}">🔗</button>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from day">🗑</button>
       </div>
       <div class="set-target-rows">
@@ -340,7 +360,8 @@ async function saveExerciseCard(peId, orderIndex) {
       rest_seconds: first.rest,
       extra_fields: extraFields,
       notes,
-      order_index: orderIndex
+      order_index: orderIndex,
+      superset_group_id: card.dataset.supersetGroupId || null
     })
     .eq('id', peId)
 
@@ -366,6 +387,73 @@ async function saveDay(dayId) {
   }
 
   await loadWeeks()
+}
+
+// ==========================================================================
+// ---- SUPERSETS (link exactly two exercises) ----
+// Same pattern as training-builder.js, scoped to one day's .exercise-item
+// instead of the whole page - a superset partner always has to be within
+// the same day. Draft-until-Save, exactly like set_targets/notes.
+// ==========================================================================
+let pickingPartnerForId = null
+
+function handleLinkClick(id, listScopeEl) {
+  const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+  const currentGroupId = card.dataset.supersetGroupId || null
+  if (currentGroupId) { unlinkSupersetPair(currentGroupId, listScopeEl); return }
+  if (pickingPartnerForId === id) { exitPickingMode(listScopeEl); return }
+  if (pickingPartnerForId) { completeSupersetPairing(pickingPartnerForId, id, listScopeEl); return }
+  enterPickingMode(id, listScopeEl)
+}
+
+function enterPickingMode(id, listScopeEl) {
+  pickingPartnerForId = id
+  listScopeEl.querySelectorAll('.builder-exercise-card').forEach(card => {
+    const isSelf = card.dataset.id === id
+    const isLinked = !!card.dataset.supersetGroupId
+    card.classList.toggle('picking-self', isSelf)
+    card.classList.toggle('pickable', !isSelf && !isLinked)
+  })
+}
+
+function exitPickingMode(listScopeEl) {
+  pickingPartnerForId = null
+  listScopeEl.querySelectorAll('.builder-exercise-card').forEach(c => c.classList.remove('picking-self', 'pickable'))
+}
+
+function completeSupersetPairing(idA, idB, listScopeEl) {
+  const groupId = crypto.randomUUID()
+  const cardA = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idA}"]`)
+  const cardB = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idB}"]`)
+  cardA.dataset.supersetGroupId = groupId
+  cardB.dataset.supersetGroupId = groupId
+  exitPickingMode(listScopeEl)
+  refreshSupersetBadge(cardA, listScopeEl)
+  refreshSupersetBadge(cardB, listScopeEl)
+}
+
+function unlinkSupersetPair(groupId, listScopeEl) {
+  listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`).forEach(card => {
+    delete card.dataset.supersetGroupId
+    refreshSupersetBadge(card, listScopeEl)
+  })
+}
+
+function refreshSupersetBadge(card, listScopeEl) {
+  const existing = card.querySelector('.builder-superset-badge')
+  if (existing) existing.remove()
+  const linkBtn = card.querySelector('.builder-link-btn')
+  const groupId = card.dataset.supersetGroupId
+  linkBtn.classList.toggle('linked', !!groupId)
+  linkBtn.title = groupId ? 'Unlink superset' : 'Link with another exercise (superset)'
+  if (!groupId) return
+  const partnerCard = [...listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].find(c => c !== card)
+  const partnerName = partnerCard ? partnerCard.querySelector('.builder-exercise-name').textContent : null
+  if (!partnerName) return
+  card.querySelector('.builder-exercise-card-header').insertBefore(
+    Object.assign(document.createElement('span'), { className: 'builder-superset-badge', textContent: `🔗 Linked with ${partnerName}` }),
+    linkBtn
+  )
 }
 
 // Small lookups into the in-memory tree, used instead of extra queries
@@ -403,6 +491,7 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
   if (action === 'add-day') openAddDayModal(btn.dataset.weekId)
   else if (action === 'delete-week') deleteWeek(btn.dataset.weekId)
   else if (action === 'add-exercise') openExercisePickerModal(btn.dataset.dayId)
+  else if (action === 'add-section') openAddSectionModal(btn.dataset.dayId)
   else if (action === 'delete-day') deleteDay(btn.dataset.dayId)
   else if (action === 'delete-exercise') deleteExerciseRow(btn.closest('.builder-exercise-card').dataset.id)
   else if (action === 'save-day') await saveDay(btn.dataset.dayId)
@@ -417,6 +506,8 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
     if (action === 'add-set') addSetTargetRow(card.querySelector('.set-target-rows'), isTimed, tracksWeight, isUnilateral)
     else if (action === 'remove-set') removeSetTargetRow(btn.closest('.set-target-row'))
     else if (action === 'add-extra-field') addExtraFieldRow(`extraFields-${peId}`)
+  } else if (action === 'toggle-link') {
+    handleLinkClick(btn.closest('.builder-exercise-card').dataset.id, btn.closest('.exercise-item'))
   }
 })
 
@@ -723,6 +814,9 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
 async function deleteExerciseRow(peId) {
   if (!(await customConfirm('Remove this exercise from the day?'))) return
 
+  const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
+  if (card && card.dataset.supersetGroupId) unlinkSupersetPair(card.dataset.supersetGroupId, card.closest('.exercise-item'))
+
   const { error } = await supabase.from('program_exercises').delete().eq('id', peId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -731,7 +825,6 @@ async function deleteExerciseRow(peId) {
       const idx = day.program_exercises.findIndex(pe => pe.id === peId)
       if (idx === -1) continue
       day.program_exercises.splice(idx, 1)
-      const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
       if (card) card.remove()
       if (day.program_exercises.length === 0) {
         const dayBlock = document.querySelector(`.exercise-item[data-day-id="${day.id}"]`)
@@ -742,6 +835,150 @@ async function deleteExerciseRow(peId) {
       return
     }
   }
+}
+
+// ==========================================================================
+// ---- ADD SECTION (bulk-insert a saved reusable group of exercises) ----
+// Day-scoped version of training-builder.js's "Add Section" - list +
+// preview, same UX as the calendar's "Add Workout" popup. Inserted
+// exercises are offset past whatever's already in the day (never copied
+// verbatim - a verbatim copy would collide/interleave order_index with
+// exercises already in the day) and stamped with section_label so they
+// render grouped under a header (see renderExerciseListHtml).
+// ==========================================================================
+let cachedSections = null
+let selectedSectionId = null
+let selectedSectionName = null
+let currentDayIdForAddSection = null
+
+async function getSectionsList() {
+  if (cachedSections) return cachedSections
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('sections').select('*').order('name').abortSignal(signal))
+  if (error) { console.log(error); customAlert('Something went wrong loading your sections - check your connection and try again'); return null }
+  cachedSections = data
+  return cachedSections
+}
+
+function resetSectionPreview() {
+  selectedSectionId = null
+  selectedSectionName = null
+  document.getElementById('addSectionPreview').innerHTML = '<p class="no-metrics">Select a section to preview it</p>'
+  document.getElementById('insertSectionBtn').disabled = true
+}
+
+async function openAddSectionModal(dayId) {
+  currentDayIdForAddSection = dayId
+  resetSectionPreview()
+  const list = document.getElementById('addSectionList')
+  const data = await getSectionsList()
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Section Library</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No sections saved yet - create one in the Section Library first</p>'
+  } else {
+    list.innerHTML = data.map(s => `
+      <div class="training-pick-row" data-id="${s.id}" data-name="${s.name}">
+        <span>${s.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewSection(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
+
+  document.getElementById('addSectionModal').classList.add('active')
+}
+
+function renderSectionPreviewExercise(se) {
+  const thumb = getYouTubeThumbnail(se.exercises && se.exercises.video_url)
+  const setCount = deriveSetTargets(se).length
+  return `
+    <div class="workout-preview-exercise">
+      <div class="workout-preview-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '🏋'}</div>
+      <div class="workout-preview-info">
+        <div class="workout-preview-name">${se.exercises ? se.exercises.name : 'Unknown exercise'}</div>
+        <div class="workout-preview-target">${setCount} set${setCount === 1 ? '' : 's'}</div>
+      </div>
+    </div>
+  `
+}
+
+async function previewSection(sectionId, name) {
+  selectedSectionId = sectionId
+  selectedSectionName = name
+  document.getElementById('insertSectionBtn').disabled = false
+
+  const preview = document.getElementById('addSectionPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading...</p>'
+
+  const { data, error } = await supabase
+    .from('section_exercises')
+    .select('*, exercises(id, name, video_url)')
+    .eq('section_id', sectionId)
+
+  if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this section</p>'; return }
+
+  data.sort((a, b) => a.order_index - b.order_index)
+  preview.innerHTML = data.length === 0
+    ? '<p class="no-metrics">No exercises in this section</p>'
+    : data.map(renderSectionPreviewExercise).join('')
+}
+
+document.getElementById('insertSectionBtn').addEventListener('click', async function() {
+  if (!selectedSectionId) return
+  await insertSectionIntoDay(selectedSectionId, selectedSectionName)
+})
+
+document.getElementById('closeAddSectionBtn').addEventListener('click', function() {
+  document.getElementById('addSectionModal').classList.remove('active')
+})
+
+async function insertSectionIntoDay(sectionId, sectionName) {
+  const day = findDay(currentDayIdForAddSection)
+  if (!day) return
+
+  const { data: sectionExercises, error } = await supabase.from('section_exercises').select('*').eq('section_id', sectionId)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+  sectionExercises.sort((a, b) => a.order_index - b.order_index)
+  if (sectionExercises.length === 0) { document.getElementById('addSectionModal').classList.remove('active'); return }
+
+  const baseOrder = day.program_exercises.length ? Math.max(...day.program_exercises.map(pe => pe.order_index)) + 1 : 0
+
+  const { data: inserted, error: insertError } = await supabase.from('program_exercises').insert(
+    sectionExercises.map((se, i) => ({
+      day_id: day.id, exercise_id: se.exercise_id, order_index: baseOrder + i,
+      prescribed_sets: se.prescribed_sets, prescribed_reps: se.prescribed_reps,
+      prescribed_weight: se.prescribed_weight, rest_seconds: se.rest_seconds,
+      extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
+      section_label: sectionName
+    }))
+  ).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
+  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+
+  day.program_exercises.push(...inserted)
+
+  const dayBlock = document.querySelector(`.exercise-item[data-day-id="${day.id}"]`)
+  const noExMsg = dayBlock.querySelector('.no-metrics')
+  const html = renderExerciseListHtml(day.program_exercises)
+  if (noExMsg) {
+    noExMsg.outerHTML = html + `<button type="button" class="btn-save" data-action="save-day" data-day-id="${day.id}" style="margin-top:8px">💾 Save Day</button>`
+  } else {
+    // Full re-render of this day's list keeps section-header grouping
+    // correct without hand-splicing insertion points mid-list
+    const saveBtn = dayBlock.querySelector('[data-action="save-day"]')
+    dayBlock.querySelectorAll('.builder-exercise-card, .builder-section-header').forEach(el => el.remove())
+    const target = saveBtn || null
+    if (target) target.insertAdjacentHTML('beforebegin', html)
+    else dayBlock.insertAdjacentHTML('beforeend', html)
+  }
+
+  document.getElementById('addSectionModal').classList.remove('active')
 }
 
 // ==========================================================================

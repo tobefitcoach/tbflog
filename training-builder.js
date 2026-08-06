@@ -389,6 +389,22 @@ async function loadExercisesList() {
   renderExercisesList()
 }
 
+// One header per run of consecutive exercises sharing the same non-null
+// section_label - list must already be sorted by order_index. Manually/
+// individually added exercises (section_label null) never get a header.
+function renderExerciseListHtml(list) {
+  let html = ''
+  let lastLabel // undefined sentinel - a run of nulls never gets a header
+  for (const item of list) {
+    if (item.section_label !== lastLabel) {
+      if (item.section_label) html += `<div class="builder-section-header">${item.section_label}</div>`
+      lastLabel = item.section_label
+    }
+    html += renderExerciseCard(item)
+  }
+  return html
+}
+
 function renderExercisesList() {
   const container = document.getElementById('trainingExercisesList')
 
@@ -397,7 +413,7 @@ function renderExercisesList() {
     return
   }
 
-  container.innerHTML = exercisesCache.map(renderExerciseCard).join('')
+  container.innerHTML = renderExerciseListHtml(exercisesCache)
 
   // innerHTML wipes any dynamically-built children, so extra field rows
   // (built with document.createElement, not template strings) get
@@ -419,9 +435,10 @@ function renderExerciseCard(te) {
   const thumb = getYouTubeThumbnail(videoUrl)
   const targets = deriveSetTargets(te)
   const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
+  const partner = te.superset_group_id ? exercisesCache.find(other => other.id !== te.id && other.superset_group_id === te.superset_group_id) : null
 
   return `
-    <div class="builder-exercise-card" data-id="${te.id}">
+    <div class="builder-exercise-card" data-id="${te.id}" data-superset-group-id="${te.superset_group_id || ''}">
       <div class="builder-exercise-card-header">
         <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
@@ -429,6 +446,8 @@ function renderExerciseCard(te) {
         </button>
         <div class="builder-exercise-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
+        ${partner ? `<span class="builder-superset-badge">🔗 Linked with ${partner.exercises ? partner.exercises.name : 'exercise'}</span>` : ''}
+        <button type="button" class="builder-link-btn ${te.superset_group_id ? 'linked' : ''}" data-action="toggle-link" title="${te.superset_group_id ? 'Unlink superset' : 'Link with another exercise (superset)'}">🔗</button>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from workout">🗑</button>
       </div>
       <div class="set-target-rows">
@@ -483,7 +502,8 @@ async function saveExerciseCard(teId, orderIndex) {
       rest_seconds: first.rest,
       extra_fields: extraFields,
       notes,
-      order_index: orderIndex
+      order_index: orderIndex,
+      superset_group_id: card.dataset.supersetGroupId || null
     })
     .eq('id', teId)
 
@@ -525,16 +545,86 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
 async function deleteExerciseRow(id) {
   if (!(await customConfirm('Remove this exercise from the workout?'))) return
 
+  const card = document.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+  if (card && card.dataset.supersetGroupId) unlinkSupersetPair(card.dataset.supersetGroupId, trainingDropZone)
+
   const { error } = await supabase.from('training_exercises').delete().eq('id', id)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   exercisesCache = exercisesCache.filter(te => te.id !== id)
-  const card = document.querySelector(`.builder-exercise-card[data-id="${id}"]`)
   if (card) card.remove()
   if (exercisesCache.length === 0) {
     document.getElementById('trainingExercisesList').innerHTML = '<p class="no-metrics">No exercises yet — drag one in from the library on the left</p>'
   }
   renderWorkoutOutline()
+}
+
+// ==========================================================================
+// ---- SUPERSETS (link exactly two exercises) ----
+// Draft-until-Save, exactly like set_targets/notes - a link only becomes
+// real when saveExerciseCard's payload includes it. Picking mode only
+// marks OTHER cards in this same training as pickable, since a superset
+// partner always has to be within the same exercise list.
+// ==========================================================================
+let pickingPartnerForId = null
+
+function handleLinkClick(id, listScopeEl) {
+  const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+  const currentGroupId = card.dataset.supersetGroupId || null
+  if (currentGroupId) { unlinkSupersetPair(currentGroupId, listScopeEl); return }
+  if (pickingPartnerForId === id) { exitPickingMode(listScopeEl); return }
+  if (pickingPartnerForId) { completeSupersetPairing(pickingPartnerForId, id, listScopeEl); return }
+  enterPickingMode(id, listScopeEl)
+}
+
+function enterPickingMode(id, listScopeEl) {
+  pickingPartnerForId = id
+  listScopeEl.querySelectorAll('.builder-exercise-card').forEach(card => {
+    const isSelf = card.dataset.id === id
+    const isLinked = !!card.dataset.supersetGroupId
+    card.classList.toggle('picking-self', isSelf)
+    card.classList.toggle('pickable', !isSelf && !isLinked)
+  })
+}
+
+function exitPickingMode(listScopeEl) {
+  pickingPartnerForId = null
+  listScopeEl.querySelectorAll('.builder-exercise-card').forEach(c => c.classList.remove('picking-self', 'pickable'))
+}
+
+function completeSupersetPairing(idA, idB, listScopeEl) {
+  const groupId = crypto.randomUUID()
+  const cardA = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idA}"]`)
+  const cardB = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idB}"]`)
+  cardA.dataset.supersetGroupId = groupId
+  cardB.dataset.supersetGroupId = groupId
+  exitPickingMode(listScopeEl)
+  refreshSupersetBadge(cardA)
+  refreshSupersetBadge(cardB)
+}
+
+function unlinkSupersetPair(groupId, listScopeEl) {
+  listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`).forEach(card => {
+    delete card.dataset.supersetGroupId
+    refreshSupersetBadge(card)
+  })
+}
+
+function refreshSupersetBadge(card) {
+  const existing = card.querySelector('.builder-superset-badge')
+  if (existing) existing.remove()
+  const linkBtn = card.querySelector('.builder-link-btn')
+  const groupId = card.dataset.supersetGroupId
+  linkBtn.classList.toggle('linked', !!groupId)
+  linkBtn.title = groupId ? 'Unlink superset' : 'Link with another exercise (superset)'
+  if (!groupId) return
+  const partnerCard = [...trainingDropZone.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].find(c => c !== card)
+  const partnerName = partnerCard ? partnerCard.querySelector('.builder-exercise-name').textContent : null
+  if (!partnerName) return
+  card.querySelector('.builder-exercise-card-header').insertBefore(
+    Object.assign(document.createElement('span'), { className: 'builder-superset-badge', textContent: `🔗 Linked with ${partnerName}` }),
+    linkBtn
+  )
 }
 
 document.getElementById('trainingExercisesList').addEventListener('click', async function(e) {
@@ -561,6 +651,8 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
     await deleteExerciseRow(teId)
   } else if (btn.dataset.action === 'add-extra-field') {
     addExtraFieldRow(`extraFields-${teId}`)
+  } else if (btn.dataset.action === 'toggle-link') {
+    handleLinkClick(teId, trainingDropZone)
   }
 })
 
@@ -656,6 +748,129 @@ document.getElementById('saveTCreateExerciseBtn').addEventListener('click', asyn
   document.getElementById('tCreateExerciseModal').classList.remove('active')
   await addExerciseToTraining(data[0].id)
 })
+
+// ==========================================================================
+// ---- ADD SECTION (bulk-insert a saved reusable group of exercises) ----
+// List + preview, same UX as the calendar's "Add Workout" popup. Inserted
+// exercises are offset past whatever's already in the training (never
+// copied verbatim - a verbatim copy would collide/interleave order_index
+// with exercises already in the list) and stamped with section_label so
+// they render grouped under a header (see renderExerciseListHtml).
+// ==========================================================================
+let cachedSections = null
+let selectedSectionId = null
+let selectedSectionName = null
+
+async function getSectionsList() {
+  if (cachedSections) return cachedSections
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('sections').select('*').order('name').abortSignal(signal))
+  if (error) { console.log(error); customAlert('Something went wrong loading your sections - check your connection and try again'); return null }
+  cachedSections = data
+  return cachedSections
+}
+
+function resetSectionPreview() {
+  selectedSectionId = null
+  selectedSectionName = null
+  document.getElementById('addSectionPreview').innerHTML = '<p class="no-metrics">Select a section to preview it</p>'
+  document.getElementById('insertSectionBtn').disabled = true
+}
+
+document.getElementById('addSectionBtn').addEventListener('click', async function() {
+  resetSectionPreview()
+  const list = document.getElementById('addSectionList')
+  const data = await getSectionsList()
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Section Library</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No sections saved yet - create one in the Section Library first</p>'
+  } else {
+    list.innerHTML = data.map(s => `
+      <div class="training-pick-row" data-id="${s.id}" data-name="${s.name}">
+        <span>${s.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewSection(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
+
+  document.getElementById('addSectionModal').classList.add('active')
+})
+
+function renderSectionPreviewExercise(se) {
+  const thumb = getYouTubeThumbnail(se.exercises && se.exercises.video_url)
+  const setCount = deriveSetTargets(se).length
+  return `
+    <div class="workout-preview-exercise">
+      <div class="workout-preview-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '🏋'}</div>
+      <div class="workout-preview-info">
+        <div class="workout-preview-name">${se.exercises ? se.exercises.name : 'Unknown exercise'}</div>
+        <div class="workout-preview-target">${setCount} set${setCount === 1 ? '' : 's'}</div>
+      </div>
+    </div>
+  `
+}
+
+async function previewSection(sectionId, name) {
+  selectedSectionId = sectionId
+  selectedSectionName = name
+  document.getElementById('insertSectionBtn').disabled = false
+
+  const preview = document.getElementById('addSectionPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading...</p>'
+
+  const { data, error } = await supabase
+    .from('section_exercises')
+    .select('*, exercises(id, name, video_url)')
+    .eq('section_id', sectionId)
+
+  if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this section</p>'; return }
+
+  data.sort((a, b) => a.order_index - b.order_index)
+  preview.innerHTML = data.length === 0
+    ? '<p class="no-metrics">No exercises in this section</p>'
+    : data.map(renderSectionPreviewExercise).join('')
+}
+
+document.getElementById('insertSectionBtn').addEventListener('click', async function() {
+  if (!selectedSectionId) return
+  await insertSectionIntoTraining(selectedSectionId, selectedSectionName)
+})
+
+document.getElementById('closeAddSectionBtn').addEventListener('click', function() {
+  document.getElementById('addSectionModal').classList.remove('active')
+})
+
+async function insertSectionIntoTraining(sectionId, sectionName) {
+  const { data: sectionExercises, error } = await supabase.from('section_exercises').select('*').eq('section_id', sectionId)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+  sectionExercises.sort((a, b) => a.order_index - b.order_index)
+  if (sectionExercises.length === 0) { document.getElementById('addSectionModal').classList.remove('active'); return }
+
+  const baseOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
+
+  const { data: inserted, error: insertError } = await supabase.from('training_exercises').insert(
+    sectionExercises.map((se, i) => ({
+      training_id: trainingId, exercise_id: se.exercise_id, order_index: baseOrder + i,
+      prescribed_sets: se.prescribed_sets, prescribed_reps: se.prescribed_reps,
+      prescribed_weight: se.prescribed_weight, rest_seconds: se.rest_seconds,
+      extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
+      section_label: sectionName
+    }))
+  ).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
+  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+
+  exercisesCache.push(...inserted)
+  renderExercisesList()
+  document.getElementById('addSectionModal').classList.remove('active')
+}
 
 // ==========================================================================
 // ---- RENAME TRAINING ----

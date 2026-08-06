@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=12" />
-  <link rel="stylesheet" href="athlete.css?v=21" />
+  <link rel="stylesheet" href="athlete.css?v=22" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -31,6 +31,7 @@
             <span class="sidebar-link">Library</span>
             <div class="sidebar-submenu">
               <a href="exercises.html">Exercise Library</a>
+              <a href="sections.html">Section Library</a>
               <a href="trainings.html">Workout Library</a>
               <a href="programs.html">Program Library</a>
             </div>
@@ -880,6 +881,7 @@
         <div class="modal-tab-bar">
           <button type="button" class="modal-tab-btn active" id="dayAddTabWorkout">Single Workout</button>
           <button type="button" class="modal-tab-btn" id="dayAddTabProgram">Program</button>
+          <button type="button" class="modal-tab-btn" id="dayAddTabSection">Section</button>
         </div>
 
         <!-- Left: pick a saved Training - clicking one previews it on the
@@ -937,6 +939,27 @@
             <button class="btn-save" id="saveDayAddProgramBtn" disabled>Assign Program</button>
           </div>
         </div>
+
+        <!-- Left: pick a saved Section - same list-then-preview pattern as
+             the Single Workout tab. Insert bulk-copies the section's
+             exercises onto this day, offset past whatever's already there. -->
+        <div class="modal-tab-panel" id="dayAddSectionPanel">
+          <div class="day-add-workout-layout">
+            <div class="day-add-workout-list-col">
+              <div class="day-add-workout-list-header">
+                <span class="day-add-workout-list-title">Sections</span>
+                <a href="sections.html" target="_blank" class="btn-small-create">+ New</a>
+              </div>
+              <div class="entries-modal-body" id="dayAddSectionList"></div>
+            </div>
+            <div class="day-add-workout-preview" id="dayAddSectionPreview">
+              <p class="no-metrics">Select a section to preview it</p>
+            </div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
+            <button class="btn-save" id="selectSectionForDayBtn" disabled>Insert</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -991,7 +1014,7 @@
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
     <script type="module" src="athlete.js?v=15"></script>
-    <script type="module" src="athlete-calendar.js?v=22"></script>
+    <script type="module" src="athlete-calendar.js?v=23"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

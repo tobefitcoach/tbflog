@@ -667,6 +667,57 @@
   margin-bottom: 4px;
 }
 
+/* Section this exercise came from (see section_label) - a light subtitle
+   above the title, not a full group header, since only one exercise (or
+   superset pair) is ever visible at a time on this screen */
+.active-exercise-section-label {
+  color: #aaaacc;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+/* --- Superset slide: two exercise headers stacked above one shared,
+   interleaved set list --- */
+.superset-slide-label {
+  color: #e0a030;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.superset-exercise-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.active-exercise-thumb-small {
+  width: 64px;
+  height: 64px;
+  aspect-ratio: unset;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.active-exercise-title-small {
+  font-size: 16px;
+  margin-bottom: 0;
+}
+
+/* Prefix on a set row's label when two exercises' sets are interleaved on
+   one superset slide, so the athlete can tell which exercise a row is for */
+.set-row-exercise-label {
+  display: block;
+  color: #aaaacc;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 /* Swipeable slide (the exercise card, or the end-of-workout card) - see
    attachSwipeHandlers()/mountSlide() in dashboard.js. touch-action:pan-y
    tells the browser to leave vertical scrolling alone but not fight our

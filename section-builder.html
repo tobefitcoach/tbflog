@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Workout Builder — TBFlog</title>
+    <title>Section Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=12" />
     <link rel="stylesheet" href="athlete.css?v=22" />
   </head>
@@ -34,10 +34,10 @@
       </nav>
 
       <!-- Mini Exercise Library: search + drag source. Dropping a card onto
-           the training's exercise list on the right adds it (with blank
+           the section's exercise list on the right adds it (with blank
            prescribed values - click the exercise afterward to fill those
            in). "+ Create New Exercise" adds straight to both this library
-           and the training. -->
+           and the section. -->
       <div class="exercise-library-panel">
         <h3>Exercise Library</h3>
         <input type="text" id="exerciseSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
@@ -47,23 +47,19 @@
 
       <div class="dashboard training-builder-main">
         <div class="dashboard-header">
-          <h2 id="trainingNameHeading">Loading...</h2>
+          <h2 id="sectionNameHeading">Loading...</h2>
           <div style="display:flex; gap:12px">
-            <button class="btn-profile-action" id="renameTrainingBtn">✏ Rename</button>
-            <button class="btn-profile-action" id="addSectionBtn">🧩 Add Section</button>
-            <button class="btn-save" id="saveTrainingBtn">💾 Save</button>
+            <button class="btn-profile-action" id="renameSectionBtn">✏ Rename</button>
+            <button class="btn-save" id="saveSectionBtn">💾 Save</button>
           </div>
         </div>
         <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:16px">Drag an exercise from the library to add it here.</p>
-        <div id="trainingExercisesList"></div>
+        <div id="sectionExercisesList"></div>
       </div>
 
       <!-- Exercise order outline: just names, in order - dragging one of
            these rows is a lot easier than dragging a whole tall exercise
-           card, so it's a second, quicker way to reorder the same list
-           (see training-builder.js's outline drag handlers, which keep
-           this and the exercise cards on the left in sync with each
-           other). -->
+           card, so it's a second, quicker way to reorder the same list. -->
       <div class="workout-outline-panel">
         <h3>Exercise Order</h3>
         <p style="color:#aaaacc; font-size:11px; margin-top:-8px; margin-bottom:12px">Drag to reorder</p>
@@ -71,104 +67,77 @@
       </div>
     </div>
 
-    <!-- Rename Training Modal -->
-    <div class="modal-overlay" id="renameTrainingModal">
+    <!-- Rename Section Modal -->
+    <div class="modal-overlay" id="renameSectionModal">
       <div class="modal">
-        <h2>Rename Workout</h2>
+        <h2>Rename Section</h2>
         <div class="form-group">
           <label>Name</label>
-          <input type="text" id="renameTrainingInput" />
+          <input type="text" id="renameSectionInput" />
         </div>
         <div class="form-actions">
-          <button class="btn-cancel" id="cancelRenameTrainingBtn">Cancel</button>
-          <button class="btn-save" id="saveRenameTrainingBtn">Save</button>
+          <button class="btn-cancel" id="cancelRenameSectionBtn">Cancel</button>
+          <button class="btn-save" id="saveRenameSectionBtn">Save</button>
         </div>
       </div>
     </div>
 
     <!-- Create New Exercise Modal: opened from the Exercise Library panel's
-         "+ Create New Exercise" button, adds straight to the training too -->
-    <div class="modal-overlay" id="tCreateExerciseModal">
+         "+ Create New Exercise" button, adds straight to the section too -->
+    <div class="modal-overlay" id="sCreateExerciseModal">
       <div class="modal">
         <h2>Create New Exercise</h2>
         <div class="form-group">
           <label>Name</label>
-          <input type="text" id="tCreateExerciseName" placeholder="e.g. Romanian Deadlift" />
+          <input type="text" id="sCreateExerciseName" placeholder="e.g. Romanian Deadlift" />
         </div>
         <div class="form-group">
           <label>Category</label>
-          <select id="tCreateExerciseCategory">
+          <select id="sCreateExerciseCategory">
             <option value="__new__">+ Add New Category</option>
           </select>
         </div>
-        <div class="form-group" id="tCreateExerciseNewCategoryGroup" style="display:none">
+        <div class="form-group" id="sCreateExerciseNewCategoryGroup" style="display:none">
           <label>New Category Name</label>
-          <input type="text" id="tCreateExerciseNewCategory" placeholder="e.g. Legs" />
+          <input type="text" id="sCreateExerciseNewCategory" placeholder="e.g. Legs" />
         </div>
         <div class="form-group">
           <label>Type</label>
-          <select id="tCreateExerciseType">
+          <select id="sCreateExerciseType">
             <option value="weights">Weightlifting (sets, reps, weight)</option>
             <option value="timed">Timed (sets, duration)</option>
             <option value="plyometric">Plyometric (sets, foot contacts, intensity)</option>
             <option value="__new__">+ Add New Type</option>
           </select>
         </div>
-        <div class="form-group" id="tCreateExerciseNewTypeGroup" style="display:none">
+        <div class="form-group" id="sCreateExerciseNewTypeGroup" style="display:none">
           <label>New Type Name</label>
-          <input type="text" id="tCreateExerciseNewType" placeholder="e.g. Sprints" />
+          <input type="text" id="sCreateExerciseNewType" placeholder="e.g. Sprints" />
         </div>
         <div class="form-group">
           <label>Logging Fields</label>
           <p style="color:#aaaacc; font-size:12px; margin:-2px 0 8px">What to track when this exercise is logged - independent of Type above, so any combination works (e.g. a weighted timed hold).</p>
           <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Track Weight (kg)</span>
-            <span class="toggle-switch"><input type="checkbox" id="tCreateExerciseTracksWeight" checked><span class="toggle-slider"></span></span>
+            <span class="toggle-switch"><input type="checkbox" id="sCreateExerciseTracksWeight" checked><span class="toggle-slider"></span></span>
           </label>
           <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Timed</span>
-            <span class="toggle-switch"><input type="checkbox" id="tCreateExerciseIsTimed"><span class="toggle-slider"></span></span>
+            <span class="toggle-switch"><input type="checkbox" id="sCreateExerciseIsTimed"><span class="toggle-slider"></span></span>
           </label>
           <label class="bodyweight-toggle"><span>Log Each Side (unilateral)</span>
-            <span class="toggle-switch"><input type="checkbox" id="tCreateExerciseIsUnilateral"><span class="toggle-slider"></span></span>
+            <span class="toggle-switch"><input type="checkbox" id="sCreateExerciseIsUnilateral"><span class="toggle-slider"></span></span>
           </label>
         </div>
         <div class="form-group">
           <label>Video Link (optional)</label>
-          <input type="url" id="tCreateExerciseVideoUrl" placeholder="https://youtube.com/..." />
+          <input type="url" id="sCreateExerciseVideoUrl" placeholder="https://youtube.com/..." />
         </div>
         <div class="form-group">
           <label>Instructions (optional)</label>
-          <textarea id="tCreateExerciseInstructions" class="notes-textarea"></textarea>
+          <textarea id="sCreateExerciseInstructions" class="notes-textarea"></textarea>
         </div>
         <div class="form-actions">
-          <button class="btn-cancel" id="cancelTCreateExerciseBtn">Cancel</button>
-          <button class="btn-save" id="saveTCreateExerciseBtn">Create & Select</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add Section popup: list + preview, same layout pattern as the
-         calendar's "Add Workout" popup - picking a row previews it on the
-         right, Insert bulk-copies its exercises into this training. -->
-    <div class="modal-overlay" id="addSectionModal">
-      <div class="modal modal-wide">
-        <div class="graph-modal-header">
-          <h2>Add Section</h2>
-          <button class="btn-cancel" id="closeAddSectionBtn">✕</button>
-        </div>
-        <div class="day-add-workout-layout">
-          <div class="day-add-workout-list-col">
-            <div class="day-add-workout-list-header">
-              <span class="day-add-workout-list-title">Sections</span>
-              <a href="sections.html" target="_blank" class="btn-small-create">+ New</a>
-            </div>
-            <div class="entries-modal-body" id="addSectionList"></div>
-          </div>
-          <div class="day-add-workout-preview" id="addSectionPreview">
-            <p class="no-metrics">Select a section to preview it</p>
-          </div>
-        </div>
-        <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
-          <button class="btn-save" id="insertSectionBtn" disabled>Insert</button>
+          <button class="btn-cancel" id="cancelSCreateExerciseBtn">Cancel</button>
+          <button class="btn-save" id="saveSCreateExerciseBtn">Create & Select</button>
         </div>
       </div>
     </div>
@@ -176,7 +145,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="training-builder.js?v=14"></script>
+    <script type="module" src="section-builder.js?v=1"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

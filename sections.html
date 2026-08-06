@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Program Library — TBFlog</title>
+    <title>Section Library — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=12" />
     <link rel="stylesheet" href="athlete.css?v=22" />
   </head>
@@ -35,25 +35,26 @@
 
       <div class="dashboard">
         <div class="dashboard-header">
-          <h2>Program Library</h2>
-          <button class="btn-add" id="newTemplateBtn">+ New Template</button>
+          <h2>Section Library</h2>
+          <button class="btn-add" id="newSectionBtn">+ New Section</button>
         </div>
-        <div class="athlete-grid" id="programGrid"></div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:24px">A section is a reusable group of exercises (e.g. "Warm-up A") - build once, then drop it into any workout or program day.</p>
+        <div class="athlete-grid" id="sectionGrid"></div>
       </div>
     </div>
 
-    <!-- New Template Modal: just a name - the actual weeks/days/exercises
-         get built on program-builder.html after this redirects there -->
-    <div class="modal-overlay" id="newTemplateModal">
+    <!-- New Section Modal: just a name - the exercise list gets built on
+         section-builder.html after this redirects there -->
+    <div class="modal-overlay" id="newSectionModal">
       <div class="modal">
-        <h2>New Program Template</h2>
+        <h2>New Section</h2>
         <div class="form-group">
           <label>Name</label>
-          <input type="text" id="newTemplateName" placeholder="e.g. Push Pull Legs - Hypertrophy" />
+          <input type="text" id="newSectionName" placeholder="e.g. Warm-up A" />
         </div>
         <div class="form-actions">
-          <button class="btn-cancel" id="cancelNewTemplateBtn">Cancel</button>
-          <button class="btn-save" id="saveNewTemplateBtn">Create & Edit</button>
+          <button class="btn-cancel" id="cancelNewSectionBtn">Cancel</button>
+          <button class="btn-save" id="saveNewSectionBtn">Create & Edit</button>
         </div>
       </div>
     </div>
@@ -61,7 +62,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="programs.js?v=3"></script>
+    <script type="module" src="sections.js?v=1"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

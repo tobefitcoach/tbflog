@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=12" />
-    <link rel="stylesheet" href="athlete.css?v=21" />
+    <link rel="stylesheet" href="athlete.css?v=22" />
   </head>
   <body>
 
@@ -25,6 +25,7 @@
             <span class="sidebar-link active">Library</span>
             <div class="sidebar-submenu">
               <a href="exercises.html">Exercise Library</a>
+              <a href="sections.html">Section Library</a>
               <a href="trainings.html">Workout Library</a>
               <a href="programs.html">Program Library</a>
             </div>
@@ -156,10 +157,37 @@
       </div>
     </div>
 
+    <!-- Add Section popup: list + preview, same layout pattern as the
+         calendar's "Add Workout" popup - picking a row previews it on the
+         right, Insert bulk-copies its exercises into the day. -->
+    <div class="modal-overlay" id="addSectionModal">
+      <div class="modal modal-wide">
+        <div class="graph-modal-header">
+          <h2>Add Section</h2>
+          <button class="btn-cancel" id="closeAddSectionBtn">✕</button>
+        </div>
+        <div class="day-add-workout-layout">
+          <div class="day-add-workout-list-col">
+            <div class="day-add-workout-list-header">
+              <span class="day-add-workout-list-title">Sections</span>
+              <a href="sections.html" target="_blank" class="btn-small-create">+ New</a>
+            </div>
+            <div class="entries-modal-body" id="addSectionList"></div>
+          </div>
+          <div class="day-add-workout-preview" id="addSectionPreview">
+            <p class="no-metrics">Select a section to preview it</p>
+          </div>
+        </div>
+        <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
+          <button class="btn-save" id="insertSectionBtn" disabled>Insert</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=11"></script>
+    <script type="module" src="program-builder.js?v=12"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

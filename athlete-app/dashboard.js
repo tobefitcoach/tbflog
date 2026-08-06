@@ -1305,10 +1305,23 @@ function renderDayPreviewGroup(entry, isToday) {
     actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
   }
 
+  // One header per run of consecutive exercises sharing the same non-null
+  // section_label (exercises is already sorted by order_index above) -
+  // reuses the same .builder-section-header class the coach's builders use
+  let exercisesHtml = ''
+  let lastLabel
+  for (const pe of exercises) {
+    if (pe.section_label !== lastLabel) {
+      if (pe.section_label) exercisesHtml += `<div class="builder-section-header">${pe.section_label}</div>`
+      lastLabel = pe.section_label
+    }
+    exercisesHtml += renderDayPreviewExercise(pe, showLoggedValues)
+  }
+
   return `
     <div class="detail-group">
       <h4 class="detail-group-title">${trainingDisplayName(entry)}</h4>
-      ${exercises.map(pe => renderDayPreviewExercise(pe, showLoggedValues)).join('')}
+      ${exercisesHtml}
       ${actionButton}
     </div>
   `
@@ -1387,16 +1400,47 @@ async function findOrCreateSession(programDayId) {
   return newSession
 }
 
-// Resumes at the first exercise whose prescribed sets aren't all logged yet
-// - derived from already-loaded logSetsByPE, no extra column needed
-function findResumeIndex(exercises) {
-  for (let i = 0; i < exercises.length; i++) {
-    const pe = exercises[i]
+// Groups a linked (superset) pair of exercises into one merged "slide" -
+// the guided view walks slides, not raw exercises, so a superset pair
+// occupies exactly one slot wherever the earlier-ordered member falls (the
+// coach doesn't need to keep linked exercises adjacent in the list).
+function buildWorkoutSlides(exercises) {
+  const slides = []
+  const consumed = new Set()
+  for (const pe of exercises) {
+    if (consumed.has(pe.id)) continue
+    if (pe.superset_group_id) {
+      const partner = exercises.find(x => x.id !== pe.id && x.superset_group_id === pe.superset_group_id)
+      if (partner) {
+        consumed.add(pe.id)
+        consumed.add(partner.id)
+        slides.push({ type: 'superset', first: pe, second: partner })
+        continue
+      }
+      // partner not in today's exercise list (defensive) - falls through
+      // to a normal single slide instead
+    }
+    slides.push({ type: 'single', pe })
+  }
+  return slides
+}
+
+function slideIsFullyLogged(slide) {
+  const pes = slide.type === 'superset' ? [slide.first, slide.second] : [slide.pe]
+  return pes.every(function(pe) {
     const prescribed = pe.prescribed_sets || 1
     const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
-    if (logged.length < prescribed) return i
+    return logged.length >= prescribed
+  })
+}
+
+// Resumes at the first slide whose exercise(s) aren't all logged yet -
+// derived from already-loaded logSetsByPE, no extra column needed
+function findResumeIndex(slides) {
+  for (let i = 0; i < slides.length; i++) {
+    if (!slideIsFullyLogged(slides[i])) return i
   }
-  return Math.max(exercises.length - 1, 0)
+  return Math.max(slides.length - 1, 0)
 }
 
 // Renders the first exercise immediately - findResumeIndex only needs data
@@ -1414,22 +1458,67 @@ function startWorkout(entry, dateStr) {
     openSessionsByDayId[entry.day.id] = session
     return session
   })
-  const resumeIndex = findResumeIndex(exercises)
-  renderActiveExercise(entry, dateStr, exercises, resumeIndex, sessionPromise)
+  const slides = buildWorkoutSlides(exercises)
+  const resumeIndex = findResumeIndex(slides)
+  renderActiveExercise(entry, dateStr, slides, resumeIndex, sessionPromise)
 }
+
+// Set on every renderActiveExercise call (single or superset), read by
+// maybeStartRestTimer to decide whether the checked exercise is the FIRST
+// or SECOND member of a linked pair. Not reset anywhere else on purpose -
+// checkSet can only ever fire while a guided slide's DOM (and its
+// wireExerciseCardEvents listener) exists, and that DOM is only ever
+// created by this function, which always sets this first - so it's
+// impossible for a stale value to be read.
+let currentSlideContext = null
 
 // direction: 1 when arriving from a Next/swipe-left (new slide enters from
 // the right), -1 from Previous/swipe-right (enters from the left), omitted
 // for the very first exercise shown (no animation, nothing to slide from)
-function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, direction) {
+function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, direction) {
   clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
-  const pe = exercises[index]
+  const slide = slides[index]
+  const isLast = index === slides.length - 1
+  currentSlideContext = slide
+
+  pageContent.innerHTML = `
+    <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
+    ${slide.type === 'superset' ? renderSupersetSlideBody(slide) : renderSingleSlideBody(slide.pe)}
+    <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
+    <div id="restTimerBar" class="rest-timer-bar"></div>
+  `
+
+  wireExerciseCardEvents('activeExerciseCard', dateStr)
+
+  attachSwipeHandlers(
+    function onSwipeLeft() {
+      if (isLast) renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, 1)
+      else renderActiveExercise(entry, dateStr, slides, index + 1, sessionPromise, 1)
+    },
+    // Passing null (instead of a function that no-ops on index 0) matters:
+    // attachSwipeHandlers plays the slide-out-off-screen animation whenever
+    // a callback is present at all, whether or not it actually goes
+    // anywhere - on the first exercise that meant the card would slide
+    // fully off screen and just leave a blank gap, since there's no
+    // previous exercise to replace it with.
+    index > 0 ? function onSwipeRight() {
+      renderActiveExercise(entry, dateStr, slides, index - 1, sessionPromise, -1)
+    } : null
+  )
+
+  mountSlide(direction)
+}
+
+// Today's original single-exercise slide, unchanged - just extracted into
+// its own function so renderActiveExercise can also render a merged
+// superset slide via the same wrapper (progress line, swipe hint, rest
+// timer bar all stay shared between both).
+function renderSingleSlideBody(pe) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
-  const isLast = index === exercises.length - 1
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
 
@@ -1442,50 +1531,84 @@ function renderActiveExercise(entry, dateStr, exercises, index, sessionPromise, 
     rowsHtml += renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra)
   }
 
-  pageContent.innerHTML = `
-    <p class="active-exercise-progress">Exercise ${index + 1} of ${exercises.length}</p>
-    <div id="activeExerciseCard" class="workout-slide" data-pe-id="${pe.id}">
-      <button type="button" class="active-exercise-thumb" id="activeExerciseThumbBtn" ${videoUrl ? '' : 'disabled'}>
+  return `
+    <div id="activeExerciseCard" class="workout-slide">
+      <button type="button" class="active-exercise-thumb" data-video-url="${videoUrl}" ${videoUrl ? '' : 'disabled'}>
         ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
       </button>
+      ${pe.section_label ? `<p class="active-exercise-section-label">${pe.section_label}</p>` : ''}
       <div class="active-exercise-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
-      <div class="set-rows" data-pe-id="${pe.id}">${rowsHtml}</div>
-      <button type="button" class="add-set-btn" data-action="add-set">+ Add Set</button>
+      <div class="set-rows">${rowsHtml}</div>
+      <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set</button>
     </div>
-    <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
-    <div id="restTimerBar" class="rest-timer-bar"></div>
   `
+}
 
-  document.getElementById('activeExerciseThumbBtn').addEventListener('click', function() {
-    playInlineVideo(this, videoUrl)
-  })
+// Linked pair: both exercises' headers, then sets interleaved round by
+// round (exercise 1 set 1, exercise 2 set 1, exercise 1 set 2, ...) capped
+// at each exercise's own set count if they differ. Each row is prefixed
+// with its exercise's name (see renderSetRow's exerciseLabel param) so the
+// athlete can tell the two apart while interleaved.
+function renderSupersetSlideBody(slide) {
+  const first = slide.first
+  const second = slide.second
+  const firstIsTimed = first.exercises && first.exercises.is_timed
+  const firstTracksWeight = !first.exercises || first.exercises.tracks_weight
+  const secondIsTimed = second.exercises && second.exercises.is_timed
+  const secondTracksWeight = !second.exercises || second.exercises.tracks_weight
 
-  wireExerciseCardEvents('activeExerciseCard', dateStr)
+  const firstLogged = logSetsByPE[first.id] || []
+  const secondLogged = logSetsByPE[second.id] || []
+  const firstCount = Math.max(first.prescribed_sets || 1, firstLogged.length)
+  const secondCount = Math.max(second.prescribed_sets || 1, secondLogged.length)
+  const rounds = Math.max(firstCount, secondCount)
 
-  attachSwipeHandlers(
-    function onSwipeLeft() {
-      if (isLast) renderEndOfWorkoutSlide(entry, dateStr, exercises, sessionPromise, 1)
-      else renderActiveExercise(entry, dateStr, exercises, index + 1, sessionPromise, 1)
-    },
-    // Passing null (instead of a function that no-ops on index 0) matters:
-    // attachSwipeHandlers plays the slide-out-off-screen animation whenever
-    // a callback is present at all, whether or not it actually goes
-    // anywhere - on the first exercise that meant the card would slide
-    // fully off screen and just leave a blank gap, since there's no
-    // previous exercise to replace it with.
-    index > 0 ? function onSwipeRight() {
-      renderActiveExercise(entry, dateStr, exercises, index - 1, sessionPromise, -1)
-    } : null
-  )
+  let rowsHtml = ''
+  for (let round = 1; round <= rounds; round++) {
+    if (round <= firstCount) {
+      rowsHtml += renderSetRow(first, round, firstLogged.find(s => s.set_number === round), firstIsTimed, firstTracksWeight, round > (first.prescribed_sets || 0), first.exercises ? first.exercises.name : 'Exercise 1')
+    }
+    if (round <= secondCount) {
+      rowsHtml += renderSetRow(second, round, secondLogged.find(s => s.set_number === round), secondIsTimed, secondTracksWeight, round > (second.prescribed_sets || 0), second.exercises ? second.exercises.name : 'Exercise 2')
+    }
+  }
 
-  mountSlide(direction)
+  function headerHtml(pe) {
+    const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
+    const thumb = getYouTubeThumbnail(videoUrl)
+    return `
+      <div class="superset-exercise-header">
+        <button type="button" class="active-exercise-thumb active-exercise-thumb-small" data-video-url="${videoUrl}" ${videoUrl ? '' : 'disabled'}>
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
+        </button>
+        <div>
+          ${pe.section_label ? `<p class="active-exercise-section-label">${pe.section_label}</p>` : ''}
+          <div class="active-exercise-title active-exercise-title-small">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+          ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
+        </div>
+      </div>
+    `
+  }
+
+  return `
+    <div id="activeExerciseCard" class="workout-slide">
+      <p class="superset-slide-label">🔗 Superset</p>
+      ${headerHtml(first)}
+      ${headerHtml(second)}
+      <div class="set-rows">${rowsHtml}</div>
+      <div style="display:flex; gap:8px">
+        <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${first.id}">+ Add Set (${first.exercises ? first.exercises.name : 'Exercise 1'})</button>
+        <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${second.id}">+ Add Set (${second.exercises ? second.exercises.name : 'Exercise 2'})</button>
+      </div>
+    </div>
+  `
 }
 
 // Reached by pressing Next (or swiping left) on the last exercise - the
 // only place "End Workout" lives now, instead of a persistent link on
 // every slide
-function renderEndOfWorkoutSlide(entry, dateStr, exercises, sessionPromise, direction) {
+function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, direction) {
   clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
@@ -1507,7 +1630,7 @@ function renderEndOfWorkoutSlide(entry, dateStr, exercises, sessionPromise, dire
   attachSwipeHandlers(
     null, // already the last slide, nothing to swipe forward to
     function onSwipeRight() {
-      renderActiveExercise(entry, dateStr, exercises, exercises.length - 1, sessionPromise, -1)
+      renderActiveExercise(entry, dateStr, slides, slides.length - 1, sessionPromise, -1)
     }
   )
 
@@ -1960,7 +2083,7 @@ async function loadAndRenderPRBadges(session, entry) {
 // Unchanged from the per-set logging built earlier - now dropped into the
 // single active-exercise card above instead of an all-exercises list.
 // ==========================================================================
-function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra) {
+function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exerciseLabel) {
   const checked = !!(logged && logged.completed_at)
   // Each set can have its own coach-set target now (a pyramid) - fall back
   // to the old shared prescribed_reps/prescribed_weight for sets beyond
@@ -1982,8 +2105,8 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra) {
   const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
 
   return `
-    <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}">
-      <span class="set-label">Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
+    <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
+      <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
       <input type="text" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>
       ${tracksWeight ? `
         <input type="number" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
@@ -2020,10 +2143,19 @@ function toggleRowUnit(rowEl) {
 
 function wireExerciseCardEvents(containerId, dateStr) {
   document.getElementById(containerId).addEventListener('click', async function(e) {
+    const thumbBtn = e.target.closest('.active-exercise-thumb')
+    if (thumbBtn && thumbBtn.dataset.videoUrl) {
+      playInlineVideo(thumbBtn, thumbBtn.dataset.videoUrl)
+      return
+    }
+
     const btn = e.target.closest('[data-action]')
     if (!btn) return
-    const peId = document.getElementById(containerId).dataset.peId
     const row = btn.closest('.set-row')
+    // add-set buttons carry their own data-pe-id (there can be two on a
+    // superset slide, one per exercise); check/uncheck/remove-set read it
+    // off the row they're inside instead
+    const peId = btn.dataset.peId || (row && row.dataset.peId)
 
     if (btn.dataset.action === 'add-set') {
       addSetRow(peId)
@@ -2045,11 +2177,20 @@ function wireExerciseCardEvents(containerId, dateStr) {
 function addSetRow(peId) {
   const pe = findPE(peId)
   if (!pe) return
-  const rowsContainer = document.querySelector(`.set-rows[data-pe-id="${peId}"]`)
-  const nextNumber = rowsContainer.children.length + 1
+  const rowsContainer = document.getElementById('activeExerciseCard').querySelector('.set-rows')
+  // Scoped to this exercise's own rows within the shared container (a
+  // superset slide has two exercises' rows interleaved in one .set-rows) -
+  // a new row is inserted right after this exercise's own last row, not
+  // just appended to the end of the whole container
+  const ownRows = [...rowsContainer.querySelectorAll(`.set-row[data-pe-id="${peId}"]`)]
+  const nextNumber = ownRows.length + 1
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
-  rowsContainer.insertAdjacentHTML('beforeend', renderSetRow(pe, nextNumber, null, isTimed, tracksWeight, true))
+  const exerciseLabel = currentSlideContext && currentSlideContext.type === 'superset' ? (pe.exercises ? pe.exercises.name : 'Exercise') : undefined
+  const html = renderSetRow(pe, nextNumber, null, isTimed, tracksWeight, true, exerciseLabel)
+  const lastOwnRow = ownRows[ownRows.length - 1]
+  if (lastOwnRow) lastOwnRow.insertAdjacentHTML('afterend', html)
+  else rowsContainer.insertAdjacentHTML('beforeend', html)
 }
 
 // Optimistic UI: the row flips to "checked" instantly, and logSetsByPE
@@ -2272,8 +2413,7 @@ function settleEntry(entry, success, error, savedRow) {
 }
 
 function findSetRowEl(peId, setNumber) {
-  const container = document.querySelector(`.set-rows[data-pe-id="${peId}"]`)
-  return container ? container.querySelector(`.set-row[data-set-number="${setNumber}"]`) : null
+  return document.querySelector(`.set-row[data-pe-id="${peId}"][data-set-number="${setNumber}"]`)
 }
 
 // Runs fn over items with at most `limit` in flight at once.
@@ -2445,12 +2585,32 @@ async function saveWithRetry(operationFactory, maxAttempts = 3) {
 // ---- REST TIMER ----
 // Only fires between sets, not after the last one - if the row just checked
 // is the last row in its exercise's list, there's nothing to rest before.
+//
+// Superset slides (currentSlideContext.type === 'superset') follow a
+// different rule instead of the DOM-sibling "last row" check below: the
+// FIRST-linked exercise (lower order_index) never rests, on any set: the
+// whole point of a superset is going straight from it into the second
+// exercise. The SECOND exercise rests after each of its sets EXCEPT the
+// pair's final round, same "nothing to rest before" reasoning as the
+// single-exercise case, just measured across the pair's max round count
+// instead of one exercise's own row count.
 // ==========================================================================
 function maybeStartRestTimer(pe, rowEl) {
+  const setNumber = parseInt(rowEl.dataset.setNumber)
+
+  if (currentSlideContext && currentSlideContext.type === 'superset') {
+    if (pe.id === currentSlideContext.first.id) return
+    const maxRound = Math.max(...[...rowEl.parentElement.querySelectorAll('.set-row')].map(r => parseInt(r.dataset.setNumber)))
+    if (setNumber >= maxRound) return
+    const target = pe.set_targets && pe.set_targets[setNumber - 1]
+    const restSeconds = target && target.rest != null ? target.rest : pe.rest_seconds
+    if (restSeconds) startRestTimer(restSeconds)
+    return
+  }
+
   // Each set can have its own rest now (shorter after a warmup set than
   // after a top set) - fall back to the exercise's old shared rest_seconds
   // for a set beyond what the coach targeted, or for pre-pyramid data
-  const setNumber = parseInt(rowEl.dataset.setNumber)
   const target = pe.set_targets && pe.set_targets[setNumber - 1]
   const restSeconds = target && target.rest != null ? target.rest : pe.rest_seconds
   if (!restSeconds) return

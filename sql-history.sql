@@ -964,3 +964,63 @@ create policy "athlete manages own sessions" on workout_sessions for all
       or (session_type = 'mobility' and program_day_id is null)
     )
   );
+
+-- ==========================================================================
+-- Section Library: a reusable, coach-managed GROUP of exercises (e.g.
+-- "Warm-up A") that can be bulk-inserted into a Training or a Program/
+-- calendar day. Same shape as trainings/training_exercises on purpose - a
+-- section is really "a training-shaped block that gets pasted into
+-- something else."
+-- ==========================================================================
+create table if not exists sections (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+alter table sections enable row level security;
+drop policy if exists "coach manages own sections" on sections;
+create policy "coach manages own sections" on sections for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+
+create table if not exists section_exercises (
+  id uuid primary key default gen_random_uuid(),
+  section_id uuid not null references sections(id) on delete cascade,
+  exercise_id uuid not null references exercises(id),
+  order_index int not null default 0,
+  prescribed_sets int,
+  prescribed_reps text,
+  prescribed_weight numeric,
+  rest_seconds int,
+  extra_fields jsonb,
+  notes text,
+  set_targets jsonb,
+  created_at timestamptz not null default now()
+);
+alter table section_exercises enable row level security;
+drop policy if exists "coach manages own section exercises" on section_exercises;
+create policy "coach manages own section exercises" on section_exercises for all
+  using (exists (select 1 from sections s where s.id = section_exercises.section_id and s.coach_id = (select auth.uid())))
+  with check (exists (select 1 from sections s where s.id = section_exercises.section_id and s.coach_id = (select auth.uid())));
+
+create index if not exists idx_sections_coach_id on sections(coach_id);
+create index if not exists idx_section_exercises_section_id on section_exercises(section_id);
+
+-- ==========================================================================
+-- section_label: a plain-text SNAPSHOT of the section's name, stamped onto
+-- every exercise row copied out of a section at insert time - not a live
+-- FK, same "clone, don't link" convention as cloneTemplateToAthlete (editing
+-- the Section Library later never changes an already-built training/day).
+-- Null on manually/individually added exercises.
+--
+-- superset_group_id: links exactly two rows as a linked superset. Generated
+-- client-side (crypto.randomUUID()) when a coach links two cards, shared by
+-- both linked rows - a plain shared value instead of a self-referencing FK
+-- since the relationship is naturally symmetric. Partner lookup is done by
+-- scanning the exercise list already loaded into memory (same convention as
+-- findPE/findScheduledPE elsewhere in this app), not a separate query.
+-- ==========================================================================
+alter table training_exercises add column if not exists section_label text;
+alter table program_exercises add column if not exists section_label text;
+alter table training_exercises add column if not exists superset_group_id uuid;
+alter table program_exercises add column if not exists superset_group_id uuid;
