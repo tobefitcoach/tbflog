@@ -874,14 +874,21 @@ async function renderAddWorkoutExercisePicker() {
 const OWN_SET_TYPES = { main: 'Main Set', warmup: 'Warmup Set', failure: 'Set to Failure' }
 
 function renderOwnSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
-  const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
+  const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
+  const { mm, ss } = parseTimeToParts(target.reps)
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
       <span class="set-label">Set ${setNumber}</span>
       <select class="set-type-select">
         ${Object.entries(OWN_SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
-      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">
+      ${isTimed ? `
+        <div class="set-time-input">
+          <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
+          <span class="set-time-sep">:</span>
+          <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
+        </div>
+      ` : `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">`}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
       <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
       <button type="button" class="set-remove-btn" data-action="remove-own-set" ${onlyRow ? 'disabled' : ''}>✕</button>
@@ -966,6 +973,21 @@ function renderAddWorkoutSetTargets() {
     }
   })
 
+  // mm:ss time boxes: strip anything non-digit as it's typed, then pad back
+  // to 2 digits (and clamp seconds to 59) once the athlete taps away
+  document.getElementById('addWorkoutExerciseCards').addEventListener('input', function(e) {
+    if (e.target.matches('.set-time-mm, .set-time-ss')) {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2)
+    }
+  })
+  document.getElementById('addWorkoutExerciseCards').addEventListener('focusout', function(e) {
+    if (e.target.matches('.set-time-mm, .set-time-ss')) {
+      const max = e.target.classList.contains('set-time-ss') ? 59 : 99
+      const val = Math.min(parseInt(e.target.value) || 0, max)
+      e.target.value = String(val).padStart(2, '0')
+    }
+  })
+
   document.getElementById('addWorkoutSaveBtn').addEventListener('click', async function() {
     const btn = document.getElementById('addWorkoutSaveBtn')
     btn.disabled = true
@@ -975,7 +997,14 @@ function renderAddWorkoutSetTargets() {
       const ex = addWorkoutSelectedExercises[parseInt(card.dataset.idx)]
       const rows = [...card.querySelectorAll('.set-target-row')]
       const setTargets = rows.map(row => {
-        const reps = row.querySelector('.set-reps-input').value.trim() || null
+        let reps
+        if (ex.is_timed) {
+          const mm = parseInt(row.querySelector('.set-time-mm').value) || 0
+          const ss = parseInt(row.querySelector('.set-time-ss').value) || 0
+          reps = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
+        } else {
+          reps = row.querySelector('.set-reps-input').value.trim() || null
+        }
         const weightInput = row.querySelector('.set-weight-input')
         const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
         const restInput = row.querySelector('.set-rest-input')
