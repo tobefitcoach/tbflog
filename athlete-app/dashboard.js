@@ -858,17 +858,23 @@ async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, retur
 
     list.innerHTML = filtered.length === 0
       ? '<p class="no-metrics">No exercises found</p>'
-      : filtered.map(ex => `
-          <div class="training-pick-row" data-id="${ex.id}">
-            <span>${ex.name}</span>
-          </div>
-        `).join('')
+      : filtered.map(ex => {
+          const thumb = getYouTubeThumbnail(ex.video_url)
+          return `
+            <div class="exercise-lib-card own-add-exercise-card" data-id="${ex.id}">
+              <div class="exercise-lib-thumb">
+                ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder">🏋</span>'}
+              </div>
+              <span class="exercise-lib-name">${ex.name}</span>
+            </div>
+          `
+        }).join('')
 
-    list.querySelectorAll('.training-pick-row').forEach(row => {
-      row.addEventListener('click', async function() {
-        if (row.classList.contains('adding')) return
-        row.classList.add('adding')
-        await addExerciseToOwnWorkout(entry, dateStr, sessionPromise, row.dataset.id)
+    list.querySelectorAll('.own-add-exercise-card').forEach(card => {
+      card.addEventListener('click', async function() {
+        if (card.classList.contains('adding')) return
+        card.classList.add('adding')
+        await addExerciseToOwnWorkout(entry, dateStr, sessionPromise, card.dataset.id)
       })
     })
   }

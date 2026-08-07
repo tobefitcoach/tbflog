@@ -412,6 +412,24 @@
   background: rgba(79, 195, 247, 0.22);
 }
 
+/* Reuses the coach's .exercise-lib-card (video thumb + name) since it's
+   the same "pick an exercise" job, just tap-to-add instead of drag */
+#ownAddExerciseList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.own-add-exercise-card {
+  cursor: pointer;
+}
+
+.own-add-exercise-card.adding {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* Fixed to the bottom of the screen so it stays visible while scrolling
    through a long list of exercises */
 .rest-timer-bar {
