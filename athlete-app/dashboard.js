@@ -895,6 +895,29 @@ async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseI
   renderActiveExercise(entry, dateStr, slides, newIndex === -1 ? slides.length - 1 : newIndex, sessionPromise, 1)
 }
 
+// Removing a self-logged exercise's last set row removes the exercise
+// itself too - a self-added exercise with nothing logged on it isn't worth
+// keeping around, and there's no other way to remove one mid-workout.
+// Updates in-memory state and moves on immediately (nothing was ever saved
+// for an unchecked row - see wireExerciseCardEvents), then deletes the row
+// in the background rather than making the athlete wait on it.
+function removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId) {
+  entry.day.program_exercises = entry.day.program_exercises.filter(pe => pe.id !== peId)
+  delete logSetsByPE[peId]
+
+  const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
+  if (exercises.length === 0) {
+    renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise)
+  } else {
+    const slides = buildWorkoutSlides(exercises)
+    renderActiveExercise(entry, dateStr, slides, Math.min(index, slides.length - 1), sessionPromise, -1)
+  }
+
+  supabase.from('program_exercises').delete().eq('id', peId).then(function(res) {
+    if (res.error) console.log(res.error)
+  })
+}
+
 // name is only used the first time a self-logged workout is created for
 // this date - repeated adds on the same day reuse the same container,
 // same convention as the coach's own findOrCreateAdHocDay
@@ -1379,13 +1402,18 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   currentSlideContext = slide
 
   pageContent.innerHTML = `
-    <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
-    ${slide.type === 'superset' ? renderSupersetSlideBody(slide) : renderSingleSlideBody(slide.pe, isSelfLogged)}
+    <div class="active-exercise-header-row">
+      <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
+      ${isSelfLogged ? '<button type="button" class="own-add-exercise-btn" id="ownAddExerciseBtn">+ Add Exercise</button>' : ''}
+    </div>
+    ${slide.type === 'superset' ? renderSupersetSlideBody(slide) : renderSingleSlideBody(slide.pe)}
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
     <div id="restTimerBar" class="rest-timer-bar"></div>
   `
 
-  wireExerciseCardEvents('activeExerciseCard', dateStr)
+  wireExerciseCardEvents('activeExerciseCard', dateStr, isSelfLogged ? function(peId) {
+    removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId)
+  } : null)
 
   const addExerciseBtn = document.getElementById('ownAddExerciseBtn')
   if (addExerciseBtn) {
@@ -1417,7 +1445,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 // its own function so renderActiveExercise can also render a merged
 // superset slide via the same wrapper (progress line, swipe hint, rest
 // timer bar all stay shared between both).
-function renderSingleSlideBody(pe, isSelfLogged) {
+function renderSingleSlideBody(pe) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
@@ -1442,7 +1470,6 @@ function renderSingleSlideBody(pe, isSelfLogged) {
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
       <div class="set-rows">${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set</button>
-      ${isSelfLogged ? '<button type="button" class="add-set-btn own-add-exercise-btn" id="ownAddExerciseBtn">+ Add Exercise</button>' : ''}
     </div>
   `
 }
@@ -2050,7 +2077,13 @@ function toggleRowUnit(rowEl) {
   unitBtn.title = `Switch to ${nextUnit === 'kg' ? 'lbs' : 'kg'}`
 }
 
-function wireExerciseCardEvents(containerId, dateStr) {
+// onExerciseEmptied(peId): called when a remove-set tap leaves an exercise
+// with zero set rows left - only reachable for a self-logged exercise
+// (prescribed_sets is null there, so even its first/only row carries a
+// remove button; a coach-assigned exercise always keeps at least
+// prescribed_sets rows, whose remove buttons never show in the first
+// place - see renderSingleSlideBody's isExtra check)
+function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) {
   document.getElementById(containerId).addEventListener('click', async function(e) {
     const thumbBtn = e.target.closest('.active-exercise-thumb')
     if (thumbBtn && thumbBtn.dataset.videoUrl) {
@@ -2079,6 +2112,10 @@ function wireExerciseCardEvents(containerId, dateStr) {
       }
     } else if (btn.dataset.action === 'remove-set') {
       row.remove()
+      if (onExerciseEmptied) {
+        const remaining = document.getElementById(containerId).querySelectorAll(`.set-row[data-pe-id="${peId}"]`).length
+        if (remaining === 0) onExerciseEmptied(peId)
+      }
     }
   })
 

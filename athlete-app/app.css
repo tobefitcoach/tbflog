@@ -398,9 +398,18 @@
 }
 
 .own-add-exercise-btn {
-  display: block;
-  width: 100%;
-  margin-top: 8px;
+  flex-shrink: 0;
+  background: rgba(79, 195, 247, 0.12);
+  border: 1px solid #4fc3f7;
+  color: #4fc3f7;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.own-add-exercise-btn:hover {
+  background: rgba(79, 195, 247, 0.22);
 }
 
 /* Fixed to the bottom of the screen so it stays visible while scrolling
@@ -668,11 +677,27 @@
 }
 
 /* --- Active workout (one exercise at a time) --- */
+/* Position: relative + an absolutely-positioned button lets the progress
+   text stay perfectly centered (unchanged from before this row existed)
+   whether or not the self-logged "+ Add Exercise" button is present */
+.active-exercise-header-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .active-exercise-progress {
+  flex: 1;
   color: #aaaacc;
   font-size: 13px;
   text-align: center;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+}
+
+.active-exercise-header-row .own-add-exercise-btn {
+  position: absolute;
+  right: 0;
 }
 
 .active-exercise-thumb {
