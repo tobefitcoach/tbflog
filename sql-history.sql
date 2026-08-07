@@ -1024,3 +1024,76 @@ alter table training_exercises add column if not exists section_label text;
 alter table program_exercises add column if not exists section_label text;
 alter table training_exercises add column if not exists superset_group_id uuid;
 alter table program_exercises add column if not exists superset_group_id uuid;
+
+-- ==========================================================================
+-- Stretch Library: coach-owned, reusable flat content list (mirrors
+-- exercises' shape/RLS exactly) used by the guided Daily Mobility/
+-- Stretching flow. body_areas is a text[] so an athlete's 1-2 focus areas
+-- can be matched with a simple && overlap check - no separate tag join
+-- table, same reasoning as exercises.category being a bare string.
+-- ==========================================================================
+create table if not exists stretches (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  name text not null,
+  body_areas text[] not null default '{}',
+  video_url text,
+  default_hold_seconds int not null default 30,
+  created_at timestamptz not null default now()
+);
+alter table stretches enable row level security;
+
+drop policy if exists "coach manages own stretch library" on stretches;
+create policy "coach manages own stretch library" on stretches for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()) and is_coach());
+
+drop policy if exists "athlete views own coach's stretches" on stretches;
+create policy "athlete views own coach's stretches" on stretches for select
+  using (exists (select 1 from athletes a where a.user_id = (select auth.uid()) and a.coach_id = stretches.coach_id));
+
+create index if not exists idx_stretches_coach_id on stretches(coach_id);
+create index if not exists idx_stretches_body_areas on stretches using gin(body_areas);
+
+-- ==========================================================================
+-- athlete_stretch_preferences: a standing like/dislike per athlete per
+-- stretch, independent of any one session. No 'neutral' value is ever
+-- stored - tapping an already-active like/dislike again just deletes the
+-- row. on delete cascade on both FKs means deleting a stretch or an
+-- athlete cleans these up for free.
+-- ==========================================================================
+create table if not exists athlete_stretch_preferences (
+  id uuid primary key default gen_random_uuid(),
+  athlete_id bigint not null references athletes(id) on delete cascade,
+  stretch_id uuid not null references stretches(id) on delete cascade,
+  preference text not null check (preference in ('liked', 'disliked')),
+  created_at timestamptz not null default now(),
+  unique (athlete_id, stretch_id)
+);
+alter table athlete_stretch_preferences enable row level security;
+
+drop policy if exists "athlete manages own stretch preferences" on athlete_stretch_preferences;
+create policy "athlete manages own stretch preferences" on athlete_stretch_preferences for all
+  using (is_own_athlete_as_athlete(athlete_id))
+  with check (is_own_athlete_as_athlete(athlete_id));
+
+create index if not exists idx_athlete_stretch_prefs_athlete_id on athlete_stretch_preferences(athlete_id);
+
+-- ==========================================================================
+-- Storage: public bucket for self-hosted stretch clips. Path convention is
+-- {coach_id}/{uuid}.{ext} - storage.foldername(name) splits an object path
+-- into folder segments, so foldername(name)[1] is the coach_id folder for
+-- any object in this bucket, scoping writes to the owning coach without a
+-- separate ownership table.
+-- ==========================================================================
+insert into storage.buckets (id, name, public)
+values ('stretch-videos', 'stretch-videos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "coach manages own stretch videos" on storage.objects;
+create policy "coach manages own stretch videos" on storage.objects for all
+  using (bucket_id = 'stretch-videos' and (select auth.uid())::text = (storage.foldername(name))[1])
+  with check (bucket_id = 'stretch-videos' and (select auth.uid())::text = (storage.foldername(name))[1] and is_coach());
+
+drop policy if exists "public reads stretch videos" on storage.objects;
+create policy "public reads stretch videos" on storage.objects for select
+  using (bucket_id = 'stretch-videos');

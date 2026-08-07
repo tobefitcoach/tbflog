@@ -151,6 +151,138 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ==========================================================================
+   MOBILITY GUIDED FLOW - first fullscreen (position:fixed) screen in the
+   app, deliberately not the paginated guided-workout look. z-index 500
+   stays below .modal-overlay's 1000 so the End-session confirm dialog
+   still renders on top of it.
+   ========================================================================== */
+.mobility-flow-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background-color: #0f0f1a;
+  overflow: hidden;
+}
+
+.mobility-flow-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.mobility-flow-video.active {
+  opacity: 1;
+}
+
+.mobility-flow-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+  pointer-events: none;
+}
+
+.mobility-flow-overlay button {
+  pointer-events: auto;
+}
+
+.mobility-flow-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.mobility-flow-progress-fill {
+  height: 100%;
+  width: 0%;
+  background-color: #4fc3f7;
+  transition: width 1s linear;
+}
+
+.mobility-flow-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mobility-flow-name {
+  flex: 1;
+  text-align: center;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.mobility-flow-icon-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background-color: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.mobility-flow-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.mobility-flow-time {
+  min-width: 64px;
+  text-align: center;
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.mobility-flow-pref-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background-color: rgba(0, 0, 0, 0.4);
+  font-size: 18px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.mobility-flow-pref-btn.active {
+  opacity: 1;
+  background-color: rgba(79, 195, 247, 0.35);
+}
+
+.mobility-flow-skip-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: none;
+  background-color: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .exercise-log-card {
   background-color: #1a1a2e;
   border: 1px solid #2a2a4e;

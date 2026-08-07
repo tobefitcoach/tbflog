@@ -48,6 +48,9 @@ let completedSessionsByDayId = {} // program_days.id -> most recently-ended work
 let mobilitySessionsByDate = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
 let restTimerInterval = null
 let mobilityTimerInterval = null
+let stretchLibraryCache = null              // stretches visible to this athlete (RLS-scoped to their coach)
+let athleteStretchPreferencesCache = null   // Map<stretch_id, 'liked'|'disliked'>
+let mobilityFlowInterval = null             // countdown for the guided flow screen, parallel to mobilityTimerInterval
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 
 checkAccountState()
@@ -569,7 +572,7 @@ function renderWeekView(weekStart) {
     renderAddWorkoutChoice()
   })
   document.getElementById('mobilityTile').addEventListener('click', function() {
-    renderMobilityPicker()
+    renderMobilityAreaPicker()
   })
 
   wireSyncBanner(function() { renderWeekView(weekStart) })
@@ -629,18 +632,84 @@ function wireSyncBanner(onDone) {
 }
 
 // ==========================================================================
-// ---- DAILY MOBILITY / STRETCHING (V1: timer + log, no guided content) ----
-// Nothing is written until the timer actually finishes or "Finish Early" is
-// tapped - cancelling mid-timer is a pure client-side abort, unlike the
-// guided workout flow which creates a workout_sessions row up front. A
-// mobility row never gets a program_day_id (see the mobility RLS policy),
-// so it can't collide with or affect anything the coach assigned.
+// ---- DAILY MOBILITY / STRETCHING ----
+// Nothing is written until the session actually finishes or is ended early
+// - cancelling is a pure client-side abort, unlike the guided workout flow
+// which creates a workout_sessions row up front. A mobility row never gets
+// a program_day_id (see the mobility RLS policy), so it can't collide with
+// or affect anything the coach assigned.
+//
+// Two paths, chosen automatically based on whether the coach has filmed
+// any stretches yet:
+//   - Stretch Library has content: area picker -> duration picker ->
+//     renderMobilityFlow (continuous auto-advancing video flow)
+//   - Empty library: duration picker -> renderMobilityTimer (V1 blank
+//     countdown, kept as-is - both paths end at the same
+//     finishMobilitySession)
 // ==========================================================================
-function renderMobilityPicker() {
+async function renderMobilityAreaPicker() {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+  pageContent.innerHTML = '<p>Loading...</p>'
+
+  const [stretches] = await Promise.all([loadStretchLibrary(), loadAthleteStretchPreferences()])
+
+  if (stretches.length === 0) {
+    renderMobilityPicker([]) // nothing filmed yet - straight to the plain duration picker + blank timer
+    return
+  }
+
+  const distinctAreas = [...new Set(stretches.flatMap(s => s.body_areas || []))].sort()
+  const selectedAreas = new Set()
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="mobilityAreaBackBtn">← Back</button>
+      <h2 class="day-view-date">Daily Mobility/Stretching</h2>
+    </div>
+    <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">What do you want to focus on today? Pick up to 2 - the rest of the session still flows across your whole body, these just show up more.</p>
+    <div class="chip-row" id="mobilityAreaChips">
+      ${distinctAreas.map(a => `<button type="button" class="chip-btn" data-area="${a}">${a}</button>`).join('')}
+    </div>
+    <button type="button" class="chip-btn chip-btn-clear" id="mobilityAreaNoPreference" style="margin-top:8px">Full Body / No preference</button>
+    <button type="button" class="btn-save start-workout-btn" id="mobilityAreaNextBtn" style="margin-top:16px">Next →</button>
+  `
+
+  document.getElementById('mobilityAreaBackBtn').addEventListener('click', function() {
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  function refreshChipStates() {
+    document.querySelectorAll('#mobilityAreaChips .chip-btn').forEach(btn => {
+      btn.classList.toggle('selected', selectedAreas.has(btn.dataset.area))
+      btn.disabled = selectedAreas.size >= 2 && !selectedAreas.has(btn.dataset.area)
+    })
+  }
+
+  document.querySelectorAll('#mobilityAreaChips .chip-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      if (selectedAreas.has(btn.dataset.area)) selectedAreas.delete(btn.dataset.area)
+      else if (selectedAreas.size < 2) selectedAreas.add(btn.dataset.area)
+      refreshChipStates()
+    })
+  })
+
+  document.getElementById('mobilityAreaNoPreference').addEventListener('click', function() {
+    selectedAreas.clear()
+    refreshChipStates()
+  })
+
+  document.getElementById('mobilityAreaNextBtn').addEventListener('click', function() {
+    renderMobilityPicker([...selectedAreas])
+  })
+}
+
+function renderMobilityPicker(selectedAreas) {
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
   const presets = [10, 15, 20]
+  const hasLibrary = stretchLibraryCache && stretchLibraryCache.length > 0
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -659,7 +728,8 @@ function renderMobilityPicker() {
   `
 
   document.getElementById('mobilityBackBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+    if (hasLibrary) renderMobilityAreaPicker()
+    else renderWeekView(currentWeekStart || startOfWeek(new Date()))
   })
 
   document.querySelectorAll('.duration-preset-btn').forEach(btn => {
@@ -671,7 +741,8 @@ function renderMobilityPicker() {
   document.getElementById('mobilityStartBtn').addEventListener('click', function() {
     const minutes = parseInt(document.getElementById('mobilityCustomMinutes').value)
     if (!minutes || minutes < 1) { customAlert('Pick a duration first'); return }
-    renderMobilityTimer(minutes * 60)
+    if (hasLibrary) startMobilityFlow(selectedAreas, minutes * 60)
+    else renderMobilityTimer(minutes * 60)
   })
 }
 
@@ -738,6 +809,271 @@ async function finishMobilitySession(startedAt) {
 
   await loadTrainingData()
   renderWeekView(currentWeekStart || startOfWeek(new Date()))
+}
+
+// ---- Stretch Library + preferences (cached once per page load, same
+// pattern as loadExerciseLibrary) ----
+async function loadStretchLibrary() {
+  if (stretchLibraryCache) return stretchLibraryCache
+  const { data, error } = await saveWithRetry((signal) => supabase
+    .from('stretches')
+    .select('*')
+    .order('name')
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); customAlert('Something went wrong loading stretches - check your connection and try again'); return [] }
+  stretchLibraryCache = data
+  return stretchLibraryCache
+}
+
+async function loadAthleteStretchPreferences() {
+  if (athleteStretchPreferencesCache) return athleteStretchPreferencesCache
+  const { data, error } = await saveWithRetry((signal) => supabase
+    .from('athlete_stretch_preferences')
+    .select('stretch_id, preference')
+    .eq('athlete_id', athlete.id)
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); athleteStretchPreferencesCache = new Map(); return athleteStretchPreferencesCache }
+  athleteStretchPreferencesCache = new Map(data.map(r => [r.stretch_id, r.preference]))
+  return athleteStretchPreferencesCache
+}
+
+// ---- Queue building ----
+// Picking a focus area is a WEIGHT BOOST, not a filter - every non-disliked
+// stretch stays eligible so the session still flows across the whole body,
+// but an area-matched stretch shows up noticeably more often. Combines
+// multiplicatively with the like weighting (a liked, area-matched stretch
+// is AREA_WEIGHT * LIKED_WEIGHT times as likely to be drawn as an unrelated
+// neutral one).
+const AREA_WEIGHT = 3
+const LIKED_WEIGHT = 3
+
+function buildMobilityQueue(stretches, prefsMap, selectedAreas, totalSeconds) {
+  const candidates = stretches.filter(s => prefsMap.get(s.id) !== 'disliked')
+  if (candidates.length === 0) return []
+
+  function weightOf(s) {
+    let w = 1
+    if (selectedAreas.length > 0 && (s.body_areas || []).some(a => selectedAreas.includes(a))) w *= AREA_WEIGHT
+    if (prefsMap.get(s.id) === 'liked') w *= LIKED_WEIGHT
+    return w
+  }
+
+  // Weighted-random draw-without-replacement, one full lap = every
+  // candidate exactly once (higher-weighted ones tend to land earlier in
+  // the lap, not guaranteed first).
+  function weightedShuffle() {
+    const remaining = [...candidates]
+    const order = []
+    while (remaining.length > 0) {
+      const weights = remaining.map(weightOf)
+      const total = weights.reduce((a, b) => a + b, 0)
+      let r = Math.random() * total
+      let idx = 0
+      for (; idx < remaining.length - 1; idx++) { r -= weights[idx]; if (r <= 0) break }
+      order.push(remaining.splice(idx, 1)[0])
+    }
+    return order
+  }
+
+  const queue = []
+  let elapsed = 0
+  let pool = weightedShuffle()
+
+  while (elapsed < totalSeconds) {
+    if (pool.length === 0) {
+      // Start a new lap - reshuffle until it doesn't open with whatever
+      // just closed the previous lap, so a lap boundary never repeats a
+      // stretch back-to-back
+      do {
+        pool = weightedShuffle()
+      } while (candidates.length > 1 && queue.length > 0 && pool[0].id === queue[queue.length - 1].id)
+    }
+    const next = pool.shift()
+    queue.push(next)
+    elapsed += (next.default_hold_seconds || 30)
+  }
+  return queue
+}
+
+async function startMobilityFlow(selectedAreas, totalSeconds) {
+  const queue = buildMobilityQueue(stretchLibraryCache, athleteStretchPreferencesCache, selectedAreas, totalSeconds)
+  if (queue.length === 0) {
+    customAlert("No stretches available yet - ask your coach to add some to the library.")
+    return
+  }
+  renderMobilityFlow(queue, totalSeconds)
+}
+
+// ---- Continuous-flow guided screen ----
+// Deliberately NOT the paginated guided-workout screen - one full-bleed
+// screen, auto-advancing on its own, minimal overlaid chrome. Two stacked
+// <video> elements crossfade via CSS opacity: while one plays, the OTHER is
+// silently preloaded with the next stretch's clip, so by the time the
+// countdown hits zero the swap is instant instead of waiting on a fresh
+// load. The countdown timer is the sole authority on when to advance -
+// never the video's own length or its 'ended' event - which is what lets a
+// short clip (loop="true") cover a longer hold.
+function renderMobilityFlow(queue, totalSeconds) {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  const startedAt = new Date()
+  let index = 0
+  let remaining = queue[0].default_hold_seconds || 30
+  let paused = false
+
+  pageContent.innerHTML = `
+    <div class="mobility-flow-screen">
+      <div class="mobility-flow-progress"><div class="mobility-flow-progress-fill" id="mobilityFlowProgressFill"></div></div>
+      <video class="mobility-flow-video active" id="mobilityVideoA" muted playsinline loop></video>
+      <video class="mobility-flow-video" id="mobilityVideoB" muted playsinline loop></video>
+      <div class="mobility-flow-overlay">
+        <div class="mobility-flow-top">
+          <button type="button" class="mobility-flow-icon-btn" id="mobilityFlowEndBtn">✕</button>
+          <span class="mobility-flow-name" id="mobilityFlowName"></span>
+          <button type="button" class="mobility-flow-icon-btn" id="mobilityFlowPauseBtn">⏸</button>
+        </div>
+        <div class="mobility-flow-bottom">
+          <button type="button" class="mobility-flow-pref-btn" id="mobilityFlowDislikeBtn">👎</button>
+          <span class="mobility-flow-time" id="mobilityFlowTime"></span>
+          <button type="button" class="mobility-flow-pref-btn" id="mobilityFlowLikeBtn">👍</button>
+          <button type="button" class="mobility-flow-skip-btn" id="mobilityFlowSkipBtn">Skip ⏭</button>
+        </div>
+      </div>
+    </div>
+  `
+
+  const videos = [document.getElementById('mobilityVideoA'), document.getElementById('mobilityVideoB')]
+  let frontIndex = 0
+
+  function loadStretchIntoVideo(videoEl, stretch) {
+    if (stretch && stretch.video_url) {
+      videoEl.src = stretch.video_url
+      videoEl.load()
+      videoEl.play().catch(function() {}) // muted+playsinline autoplay should never reject, but never let a rejected promise surface as an error
+    } else {
+      videoEl.removeAttribute('src') // no clip filmed for this one yet - screen just shows name+timer, graceful degradation
+    }
+  }
+
+  function preloadNext() {
+    const nextStretch = queue[index + 1]
+    const backEl = videos[1 - frontIndex]
+    if (nextStretch) loadStretchIntoVideo(backEl, nextStretch)
+    else backEl.removeAttribute('src')
+  }
+
+  function updateChrome() {
+    document.getElementById('mobilityFlowName').textContent = queue[index].name
+    document.getElementById('mobilityFlowTime').textContent = formatTimer(remaining)
+    updatePrefButtons(queue[index].id)
+    const doneSoFar = queue.slice(0, index).reduce((sum, s) => sum + (s.default_hold_seconds || 30), 0)
+    const pct = Math.min(100, Math.round((doneSoFar / totalSeconds) * 100))
+    const fill = document.getElementById('mobilityFlowProgressFill')
+    if (fill) fill.style.width = pct + '%'
+  }
+
+  function advance() {
+    index++
+    if (index >= queue.length) { finishFlow(); return }
+    frontIndex = 1 - frontIndex
+    videos[frontIndex].classList.add('active')
+    videos[1 - frontIndex].classList.remove('active')
+    remaining = queue[index].default_hold_seconds || 30
+    updateChrome()
+    preloadNext()
+  }
+
+  function finishFlow() {
+    clearMobilityFlowTimer()
+    finishMobilitySession(startedAt) // unchanged - started_at is the real flow-start time, ended_at is now, however the flow actually stopped
+  }
+
+  loadStretchIntoVideo(videos[0], queue[0])
+  updateChrome()
+  preloadNext()
+
+  mobilityFlowInterval = setInterval(function() {
+    if (paused) return
+    remaining--
+    const timeEl = document.getElementById('mobilityFlowTime')
+    if (timeEl) timeEl.textContent = formatTimer(remaining)
+    if (remaining <= 0) advance()
+  }, 1000)
+
+  document.getElementById('mobilityFlowPauseBtn').addEventListener('click', function() {
+    paused = !paused
+    this.textContent = paused ? '▶' : '⏸'
+    videos.forEach(function(v) { if (paused) v.pause(); else v.play().catch(function() {}) })
+  })
+
+  document.getElementById('mobilityFlowSkipBtn').addEventListener('click', advance)
+
+  document.getElementById('mobilityFlowEndBtn').addEventListener('click', async function() {
+    if (await customConfirm('End this mobility session now?')) finishFlow()
+  })
+
+  document.getElementById('mobilityFlowLikeBtn').addEventListener('click', function() {
+    toggleStretchPreference(queue[index].id, 'liked')
+  })
+  document.getElementById('mobilityFlowDislikeBtn').addEventListener('click', function() {
+    toggleStretchPreference(queue[index].id, 'disliked')
+  })
+}
+
+function clearMobilityFlowTimer() {
+  if (mobilityFlowInterval) clearInterval(mobilityFlowInterval)
+  mobilityFlowInterval = null
+}
+
+// ---- Like/dislike ----
+// The one write in this whole flow that saves immediately rather than
+// being deferred to session-end - it's a standing preference, not part of
+// the session record. Tapping an already-active choice again clears it
+// back to neutral (deletes the row) instead of storing a third value.
+function updatePrefButtons(stretchId) {
+  const likeBtn = document.getElementById('mobilityFlowLikeBtn')
+  const dislikeBtn = document.getElementById('mobilityFlowDislikeBtn')
+  if (!likeBtn) return
+  const pref = athleteStretchPreferencesCache.get(stretchId)
+  likeBtn.classList.toggle('active', pref === 'liked')
+  dislikeBtn.classList.toggle('active', pref === 'disliked')
+}
+
+async function toggleStretchPreference(stretchId, preference) {
+  const current = athleteStretchPreferencesCache.get(stretchId)
+  const next = current === preference ? null : preference
+
+  if (next) athleteStretchPreferencesCache.set(stretchId, next)
+  else athleteStretchPreferencesCache.delete(stretchId)
+  updatePrefButtons(stretchId)
+
+  let error
+  if (next) {
+    ({ error } = await saveWithRetry((signal) => supabase
+      .from('athlete_stretch_preferences')
+      .upsert([{ athlete_id: athlete.id, stretch_id: stretchId, preference: next }], { onConflict: 'athlete_id,stretch_id' })
+      .abortSignal(signal)
+    ))
+  } else {
+    ({ error } = await saveWithRetry((signal) => supabase
+      .from('athlete_stretch_preferences')
+      .delete()
+      .eq('athlete_id', athlete.id)
+      .eq('stretch_id', stretchId)
+      .abortSignal(signal)
+    ))
+  }
+
+  if (error) {
+    console.log(error)
+    if (next) athleteStretchPreferencesCache.delete(stretchId)
+    else athleteStretchPreferencesCache.set(stretchId, current)
+    updatePrefButtons(stretchId)
+    customAlert('Something went wrong saving that - try again')
+  }
 }
 
 // ==========================================================================

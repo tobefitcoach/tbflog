@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stretch Library — TBFlog</title>
+    <link rel="stylesheet" href="style.css?v=12" />
+    <link rel="stylesheet" href="athlete.css?v=26" />
+  </head>
+  <body>
+
+    <header>
+      <a href="index.html" class="header-logo-link"><img src="logo.png?v=1" alt="TBFlog" class="header-logo"></a>
+      <div style="display:flex; align-items:center; gap:16px">
+        <button class="header-link" id="logoutBtn">Log Out</button>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      <nav class="sidebar" id="pageSidebar">
+        <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
+        <div class="sidebar-links" id="sidebarLinks">
+          <a href="index.html" class="sidebar-link">Athletes</a>
+          <div class="sidebar-item-hover">
+            <span class="sidebar-link active">Library</span>
+            <div class="sidebar-submenu">
+              <a href="exercises.html">Exercise Library</a>
+              <a href="sections.html">Section Library</a>
+              <a href="trainings.html">Workout Library</a>
+              <a href="programs.html">Program Library</a>
+              <a href="stretches.html">Stretch Library</a>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div class="dashboard">
+        <div class="dashboard-header">
+          <h2>Stretch Library <span class="count-badge" id="stretchTotalCount"></span></h2>
+          <button class="btn-add" id="addStretchBtn">+ Add Stretch</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:24px">Videos here power the athlete app's guided Daily Mobility/Stretching flow - short looping clips work best (see the filming tips you already have).</p>
+        <div id="stretchList"></div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Stretch Modal - same modal serves both, driven by
+         currentStretch in stretches.js -->
+    <div class="modal-overlay" id="stretchModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2 id="stretchModalTitle">Add Stretch</h2>
+          <button class="btn-cancel" id="closeStretchModalBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="stretchName" placeholder="e.g. Couch Stretch" />
+        </div>
+        <div class="form-group">
+          <label>Body Area(s)</label>
+          <div class="chip-row" id="stretchAreaChips"></div>
+          <div id="stretchNewAreaGroup" style="display:none; margin-top:8px">
+            <input type="text" id="stretchNewArea" placeholder="e.g. Ankles" />
+            <button type="button" class="btn-small-create" id="addNewStretchAreaBtn" style="margin-top:8px">+ Add</button>
+          </div>
+          <button type="button" class="chip-btn chip-btn-clear" id="stretchAddAreaBtn" style="margin-top:8px">+ Add New Area</button>
+        </div>
+        <div class="form-group">
+          <label>Hold Duration (seconds)</label>
+          <input type="number" id="stretchDefaultHold" min="1" placeholder="e.g. 30" />
+        </div>
+        <div class="form-group">
+          <label>Video</label>
+          <div id="stretchVideoPreview"></div>
+          <input type="file" id="stretchVideoFile" accept="video/*" />
+          <p style="color:#aaaacc; font-size:12px; margin-top:4px">A short clip (5-15s) is enough - it loops automatically to cover the hold duration.</p>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelStretchBtn">Cancel</button>
+          <button class="btn-save" id="saveStretchBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="loading-bar.js?v=1"></script>
+    <script type="module" src="confirm-modal.js?v=1"></script>
+    <script type="module" src="network-retry.js?v=1"></script>
+    <script type="module" src="stretches.js?v=1"></script>
+    <script type="module" src="sidebar.js?v=1"></script>
+  </body>
+</html>
