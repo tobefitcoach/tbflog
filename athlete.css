@@ -388,6 +388,11 @@
   background-color: rgba(74, 74, 142, 0.15);
 }
 
+.training-pick-row.adding {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* ==========================================================================
    ADD TRAINING POPUP — LIST + PREVIEW LAYOUT
    Left: the Training Library list (picking a row previews it here, doesn't

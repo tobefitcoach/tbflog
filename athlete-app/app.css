@@ -397,6 +397,12 @@
   color: #ffffff;
 }
 
+.own-add-exercise-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
 /* Fixed to the bottom of the screen so it stays visible while scrolling
    through a long list of exercises */
 .rest-timer-bar {

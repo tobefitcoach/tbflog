@@ -754,7 +754,6 @@ async function finishMobilitySession(startedAt) {
 // consumes via session_rpe x duration_minutes.
 // ==========================================================================
 let exerciseLibraryCache = null
-let addWorkoutSelectedExercises = [] // exercises picked in the Strength flow, in pick order
 
 async function loadExerciseLibrary() {
   if (exerciseLibraryCache) return exerciseLibraryCache
@@ -795,228 +794,105 @@ function renderAddWorkoutChoice() {
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
   })
   document.getElementById('addWorkoutStrengthChoice').addEventListener('click', function() {
-    addWorkoutSelectedExercises = []
-    renderAddWorkoutExercisePicker()
+    startOwnStrengthWorkout()
   })
   document.getElementById('addWorkoutFieldChoice').addEventListener('click', function() {
     renderAddWorkoutFieldForm()
   })
 }
 
-// ---- Strength: exercise picker (search + click-to-toggle-select) ----
-async function renderAddWorkoutExercisePicker() {
+// ---- Strength: same live guided screen as a coach-assigned workout ----
+// Pressing "Strength" drops straight into the exact renderActiveExercise
+// flow used to follow a coach-built training - video thumb, + Add Set,
+// checkable rows - just starting with zero exercises and an "+ Add
+// Exercise" button (see startWorkout/renderActiveExercise/
+// renderOwnWorkoutAddExercise) instead of a coach-built list. No separate
+// "plan your targets first" step: the athlete just adds an exercise and
+// logs actual sets as they go, same as always.
+async function startOwnStrengthWorkout() {
+  const dateStr = toDateStr(new Date())
+  try {
+    await findOrCreateSelfLoggedDay(dateStr, 'My Workout')
+  } catch (err) {
+    return
+  }
+  await loadTrainingData()
+  const entry = (entriesByDate[dateStr] || []).find(e => e.program.created_by_athlete)
+  if (!entry) { customAlert('Something went wrong starting your workout'); return }
+  startWorkout(entry, dateStr)
+}
+
+// Search + tap-to-add - how a self-logged workout grows its exercise list
+// live, one at a time. Reached both for the very first exercise (empty
+// day, from startWorkout) and via the "+ Add Exercise" button on any later
+// slide (renderSingleSlideBody), passing the slide index to return to.
+async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
+  clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
-      <h2 class="day-view-date">Pick Exercises</h2>
+      <button type="button" class="btn-cancel" id="ownAddExerciseBackBtn">← Back</button>
+      <h2 class="day-view-date">Add Exercise</h2>
     </div>
-    <input type="text" id="addWorkoutSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
-    <div id="addWorkoutExerciseList"></div>
-    <button type="button" class="btn-save start-workout-btn" id="addWorkoutContinueBtn" style="margin-top:16px" disabled>Continue</button>
+    <input type="text" id="ownAddExerciseSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
+    <div id="ownAddExerciseList"></div>
   `
 
-  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
-    renderAddWorkoutChoice()
+  document.getElementById('ownAddExerciseBackBtn').addEventListener('click', function() {
+    const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
+    if (exercises.length === 0) { renderWeekView(currentWeekStart || startOfWeek(new Date())); return }
+    const slides = buildWorkoutSlides(exercises)
+    const idx = returnIndex != null ? Math.min(returnIndex, slides.length - 1) : slides.length - 1
+    renderActiveExercise(entry, dateStr, slides, idx, sessionPromise)
   })
 
   const library = await loadExerciseLibrary()
   if (library === null) return
 
   function renderList() {
-    const filter = document.getElementById('addWorkoutSearchInput').value.trim().toLowerCase()
+    const filter = document.getElementById('ownAddExerciseSearchInput').value.trim().toLowerCase()
     const filtered = filter ? library.filter(ex => ex.name.toLowerCase().includes(filter)) : library
-    const selectedIds = new Set(addWorkoutSelectedExercises.map(ex => ex.id))
-    const list = document.getElementById('addWorkoutExerciseList')
+    const list = document.getElementById('ownAddExerciseList')
 
     list.innerHTML = filtered.length === 0
       ? '<p class="no-metrics">No exercises found</p>'
       : filtered.map(ex => `
-          <div class="training-pick-row ${selectedIds.has(ex.id) ? 'selected' : ''}" data-id="${ex.id}">
+          <div class="training-pick-row" data-id="${ex.id}">
             <span>${ex.name}</span>
           </div>
         `).join('')
 
     list.querySelectorAll('.training-pick-row').forEach(row => {
-      row.addEventListener('click', function() {
-        const ex = library.find(e => e.id === row.dataset.id)
-        const idx = addWorkoutSelectedExercises.findIndex(e => e.id === ex.id)
-        if (idx === -1) addWorkoutSelectedExercises.push(ex)
-        else addWorkoutSelectedExercises.splice(idx, 1)
-        renderList()
-        updateContinueBtn()
+      row.addEventListener('click', async function() {
+        if (row.classList.contains('adding')) return
+        row.classList.add('adding')
+        await addExerciseToOwnWorkout(entry, dateStr, sessionPromise, row.dataset.id)
       })
     })
   }
 
-  function updateContinueBtn() {
-    const btn = document.getElementById('addWorkoutContinueBtn')
-    btn.disabled = addWorkoutSelectedExercises.length === 0
-    btn.textContent = addWorkoutSelectedExercises.length > 0 ? `Continue (${addWorkoutSelectedExercises.length} selected)` : 'Continue'
-  }
-
-  document.getElementById('addWorkoutSearchInput').addEventListener('input', renderList)
-  document.getElementById('addWorkoutContinueBtn').addEventListener('click', function() {
-    renderAddWorkoutSetTargets()
-  })
-
+  document.getElementById('ownAddExerciseSearchInput').addEventListener('input', renderList)
   renderList()
-  updateContinueBtn()
 }
 
-// ---- Strength: set targets, one card per picked exercise ----
-// Same set_targets shape ([{reps, weight, rest, type}, ...]) and the same
-// row markup as the coach's own builders (athlete-calendar.js's
-// renderSetTargetRowCal) - ported under plain names since this file
-// doesn't use the "Cal" suffix convention.
-const OWN_SET_TYPES = { main: 'Main Set', warmup: 'Warmup Set', failure: 'Set to Failure' }
+async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseId) {
+  const existing = entry.day.program_exercises
+  const orderIndex = existing.length ? Math.max(...existing.map(pe => pe.order_index)) + 1 : 0
 
-function renderOwnSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
-  const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
-  const { mm, ss } = parseTimeToParts(target.reps)
-  return `
-    <div class="set-target-row" data-set-number="${setNumber}">
-      <span class="set-label">Set ${setNumber}</span>
-      <select class="set-type-select">
-        ${Object.entries(OWN_SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
-      </select>
-      ${isTimed ? `
-        <div class="set-time-input">
-          <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
-          <span class="set-time-sep">:</span>
-          <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
-        </div>
-      ` : `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">`}
-      ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
-      <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
-      <button type="button" class="set-remove-btn" data-action="remove-own-set" ${onlyRow ? 'disabled' : ''}>✕</button>
-    </div>
-  `
-}
+  const { data, error } = await supabase
+    .from('program_exercises')
+    .insert([{ day_id: entry.day.id, exercise_id: exerciseId, order_index: orderIndex }])
+    .select('*, exercises(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
+    .single()
 
-function addOwnSetTargetRow(rowsEl, isTimed, tracksWeight, isUnilateral) {
-  const rows = [...rowsEl.querySelectorAll('.set-target-row')]
-  if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  rowsEl.insertAdjacentHTML('beforeend', renderOwnSetTargetRow(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, false))
-}
+  if (error) { console.log(error); customAlert('Something went wrong adding that exercise - please try again'); return }
 
-// Removal can happen from the middle of the list, so every remaining row
-// needs relabelling, not just a length check
-function removeOwnSetTargetRow(row) {
-  const rowsEl = row.parentElement
-  row.remove()
-  const remaining = [...rowsEl.querySelectorAll('.set-target-row')]
-  remaining.forEach((r, i) => {
-    r.dataset.setNumber = i + 1
-    r.querySelector('.set-label').textContent = `Set ${i + 1}`
-  })
-  if (remaining.length === 1) remaining[0].querySelector('.set-remove-btn').disabled = true
-}
-
-function renderOwnExerciseCard(ex, idx) {
-  const isTimed = !!ex.is_timed
-  const tracksWeight = ex.tracks_weight !== false
-  const isUnilateral = !!ex.is_unilateral
-  const thumb = getYouTubeThumbnail(ex.video_url)
-  const rowHtml = renderOwnSetTargetRow(1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, true)
-
-  return `
-    <div class="builder-exercise-card" data-idx="${idx}">
-      <div class="builder-exercise-card-header">
-        <button type="button" class="builder-exercise-thumb" ${ex.video_url ? `data-video-url="${ex.video_url}"` : 'disabled'}>
-          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
-        </button>
-        <div class="builder-exercise-name">${ex.name}</div>
-        ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
-      </div>
-      <div class="set-target-rows">${rowHtml}</div>
-      <button type="button" class="builder-add-set-btn" data-action="add-own-set">+ Add Set</button>
-    </div>
-  `
-}
-
-function renderAddWorkoutSetTargets() {
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
-
-  pageContent.innerHTML = `
-    <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
-      <h2 class="day-view-date">Set Your Targets</h2>
-    </div>
-    <div id="addWorkoutExerciseCards">
-      ${addWorkoutSelectedExercises.map((ex, idx) => renderOwnExerciseCard(ex, idx)).join('')}
-    </div>
-    <button type="button" class="btn-save start-workout-btn" id="addWorkoutSaveBtn" style="margin-top:16px">💾 Save Workout</button>
-  `
-
-  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
-    renderAddWorkoutExercisePicker()
-  })
-
-  document.getElementById('addWorkoutExerciseCards').addEventListener('click', function(e) {
-    const thumbBtn = e.target.closest('.builder-exercise-thumb')
-    if (thumbBtn && thumbBtn.dataset.videoUrl) {
-      playInlineVideo(thumbBtn, thumbBtn.dataset.videoUrl)
-      return
-    }
-    const btn = e.target.closest('[data-action]')
-    if (!btn) return
-    const card = btn.closest('.builder-exercise-card')
-    const ex = addWorkoutSelectedExercises[parseInt(card.dataset.idx)]
-    if (btn.dataset.action === 'add-own-set') {
-      addOwnSetTargetRow(card.querySelector('.set-target-rows'), !!ex.is_timed, ex.tracks_weight !== false, !!ex.is_unilateral)
-    } else if (btn.dataset.action === 'remove-own-set') {
-      removeOwnSetTargetRow(btn.closest('.set-target-row'))
-    }
-  })
-
-  // mm:ss time boxes: strip anything non-digit as it's typed, then pad back
-  // to 2 digits (and clamp seconds to 59) once the athlete taps away
-  document.getElementById('addWorkoutExerciseCards').addEventListener('input', function(e) {
-    if (e.target.matches('.set-time-mm, .set-time-ss')) {
-      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2)
-    }
-  })
-  document.getElementById('addWorkoutExerciseCards').addEventListener('focusout', function(e) {
-    if (e.target.matches('.set-time-mm, .set-time-ss')) {
-      const max = e.target.classList.contains('set-time-ss') ? 59 : 99
-      const val = Math.min(parseInt(e.target.value) || 0, max)
-      e.target.value = String(val).padStart(2, '0')
-    }
-  })
-
-  document.getElementById('addWorkoutSaveBtn').addEventListener('click', async function() {
-    const btn = document.getElementById('addWorkoutSaveBtn')
-    btn.disabled = true
-    btn.textContent = 'Saving...'
-
-    const exercisesWithTargets = [...document.querySelectorAll('#addWorkoutExerciseCards .builder-exercise-card')].map(card => {
-      const ex = addWorkoutSelectedExercises[parseInt(card.dataset.idx)]
-      const rows = [...card.querySelectorAll('.set-target-row')]
-      const setTargets = rows.map(row => {
-        let reps
-        if (ex.is_timed) {
-          const mm = parseInt(row.querySelector('.set-time-mm').value) || 0
-          const ss = parseInt(row.querySelector('.set-time-ss').value) || 0
-          reps = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
-        } else {
-          reps = row.querySelector('.set-reps-input').value.trim() || null
-        }
-        const weightInput = row.querySelector('.set-weight-input')
-        const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
-        const restInput = row.querySelector('.set-rest-input')
-        const rest = restInput.value ? parseInt(restInput.value) : null
-        const type = row.querySelector('.set-type-select').value
-        return { reps, weight, rest, type }
-      })
-      return { exercise: ex, setTargets }
-    })
-
-    await saveOwnWorkout(exercisesWithTargets)
-  })
+  existing.push(data)
+  const slides = buildWorkoutSlides([...existing].sort((a, b) => a.order_index - b.order_index))
+  const newIndex = slides.findIndex(s => s.type === 'single' && s.pe.id === data.id)
+  renderActiveExercise(entry, dateStr, slides, newIndex === -1 ? slides.length - 1 : newIndex, sessionPromise, 1)
 }
 
 // name is only used the first time a self-logged workout is created for
@@ -1054,47 +930,6 @@ async function findOrCreateSelfLoggedDay(dateStr, name) {
   if (dayError) { console.log(dayError); customAlert('Something went wrong saving your workout'); throw dayError }
 
   return newDay[0].id
-}
-
-async function saveOwnWorkout(exercisesWithTargets) {
-  const dateStr = toDateStr(new Date())
-  let dayId
-  try {
-    dayId = await findOrCreateSelfLoggedDay(dateStr, 'My Workout')
-  } catch (err) {
-    resetAddWorkoutSaveBtn()
-    return
-  }
-
-  const rows = exercisesWithTargets.map((item, idx) => {
-    const first = item.setTargets[0] || { reps: null, weight: null, rest: null }
-    return {
-      day_id: dayId,
-      exercise_id: item.exercise.id,
-      order_index: idx,
-      prescribed_sets: item.setTargets.length,
-      prescribed_reps: first.reps,
-      prescribed_weight: first.weight,
-      rest_seconds: first.rest,
-      set_targets: item.setTargets
-    }
-  })
-
-  const { error } = await supabase.from('program_exercises').insert(rows)
-  if (error) {
-    console.log(error)
-    customAlert('Something went wrong saving your workout - please try again')
-    resetAddWorkoutSaveBtn()
-    return
-  }
-
-  await loadTrainingData()
-  renderDayPreview(dateStr)
-}
-
-function resetAddWorkoutSaveBtn() {
-  const btn = document.getElementById('addWorkoutSaveBtn')
-  if (btn) { btn.disabled = false; btn.textContent = '💾 Save Workout' }
 }
 
 // ---- Field/Training: duration + RPE, no exercises at all ----
@@ -1343,11 +1178,16 @@ function renderDayPreviewGroup(entry, isToday) {
 
   // completedSession's View Summary isn't gated on exercises.length - a
   // self-logged Field/Training day has zero program_exercises by design
-  // (see saveFieldTraining) but still has a real summary to show
+  // (see saveFieldTraining) but still has a real summary to show. A
+  // self-logged Strength day can also be genuinely empty (backed out of
+  // "Add Own Workout" before adding an exercise) and still needs a way
+  // back in - Field/Training never reaches here with 0 exercises since it
+  // always has a completedSession the instant it's saved, so this can't
+  // wrongly offer "Continue" on a Field/Training entry.
   let actionButton = ''
   if (completedSession && !openSession) {
     actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}">📋 View Summary</button>`
-  } else if (isToday && exercises.length > 0) {
+  } else if (isToday && (exercises.length > 0 || entry.program.created_by_athlete)) {
     actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
   }
 
@@ -1498,12 +1338,19 @@ function findResumeIndex(slides) {
 // does nothing for a second or more", especially on a slow connection.
 function startWorkout(entry, dateStr) {
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
-  if (exercises.length === 0) { customAlert('No exercises in this training'); return }
+  const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
+  if (exercises.length === 0 && !isSelfLogged) { customAlert('No exercises in this training'); return }
 
   const sessionPromise = findOrCreateSession(entry.day.id).then(function(session) {
     openSessionsByDayId[entry.day.id] = session
     return session
   })
+
+  // A self-logged workout has no coach-built list to start from - the
+  // athlete builds it live, one exercise at a time, via the same "+ Add
+  // Exercise" screen a later slide's button also opens
+  if (exercises.length === 0) { renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise); return }
+
   const slides = buildWorkoutSlides(exercises)
   const resumeIndex = findResumeIndex(slides)
   renderActiveExercise(entry, dateStr, slides, resumeIndex, sessionPromise)
@@ -1528,16 +1375,24 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 
   const slide = slides[index]
   const isLast = index === slides.length - 1
+  const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
   currentSlideContext = slide
 
   pageContent.innerHTML = `
     <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
-    ${slide.type === 'superset' ? renderSupersetSlideBody(slide) : renderSingleSlideBody(slide.pe)}
+    ${slide.type === 'superset' ? renderSupersetSlideBody(slide) : renderSingleSlideBody(slide.pe, isSelfLogged)}
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
     <div id="restTimerBar" class="rest-timer-bar"></div>
   `
 
   wireExerciseCardEvents('activeExerciseCard', dateStr)
+
+  const addExerciseBtn = document.getElementById('ownAddExerciseBtn')
+  if (addExerciseBtn) {
+    addExerciseBtn.addEventListener('click', function() {
+      renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, index)
+    })
+  }
 
   attachSwipeHandlers(
     function onSwipeLeft() {
@@ -1562,7 +1417,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 // its own function so renderActiveExercise can also render a merged
 // superset slide via the same wrapper (progress line, swipe hint, rest
 // timer bar all stay shared between both).
-function renderSingleSlideBody(pe) {
+function renderSingleSlideBody(pe, isSelfLogged) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
@@ -1587,6 +1442,7 @@ function renderSingleSlideBody(pe) {
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
       <div class="set-rows">${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set</button>
+      ${isSelfLogged ? '<button type="button" class="add-set-btn own-add-exercise-btn" id="ownAddExerciseBtn">+ Add Exercise</button>' : ''}
     </div>
   `
 }
