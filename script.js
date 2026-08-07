@@ -15,7 +15,7 @@ const athleteGrid = document.querySelector('.athlete-grid');
 // status chips re-renders instantly from memory instead of re-querying
 let allAthletes = []
 let latestWeightByAthlete = {}
-let currentStatusFilter = 'all'
+let currentStatusFilter = 'active'
 
 // Require a logged-in coach before loading anything. RLS is on, so the
 // database itself only ever returns this coach's own athletes - this is
@@ -85,6 +85,7 @@ async function loadAthletes() {
     }
   }
 
+  updateFilterCounts()
   applyStatusFilter(currentStatusFilter)
 }
 
@@ -101,17 +102,26 @@ function athleteStatus(athlete) {
   return 'offline'
 }
 
+// Chip labels get a live count appended, e.g. "Active (3)" - STATUS_LABELS
+// is declared further down this file, but this only ever runs from
+// loadAthletes() (after an await), by which point the whole module has
+// already finished its initial top-to-bottom pass, so it's defined in time.
+function updateFilterCounts() {
+  const counts = { active: 0, pending: 0, offline: 0, archived: 0 }
+  allAthletes.forEach(a => { counts[athleteStatus(a)]++ })
+  document.querySelectorAll('#athleteStatusFilter .chip-btn').forEach(btn => {
+    const status = btn.dataset.status
+    btn.textContent = `${STATUS_LABELS[status]} (${counts[status]})`
+  })
+}
+
 function applyStatusFilter(status) {
   currentStatusFilter = status
   document.querySelectorAll('#athleteStatusFilter .chip-btn').forEach(btn => {
     btn.classList.toggle('selected', btn.dataset.status === status)
   })
 
-  const filtered = allAthletes.filter(a => {
-    const s = athleteStatus(a)
-    if (status === 'all') return s !== 'archived'
-    return s === status
-  })
+  const filtered = allAthletes.filter(a => athleteStatus(a) === status)
 
   athleteGrid.innerHTML = ''
   if (filtered.length === 0) {
