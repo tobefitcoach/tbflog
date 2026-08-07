@@ -261,7 +261,7 @@ async function sendInviteEmail(email, name) {
   const redirectTo = new URL('athlete-app/dashboard.html', window.location.href).href
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true, emailRedirectTo: redirectTo, data: { role: 'athlete', name } }
+    options: { shouldCreateUser: true, emailRedirectTo: redirectTo, data: { role: 'athlete', name, needs_password: true } }
   })
   return error
 }

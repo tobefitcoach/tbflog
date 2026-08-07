@@ -14,7 +14,7 @@
 // same date-math helpers) but duplicated rather than imported - this is a
 // separate mini-app with its own Supabase client (see athleteClient.js).
 // ==========================================================================
-import { supabase, arrivedViaMagicLink } from './athleteClient.js'
+import { supabase } from './athleteClient.js'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')
@@ -79,7 +79,14 @@ async function checkAccountState() {
 
   if (foundAthlete) {
     athlete = foundAthlete
-    if (arrivedViaMagicLink) { renderSetPasswordPrompt(); return }
+    // needs_password is stamped into signup metadata by sendInviteEmail()
+    // (coach's script.js/athlete.js) the moment the invite creates this
+    // account, and cleared once they actually set one below - this is more
+    // reliable than trying to sniff the invite-link redirect itself
+    // (Supabase's exact redirect shape depends on internal auth flow
+    // settings, which turned out not to match a hash-based `type=magiclink`
+    // assumption in practice).
+    if (session.user.user_metadata?.needs_password) { renderSetPasswordPrompt(); return }
     await enterWeekView()
     return
   }
@@ -140,7 +147,10 @@ function renderSetPasswordPrompt() {
       customAlert('Please enter at least 6 characters')
       return
     }
-    const { error } = await supabase.auth.updateUser({ password })
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: { ...session.user.user_metadata, needs_password: false }
+    })
     if (error) {
       console.log(error)
       customAlert('Something went wrong saving your password - you can try again from Settings later.')

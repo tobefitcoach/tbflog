@@ -127,7 +127,6 @@ function updateStatusUI(data) {
   badge.textContent = STATUS_LABELS[status]
   badge.className = `athlete-status-badge status-${status}`
 
-  document.getElementById('archiveAthleteBtn').textContent = data.archived ? '♻ Unarchive' : '📦 Archive'
   document.getElementById('editAthleteInviteActions').style.display = status === 'pending' ? 'flex' : 'none'
 }
 
@@ -135,7 +134,7 @@ async function sendInviteEmail(email, name) {
   const redirectTo = new URL('athlete-app/dashboard.html', window.location.href).href
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true, emailRedirectTo: redirectTo, data: { role: 'athlete', name } }
+    options: { shouldCreateUser: true, emailRedirectTo: redirectTo, data: { role: 'athlete', name, needs_password: true } }
   })
   return error
 }
@@ -146,22 +145,6 @@ function buildInviteLink(email, name) {
   if (name) url.searchParams.set('name', name)
   return url.href
 }
-
-document.getElementById('archiveAthleteBtn').addEventListener('click', async function() {
-  if (!currentAthlete) return
-  const { error } = await supabase
-    .from('athletes')
-    .update({ archived: !currentAthlete.archived })
-    .eq('id', athleteId)
-
-  if (error) {
-    console.log(error)
-    customAlert('Something went wrong')
-    return
-  }
-
-  loadAthlete()
-})
 
 document.getElementById('resendInviteBtn').addEventListener('click', async function() {
   if (!currentAthlete || !currentAthlete.email) return
