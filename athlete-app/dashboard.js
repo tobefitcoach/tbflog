@@ -14,7 +14,7 @@
 // same date-math helpers) but duplicated rather than imported - this is a
 // separate mini-app with its own Supabase client (see athleteClient.js).
 // ==========================================================================
-import { supabase } from './athleteClient.js'
+import { supabase, arrivedViaMagicLink } from './athleteClient.js'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')
@@ -79,11 +79,8 @@ async function checkAccountState() {
 
   if (foundAthlete) {
     athlete = foundAthlete
-    await loadTrainingData()
-    renderWeekView(startOfWeek(new Date()))
-    maybeShowWeeklyRecap()
-    flushPendingQueue() // not awaited - picks up anything left over from a previous session
-    flushPendingSessionEnds()
+    if (arrivedViaMagicLink) { renderSetPasswordPrompt(); return }
+    await enterWeekView()
     return
   }
 
@@ -118,6 +115,52 @@ function renderWaitingToBeLinked() {
     <button class="btn-save" id="retryBtn">Try Again</button>
   `
   document.getElementById('retryBtn').addEventListener('click', checkAccountState)
+}
+
+// Shown exactly once, right after an athlete arrives via their coach's
+// invite email - that link signs them in passwordlessly (a magic link),
+// which is fine for this first tap but annoying for daily use (leaving the
+// app to check email every time). Setting a password here means every
+// login after this one is the normal email+password flow.
+function renderSetPasswordPrompt() {
+  pageContent.innerHTML = `
+    <h2>Welcome, ${athlete.name}!</h2>
+    <p>You're signed in. Set a password now so you can log back in directly next time, without needing another email link.</p>
+    <div class="form-group">
+      <label>New Password</label>
+      <input type="password" id="newPasswordInput" placeholder="At least 6 characters" />
+    </div>
+    <button class="btn-save" id="savePasswordBtn">Save Password</button>
+    <p style="margin-top:12px"><a href="#" id="skipPasswordBtn" style="color:#aaaacc">Skip for now</a></p>
+  `
+
+  document.getElementById('savePasswordBtn').addEventListener('click', async function() {
+    const password = document.getElementById('newPasswordInput').value
+    if (!password || password.length < 6) {
+      customAlert('Please enter at least 6 characters')
+      return
+    }
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) {
+      console.log(error)
+      customAlert('Something went wrong saving your password - you can try again from Settings later.')
+      return
+    }
+    enterWeekView()
+  })
+
+  document.getElementById('skipPasswordBtn').addEventListener('click', function(e) {
+    e.preventDefault()
+    enterWeekView()
+  })
+}
+
+async function enterWeekView() {
+  await loadTrainingData()
+  renderWeekView(startOfWeek(new Date()))
+  maybeShowWeeklyRecap()
+  flushPendingQueue() // not awaited - picks up anything left over from a previous session
+  flushPendingSessionEnds()
 }
 
 // A place for per-athlete settings that live outside the coach-editable

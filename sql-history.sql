@@ -1097,3 +1097,11 @@ create policy "coach manages own stretch videos" on storage.objects for all
 drop policy if exists "public reads stretch videos" on storage.objects;
 create policy "public reads stretch videos" on storage.objects for select
   using (bucket_id = 'stretch-videos');
+
+-- ==========================================================================
+-- Athlete status labels: archived is the only new column needed - Active/
+-- Pending/Offline are all already derivable from existing columns
+-- (user_id/email), computed client-side in athleteStatus(). No RLS change:
+-- "coach full access to own athletes" is already FOR ALL, not column-scoped.
+-- ==========================================================================
+alter table athletes add column if not exists archived boolean not null default false;

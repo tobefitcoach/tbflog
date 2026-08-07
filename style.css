@@ -413,7 +413,7 @@ header {
   border-radius: 8px;
   padding: 8px;
   z-index: 100;
-  min-width: 160px;
+  min-width: 190px;
 }
  
 .kebab-dropdown.active {
@@ -435,6 +435,29 @@ header {
 .kebab-delete:hover {
   background-color: #ff4444;
   color: white;
+}
+
+/* Non-destructive kebab actions (Resend Invite, Copy Invite Link, Archive) -
+   same base as .kebab-delete, neutral hover instead of red */
+.kebab-item {
+  background: transparent;
+  border: none;
+  color: #aaaacc;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 12px;
+  width: 100%;
+  text-align: left;
+  border-radius: 6px;
+}
+
+.kebab-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+#athleteStatusFilter {
+  margin: 4px 0 20px;
 }
 
 

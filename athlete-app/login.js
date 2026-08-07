@@ -29,6 +29,19 @@ function showMessage(text, isSuccess) {
   authMessage.classList.toggle('success', !!isSuccess)
 }
 
+// Coach's fallback invite link (?email=...&name=...) - if present, this is
+// the only reason anyone would land here with those params, so pre-fill and
+// jump straight into signup mode instead of the default login view
+const inviteParams = new URLSearchParams(window.location.search)
+const invitedEmail = inviteParams.get('email')
+const invitedName = inviteParams.get('name')
+if (invitedEmail) {
+  authEmail.value = invitedEmail
+  if (invitedName) authName.value = invitedName
+  mode = 'signup'
+  updateFormForMode()
+}
+
 function updateFormForMode() {
   showMessage('')
   if (mode === 'signup') {

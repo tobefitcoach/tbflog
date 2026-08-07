@@ -975,6 +975,41 @@
   padding: 3px 10px;
 }
 
+/* ==========================================================================
+   ATHLETE STATUS BADGE - active/pending/offline/archived, computed by
+   athleteStatus() in script.js/athlete.js from user_id/email/archived
+   ========================================================================== */
+.athlete-status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.athlete-status-badge.status-active {
+  background-color: rgba(76, 217, 100, 0.15);
+  color: #4cd964;
+}
+
+.athlete-status-badge.status-pending {
+  background-color: rgba(255, 204, 0, 0.15);
+  color: #ffcc00;
+}
+
+.athlete-status-badge.status-offline {
+  background-color: rgba(170, 170, 204, 0.12);
+  color: #aaaacc;
+}
+
+.athlete-status-badge.status-archived {
+  background-color: transparent;
+  border: 1px dashed #4a4a6e;
+  color: #7a7a9e;
+}
+
 .stretch-item-areas {
   display: flex;
   flex-wrap: wrap;

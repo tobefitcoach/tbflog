@@ -5,7 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=12" />
+    <link rel="stylesheet" href="style.css?v=13" />
+    <link rel="stylesheet" href="athlete.css?v=27" />
   </head>
   <body>
 
@@ -42,46 +43,23 @@
 
       <!-- ====================================================================
            DASHBOARD — Athlete grid
-           script.js clears out .athlete-grid on page load and re-renders one
-           card per athlete from the database, so the 4 cards below are just
-           placeholder/example markup and get replaced as soon as the page runs.
+           script.js renders one card per athlete into .athlete-grid, and the
+           status chip row above it filters that render client-side (no
+           re-query) - see applyStatusFilter() in script.js.
            ==================================================================== -->
       <div class="dashboard">
     <div class="dashboard-header">
       <h2>Your Athletes</h2>
       <button class="btn-add">+ Add Athlete</button>
     </div>
-        <div class="athlete-grid">
-
-          <div class="athlete-card">
-            <div class="athlete-initials">JD</div>
-            <h3>John Doe</h3>
-            <p>5 metrics tracked</p>
-            <p>Last updated: today</p>
-          </div>
-
-          <div class="athlete-card">
-            <div class="athlete-initials">SM</div>
-            <h3>Sarah Miller</h3>
-            <p>3 metrics tracked</p>
-            <p>Last updated: yesterday</p>
-          </div>
-
-          <div class="athlete-card">
-            <div class="athlete-initials">TK</div>
-            <h3>Tom Klein</h3>
-            <p>7 metrics tracked</p>
-            <p>Last updated: 3 days ago</p>
-          </div>
-
-          <div class="athlete-card">
-            <div class="athlete-initials">AR</div>
-            <h3>Anna Ross</h3>
-            <p>4 metrics tracked</p>
-            <p>Last updated: today</p>
-          </div>
-
+        <div class="chip-row" id="athleteStatusFilter">
+          <button type="button" class="chip-btn selected" data-status="all">All</button>
+          <button type="button" class="chip-btn" data-status="active">Active</button>
+          <button type="button" class="chip-btn" data-status="pending">Pending</button>
+          <button type="button" class="chip-btn" data-status="offline">Offline</button>
+          <button type="button" class="chip-btn" data-status="archived">Archived</button>
         </div>
+        <div class="athlete-grid"></div>
       </div>
     </div>
 
@@ -117,8 +95,8 @@
     </div>
 
     <div class="form-group">
-      <label>Weight (kg)</label>
-      <input type="number" id="athleteWeight" placeholder="e.g. 75" />
+      <label>Email (for athlete login)</label>
+      <input type="email" id="athleteEmail" placeholder="athlete@email.com" />
     </div>
 
     <div class="form-actions">
@@ -132,7 +110,7 @@
 <script type="module" src="loading-bar.js?v=1"></script>
 <script type="module" src="confirm-modal.js?v=1"></script>
 <script type="module" src="network-retry.js?v=1"></script>
-<script type="module" src="script.js?v=4"></script>
+<script type="module" src="script.js?v=5"></script>
 <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

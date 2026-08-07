@@ -14,6 +14,7 @@ let athleteMetrics = []
 let prEvents = [] // PRs broken in the last 30 days, filled in by loadStatsBar, read by the PR overview modal
 let allMeasurementsCache = [] // every measurement for this athlete, filled in by loadStatsBar, read by the stats-bar detail modals
 let metricsLoaded = false // Metrics tab loads its data lazily - see initTabs()
+let currentAthlete = null // most recently loaded athletes row, read by the status badge + invite actions below
 
 // Require a logged-in coach before loading anything (same gate as script.js -
 // see the comment there for why this isn't real security yet on its own)
@@ -104,6 +105,77 @@ document.getElementById('settingsSelfLogToggle').addEventListener('change', asyn
 })
 
 // ==========================================================================
+// ---- STATUS + INVITE ACTIONS ----
+// active = linked to a real login, pending = coach has entered an email but
+// the athlete hasn't signed up/linked yet, offline = no email on file yet,
+// archived = coach hid them (overrides the other 3 regardless of link state).
+// Mirrors athleteStatus()/sendInviteEmail()/buildInviteLink() in script.js -
+// same shape, duplicated per this codebase's per-file convention.
+// ==========================================================================
+function athleteStatus(athlete) {
+  if (athlete.archived) return 'archived'
+  if (athlete.user_id) return 'active'
+  if (athlete.email) return 'pending'
+  return 'offline'
+}
+
+const STATUS_LABELS = { active: 'Active', pending: 'Pending', offline: 'Offline', archived: 'Archived' }
+
+function updateStatusUI(data) {
+  const status = athleteStatus(data)
+  const badge = document.getElementById('profileStatusBadge')
+  badge.textContent = STATUS_LABELS[status]
+  badge.className = `athlete-status-badge status-${status}`
+
+  document.getElementById('archiveAthleteBtn').textContent = data.archived ? '♻ Unarchive' : '📦 Archive'
+  document.getElementById('editAthleteInviteActions').style.display = status === 'pending' ? 'flex' : 'none'
+}
+
+async function sendInviteEmail(email, name) {
+  const redirectTo = new URL('athlete-app/dashboard.html', window.location.href).href
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true, emailRedirectTo: redirectTo, data: { role: 'athlete', name } }
+  })
+  return error
+}
+
+function buildInviteLink(email, name) {
+  const url = new URL('athlete-app/index.html', window.location.href)
+  if (email) url.searchParams.set('email', email)
+  if (name) url.searchParams.set('name', name)
+  return url.href
+}
+
+document.getElementById('archiveAthleteBtn').addEventListener('click', async function() {
+  if (!currentAthlete) return
+  const { error } = await supabase
+    .from('athletes')
+    .update({ archived: !currentAthlete.archived })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong')
+    return
+  }
+
+  loadAthlete()
+})
+
+document.getElementById('resendInviteBtn').addEventListener('click', async function() {
+  if (!currentAthlete || !currentAthlete.email) return
+  const error = await sendInviteEmail(currentAthlete.email, currentAthlete.name)
+  customAlert(error ? 'Something went wrong sending the invite' : `Invite sent to ${currentAthlete.email}`)
+})
+
+document.getElementById('copyInviteLinkBtn').addEventListener('click', async function() {
+  if (!currentAthlete) return
+  await navigator.clipboard.writeText(buildInviteLink(currentAthlete.email, currentAthlete.name))
+  customAlert('Invite link copied - paste it anywhere you like.')
+})
+
+// ==========================================================================
 // ---- TABS ----
 // Switches which .tab-panel is visible. Metrics data loads lazily, the first
 // time that tab is clicked, not on page load - Chart.js sizes its canvases
@@ -151,6 +223,8 @@ async function loadAthlete() {
     return
   }
 
+  currentAthlete = data
+
   // Calculate age from date of birth
   const dob = new Date(data.date_of_birth)
   const age = Math.floor((new Date() - dob) / (365.25 * 24 * 60 * 60 * 1000))
@@ -161,6 +235,7 @@ async function loadAthlete() {
   document.getElementById('profileName').textContent = data.name
 document.getElementById('profileDetails').textContent =
     `${data.gender} · ${age} years old · ${data.height}cm`
+  updateStatusUI(data)
 
   document.title = `${data.name} — TBFlog`
 
@@ -2293,6 +2368,8 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
 
   if (!name) { customAlert('Please enter a name'); return }
 
+  const previousEmail = currentAthlete ? currentAthlete.email : null
+
   const { error } = await supabase
     .from('athletes')
     .update({ name, date_of_birth: dob, gender, height, email })
@@ -2309,6 +2386,17 @@ document.getElementById('saveEditAthleteBtn').addEventListener('click', async fu
   }
 
   document.getElementById('editAthleteModal').classList.remove('active')
+
+  // Only a newly-added or changed email should trigger a fresh invite -
+  // resaving unrelated fields shouldn't re-send one every time
+  if (email && email !== previousEmail) {
+    const inviteError = await sendInviteEmail(email, name)
+    if (inviteError) {
+      console.log('Error sending invite:', inviteError)
+      customAlert('Athlete saved, but the invite email failed to send. Use "Resend Invite" or "Copy Invite Link" to try again.')
+    }
+  }
+
   loadAthlete()
 })
 // ==========================================================================

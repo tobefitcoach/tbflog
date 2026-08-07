@@ -11,6 +11,13 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/+esm'
 import { supabaseUrl, supabaseKey } from '../supabaseClient.js'
 
+// Captured before createClient() below kicks off its own (async) token
+// detection, which strips `type=magiclink` etc. out of the URL hash once it
+// processes it - reading it first, synchronously, is what makes this
+// reliable. Used by dashboard.js to show a one-time "set a password" prompt
+// right after an athlete arrives via an invite email.
+export const arrivedViaMagicLink = window.location.hash.includes('type=magiclink')
+
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { storageKey: 'tbflog-athlete-auth' }
 })

@@ -5,8 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
-    <link rel="stylesheet" href="style.css?v=12" />
-  <link rel="stylesheet" href="athlete.css?v=26" />
+    <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="athlete.css?v=27" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -58,11 +58,15 @@
         <div class="profile-left">
           <div class="profile-initials" id="profileInitials"></div>
           <div class="profile-info">
-            <h2 id="profileName"></h2>
+            <div style="display:flex; align-items:center; gap:10px">
+              <h2 id="profileName"></h2>
+              <span class="athlete-status-badge" id="profileStatusBadge"></span>
+            </div>
             <p id="profileDetails"></p>
             <div class="profile-btns">
               <button class="btn-profile-action" id="editAthleteBtn">✏ Edit info</button>
               <button class="btn-profile-action" id="addBodyweightBtn">⚖ Log weight</button>
+              <button class="btn-profile-action" id="archiveAthleteBtn"></button>
             </div>
           </div>
         </div>
@@ -708,6 +712,10 @@
         <div class="form-group">
           <label>Email (for athlete login)</label>
           <input type="email" id="editAthleteEmail" placeholder="athlete@email.com" />
+          <div style="display:flex; gap:8px; margin-top:8px" id="editAthleteInviteActions">
+            <button type="button" class="unit-btn" id="resendInviteBtn">✉️ Resend Invite</button>
+            <button type="button" class="unit-btn" id="copyInviteLinkBtn">🔗 Copy Invite Link</button>
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelEditAthleteBtn">Cancel</button>
@@ -1014,7 +1022,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=15"></script>
+    <script type="module" src="athlete.js?v=16"></script>
     <script type="module" src="athlete-calendar.js?v=24"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
