@@ -1435,6 +1435,11 @@ function renderAddWorkoutFieldForm() {
   // visible instead of the browser stripping the leading zero
   const durationBoxes = document.querySelectorAll('#fieldDurationHH, #fieldDurationMM')
   durationBoxes.forEach(input => {
+    // Selects the "00" the moment it's tapped, so typing a digit replaces
+    // it immediately instead of needing a manual delete first
+    input.addEventListener('focus', function() {
+      input.select()
+    })
     input.addEventListener('input', function() {
       input.value = input.value.replace(/\D/g, '').slice(0, 2)
     })
@@ -2170,15 +2175,20 @@ function renderWorkoutSummary(finishedSession, entry) {
   // Volume = actual_weight x actual_reps, summed across every completed set
   // logged for this day's exercises - skips sets whose reps didn't parse as
   // a plain number (duration text, rep ranges left un-edited, etc.), and
-  // skips any exercise that doesn't track weight at all
+  // skips any exercise that doesn't track weight at all. hasVolumeData
+  // tracks whether any of that actually applied - a Field/Training session
+  // (self-logged, zero exercises) or a coach-assigned day with no
+  // weight-tracked exercises (a run, a field session, etc.) should hide the
+  // tile entirely rather than show a meaningless "0kg"
   let totalVolume = 0
+  let hasVolumeData = false
   for (const pe of entry.day.program_exercises) {
     if (!pe.exercises || !pe.exercises.tracks_weight) continue
     const sets = logSetsByPE[pe.id] || []
     for (const s of sets) {
       if (!s.completed_at || s.actual_weight == null) continue
       const reps = parseInt(s.actual_reps)
-      if (!isNaN(reps)) totalVolume += reps * s.actual_weight
+      if (!isNaN(reps)) { totalVolume += reps * s.actual_weight; hasVolumeData = true }
     }
   }
 
@@ -2222,10 +2232,12 @@ function renderWorkoutSummary(finishedSession, entry) {
           <div class="workout-summary-stat-label">Duration</div>
           <button type="button" class="duration-edit-btn" id="durationEditBtn">✏ Edit</button>
         </div>
+        ${hasVolumeData ? `
         <div>
           <div class="workout-summary-stat-value">${Math.round(formatWeight(totalVolume, athlete.weight_unit))}${athlete.weight_unit || 'kg'}</div>
           <div class="workout-summary-stat-label">Total Volume</div>
         </div>
+        ` : ''}
       </div>
       ${needsDurationReview ? `<p class="duration-warning">This looks long — ${durationMinRounded}m. Forget to stop the timer? Tap Edit to fix it.</p>` : ''}
       <div class="duration-edit-row" id="durationEditRow" style="display:none">
@@ -2584,6 +2596,15 @@ function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) {
   // as two small text inputs rather than type="number" so the "00" padding
   // actually stays visible instead of browsers stripping the leading zero
   const container = document.getElementById(containerId)
+  // Selects the "00" the moment a box is tapped, so typing a digit replaces
+  // it immediately instead of needing a manual delete first - focusin
+  // (not focus) since this is delegated from the container, and plain
+  // focus doesn't bubble
+  container.addEventListener('focusin', function(e) {
+    if (e.target.matches('.set-time-mm, .set-time-ss')) {
+      e.target.select()
+    }
+  })
   container.addEventListener('input', function(e) {
     if (e.target.matches('.set-time-mm, .set-time-ss')) {
       e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2)

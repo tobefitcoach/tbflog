@@ -691,7 +691,14 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
 })
 
 // mm:ss time boxes: strip anything non-digit as it's typed, then pad back
-// to 2 digits (and clamp seconds to 59) once the coach taps away
+// to 2 digits (and clamp seconds to 59) once the coach taps away. Selects
+// the "00" on focus so typing a digit replaces it instead of needing a
+// manual delete first
+document.getElementById('trainingExercisesList').addEventListener('focusin', function(e) {
+  if (e.target.matches('.set-time-mm, .set-time-ss')) {
+    e.target.select()
+  }
+})
 document.getElementById('trainingExercisesList').addEventListener('input', function(e) {
   if (e.target.matches('.set-time-mm, .set-time-ss')) {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2)
