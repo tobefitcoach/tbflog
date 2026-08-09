@@ -53,6 +53,26 @@ let athleteStretchPreferencesCache = null   // Map<stretch_id, 'liked'|'disliked
 let mobilityFlowInterval = null             // countdown for the guided flow screen, parallel to mobilityTimerInterval
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 
+// Session RPE (1-10, modified Borg CR-10 scale) - this exact scale is what
+// Training Load's session_rpe x duration_minutes formula (loadOverviewStats,
+// athlete.js) and ACWR/monotony/strain are built on, so these anchors are
+// meant to match how those numbers are already interpreted, not just be
+// friendly-sounding text. Shown live under the RPE buttons (both here and
+// in renderWorkoutSummary) so tapping a number confirms what it means
+// instead of the athlete guessing.
+const RPE_DESCRIPTIONS = {
+  1: 'Very light - barely felt it, no sweat',
+  2: 'Light - easy, could keep this up all day',
+  3: 'Light-moderate - comfortable, breathing picks up a little',
+  4: 'Moderate - working, but you could hold a conversation',
+  5: 'Moderate-hard - breathing hard, talking gets difficult',
+  6: 'Hard - pushing yourself, only short sentences',
+  7: 'Very hard - tough to sustain, a few words at a time',
+  8: 'Very hard - near max, maybe a little more in the tank',
+  9: 'Extremely hard - almost everything you had',
+  10: 'Maximal - absolutely everything, nothing left'
+}
+
 checkAccountState()
 
 async function checkAccountState() {
@@ -1364,6 +1384,10 @@ function renderAddWorkoutFieldForm() {
       <h2 class="day-view-date">Field / Training</h2>
     </div>
     <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="fieldDateInput" value="${toDateStr(new Date())}" max="${toDateStr(new Date())}">
+    </div>
+    <div class="form-group">
       <label>Activity (optional)</label>
       <input type="text" id="fieldActivityInput" placeholder="e.g. Soccer practice, 5k run">
     </div>
@@ -1380,11 +1404,15 @@ function renderAddWorkoutFieldForm() {
       <p style="color:#aaaacc; font-size:11px; margin-top:4px">hours : minutes</p>
     </div>
     <div class="rpe-picker">
-      <p class="rpe-picker-label">How hard did it feel? (RPE)</p>
+      <p class="rpe-picker-label">Effort (RPE)</p>
       <div class="rpe-picker-row" id="fieldRpeRow">
         ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button type="button" class="rpe-btn" data-rpe="${n}">${n}</button>`).join('')}
       </div>
-      <p class="rpe-picker-hint">1 = very easy, 10 = maximal effort</p>
+      <p class="rpe-picker-hint" id="fieldRpeHint">Tap a number to rate how hard it felt</p>
+    </div>
+    <div class="form-group">
+      <label>Avg Heart Rate (optional)</label>
+      <input type="number" id="fieldAvgHr" min="30" max="250" placeholder="e.g. 145 bpm">
     </div>
     <button type="button" class="btn-save start-workout-btn" id="fieldSaveBtn" style="margin-top:16px">💾 Save</button>
   `
@@ -1423,6 +1451,7 @@ function renderAddWorkoutFieldForm() {
     document.querySelectorAll('#fieldRpeRow .rpe-btn').forEach(b => b.classList.remove('selected'))
     btn.classList.add('selected')
     selectedRpe = parseInt(btn.dataset.rpe)
+    document.getElementById('fieldRpeHint').textContent = RPE_DESCRIPTIONS[selectedRpe]
   })
 
   document.getElementById('fieldSaveBtn').addEventListener('click', async function() {
@@ -1432,17 +1461,19 @@ function renderAddWorkoutFieldForm() {
     if (!minutes || minutes < 1) { customAlert('Pick a duration first'); return }
     if (!selectedRpe) { customAlert('Pick an RPE first'); return }
 
+    const dateStr = document.getElementById('fieldDateInput').value || toDateStr(new Date())
+
     const btn = document.getElementById('fieldSaveBtn')
     btn.disabled = true
     btn.textContent = 'Saving...'
 
     const activity = document.getElementById('fieldActivityInput').value.trim() || 'Field Training'
-    await saveFieldTraining(activity, minutes, selectedRpe)
+    const avgHr = parseInt(document.getElementById('fieldAvgHr').value) || null
+    await saveFieldTraining(dateStr, activity, minutes, selectedRpe, avgHr)
   })
 }
 
-async function saveFieldTraining(activityName, durationMinutes, rpe) {
-  const dateStr = toDateStr(new Date())
+async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, avgHeartRate) {
   let dayId
   try {
     dayId = await findOrCreateSelfLoggedDay(dateStr, activityName)
@@ -1452,7 +1483,14 @@ async function saveFieldTraining(activityName, durationMinutes, rpe) {
     return
   }
 
-  const endedAt = new Date()
+  // Today: use the real current time, so logging right after finishing
+  // reflects an accurate clock time. A past day: the exact time isn't
+  // known, so anchor near midday - that keeps the derived startedAt safely
+  // within the same calendar day for any reasonable duration, which matters
+  // since Training Load buckets sessions by started_at's own date, not the
+  // program_day it's attached to
+  const isToday = dateStr === toDateStr(new Date())
+  const endedAt = isToday ? new Date() : new Date(parseDateStr(dateStr).getTime() + 12 * 60 * 60000)
   const startedAt = new Date(endedAt.getTime() - durationMinutes * 60000)
 
   const { data, error } = await supabase
@@ -1462,7 +1500,8 @@ async function saveFieldTraining(activityName, durationMinutes, rpe) {
       athlete_id: athlete.id,
       started_at: startedAt.toISOString(),
       ended_at: endedAt.toISOString(),
-      session_rpe: rpe
+      session_rpe: rpe,
+      avg_heart_rate: avgHeartRate
     }])
     .select()
 
@@ -2198,11 +2237,11 @@ function renderWorkoutSummary(finishedSession, entry) {
     </div>
 
     <div class="rpe-picker">
-      <p class="rpe-picker-label">How hard did this workout feel? (Session RPE)</p>
+      <p class="rpe-picker-label">Effort (RPE)</p>
       <div class="rpe-picker-row" id="rpePickerRow">
         ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button type="button" class="rpe-btn ${finishedSession.session_rpe === n ? 'selected' : ''}" data-rpe="${n}">${n}</button>`).join('')}
       </div>
-      <p class="rpe-picker-hint">1 = very easy, 10 = maximal effort</p>
+      <p class="rpe-picker-hint" id="rpePickerHint">${finishedSession.session_rpe ? RPE_DESCRIPTIONS[finishedSession.session_rpe] : 'Tap a number to rate how hard it felt'}</p>
     </div>
 
     ${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}
@@ -2237,6 +2276,7 @@ function wireSummaryRpePicker(session) {
     row.querySelectorAll('.rpe-btn').forEach(b => b.classList.remove('selected'))
     btn.classList.add('selected')
     session.session_rpe = rpe
+    document.getElementById('rpePickerHint').textContent = RPE_DESCRIPTIONS[rpe]
 
     // This session was never actually created in the database (see the
     // local- placeholder in findOrCreateSession) - nothing to update there

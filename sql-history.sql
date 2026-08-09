@@ -1105,3 +1105,11 @@ create policy "public reads stretch videos" on storage.objects for select
 -- "coach full access to own athletes" is already FOR ALL, not column-scoped.
 -- ==========================================================================
 alter table athletes add column if not exists archived boolean not null default false;
+
+-- ==========================================================================
+-- Optional avg heart rate on a self-logged Field/Training session (bpm).
+-- Sanity-bounded, not required - null just means the athlete didn't have/
+-- use a heart rate monitor for that session.
+-- ==========================================================================
+alter table workout_sessions add column if not exists avg_heart_rate int
+  check (avg_heart_rate is null or avg_heart_rate between 30 and 250);
