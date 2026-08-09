@@ -1372,7 +1372,12 @@ function renderAddWorkoutFieldForm() {
       <div class="duration-preset-row">
         ${presets.map(m => `<button type="button" class="duration-preset-btn" data-minutes="${m}">${m} min</button>`).join('')}
       </div>
-      <input type="number" id="fieldCustomMinutes" min="1" placeholder="Or a custom number of minutes" style="margin-top:8px">
+      <div class="set-time-input" style="width:fit-content; margin-top:8px">
+        <input type="text" inputmode="numeric" class="field-duration-hh" id="fieldDurationHH" value="00" maxlength="2">
+        <span class="set-time-sep">:</span>
+        <input type="text" inputmode="numeric" class="field-duration-mm" id="fieldDurationMM" value="00" maxlength="2">
+      </div>
+      <p style="color:#aaaacc; font-size:11px; margin-top:4px">hours : minutes</p>
     </div>
     <div class="rpe-picker">
       <p class="rpe-picker-label">How hard did it feel? (RPE)</p>
@@ -1390,7 +1395,25 @@ function renderAddWorkoutFieldForm() {
 
   document.querySelectorAll('.duration-preset-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-      document.getElementById('fieldCustomMinutes').value = btn.dataset.minutes
+      const totalMinutes = parseInt(btn.dataset.minutes)
+      document.getElementById('fieldDurationHH').value = String(Math.floor(totalMinutes / 60)).padStart(2, '0')
+      document.getElementById('fieldDurationMM').value = String(totalMinutes % 60).padStart(2, '0')
+    })
+  })
+
+  // Same sanitize-as-typed / clamp-on-blur pattern as the mm:ss set-time
+  // boxes elsewhere in this file (see wireExerciseCardEvents) - kept as two
+  // small text inputs rather than type="number" so "00" padding stays
+  // visible instead of the browser stripping the leading zero
+  const durationBoxes = document.querySelectorAll('#fieldDurationHH, #fieldDurationMM')
+  durationBoxes.forEach(input => {
+    input.addEventListener('input', function() {
+      input.value = input.value.replace(/\D/g, '').slice(0, 2)
+    })
+    input.addEventListener('focusout', function() {
+      const max = input.id === 'fieldDurationHH' ? 23 : 59
+      const val = Math.min(parseInt(input.value) || 0, max)
+      input.value = String(val).padStart(2, '0')
     })
   })
 
@@ -1403,7 +1426,9 @@ function renderAddWorkoutFieldForm() {
   })
 
   document.getElementById('fieldSaveBtn').addEventListener('click', async function() {
-    const minutes = parseInt(document.getElementById('fieldCustomMinutes').value)
+    const hh = parseInt(document.getElementById('fieldDurationHH').value) || 0
+    const mm = parseInt(document.getElementById('fieldDurationMM').value) || 0
+    const minutes = hh * 60 + mm
     if (!minutes || minutes < 1) { customAlert('Pick a duration first'); return }
     if (!selectedRpe) { customAlert('Pick an RPE first'); return }
 

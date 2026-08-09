@@ -404,7 +404,9 @@
 }
 
 .set-time-mm,
-.set-time-ss {
+.set-time-ss,
+.field-duration-hh,
+.field-duration-mm {
   width: 28px;
   min-width: 0;
   border: none;
