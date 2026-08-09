@@ -61,16 +61,16 @@ let currentWeekStart = null // Date (Monday) of the currently-shown week, for "b
 // in renderWorkoutSummary) so tapping a number confirms what it means
 // instead of the athlete guessing.
 const RPE_DESCRIPTIONS = {
-  1: 'Very light - barely felt it, no sweat',
-  2: 'Light - easy, could keep this up all day',
-  3: 'Light-moderate - comfortable, breathing picks up a little',
-  4: 'Moderate - working, but you could hold a conversation',
-  5: 'Moderate-hard - breathing hard, talking gets difficult',
-  6: 'Hard - pushing yourself, only short sentences',
-  7: 'Very hard - tough to sustain, a few words at a time',
-  8: 'Very hard - near max, maybe a little more in the tank',
+  1: 'Very light - minimal effort',
+  2: 'Light - easy, comfortable',
+  3: 'Light-moderate - noticeable but sustainable',
+  4: 'Moderate - working, steady effort',
+  5: 'Moderate-hard - pushing, needs focus',
+  6: 'Hard - challenging, effort building',
+  7: 'Very hard - strong effort, fatigue setting in',
+  8: 'Very hard - close to your limit',
   9: 'Extremely hard - almost everything you had',
-  10: 'Maximal - absolutely everything, nothing left'
+  10: 'Maximal - absolute max, nothing left'
 }
 
 checkAccountState()
