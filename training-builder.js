@@ -21,6 +21,11 @@ if (params.get('embed') === '1') {
 }
 
 let allExercises = []
+// Category chips narrow the library alongside the name search (AND) - no
+// chip selected shows everything. Categories are freeform per-exercise
+// text, not a fixed list, so the chip set is generated from whatever
+// values are actually in use (see renderCategoryChips)
+let activeCategoryFilters = new Set()
 let exercisesCache = [] // last-loaded training_exercises for this training
 
 const { data: { session } } = await supabase.auth.getSession()
@@ -66,8 +71,30 @@ async function loadAllExercises() {
   const { data, error } = await fetchWithRetry((signal) => supabase.from('exercises').select('*').order('name').abortSignal(signal))
   if (error) { console.log('Error loading exercises:', error); customAlert('Something went wrong loading the exercise library - check your connection and try again'); return }
   allExercises = data
+  renderCategoryChips()
   renderLibraryPanel()
 }
+
+// Rebuilds the chip row from whatever Category values are actually present
+// across the library right now - same technique exercises.js's
+// populateCategorySelect uses to fill its category dropdown
+function renderCategoryChips() {
+  const categories = [...new Set(allExercises.map(ex => ex.category).filter(Boolean))].sort()
+  const row = document.getElementById('exerciseCategoryChips')
+  row.innerHTML = categories.map(cat =>
+    `<button type="button" class="chip-btn ${activeCategoryFilters.has(cat) ? 'selected' : ''}" data-category="${cat}">${cat}</button>`
+  ).join('')
+}
+
+document.getElementById('exerciseCategoryChips').addEventListener('click', function(e) {
+  const btn = e.target.closest('.chip-btn')
+  if (!btn) return
+  const cat = btn.dataset.category
+  if (activeCategoryFilters.has(cat)) activeCategoryFilters.delete(cat)
+  else activeCategoryFilters.add(cat)
+  btn.classList.toggle('selected')
+  renderLibraryPanel()
+})
 
 // YouTube's thumbnail images are available at a predictable URL from just
 // the video id, no API key needed - other hosts (Vimeo etc.) would need a
@@ -95,7 +122,8 @@ function playInlineVideo(containerEl, url) {
 
 function renderLibraryPanel() {
   const filter = document.getElementById('exerciseSearchInput').value.trim().toLowerCase()
-  const filtered = filter ? allExercises.filter(ex => ex.name.toLowerCase().includes(filter)) : allExercises
+  let filtered = filter ? allExercises.filter(ex => ex.name.toLowerCase().includes(filter)) : allExercises
+  if (activeCategoryFilters.size) filtered = filtered.filter(ex => activeCategoryFilters.has(ex.category))
 
   const list = document.getElementById('exerciseLibraryList')
 
@@ -464,7 +492,7 @@ function renderExerciseCard(te) {
   const thumb = getYouTubeThumbnail(videoUrl)
   const targets = deriveSetTargets(te)
   const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
-  const partner = te.superset_group_id ? exercisesCache.find(other => other.id !== te.id && other.superset_group_id === te.superset_group_id) : null
+  const groupMembers = te.superset_group_id ? exercisesCache.filter(other => other.id !== te.id && other.superset_group_id === te.superset_group_id) : []
 
   return `
     <div class="builder-exercise-card" data-id="${te.id}" data-superset-group-id="${te.superset_group_id || ''}">
@@ -475,7 +503,7 @@ function renderExerciseCard(te) {
         </button>
         <div class="builder-exercise-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
-        ${partner ? `<span class="builder-superset-badge">🔗 Linked with ${partner.exercises ? partner.exercises.name : 'exercise'}</span>` : ''}
+        ${groupMembers.length ? `<span class="builder-superset-badge">🔗 Linked with ${groupMembers.map(m => m.exercises ? m.exercises.name : 'exercise').join(', ')}</span>` : ''}
         <button type="button" class="builder-link-btn ${te.superset_group_id ? 'linked' : ''}" data-action="toggle-link" title="${te.superset_group_id ? 'Unlink superset' : 'Link with another exercise (superset)'}">🔗</button>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from workout">🗑</button>
       </div>
@@ -586,7 +614,7 @@ async function deleteExerciseRow(id) {
   if (!(await customConfirm('Remove this exercise from the workout?'))) return
 
   const card = document.querySelector(`.builder-exercise-card[data-id="${id}"]`)
-  if (card && card.dataset.supersetGroupId) unlinkSupersetPair(card.dataset.supersetGroupId, trainingDropZone)
+  if (card && card.dataset.supersetGroupId) removeFromSupersetGroup(id, trainingDropZone)
 
   const { error } = await supabase.from('training_exercises').delete().eq('id', id)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
@@ -600,54 +628,76 @@ async function deleteExerciseRow(id) {
 }
 
 // ==========================================================================
-// ---- SUPERSETS (link exactly two exercises) ----
+// ---- SUPERSETS (link up to 4 exercises into one giant-set group) ----
 // Draft-until-Save, exactly like set_targets/notes - a link only becomes
 // real when saveExerciseCard's payload includes it. Picking mode only
-// marks OTHER cards in this same training as pickable, since a superset
-// partner always has to be within the same exercise list.
+// marks OTHER cards in this same training as pickable, since every member
+// of a group always has to be within the same exercise list.
 // ==========================================================================
-let pickingPartnerForId = null
+let pickingGroupIds = null // array being built while picking, else null
+const SUPERSET_CAP = 4
 
 function handleLinkClick(id, listScopeEl) {
   const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
   const currentGroupId = card.dataset.supersetGroupId || null
-  if (currentGroupId) { unlinkSupersetPair(currentGroupId, listScopeEl); return }
-  if (pickingPartnerForId === id) { exitPickingMode(listScopeEl); return }
-  if (pickingPartnerForId) { completeSupersetPairing(pickingPartnerForId, id, listScopeEl); return }
+  if (currentGroupId && !pickingGroupIds) { removeFromSupersetGroup(id, listScopeEl); return }
+  if (pickingGroupIds && pickingGroupIds[0] === id) { finalizePicking(listScopeEl); return }
+  if (pickingGroupIds) { addToPickingGroup(id, listScopeEl); return }
   enterPickingMode(id, listScopeEl)
 }
 
 function enterPickingMode(id, listScopeEl) {
-  pickingPartnerForId = id
+  pickingGroupIds = [id]
+  refreshPickingHighlight(listScopeEl)
+}
+
+// Tapping another unlinked card adds it to the group being built - once
+// the cap is hit the group finalizes on its own, no extra tap needed
+function addToPickingGroup(id, listScopeEl) {
+  pickingGroupIds.push(id)
+  if (pickingGroupIds.length >= SUPERSET_CAP) { finalizePicking(listScopeEl); return }
+  refreshPickingHighlight(listScopeEl)
+}
+
+function refreshPickingHighlight(listScopeEl) {
   listScopeEl.querySelectorAll('.builder-exercise-card').forEach(card => {
-    const isSelf = card.dataset.id === id
+    const picked = pickingGroupIds.includes(card.dataset.id)
     const isLinked = !!card.dataset.supersetGroupId
-    card.classList.toggle('picking-self', isSelf)
-    card.classList.toggle('pickable', !isSelf && !isLinked)
+    card.classList.toggle('picking-self', picked)
+    card.classList.toggle('pickable', !picked && !isLinked)
   })
 }
 
 function exitPickingMode(listScopeEl) {
-  pickingPartnerForId = null
+  pickingGroupIds = null
   listScopeEl.querySelectorAll('.builder-exercise-card').forEach(c => c.classList.remove('picking-self', 'pickable'))
 }
 
-function completeSupersetPairing(idA, idB, listScopeEl) {
+// Tapping the original card again finishes early with fewer than the cap -
+// needs at least 2 to actually form a group, otherwise it's just a cancel
+function finalizePicking(listScopeEl) {
+  if (pickingGroupIds.length < 2) { exitPickingMode(listScopeEl); return }
   const groupId = crypto.randomUUID()
-  const cardA = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idA}"]`)
-  const cardB = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idB}"]`)
-  cardA.dataset.supersetGroupId = groupId
-  cardB.dataset.supersetGroupId = groupId
+  const ids = pickingGroupIds
+  ids.forEach(id => {
+    listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`).dataset.supersetGroupId = groupId
+  })
   exitPickingMode(listScopeEl)
-  refreshSupersetBadge(cardA)
-  refreshSupersetBadge(cardB)
+  ids.forEach(id => refreshSupersetBadge(listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)))
 }
 
-function unlinkSupersetPair(groupId, listScopeEl) {
-  listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`).forEach(card => {
-    delete card.dataset.supersetGroupId
-    refreshSupersetBadge(card)
-  })
+// Removes just this one card from its group (tapped via 🔗, or from
+// deleteExerciseRow) - if that would leave only one member, that last one
+// is cleared too, since a "group of 1" isn't a superset
+function removeFromSupersetGroup(id, listScopeEl) {
+  const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+  const groupId = card.dataset.supersetGroupId
+  if (!groupId) return
+  delete card.dataset.supersetGroupId
+  const remaining = [...listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)]
+  if (remaining.length === 1) delete remaining[0].dataset.supersetGroupId
+  refreshSupersetBadge(card)
+  remaining.forEach(refreshSupersetBadge)
 }
 
 function refreshSupersetBadge(card) {
@@ -656,13 +706,13 @@ function refreshSupersetBadge(card) {
   const linkBtn = card.querySelector('.builder-link-btn')
   const groupId = card.dataset.supersetGroupId
   linkBtn.classList.toggle('linked', !!groupId)
-  linkBtn.title = groupId ? 'Unlink superset' : 'Link with another exercise (superset)'
+  linkBtn.title = groupId ? 'Remove from superset' : 'Link with other exercises (superset)'
   if (!groupId) return
-  const partnerCard = [...trainingDropZone.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].find(c => c !== card)
-  const partnerName = partnerCard ? partnerCard.querySelector('.builder-exercise-name').textContent : null
-  if (!partnerName) return
+  const others = [...trainingDropZone.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
+  const names = others.map(c => c.querySelector('.builder-exercise-name').textContent).filter(Boolean)
+  if (!names.length) return
   card.querySelector('.builder-exercise-card-header').insertBefore(
-    Object.assign(document.createElement('span'), { className: 'builder-superset-badge', textContent: `🔗 Linked with ${partnerName}` }),
+    Object.assign(document.createElement('span'), { className: 'builder-superset-badge', textContent: `🔗 Linked with ${names.join(', ')}` }),
     linkBtn
   )
 }
@@ -806,6 +856,7 @@ document.getElementById('saveTCreateExerciseBtn').addEventListener('click', asyn
 
   allExercises.push(data[0])
   allExercises.sort((a, b) => a.name.localeCompare(b.name))
+  renderCategoryChips()
   renderLibraryPanel()
   document.getElementById('tCreateExerciseModal').classList.remove('active')
   await addExerciseToTraining(data[0].id)
@@ -918,13 +969,23 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
 
   const baseOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
 
+  // Fresh group id per distinct superset_group_id in this batch, so
+  // inserting the same section twice into one training doesn't make both
+  // copies' supersets collide into a single group - same reasoning as the
+  // baseOrder offset just above, applied to group ids instead of order_index
+  const groupIdMap = {}
+  for (const se of sectionExercises) {
+    if (se.superset_group_id && !groupIdMap[se.superset_group_id]) groupIdMap[se.superset_group_id] = crypto.randomUUID()
+  }
+
   const { data: inserted, error: insertError } = await supabase.from('training_exercises').insert(
     sectionExercises.map((se, i) => ({
       training_id: trainingId, exercise_id: se.exercise_id, order_index: baseOrder + i,
       prescribed_sets: se.prescribed_sets, prescribed_reps: se.prescribed_reps,
       prescribed_weight: se.prescribed_weight, rest_seconds: se.rest_seconds,
       extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
-      section_label: sectionName
+      section_label: sectionName,
+      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
     }))
   ).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }

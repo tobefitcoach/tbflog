@@ -1793,25 +1793,27 @@ async function findOrCreateSession(programDayId) {
   return newSession
 }
 
-// Groups a linked (superset) pair of exercises into one merged "slide" -
-// the guided view walks slides, not raw exercises, so a superset pair
-// occupies exactly one slot wherever the earlier-ordered member falls (the
+// Groups a linked (superset) group of up to 4 exercises into one merged
+// "slide" - the guided view walks slides, not raw exercises, so a group
+// occupies exactly one slot wherever its earliest-ordered member falls (the
 // coach doesn't need to keep linked exercises adjacent in the list).
+// exercises is already in order_index order by the time this runs, so
+// .filter() naturally keeps members in that same order - members[last] is
+// always the latest-ordered one, which matters for maybeStartRestTimer.
 function buildWorkoutSlides(exercises) {
   const slides = []
   const consumed = new Set()
   for (const pe of exercises) {
     if (consumed.has(pe.id)) continue
     if (pe.superset_group_id) {
-      const partner = exercises.find(x => x.id !== pe.id && x.superset_group_id === pe.superset_group_id)
-      if (partner) {
-        consumed.add(pe.id)
-        consumed.add(partner.id)
-        slides.push({ type: 'superset', first: pe, second: partner })
+      const members = exercises.filter(x => x.superset_group_id === pe.superset_group_id)
+      if (members.length > 1) {
+        members.forEach(m => consumed.add(m.id))
+        slides.push({ type: 'superset', members })
         continue
       }
-      // partner not in today's exercise list (defensive) - falls through
-      // to a normal single slide instead
+      // no other member in today's exercise list (defensive) - falls
+      // through to a normal single slide instead
     }
     slides.push({ type: 'single', pe })
   }
@@ -1819,7 +1821,7 @@ function buildWorkoutSlides(exercises) {
 }
 
 function slideIsFullyLogged(slide) {
-  const pes = slide.type === 'superset' ? [slide.first, slide.second] : [slide.pe]
+  const pes = slide.type === 'superset' ? slide.members : [slide.pe]
   return pes.every(function(pe) {
     const prescribed = pe.prescribed_sets || 1
     const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
@@ -2007,32 +2009,27 @@ function renderSingleSlideBody(pe, isSelfLogged) {
   `
 }
 
-// Linked pair: both exercises' headers, then sets interleaved round by
-// round (exercise 1 set 1, exercise 2 set 1, exercise 1 set 2, ...) capped
-// at each exercise's own set count if they differ. Each row is prefixed
-// with its exercise's name (see renderSetRow's exerciseLabel param) so the
-// athlete can tell the two apart while interleaved.
+// Linked group (2-4 exercises): every member's header, then sets
+// interleaved round by round (member 1 set 1, member 2 set 1, ..., member 1
+// set 2, ...) capped at each member's own set count if they differ. Each
+// row is prefixed with its exercise's name (see renderSetRow's
+// exerciseLabel param) so the athlete can tell them apart while interleaved.
 function renderSupersetSlideBody(slide, isSelfLogged) {
-  const first = slide.first
-  const second = slide.second
-  const firstIsTimed = first.exercises && first.exercises.is_timed
-  const firstTracksWeight = !first.exercises || first.exercises.tracks_weight
-  const secondIsTimed = second.exercises && second.exercises.is_timed
-  const secondTracksWeight = !second.exercises || second.exercises.tracks_weight
-
-  const firstLogged = logSetsByPE[first.id] || []
-  const secondLogged = logSetsByPE[second.id] || []
-  const firstCount = Math.max(first.prescribed_sets || 1, firstLogged.length)
-  const secondCount = Math.max(second.prescribed_sets || 1, secondLogged.length)
-  const rounds = Math.max(firstCount, secondCount)
+  const members = slide.members.map(pe => ({
+    pe,
+    isTimed: pe.exercises && pe.exercises.is_timed,
+    tracksWeight: !pe.exercises || pe.exercises.tracks_weight,
+    logged: logSetsByPE[pe.id] || []
+  }))
+  members.forEach(m => { m.count = Math.max(m.pe.prescribed_sets || 1, m.logged.length) })
+  const rounds = Math.max(...members.map(m => m.count))
 
   let rowsHtml = ''
   for (let round = 1; round <= rounds; round++) {
-    if (round <= firstCount) {
-      rowsHtml += renderSetRow(first, round, firstLogged.find(s => s.set_number === round), firstIsTimed, firstTracksWeight, round > (first.prescribed_sets || 0), first.exercises ? first.exercises.name : 'Exercise 1')
-    }
-    if (round <= secondCount) {
-      rowsHtml += renderSetRow(second, round, secondLogged.find(s => s.set_number === round), secondIsTimed, secondTracksWeight, round > (second.prescribed_sets || 0), second.exercises ? second.exercises.name : 'Exercise 2')
+    for (const m of members) {
+      if (round <= m.count) {
+        rowsHtml += renderSetRow(m.pe, round, m.logged.find(s => s.set_number === round), m.isTimed, m.tracksWeight, round > (m.pe.prescribed_sets || 0), m.pe.exercises ? m.pe.exercises.name : 'Exercise')
+      }
     }
   }
 
@@ -2059,12 +2056,10 @@ function renderSupersetSlideBody(slide, isSelfLogged) {
   return `
     <div id="activeExerciseCard" class="workout-slide">
       <p class="superset-slide-label">🔗 Superset</p>
-      ${headerHtml(first)}
-      ${headerHtml(second)}
+      ${slide.members.map(headerHtml).join('')}
       <div class="set-rows">${rowsHtml}</div>
-      <div style="display:flex; gap:8px">
-        <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${first.id}">+ Add Set (${first.exercises ? first.exercises.name : 'Exercise 1'})</button>
-        <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${second.id}">+ Add Set (${second.exercises ? second.exercises.name : 'Exercise 2'})</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        ${slide.members.map(pe => `<button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set (${pe.exercises ? pe.exercises.name : 'Exercise'})</button>`).join('')}
       </div>
     </div>
   `
@@ -3370,19 +3365,20 @@ async function saveWithRetry(operationFactory, maxAttempts = 3) {
 // is the last row in its exercise's list, there's nothing to rest before.
 //
 // Superset slides (currentSlideContext.type === 'superset') follow a
-// different rule instead of the DOM-sibling "last row" check below: the
-// FIRST-linked exercise (lower order_index) never rests, on any set: the
-// whole point of a superset is going straight from it into the second
-// exercise. The SECOND exercise rests after each of its sets EXCEPT the
-// pair's final round, same "nothing to rest before" reasoning as the
-// single-exercise case, just measured across the pair's max round count
-// instead of one exercise's own row count.
+// different rule instead of the DOM-sibling "last row" check below: every
+// member except the LAST-linked one (highest order_index) never rests, on
+// any set - the whole point of a superset/giant-set is going straight from
+// one exercise into the next. Only the last member rests after each of its
+// sets EXCEPT the group's final round, same "nothing to rest before"
+// reasoning as the single-exercise case, just measured across the whole
+// group's max round count instead of one exercise's own row count.
 // ==========================================================================
 function maybeStartRestTimer(pe, rowEl) {
   const setNumber = parseInt(rowEl.dataset.setNumber)
 
   if (currentSlideContext && currentSlideContext.type === 'superset') {
-    if (pe.id === currentSlideContext.first.id) return
+    const members = currentSlideContext.members
+    if (pe.id !== members[members.length - 1].id) return
     const maxRound = Math.max(...[...rowEl.parentElement.querySelectorAll('.set-row')].map(r => parseInt(r.dataset.setNumber)))
     if (setNumber >= maxRound) return
     const target = pe.set_targets && pe.set_targets[setNumber - 1]

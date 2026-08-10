@@ -352,7 +352,7 @@ function renderScheduledExerciseCard(pe, siblingExercises) {
   const thumb = getYouTubeThumbnailCal(videoUrl)
   const targets = deriveSetTargetsCal(pe)
   const rowsHtml = targets.map((t, i) => renderSetTargetRowCal(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
-  const partner = pe.superset_group_id ? (siblingExercises || []).find(other => other.id !== pe.id && other.superset_group_id === pe.superset_group_id) : null
+  const groupMembers = pe.superset_group_id ? (siblingExercises || []).filter(other => other.id !== pe.id && other.superset_group_id === pe.superset_group_id) : []
 
   return `
     <div class="builder-exercise-card" data-id="${pe.id}" data-superset-group-id="${pe.superset_group_id || ''}">
@@ -363,8 +363,8 @@ function renderScheduledExerciseCard(pe, siblingExercises) {
         </button>
         <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
-        ${partner ? `<span class="builder-superset-badge">🔗 Linked with ${partner.exercises ? partner.exercises.name : 'exercise'}</span>` : ''}
-        <button type="button" class="builder-link-btn ${pe.superset_group_id ? 'linked' : ''}" data-action="toggle-link" title="${pe.superset_group_id ? 'Unlink superset' : 'Link with another exercise (superset)'}">🔗</button>
+        ${groupMembers.length ? `<span class="builder-superset-badge">🔗 Linked with ${groupMembers.map(m => m.exercises ? m.exercises.name : 'exercise').join(', ')}</span>` : ''}
+        <button type="button" class="builder-link-btn ${pe.superset_group_id ? 'linked' : ''}" data-action="toggle-link" title="${pe.superset_group_id ? 'Remove from superset' : 'Link with other exercises (superset)'}">🔗</button>
         <button type="button" class="btn-delete-measurement" data-action="delete-scheduled" title="Remove exercise">🗑</button>
       </div>
       <div class="set-target-rows">
@@ -660,53 +660,75 @@ async function saveScheduledExercise(peId, orderIndex) {
 }
 
 // ==========================================================================
-// ---- SUPERSETS (link exactly two exercises) ----
+// ---- SUPERSETS (link up to 4 exercises into one giant-set group) ----
 // Same pattern as training-builder.js/program-builder.js, scoped to one
-// day's .detail-group - a superset partner always has to be within the
-// same day. Draft-until-Save, exactly like set_targets/notes.
+// day's .detail-group - every member of a group always has to be within
+// the same day. Draft-until-Save, exactly like set_targets/notes.
 // ==========================================================================
-let pickingPartnerForIdCal = null
+let pickingGroupIdsCal = null // array being built while picking, else null
+const SUPERSET_CAP_CAL = 4
 
 function handleLinkClickCal(id, listScopeEl) {
   const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
   const currentGroupId = card.dataset.supersetGroupId || null
-  if (currentGroupId) { unlinkSupersetPairCal(currentGroupId, listScopeEl); return }
-  if (pickingPartnerForIdCal === id) { exitPickingModeCal(listScopeEl); return }
-  if (pickingPartnerForIdCal) { completeSupersetPairingCal(pickingPartnerForIdCal, id, listScopeEl); return }
+  if (currentGroupId && !pickingGroupIdsCal) { removeFromSupersetGroupCal(id, listScopeEl); return }
+  if (pickingGroupIdsCal && pickingGroupIdsCal[0] === id) { finalizePickingCal(listScopeEl); return }
+  if (pickingGroupIdsCal) { addToPickingGroupCal(id, listScopeEl); return }
   enterPickingModeCal(id, listScopeEl)
 }
 
 function enterPickingModeCal(id, listScopeEl) {
-  pickingPartnerForIdCal = id
+  pickingGroupIdsCal = [id]
+  refreshPickingHighlightCal(listScopeEl)
+}
+
+// Tapping another unlinked card adds it to the group being built - once
+// the cap is hit the group finalizes on its own, no extra tap needed
+function addToPickingGroupCal(id, listScopeEl) {
+  pickingGroupIdsCal.push(id)
+  if (pickingGroupIdsCal.length >= SUPERSET_CAP_CAL) { finalizePickingCal(listScopeEl); return }
+  refreshPickingHighlightCal(listScopeEl)
+}
+
+function refreshPickingHighlightCal(listScopeEl) {
   listScopeEl.querySelectorAll('.builder-exercise-card').forEach(card => {
-    const isSelf = card.dataset.id === id
+    const picked = pickingGroupIdsCal.includes(card.dataset.id)
     const isLinked = !!card.dataset.supersetGroupId
-    card.classList.toggle('picking-self', isSelf)
-    card.classList.toggle('pickable', !isSelf && !isLinked)
+    card.classList.toggle('picking-self', picked)
+    card.classList.toggle('pickable', !picked && !isLinked)
   })
 }
 
 function exitPickingModeCal(listScopeEl) {
-  pickingPartnerForIdCal = null
+  pickingGroupIdsCal = null
   listScopeEl.querySelectorAll('.builder-exercise-card').forEach(c => c.classList.remove('picking-self', 'pickable'))
 }
 
-function completeSupersetPairingCal(idA, idB, listScopeEl) {
+// Tapping the original card again finishes early with fewer than the cap -
+// needs at least 2 to actually form a group, otherwise it's just a cancel
+function finalizePickingCal(listScopeEl) {
+  if (pickingGroupIdsCal.length < 2) { exitPickingModeCal(listScopeEl); return }
   const groupId = crypto.randomUUID()
-  const cardA = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idA}"]`)
-  const cardB = listScopeEl.querySelector(`.builder-exercise-card[data-id="${idB}"]`)
-  cardA.dataset.supersetGroupId = groupId
-  cardB.dataset.supersetGroupId = groupId
+  const ids = pickingGroupIdsCal
+  ids.forEach(id => {
+    listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`).dataset.supersetGroupId = groupId
+  })
   exitPickingModeCal(listScopeEl)
-  refreshSupersetBadgeCal(cardA, listScopeEl)
-  refreshSupersetBadgeCal(cardB, listScopeEl)
+  ids.forEach(id => refreshSupersetBadgeCal(listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`), listScopeEl))
 }
 
-function unlinkSupersetPairCal(groupId, listScopeEl) {
-  listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`).forEach(card => {
-    delete card.dataset.supersetGroupId
-    refreshSupersetBadgeCal(card, listScopeEl)
-  })
+// Removes just this one card from its group (tapped via 🔗, or from the
+// day's delete-exercise handler) - if that would leave only one member,
+// that last one is cleared too, since a "group of 1" isn't a superset
+function removeFromSupersetGroupCal(id, listScopeEl) {
+  const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+  const groupId = card.dataset.supersetGroupId
+  if (!groupId) return
+  delete card.dataset.supersetGroupId
+  const remaining = [...listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)]
+  if (remaining.length === 1) delete remaining[0].dataset.supersetGroupId
+  refreshSupersetBadgeCal(card, listScopeEl)
+  remaining.forEach(c => refreshSupersetBadgeCal(c, listScopeEl))
 }
 
 function refreshSupersetBadgeCal(card, listScopeEl) {
@@ -715,13 +737,13 @@ function refreshSupersetBadgeCal(card, listScopeEl) {
   const linkBtn = card.querySelector('.builder-link-btn')
   const groupId = card.dataset.supersetGroupId
   linkBtn.classList.toggle('linked', !!groupId)
-  linkBtn.title = groupId ? 'Unlink superset' : 'Link with another exercise (superset)'
+  linkBtn.title = groupId ? 'Remove from superset' : 'Link with other exercises (superset)'
   if (!groupId) return
-  const partnerCard = [...listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].find(c => c !== card)
-  const partnerName = partnerCard ? partnerCard.querySelector('.builder-exercise-name').textContent : null
-  if (!partnerName) return
+  const others = [...listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
+  const names = others.map(c => c.querySelector('.builder-exercise-name').textContent).filter(Boolean)
+  if (!names.length) return
   card.querySelector('.builder-exercise-card-header').insertBefore(
-    Object.assign(document.createElement('span'), { className: 'builder-superset-badge', textContent: `🔗 Linked with ${partnerName}` }),
+    Object.assign(document.createElement('span'), { className: 'builder-superset-badge', textContent: `🔗 Linked with ${names.join(', ')}` }),
     linkBtn
   )
 }
@@ -779,7 +801,7 @@ async function deleteScheduledExercise(peId) {
   if (!(await customConfirm('Remove this exercise?'))) return
 
   const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
-  if (card && card.dataset.supersetGroupId) unlinkSupersetPairCal(card.dataset.supersetGroupId, card.closest('.detail-group'))
+  if (card && card.dataset.supersetGroupId) removeFromSupersetGroupCal(peId, card.closest('.detail-group'))
 
   const { error } = await supabase.from('program_exercises').delete().eq('id', peId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
@@ -1469,6 +1491,15 @@ async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
   if (existingError) { console.log(existingError); customAlert('Something went wrong'); return }
   const baseOrder = existing.length ? Math.max(...existing.map(pe => pe.order_index)) + 1 : 0
 
+  // Fresh group id per distinct superset_group_id in this batch, so
+  // inserting the same section twice into one day doesn't make both
+  // copies' supersets collide into a single group - same reasoning as the
+  // baseOrder offset just above, applied to group ids instead of order_index
+  const groupIdMap = {}
+  for (const se of sectionExercises) {
+    if (se.superset_group_id && !groupIdMap[se.superset_group_id]) groupIdMap[se.superset_group_id] = crypto.randomUUID()
+  }
+
   const { error: insertError } = await supabase.from('program_exercises').insert(
     sectionExercises.map((se, i) => ({
       day_id: dayId,
@@ -1481,7 +1512,8 @@ async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
       extra_fields: se.extra_fields,
       set_targets: se.set_targets,
       notes: se.notes,
-      section_label: sectionName
+      section_label: sectionName,
+      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
     }))
   )
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }

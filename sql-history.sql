@@ -1189,3 +1189,12 @@ drop policy if exists "coach reviews sessions for own athletes" on workout_sessi
 create policy "coach reviews sessions for own athletes" on workout_sessions for update
   using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = (select auth.uid())))
   with check (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = (select auth.uid())));
+
+-- ==========================================================================
+-- Supersets inside a Section: training_exercises/program_exercises already
+-- have superset_group_id (shared by the linked rows), but section_exercises
+-- never got it since sections didn't support supersets. No RLS change
+-- needed - already covered by the existing "coach manages own section
+-- exercises" FOR ALL policy, which isn't column-scoped.
+-- ==========================================================================
+alter table section_exercises add column if not exists superset_group_id uuid;
