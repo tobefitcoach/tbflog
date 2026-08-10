@@ -1344,6 +1344,22 @@ async function cloneTrainingToDay(trainingId, dayId) {
 
   if (trainingExercises.length === 0) return
 
+  // A Training built with a Section or superset inside it carries
+  // section_label/section_instance_id/superset_group_id on its own
+  // training_exercises rows (see insertSectionIntoTraining) - this clone
+  // path was written before any of that existed and never copied them
+  // over, so assigning such a Training to a calendar day silently dropped
+  // every section/superset link. Fresh id per distinct value found in this
+  // batch, same reasoning as cloneSectionToDayCal just above - so
+  // assigning the same Training to more than one day never makes two
+  // different days' exercises look linked to each other.
+  const groupIdMap = {}
+  const sectionInstanceMap = {}
+  for (const te of trainingExercises) {
+    if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
+    if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
+  }
+
   // One bulk insert instead of one insert per exercise - used to be N
   // sequential round-trips for an N-exercise training
   const { error: insertError } = await supabase.from('program_exercises').insert(
@@ -1357,7 +1373,10 @@ async function cloneTrainingToDay(trainingId, dayId) {
       rest_seconds: te.rest_seconds,
       extra_fields: te.extra_fields,
       set_targets: te.set_targets,
-      notes: te.notes
+      notes: te.notes,
+      section_label: te.section_label,
+      section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
+      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null
     }))
   )
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
@@ -1797,6 +1816,24 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
   const newDayIdByKey = {}
   newDays.forEach(d => { newDayIdByKey[`${d.week_id}:${d.day_number}`] = d.id })
 
+  // A template built with a Section or superset inside it carries
+  // section_label/section_instance_id/superset_group_id on its own
+  // program_exercises rows - this clone path was written before any of
+  // that existed and never copied them over, so assigning such a template
+  // silently dropped every section/superset link. Fresh id per distinct
+  // value found across the whole template (all weeks), same reasoning as
+  // every other clone-with-remap function in this file - so assigning the
+  // same template more than once never makes two different assignments'
+  // exercises look linked to each other.
+  const groupIdMap = {}
+  const sectionInstanceMap = {}
+  dayRows.forEach(r => {
+    r.day.program_exercises.forEach(pe => {
+      if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
+      if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
+    })
+  })
+
   const exerciseRows = []
   dayRows.forEach(r => {
     const newDayId = newDayIdByKey[`${newWeekIdByNumber[r.weekNumber]}:${r.day.day_number}`]
@@ -1812,7 +1849,10 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
         rest_seconds: pe.rest_seconds,
         extra_fields: pe.extra_fields,
         set_targets: pe.set_targets,
-        notes: pe.notes
+        notes: pe.notes,
+        section_label: pe.section_label,
+        section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
+        superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null
       })
     })
   })
