@@ -897,8 +897,7 @@
   margin-bottom: 4px;
 }
 
-.active-exercise-title-row .active-exercise-title,
-.active-exercise-title-row .active-exercise-title-small {
+.active-exercise-title-row .active-exercise-title {
   margin-bottom: 0;
 }
 
@@ -943,38 +942,66 @@
   margin-bottom: 2px;
 }
 
-/* --- Superset slide: two exercise headers stacked above one shared,
-   interleaved set list --- */
-.superset-slide-label {
+/* --- Group step-through (superset/section) gate screen --- */
+.group-gate {
+  text-align: center;
+}
+
+.group-gate-kind {
   color: #e0a030;
   font-size: 13px;
   font-weight: 600;
-  text-align: center;
+  margin-bottom: 4px;
+}
+
+.group-gate-title {
   margin-bottom: 8px;
 }
 
-.superset-exercise-header {
+.group-gate-desc {
+  color: #aaaacc;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.group-gate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.group-gate-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  color: #ffffff;
+  font-size: 14px;
 }
 
-.active-exercise-thumb-small {
-  width: 64px;
-  height: 64px;
-  aspect-ratio: unset;
+.group-gate-item-thumb {
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
-  margin-bottom: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1a1a2e;
+  font-size: 18px;
 }
 
-.active-exercise-title-small {
-  font-size: 16px;
-  margin-bottom: 0;
+.group-gate-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-/* Prefix on a set row's label when two exercises' sets are interleaved on
-   one superset slide, so the athlete can tell which exercise a row is for */
+/* Prefix on a set row's label - kept for the (currently unused) case of a
+   renderSetRow call passing exerciseLabel; every real call site today
+   passes undefined since a group step only ever shows one exercise */
 .set-row-exercise-label {
   display: block;
   color: #aaaacc;

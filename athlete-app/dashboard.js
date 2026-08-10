@@ -1793,23 +1793,31 @@ async function findOrCreateSession(programDayId) {
   return newSession
 }
 
-// Groups a linked (superset) group of up to 4 exercises into one merged
-// "slide" - the guided view walks slides, not raw exercises, so a group
-// occupies exactly one slot wherever its earliest-ordered member falls (the
-// coach doesn't need to keep linked exercises adjacent in the list).
+// Groups a linked group of up to 4 exercises into one merged "slide" - the
+// guided view walks slides, not raw exercises, so a group occupies exactly
+// one slot wherever its earliest-ordered member falls (the coach doesn't
+// need to keep linked exercises adjacent in the list). A section takes
+// priority over a superset when an exercise carries both, since the
+// section is the broader unit - confirmed a section should use the exact
+// same step-through mechanics as a superset, just a different label.
 // exercises is already in order_index order by the time this runs, so
-// .filter() naturally keeps members in that same order - members[last] is
-// always the latest-ordered one, which matters for maybeStartRestTimer.
+// .filter() naturally keeps members in that same order.
 function buildWorkoutSlides(exercises) {
   const slides = []
   const consumed = new Set()
   for (const pe of exercises) {
     if (consumed.has(pe.id)) continue
-    if (pe.superset_group_id) {
-      const members = exercises.filter(x => x.superset_group_id === pe.superset_group_id)
+    const groupId = pe.section_instance_id || pe.superset_group_id
+    if (groupId) {
+      const members = exercises.filter(x => (x.section_instance_id || x.superset_group_id) === groupId)
       if (members.length > 1) {
         members.forEach(m => consumed.add(m.id))
-        slides.push({ type: 'superset', members })
+        slides.push({
+          type: 'group',
+          groupKind: pe.section_instance_id ? 'section' : 'superset',
+          label: pe.section_instance_id ? pe.section_label : null,
+          members
+        })
         continue
       }
       // no other member in today's exercise list (defensive) - falls
@@ -1820,8 +1828,26 @@ function buildWorkoutSlides(exercises) {
   return slides
 }
 
+// The round-robin order a group is stepped through in: every member's
+// round 1, then every member's round 2, etc, skipping a member once it
+// runs out of sets (a 3-set exercise linked with a 2-set one just stops
+// appearing after round 2). Recomputed fresh each time a group is entered/
+// re-entered (not cached) since logSetsByPE - and therefore each member's
+// count - can change between visits (an athlete-added extra set).
+function buildGroupSteps(members) {
+  const info = members.map(pe => ({ pe, count: Math.max(pe.prescribed_sets || 1, (logSetsByPE[pe.id] || []).length) }))
+  const rounds = Math.max(...info.map(m => m.count))
+  const steps = []
+  for (let round = 1; round <= rounds; round++) {
+    for (const m of info) {
+      if (round <= m.count) steps.push({ pe: m.pe, round })
+    }
+  }
+  return steps
+}
+
 function slideIsFullyLogged(slide) {
-  const pes = slide.type === 'superset' ? slide.members : [slide.pe]
+  const pes = slide.type === 'group' ? slide.members : [slide.pe]
   return pes.every(function(pe) {
     const prescribed = pe.prescribed_sets || 1
     const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
@@ -1836,6 +1862,17 @@ function findResumeIndex(slides) {
     if (!slideIsFullyLogged(slides[i])) return i
   }
   return Math.max(slides.length - 1, 0)
+}
+
+// Same idea as findResumeIndex, one level down - the first step within a
+// group whose specific (exercise, round) set isn't logged yet
+function findResumeStepIndex(steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const { pe, round } = steps[i]
+    const logged = (logSetsByPE[pe.id] || []).some(s => s.completed_at && s.set_number === round)
+    if (!logged) return i
+  }
+  return Math.max(steps.length - 1, 0)
 }
 
 // Renders the first exercise immediately - findResumeIndex only needs data
@@ -1874,15 +1911,41 @@ function startWorkout(entry, dateStr) {
 // impossible for a stale value to be read.
 let currentSlideContext = null
 
+// Set only while inside a group's step-through (renderGroupStep), read by
+// checkSet's auto-advance branch - checkSet only ever receives peId/
+// setNumber/dateStr/rowEl (see wireExerciseCardEvents), so this is how it
+// reaches entry/slides/index/sessionPromise/steps/stepIndex without
+// threading five new parameters through every intermediate call site.
+// Same lifecycle guarantee as currentSlideContext above: only ever set by
+// renderGroupStep, which always runs before its own DOM (and therefore any
+// checkSet call against that DOM) can exist.
+let currentGroupNav = null
+
 // direction: 1 when arriving from a Next/swipe-left (new slide enters from
 // the right), -1 from Previous/swipe-right (enters from the left), omitted
 // for the very first exercise shown (no animation, nothing to slide from)
 function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, direction) {
+  const slide = slides[index]
+
+  // A linked group (superset or section) gets its own gate + step-through
+  // instead of the single-exercise rendering below - see renderGroupGate/
+  // renderGroupStep. A freshly-entered group (nothing logged yet) shows
+  // the gate; revisiting a partially- or fully-done group skips straight
+  // to where it left off, same "pick up where you left off" principle
+  // findResumeIndex already applies one level up.
+  if (slide.type === 'group') {
+    const steps = buildGroupSteps(slide.members)
+    const resumeStep = findResumeStepIndex(steps)
+    const anythingLogged = steps.some(s => (logSetsByPE[s.pe.id] || []).some(x => x.completed_at && x.set_number === s.round))
+    if (!anythingLogged) renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction)
+    else renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, resumeStep, direction)
+    return
+  }
+
   clearRestTimer()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
-  const slide = slides[index]
   const isLast = index === slides.length - 1
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
   // Coach-assigned workouts get the same "+ Add Exercise" flow as
@@ -1891,13 +1954,14 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   // enough (see their comments) that no fork is needed beyond this gate
   const canAddExercises = isSelfLogged || !!athlete.can_add_exercises
   currentSlideContext = slide
+  currentGroupNav = null
 
   pageContent.innerHTML = `
     <div class="active-exercise-header-row">
       <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
       ${canAddExercises ? '<button type="button" class="own-add-exercise-btn" id="ownAddExerciseBtn">+ Add Exercise</button>' : ''}
     </div>
-    ${slide.type === 'superset' ? renderSupersetSlideBody(slide, isSelfLogged) : renderSingleSlideBody(slide.pe, isSelfLogged)}
+    ${renderSingleSlideBody(slide.pe, isSelfLogged)}
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
     <div id="restTimerBar" class="rest-timer-bar"></div>
   `
@@ -1914,10 +1978,9 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   }
 
   // History (every exercise) and Swap (coach-prescribed only, gated inside
-  // renderSingleSlideBody/renderSupersetSlideBody) share one delegated
-  // listener here rather than folding into wireExerciseCardEvents, since
-  // both need entry/slides/index/sessionPromise, which that function
-  // doesn't carry
+  // renderSingleSlideBody) share one delegated listener here rather than
+  // folding into wireExerciseCardEvents, since both need entry/slides/
+  // index/sessionPromise, which that function doesn't carry
   document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
     const historyBtn = e.target.closest('.exercise-history-btn')
     if (historyBtn) {
@@ -1947,6 +2010,168 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   mountSlide(direction)
 }
 
+// ==========================================================================
+// ---- GROUP STEP-THROUGH (superset / section) ----
+// A linked group is done as one continuous round-robin sequence instead of
+// a single merged card: "Start Superset/Section" gate, then exercise 1's
+// set 1, exercise 2's set 1, ... straight through with no pause, a rest
+// only once every member has done that round, then the next round starts
+// automatically. See buildGroupSteps for the exact step order.
+// ==========================================================================
+function renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction) {
+  clearRestTimer()
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  const slide = slides[index]
+  currentSlideContext = slide
+  currentGroupNav = null
+
+  const kindLabel = slide.groupKind === 'section' ? '🧩 Section' : '🔗 Superset'
+  const title = slide.label || (slide.groupKind === 'section' ? 'Section' : 'Superset')
+
+  pageContent.innerHTML = `
+    <div class="active-exercise-header-row">
+      <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
+    </div>
+    <div id="activeExerciseCard" class="workout-slide group-gate">
+      <p class="group-gate-kind">${kindLabel}</p>
+      <h2 class="group-gate-title">${title}</h2>
+      <p class="group-gate-desc">${slide.members.length} exercises, back to back</p>
+      <div class="group-gate-list">
+        ${slide.members.map(function(pe) {
+          const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
+          const thumb = getYouTubeThumbnail(videoUrl)
+          return `
+            <div class="group-gate-item">
+              <span class="group-gate-item-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '🏋'}</span>
+              <span>${pe.exercises ? pe.exercises.name : 'Exercise'}</span>
+            </div>
+          `
+        }).join('')}
+      </div>
+      <button type="button" class="btn-save start-workout-btn" id="groupStartBtn">▶ Start ${slide.groupKind === 'section' ? 'Section' : 'Superset'}</button>
+    </div>
+    <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
+    <div id="restTimerBar" class="rest-timer-bar"></div>
+  `
+
+  const steps = buildGroupSteps(slide.members)
+  document.getElementById('groupStartBtn').addEventListener('click', function() {
+    renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, 0, 1)
+  })
+
+  attachSwipeHandlers(
+    function onSwipeLeft() {
+      renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, 0, 1)
+    },
+    index > 0 ? function onSwipeRight() {
+      renderActiveExercise(entry, dateStr, slides, index - 1, sessionPromise, -1)
+    } : null
+  )
+
+  mountSlide(direction)
+}
+
+function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction) {
+  clearRestTimer()
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  const slide = slides[index]
+  const { pe, round } = steps[stepIndex]
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
+  const thumb = getYouTubeThumbnail(videoUrl)
+  const logged = (logSetsByPE[pe.id] || []).find(s => s.set_number === round)
+  const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
+  currentSlideContext = slide
+  currentGroupNav = { entry, dateStr, slides, index, sessionPromise, steps, stepIndex }
+
+  const kindIcon = slide.groupKind === 'section' ? '🧩' : '🔗'
+  const rounds = Math.max(...steps.map(s => s.round))
+
+  pageContent.innerHTML = `
+    <div class="active-exercise-header-row">
+      <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length} · ${kindIcon} Round ${round} of ${rounds}</p>
+    </div>
+    <div id="activeExerciseCard" class="workout-slide">
+      <button type="button" class="active-exercise-thumb" data-video-url="${videoUrl}" ${videoUrl ? '' : 'disabled'}>
+        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
+      </button>
+      <div class="active-exercise-title-row">
+        <div class="active-exercise-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+        ${exerciseActionButtonsHtml(pe, isSelfLogged, true)}
+      </div>
+      ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
+      <div class="set-rows">${renderSetRow(pe, round, logged, isTimed, tracksWeight, false)}</div>
+    </div>
+    <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe to skip <span class="swipe-hint-arrow">›</span></p>
+    <div id="restTimerBar" class="rest-timer-bar"></div>
+  `
+
+  wireExerciseCardEvents('activeExerciseCard', dateStr, null)
+
+  document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
+    const historyBtn = e.target.closest('.exercise-history-btn')
+    if (historyBtn) {
+      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight)
+    }
+    // No Swap inside a group step - swapping one exercise mid-round has no
+    // clean "which round does the new exercise start at" answer, so
+    // exerciseActionButtonsHtml is told (via its 3rd arg) never to render
+    // the Swap button here at all
+  })
+
+  attachSwipeHandlers(
+    function onSwipeLeft() {
+      goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex)
+    },
+    function onSwipeRight() {
+      if (stepIndex === 0) renderGroupGate(entry, dateStr, slides, index, sessionPromise, -1)
+      else renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex - 1, -1)
+    }
+  )
+
+  mountSlide(direction)
+}
+
+// Shared by checkSet's auto-advance and the manual swipe-left "skip"
+// fallback - decides whether the next step is later in the same round
+// (advance immediately, no rest), the start of a new round (rest first,
+// using the round's last-ordered member's rest_seconds/target - same rule
+// this app already used for supersets before this rework), or past the
+// end of the group (hand off to the normal top-level next-slide/
+// end-of-workout flow).
+function goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex) {
+  const next = stepIndex + 1
+  if (next >= steps.length) {
+    const isLast = index === slides.length - 1
+    if (isLast) renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, 1)
+    else renderActiveExercise(entry, dateStr, slides, index + 1, sessionPromise, 1)
+    return
+  }
+
+  const finishedRound = steps[stepIndex].round
+  const enteringNewRound = steps[next].round !== finishedRound
+  if (!enteringNewRound) {
+    renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, next, 1)
+    return
+  }
+
+  const lastMemberOfRound = steps[stepIndex].pe
+  const target = lastMemberOfRound.set_targets && lastMemberOfRound.set_targets[finishedRound - 1]
+  const restSeconds = target && target.rest != null ? target.rest : lastMemberOfRound.rest_seconds
+  if (restSeconds) {
+    startRestTimer(restSeconds, function() {
+      renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, next, 1)
+    })
+  } else {
+    renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, next, 1)
+  }
+}
+
 // Swap only makes sense on a still-unstarted, coach-prescribed exercise -
 // once a set's logged, swapping would orphan it under the wrong exercise
 // (exercise_log_sets links by program_exercise_id, not exercise_id), and an
@@ -1958,25 +2183,25 @@ function canSwapExercise(pe, isSelfLogged) {
 }
 
 // History is unconditional (every exercise); Swap only shows when
-// canSwapExercise allows it. Shared by both the single-exercise slide and
-// each half of a superset slide.
-function exerciseActionButtonsHtml(pe, isSelfLogged) {
+// canSwapExercise allows it.
+// hideSwap: true inside a group step (see renderGroupStep) - swapping one
+// exercise mid-round has no clean "which round does the replacement start
+// at" answer, so Swap is only ever offered outside a group's step-through
+function exerciseActionButtonsHtml(pe, isSelfLogged, hideSwap) {
   const name = pe.exercises ? pe.exercises.name : 'Exercise'
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   return `
     <div class="exercise-action-btns">
       <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}">📈 History</button>
-      ${canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}">🔁 Swap</button>` : ''}
+      ${!hideSwap && canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}">🔁 Swap</button>` : ''}
     </div>
   `
 }
 
-// Today's original single-exercise slide - now takes isSelfLogged so it can
-// gate the Swap button - extracted into its own function so
-// renderActiveExercise can also render a merged superset slide via the same
-// wrapper (progress line, swipe hint, rest timer bar all stay shared
-// between both).
+// A normal, ungrouped exercise's slide - takes isSelfLogged so it can gate
+// the Swap button. A linked group (superset/section) never reaches this -
+// see renderGroupGate/renderGroupStep instead.
 function renderSingleSlideBody(pe, isSelfLogged) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
@@ -2005,62 +2230,6 @@ function renderSingleSlideBody(pe, isSelfLogged) {
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
       <div class="set-rows">${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set</button>
-    </div>
-  `
-}
-
-// Linked group (2-4 exercises): every member's header, then sets
-// interleaved round by round (member 1 set 1, member 2 set 1, ..., member 1
-// set 2, ...) capped at each member's own set count if they differ. Each
-// row is prefixed with its exercise's name (see renderSetRow's
-// exerciseLabel param) so the athlete can tell them apart while interleaved.
-function renderSupersetSlideBody(slide, isSelfLogged) {
-  const members = slide.members.map(pe => ({
-    pe,
-    isTimed: pe.exercises && pe.exercises.is_timed,
-    tracksWeight: !pe.exercises || pe.exercises.tracks_weight,
-    logged: logSetsByPE[pe.id] || []
-  }))
-  members.forEach(m => { m.count = Math.max(m.pe.prescribed_sets || 1, m.logged.length) })
-  const rounds = Math.max(...members.map(m => m.count))
-
-  let rowsHtml = ''
-  for (let round = 1; round <= rounds; round++) {
-    for (const m of members) {
-      if (round <= m.count) {
-        rowsHtml += renderSetRow(m.pe, round, m.logged.find(s => s.set_number === round), m.isTimed, m.tracksWeight, round > (m.pe.prescribed_sets || 0), m.pe.exercises ? m.pe.exercises.name : 'Exercise')
-      }
-    }
-  }
-
-  function headerHtml(pe) {
-    const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
-    const thumb = getYouTubeThumbnail(videoUrl)
-    return `
-      <div class="superset-exercise-header">
-        <button type="button" class="active-exercise-thumb active-exercise-thumb-small" data-video-url="${videoUrl}" ${videoUrl ? '' : 'disabled'}>
-          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
-        </button>
-        <div>
-          ${pe.section_label ? `<p class="active-exercise-section-label">${pe.section_label}</p>` : ''}
-          <div class="active-exercise-title-row">
-            <div class="active-exercise-title active-exercise-title-small">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
-            ${exerciseActionButtonsHtml(pe, isSelfLogged)}
-          </div>
-          ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
-        </div>
-      </div>
-    `
-  }
-
-  return `
-    <div id="activeExerciseCard" class="workout-slide">
-      <p class="superset-slide-label">🔗 Superset</p>
-      ${slide.members.map(headerHtml).join('')}
-      <div class="set-rows">${rowsHtml}</div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap">
-        ${slide.members.map(pe => `<button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set (${pe.exercises ? pe.exercises.name : 'Exercise'})</button>`).join('')}
-      </div>
     </div>
   `
 }
@@ -2943,16 +3112,14 @@ function addSetRow(peId) {
   const pe = findPE(peId)
   if (!pe) return
   const rowsContainer = document.getElementById('activeExerciseCard').querySelector('.set-rows')
-  // Scoped to this exercise's own rows within the shared container (a
-  // superset slide has two exercises' rows interleaved in one .set-rows) -
-  // a new row is inserted right after this exercise's own last row, not
-  // just appended to the end of the whole container
+  // "+ Add Set" isn't offered inside a group step (see renderGroupStep),
+  // so this container only ever holds one exercise's own rows now - no
+  // exerciseLabel/scoping-within-a-shared-container needed any more
   const ownRows = [...rowsContainer.querySelectorAll(`.set-row[data-pe-id="${peId}"]`)]
   const nextNumber = ownRows.length + 1
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
-  const exerciseLabel = currentSlideContext && currentSlideContext.type === 'superset' ? (pe.exercises ? pe.exercises.name : 'Exercise') : undefined
-  const html = renderSetRow(pe, nextNumber, null, isTimed, tracksWeight, true, exerciseLabel)
+  const html = renderSetRow(pe, nextNumber, null, isTimed, tracksWeight, true)
   const lastOwnRow = ownRows[ownRows.length - 1]
   if (lastOwnRow) lastOwnRow.insertAdjacentHTML('afterend', html)
   else rowsContainer.insertAdjacentHTML('beforeend', html)
@@ -3007,7 +3174,15 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   checkBtn.classList.add('checked')
   checkBtn.title = 'Undo'
   if (removedBtn) removedBtn.remove()
-  maybeStartRestTimer(pe, rowEl)
+  // Inside a group step-through, checking the set auto-advances (straight
+  // to the next member, or a rest then the next round) instead of the
+  // plain rest-timer-only behavior a normal single exercise gets
+  if (currentSlideContext && currentSlideContext.type === 'group' && currentGroupNav) {
+    const { entry, slides, index, sessionPromise, steps, stepIndex } = currentGroupNav
+    goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex)
+  } else {
+    maybeStartRestTimer(pe, rowEl)
+  }
 
   const queueEntry = {
     program_exercise_id: peId,
@@ -3030,7 +3205,11 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
 
 // Same reasoning as checkSet - unchecks immediately, queues + schedules the
 // delete, and only flags "unsynced" (staying visually unchecked) if every
-// attempt fails, rather than silently snapping back to checked
+// attempt fails, rather than silently snapping back to checked. Never
+// auto-advances (only checking does) - but if unchecking the set that just
+// started a rest countdown (or a group's between-round rest), that timer
+// no longer makes sense, so it's cleared rather than left counting down
+// toward an advance the athlete just undid.
 function uncheckSet(peId, setNumber, dateStr, rowEl) {
   const pe = findPE(peId)
   const isTimed = pe.exercises && pe.exercises.is_timed
@@ -3041,6 +3220,7 @@ function uncheckSet(peId, setNumber, dateStr, rowEl) {
   const checkBtn = rowEl.querySelector('.set-check-btn')
   const isExtra = setNumber > (pe.prescribed_sets || 0)
 
+  clearRestTimer()
   rowEl.classList.remove('completed', 'unsynced')
   if (isTimed) { mmInput.disabled = false; ssInput.disabled = false } else { repsInput.disabled = false }
   if (weightInput) weightInput.disabled = false
@@ -3363,29 +3543,12 @@ async function saveWithRetry(operationFactory, maxAttempts = 3) {
 // ---- REST TIMER ----
 // Only fires between sets, not after the last one - if the row just checked
 // is the last row in its exercise's list, there's nothing to rest before.
-//
-// Superset slides (currentSlideContext.type === 'superset') follow a
-// different rule instead of the DOM-sibling "last row" check below: every
-// member except the LAST-linked one (highest order_index) never rests, on
-// any set - the whole point of a superset/giant-set is going straight from
-// one exercise into the next. Only the last member rests after each of its
-// sets EXCEPT the group's final round, same "nothing to rest before"
-// reasoning as the single-exercise case, just measured across the whole
-// group's max round count instead of one exercise's own row count.
+// Group (superset/section) rest timing is handled entirely by
+// goToNextGroupStep instead - checkSet only ever calls this function for a
+// normal single exercise (see checkSet's currentSlideContext branch).
 // ==========================================================================
 function maybeStartRestTimer(pe, rowEl) {
   const setNumber = parseInt(rowEl.dataset.setNumber)
-
-  if (currentSlideContext && currentSlideContext.type === 'superset') {
-    const members = currentSlideContext.members
-    if (pe.id !== members[members.length - 1].id) return
-    const maxRound = Math.max(...[...rowEl.parentElement.querySelectorAll('.set-row')].map(r => parseInt(r.dataset.setNumber)))
-    if (setNumber >= maxRound) return
-    const target = pe.set_targets && pe.set_targets[setNumber - 1]
-    const restSeconds = target && target.rest != null ? target.rest : pe.rest_seconds
-    if (restSeconds) startRestTimer(restSeconds)
-    return
-  }
 
   // Each set can have its own rest now (shorter after a warmup set than
   // after a top set) - fall back to the exercise's old shared rest_seconds
@@ -3399,8 +3562,20 @@ function maybeStartRestTimer(pe, rowEl) {
   startRestTimer(restSeconds)
 }
 
-function startRestTimer(totalSeconds) {
+// onDone (optional) fires once, only when the countdown naturally reaches
+// zero or Skip is tapped - both sites below capture it into a local `cb`
+// before calling clearRestTimer(), so the plain clearRestTimer() cleanup
+// call that already runs unconditionally at the top of
+// renderActiveExercise/renderGroupGate/renderGroupStep/renderEndOfWorkoutSlide
+// (navigating away for unrelated reasons) never fires it - only an actual
+// finish-or-skip does. This is what lets a group step's rest pause
+// auto-continue into the next round without also firing on every
+// unrelated slide change.
+let restTimerOnDone = null
+
+function startRestTimer(totalSeconds, onDone) {
   clearRestTimer()
+  restTimerOnDone = onDone || null
   const bar = document.getElementById('restTimerBar')
   if (!bar) return
 
@@ -3411,13 +3586,19 @@ function startRestTimer(totalSeconds) {
     <span class="rest-timer-time" id="restTimerTime">${formatTimer(remaining)}</span>
     <button type="button" class="rest-timer-skip" id="restTimerSkipBtn">Skip</button>
   `
-  document.getElementById('restTimerSkipBtn').addEventListener('click', clearRestTimer)
+  document.getElementById('restTimerSkipBtn').addEventListener('click', function() {
+    const cb = restTimerOnDone
+    clearRestTimer()
+    if (cb) cb()
+  })
 
   restTimerInterval = setInterval(function() {
     remaining--
     if (remaining <= 0) {
       playRestDoneSound()
+      const cb = restTimerOnDone
       clearRestTimer()
+      if (cb) cb()
       return
     }
     const timeEl = document.getElementById('restTimerTime')
@@ -3428,6 +3609,7 @@ function startRestTimer(totalSeconds) {
 function clearRestTimer() {
   if (restTimerInterval) clearInterval(restTimerInterval)
   restTimerInterval = null
+  restTimerOnDone = null
   const bar = document.getElementById('restTimerBar')
   if (bar) { bar.style.display = 'none'; bar.innerHTML = '' }
 }
