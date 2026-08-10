@@ -392,8 +392,8 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
         ${Object.entries(SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
       ${isTimed ? `
-        <div class="set-time-group">
-          <span class="set-time-group-label">Time (min:sec)</span>
+        <div class="set-time-group" title="Time - minutes:seconds">
+          <span class="set-time-group-label">Time</span>
           <div class="set-time-input">
             <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
             <span class="set-time-sep">:</span>
@@ -402,8 +402,8 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
         </div>
       ` : `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">`}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
-      <div class="set-time-group">
-        <span class="set-time-group-label">Rest (min:sec)</span>
+      <div class="set-time-group" title="Rest - minutes:seconds">
+        <span class="set-time-group-label">Rest</span>
         <div class="set-time-input">
           <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
           <span class="set-time-sep">:</span>
@@ -499,6 +499,10 @@ function renderExerciseCard(te) {
   const targets = deriveSetTargets(te)
   const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
   const groupMembers = te.superset_group_id ? exercisesCache.filter(other => other.id !== te.id && other.superset_group_id === te.superset_group_id) : []
+  const groupColor = te.superset_group_id ? colorForSupersetGroup(te.superset_group_id) : null
+  const linkTitle = groupMembers.length
+    ? `Linked with ${groupMembers.map(m => m.exercises ? m.exercises.name : 'exercise').join(', ')} - tap to remove`
+    : 'Link with other exercises (superset)'
 
   return `
     <div class="builder-exercise-card" data-id="${te.id}" data-superset-group-id="${te.superset_group_id || ''}">
@@ -509,8 +513,7 @@ function renderExerciseCard(te) {
         </button>
         <div class="builder-exercise-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
-        ${groupMembers.length ? `<span class="builder-superset-badge">🔗 Linked with ${groupMembers.map(m => m.exercises ? m.exercises.name : 'exercise').join(', ')}</span>` : ''}
-        <button type="button" class="builder-link-btn ${te.superset_group_id ? 'linked' : ''}" data-action="toggle-link" title="${te.superset_group_id ? 'Unlink superset' : 'Link with another exercise (superset)'}">🔗</button>
+        <button type="button" class="builder-link-btn ${te.superset_group_id ? 'linked' : ''}" data-action="toggle-link" style="${groupColor ? `border-color:${groupColor}; color:${groupColor}; background-color:${groupColor}22` : ''}" title="${linkTitle}">🔗</button>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from workout">🗑</button>
       </div>
       <div class="set-target-rows">
@@ -706,21 +709,38 @@ function removeFromSupersetGroup(id, listScopeEl) {
   remaining.forEach(refreshSupersetBadge)
 }
 
+// Deterministic color per superset group id, so several groups on the
+// same list are visually distinguishable at a glance without spelling out
+// which exercises are linked (that's in the 🔗 button's title tooltip
+// instead) - same group id always resolves to the same color
+const SUPERSET_COLORS = ['#4a4a8e', '#e0a030', '#3aa66e', '#c0466e', '#3a8ec0', '#a05fd6', '#c07a2e', '#5fb8b8']
+function colorForSupersetGroup(groupId) {
+  let hash = 0
+  for (let i = 0; i < groupId.length; i++) hash = (hash * 31 + groupId.charCodeAt(i)) >>> 0
+  return SUPERSET_COLORS[hash % SUPERSET_COLORS.length]
+}
+
 function refreshSupersetBadge(card) {
-  const existing = card.querySelector('.builder-superset-badge')
-  if (existing) existing.remove()
   const linkBtn = card.querySelector('.builder-link-btn')
   const groupId = card.dataset.supersetGroupId
   linkBtn.classList.toggle('linked', !!groupId)
-  linkBtn.title = groupId ? 'Remove from superset' : 'Link with other exercises (superset)'
-  if (!groupId) return
+
+  if (!groupId) {
+    linkBtn.style.borderColor = ''
+    linkBtn.style.color = ''
+    linkBtn.style.backgroundColor = ''
+    linkBtn.title = 'Link with other exercises (superset)'
+    return
+  }
+
+  const color = colorForSupersetGroup(groupId)
+  linkBtn.style.borderColor = color
+  linkBtn.style.color = color
+  linkBtn.style.backgroundColor = color + '22'
+
   const others = [...trainingDropZone.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
   const names = others.map(c => c.querySelector('.builder-exercise-name').textContent).filter(Boolean)
-  if (!names.length) return
-  card.querySelector('.builder-exercise-card-header').insertBefore(
-    Object.assign(document.createElement('span'), { className: 'builder-superset-badge', textContent: `🔗 Linked with ${names.join(', ')}` }),
-    linkBtn
-  )
+  linkBtn.title = names.length ? `Linked with ${names.join(', ')} - tap to remove` : 'Remove from superset'
 }
 
 document.getElementById('trainingExercisesList').addEventListener('click', async function(e) {
