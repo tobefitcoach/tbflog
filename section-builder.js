@@ -327,8 +327,26 @@ function deriveSetTargets(row) {
   return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null, rest: row.rest_seconds || null, type: 'main' }))
 }
 
+// Splits any previously-stored timed value into {mm, ss} so the mm:ss input
+// boxes can be prefilled - handles the "M:SS" format this app now saves,
+// old plain-seconds strings ("45") from before this change, and a
+// best-effort digit grab for anything else free-typed in the past ("45s")
+function parseTimeToParts(val) {
+  if (val == null || val === '') return { mm: 0, ss: 0 }
+  const str = String(val).trim()
+  const mmss = str.match(/^(\d+):(\d{1,2})$/)
+  if (mmss) return { mm: parseInt(mmss[1]), ss: Math.min(parseInt(mmss[2]), 59) }
+  if (/^\d+$/.test(str)) {
+    const total = parseInt(str)
+    return { mm: Math.floor(total / 60), ss: total % 60 }
+  }
+  const digits = str.match(/\d+/)
+  return digits ? { mm: 0, ss: Math.min(parseInt(digits[0]), 59) } : { mm: 0, ss: 0 }
+}
+
 function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
   const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
+  const restParts = parseTimeToParts(target.rest)
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
       <span class="set-label">Set ${setNumber}</span>
@@ -337,7 +355,11 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
       </select>
       <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
-      <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
+      <div class="set-time-input" title="Rest">
+        <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
+        <span class="set-time-sep">:</span>
+        <input type="text" inputmode="numeric" class="set-time-ss set-rest-ss" value="${String(restParts.ss).padStart(2, '0')}" maxlength="2">
+      </div>
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>
   `
@@ -452,8 +474,9 @@ async function saveExerciseCard(seId, orderIndex) {
     const reps = row.querySelector('.set-reps-input').value.trim() || null
     const weightInput = row.querySelector('.set-weight-input')
     const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
-    const restInput = row.querySelector('.set-rest-input')
-    const rest = restInput.value ? parseInt(restInput.value) : null
+    const restMm = parseInt(row.querySelector('.set-rest-mm').value) || 0
+    const restSs = parseInt(row.querySelector('.set-rest-ss').value) || 0
+    const rest = (restMm === 0 && restSs === 0) ? null : restMm * 60 + restSs
     const type = row.querySelector('.set-type-select').value
     return { reps, weight, rest, type }
   })
@@ -541,6 +564,28 @@ document.getElementById('sectionExercisesList').addEventListener('click', async 
     await deleteExerciseRow(seId)
   } else if (btn.dataset.action === 'add-extra-field') {
     addExtraFieldRow(`extraFields-${seId}`)
+  }
+})
+
+// mm:ss rest boxes: strip anything non-digit as it's typed, then pad back
+// to 2 digits (and clamp seconds to 59) once the coach taps away. Selects
+// the "00" on focus so typing a digit replaces it instead of needing a
+// manual delete first
+document.getElementById('sectionExercisesList').addEventListener('focusin', function(e) {
+  if (e.target.matches('.set-time-mm, .set-time-ss')) {
+    e.target.select()
+  }
+})
+document.getElementById('sectionExercisesList').addEventListener('input', function(e) {
+  if (e.target.matches('.set-time-mm, .set-time-ss')) {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2)
+  }
+})
+document.getElementById('sectionExercisesList').addEventListener('focusout', function(e) {
+  if (e.target.matches('.set-time-mm, .set-time-ss')) {
+    const max = e.target.classList.contains('set-time-ss') ? 59 : 99
+    const val = Math.min(parseInt(e.target.value) || 0, max)
+    e.target.value = String(val).padStart(2, '0')
   }
 })
 

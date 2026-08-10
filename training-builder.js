@@ -356,6 +356,7 @@ function parseTimeToParts(val) {
 function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
   const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
   const { mm, ss } = parseTimeToParts(target.reps)
+  const restParts = parseTimeToParts(target.rest)
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
       <span class="set-label">Set ${setNumber}</span>
@@ -370,7 +371,11 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
         </div>
       ` : `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">`}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
-      <input type="number" class="set-rest-input" value="${target.rest != null ? target.rest : ''}" placeholder="rest sec">
+      <div class="set-time-input" title="Rest">
+        <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
+        <span class="set-time-sep">:</span>
+        <input type="text" inputmode="numeric" class="set-time-ss set-rest-ss" value="${String(restParts.ss).padStart(2, '0')}" maxlength="2">
+      </div>
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>
   `
@@ -516,8 +521,9 @@ async function saveExerciseCard(teId, orderIndex) {
     }
     const weightInput = row.querySelector('.set-weight-input')
     const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
-    const restInput = row.querySelector('.set-rest-input')
-    const rest = restInput.value ? parseInt(restInput.value) : null
+    const restMm = parseInt(row.querySelector('.set-rest-mm').value) || 0
+    const restSs = parseInt(row.querySelector('.set-rest-ss').value) || 0
+    const rest = (restMm === 0 && restSs === 0) ? null : restMm * 60 + restSs
     const type = row.querySelector('.set-type-select').value
     return { reps, weight, rest, type }
   })
