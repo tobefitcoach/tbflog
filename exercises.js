@@ -9,6 +9,10 @@ import { supabase } from './coachClient.js'
 
 let currentExercise = null // exercise being edited, or null when adding new
 let allExercisesCache = [] // used to build the "existing categories" dropdown
+// Search + category-chip filtering, same pattern as the builders' exercise
+// library panel - no chip selected shows everything, one or more narrows
+// it (OR between chips, AND with the search box)
+let activeCategoryFilters = new Set()
 
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
@@ -40,8 +44,40 @@ async function loadExercises() {
   }
 
   allExercisesCache = data
-  renderExercises(data)
+  document.getElementById('exerciseTotalCount').textContent = `(${data.length})`
+  renderCategoryChips()
+  applyLibraryFilters()
 }
+
+// Rebuilds the chip row from whatever Category values are actually present
+// right now - same technique populateCategorySelect already uses to fill
+// the category dropdown in the Add/Edit Exercise modal
+function renderCategoryChips() {
+  const categories = [...new Set(allExercisesCache.map(ex => ex.category).filter(c => c && c.trim()))].sort()
+  const row = document.getElementById('exerciseCategoryChips')
+  row.innerHTML = categories.map(cat =>
+    `<button type="button" class="chip-btn ${activeCategoryFilters.has(cat) ? 'selected' : ''}" data-category="${cat}">${cat}</button>`
+  ).join('')
+}
+
+function applyLibraryFilters() {
+  const search = document.getElementById('exerciseSearchInput').value.trim().toLowerCase()
+  let filtered = search ? allExercisesCache.filter(ex => ex.name.toLowerCase().includes(search)) : allExercisesCache
+  if (activeCategoryFilters.size) filtered = filtered.filter(ex => activeCategoryFilters.has((ex.category || '').trim()))
+  renderExercises(filtered)
+}
+
+document.getElementById('exerciseSearchInput').addEventListener('input', applyLibraryFilters)
+
+document.getElementById('exerciseCategoryChips').addEventListener('click', function(e) {
+  const btn = e.target.closest('.chip-btn')
+  if (!btn) return
+  const cat = btn.dataset.category
+  if (activeCategoryFilters.has(cat)) activeCategoryFilters.delete(cat)
+  else activeCategoryFilters.add(cat)
+  btn.classList.toggle('selected')
+  applyLibraryFilters()
+})
 
 // Distinct, already-used categories - populates the "Category" dropdown so
 // picking one is a click instead of retyping the same word every time
@@ -129,10 +165,11 @@ function getYouTubeThumbnail(url) {
 
 function renderExercises(exercises) {
   const container = document.getElementById('exerciseList')
-  document.getElementById('exerciseTotalCount').textContent = `(${exercises.length})`
 
   if (exercises.length === 0) {
-    container.innerHTML = '<p class="no-metrics">No exercises yet — add your first one!</p>'
+    container.innerHTML = allExercisesCache.length === 0
+      ? '<p class="no-metrics">No exercises yet — add your first one!</p>'
+      : '<p class="no-metrics">No exercises match your search/filter</p>'
     return
   }
 
