@@ -426,6 +426,8 @@ function renderLoggedExerciseCardCal(pe) {
         </button>
         <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
+        ${pe.added_by_athlete ? '<span class="athlete-modified-badge">🙋 Added by athlete</span>' : ''}
+        ${pe.swapped_by_athlete ? '<span class="athlete-modified-badge">🔁 Swapped by athlete</span>' : ''}
       </div>
       ${rowsHtml}
     </div>

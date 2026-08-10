@@ -886,6 +886,52 @@
   margin-bottom: 4px;
 }
 
+/* Wraps the exercise name + its History/Swap buttons on one row - used on
+   both the single-exercise slide and each half of a superset slide */
+.active-exercise-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.active-exercise-title-row .active-exercise-title,
+.active-exercise-title-row .active-exercise-title-small {
+  margin-bottom: 0;
+}
+
+.exercise-action-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.exercise-history-btn,
+.exercise-swap-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.exercise-history-btn:hover,
+.exercise-swap-btn:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.exercise-swap-btn {
+  background: rgba(224, 160, 48, 0.12);
+  border-color: #e0a030;
+  color: #e0a030;
+}
+
 /* Section this exercise came from (see section_label) - a light subtitle
    above the title, not a full group header, since only one exercise (or
    superset pair) is ever visible at a time on this screen */

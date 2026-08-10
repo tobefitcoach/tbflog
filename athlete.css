@@ -1999,6 +1999,21 @@
   background-color: rgba(79, 195, 247, 0.15);
 }
 
+/* Flags an exercise the athlete added or swapped on their own (see
+   can_add_exercises/can_change_exercises), on the coach's day-detail review
+   card - same shape as .builder-unilateral-badge, amber to read as "changed
+   by the athlete" rather than a normal descriptive tag */
+.athlete-modified-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  color: #e0a030;
+  background-color: rgba(224, 160, 48, 0.15);
+}
+
 .set-target-rows {
   display: flex;
   flex-direction: column;

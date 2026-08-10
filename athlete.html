@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=13" />
-  <link rel="stylesheet" href="athlete.css?v=27" />
+  <link rel="stylesheet" href="athlete.css?v=28" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -228,6 +228,28 @@
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="settingsSelfLogToggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <div class="settings-row-title">Let this athlete add extra exercises</div>
+            <div class="settings-row-desc">Lets this athlete add exercises from the library on top of what you assigned, in a workout you built.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="settingsAddExercisesToggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <div class="settings-row-title">Let this athlete swap prescribed exercises</div>
+            <div class="settings-row-desc">Lets this athlete substitute a different exercise from the library for one you assigned (e.g. equipment unavailable), before they've logged any sets on it.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="settingsChangeExercisesToggle" />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -1021,8 +1043,8 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=17"></script>
-    <script type="module" src="athlete-calendar.js?v=25"></script>
+    <script type="module" src="athlete.js?v=18"></script>
+    <script type="module" src="athlete-calendar.js?v=26"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

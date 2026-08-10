@@ -91,7 +91,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, coach_id')
+    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, coach_id')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -1231,6 +1231,44 @@ async function startOwnStrengthWorkout() {
   startWorkout(entry, dateStr)
 }
 
+// Shared search+tap-to-pick card list - filters `library` as the athlete
+// types and renders one exercise-lib-card per match, calling onPick(id,
+// cardEl) when tapped (cardEl gets marked .adding so a slow connection
+// can't double-fire the same pick). Used by the full-page Add Exercise
+// screen below and the Swap modal, so both stay visually/behaviorally
+// identical instead of drifting apart as two copies.
+function wireExercisePicker(searchInputEl, listEl, library, onPick) {
+  function render() {
+    const filter = searchInputEl.value.trim().toLowerCase()
+    const filtered = filter ? library.filter(ex => ex.name.toLowerCase().includes(filter)) : library
+
+    listEl.innerHTML = filtered.length === 0
+      ? '<p class="no-metrics">No exercises found</p>'
+      : filtered.map(ex => {
+          const thumb = getYouTubeThumbnail(ex.video_url)
+          return `
+            <div class="exercise-lib-card own-add-exercise-card" data-id="${ex.id}">
+              <div class="exercise-lib-thumb">
+                ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder">🏋</span>'}
+              </div>
+              <span class="exercise-lib-name">${ex.name}</span>
+            </div>
+          `
+        }).join('')
+
+    listEl.querySelectorAll('.own-add-exercise-card').forEach(card => {
+      card.addEventListener('click', function() {
+        if (card.classList.contains('adding')) return
+        card.classList.add('adding')
+        onPick(card.dataset.id, card)
+      })
+    })
+  }
+
+  searchInputEl.addEventListener('input', render)
+  render()
+}
+
 // Search + tap-to-add - how a self-logged workout grows its exercise list
 // live, one at a time. Reached both for the very first exercise (empty
 // day, from startWorkout) and via the "+ Add Exercise" button on any later
@@ -1260,45 +1298,27 @@ async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, retur
   const library = await loadExerciseLibrary()
   if (library === null) return
 
-  function renderList() {
-    const filter = document.getElementById('ownAddExerciseSearchInput').value.trim().toLowerCase()
-    const filtered = filter ? library.filter(ex => ex.name.toLowerCase().includes(filter)) : library
-    const list = document.getElementById('ownAddExerciseList')
-
-    list.innerHTML = filtered.length === 0
-      ? '<p class="no-metrics">No exercises found</p>'
-      : filtered.map(ex => {
-          const thumb = getYouTubeThumbnail(ex.video_url)
-          return `
-            <div class="exercise-lib-card own-add-exercise-card" data-id="${ex.id}">
-              <div class="exercise-lib-thumb">
-                ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder">🏋</span>'}
-              </div>
-              <span class="exercise-lib-name">${ex.name}</span>
-            </div>
-          `
-        }).join('')
-
-    list.querySelectorAll('.own-add-exercise-card').forEach(card => {
-      card.addEventListener('click', async function() {
-        if (card.classList.contains('adding')) return
-        card.classList.add('adding')
-        await addExerciseToOwnWorkout(entry, dateStr, sessionPromise, card.dataset.id)
-      })
-    })
-  }
-
-  document.getElementById('ownAddExerciseSearchInput').addEventListener('input', renderList)
-  renderList()
+  wireExercisePicker(
+    document.getElementById('ownAddExerciseSearchInput'),
+    document.getElementById('ownAddExerciseList'),
+    library,
+    function(exerciseId) {
+      addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseId)
+    }
+  )
 }
 
 async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseId) {
   const existing = entry.day.program_exercises
   const orderIndex = existing.length ? Math.max(...existing.map(pe => pe.order_index)) + 1 : 0
 
+  // added_by_athlete=true both flags this for the coach's calendar (see
+  // athlete-calendar.js) and is what the "athlete deletes own added
+  // exercises" RLS policy checks - true here regardless of self-logged vs
+  // coach-assigned, since it's accurate either way
   const { data, error } = await supabase
     .from('program_exercises')
-    .insert([{ day_id: entry.day.id, exercise_id: exerciseId, order_index: orderIndex }])
+    .insert([{ day_id: entry.day.id, exercise_id: exerciseId, order_index: orderIndex, added_by_athlete: true }])
     .select('*, exercises(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
     .single()
 
@@ -1863,19 +1883,24 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   const slide = slides[index]
   const isLast = index === slides.length - 1
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
+  // Coach-assigned workouts get the same "+ Add Exercise" flow as
+  // self-logged ones when the coach has turned it on for this athlete -
+  // addExerciseToOwnWorkout/removeEmptyOwnExercise are already generic
+  // enough (see their comments) that no fork is needed beyond this gate
+  const canAddExercises = isSelfLogged || !!athlete.can_add_exercises
   currentSlideContext = slide
 
   pageContent.innerHTML = `
     <div class="active-exercise-header-row">
       <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
-      ${isSelfLogged ? '<button type="button" class="own-add-exercise-btn" id="ownAddExerciseBtn">+ Add Exercise</button>' : ''}
+      ${canAddExercises ? '<button type="button" class="own-add-exercise-btn" id="ownAddExerciseBtn">+ Add Exercise</button>' : ''}
     </div>
-    ${slide.type === 'superset' ? renderSupersetSlideBody(slide) : renderSingleSlideBody(slide.pe)}
+    ${slide.type === 'superset' ? renderSupersetSlideBody(slide, isSelfLogged) : renderSingleSlideBody(slide.pe, isSelfLogged)}
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe for next exercise <span class="swipe-hint-arrow">›</span></p>
     <div id="restTimerBar" class="rest-timer-bar"></div>
   `
 
-  wireExerciseCardEvents('activeExerciseCard', dateStr, isSelfLogged ? function(peId) {
+  wireExerciseCardEvents('activeExerciseCard', dateStr, canAddExercises ? function(peId) {
     removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId)
   } : null)
 
@@ -1885,6 +1910,21 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
       renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, index)
     })
   }
+
+  // History (every exercise) and Swap (coach-prescribed only, gated inside
+  // renderSingleSlideBody/renderSupersetSlideBody) share one delegated
+  // listener here rather than folding into wireExerciseCardEvents, since
+  // both need entry/slides/index/sessionPromise, which that function
+  // doesn't carry
+  document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
+    const historyBtn = e.target.closest('.exercise-history-btn')
+    if (historyBtn) {
+      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight)
+      return
+    }
+    const swapBtn = e.target.closest('.exercise-swap-btn')
+    if (swapBtn) { openSwapModal(entry, dateStr, slides, index, sessionPromise, swapBtn.dataset.peId) }
+  })
 
   attachSwipeHandlers(
     function onSwipeLeft() {
@@ -1905,11 +1945,37 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   mountSlide(direction)
 }
 
-// Today's original single-exercise slide, unchanged - just extracted into
-// its own function so renderActiveExercise can also render a merged
-// superset slide via the same wrapper (progress line, swipe hint, rest
-// timer bar all stay shared between both).
-function renderSingleSlideBody(pe) {
+// Swap only makes sense on a still-unstarted, coach-prescribed exercise -
+// once a set's logged, swapping would orphan it under the wrong exercise
+// (exercise_log_sets links by program_exercise_id, not exercise_id), and an
+// exercise the athlete already added/self-logged is already fully theirs
+// to remove and re-add instead.
+function canSwapExercise(pe, isSelfLogged) {
+  if (isSelfLogged || pe.added_by_athlete || !athlete.can_change_exercises) return false
+  return (logSetsByPE[pe.id] || []).every(s => !s.completed_at)
+}
+
+// History is unconditional (every exercise); Swap only shows when
+// canSwapExercise allows it. Shared by both the single-exercise slide and
+// each half of a superset slide.
+function exerciseActionButtonsHtml(pe, isSelfLogged) {
+  const name = pe.exercises ? pe.exercises.name : 'Exercise'
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  return `
+    <div class="exercise-action-btns">
+      <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}">📈 History</button>
+      ${canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}">🔁 Swap</button>` : ''}
+    </div>
+  `
+}
+
+// Today's original single-exercise slide - now takes isSelfLogged so it can
+// gate the Swap button - extracted into its own function so
+// renderActiveExercise can also render a merged superset slide via the same
+// wrapper (progress line, swipe hint, rest timer bar all stay shared
+// between both).
+function renderSingleSlideBody(pe, isSelfLogged) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
@@ -1930,7 +1996,10 @@ function renderSingleSlideBody(pe) {
         ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
       </button>
       ${pe.section_label ? `<p class="active-exercise-section-label">${pe.section_label}</p>` : ''}
-      <div class="active-exercise-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+      <div class="active-exercise-title-row">
+        <div class="active-exercise-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+        ${exerciseActionButtonsHtml(pe, isSelfLogged)}
+      </div>
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
       <div class="set-rows">${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set</button>
@@ -1943,7 +2012,7 @@ function renderSingleSlideBody(pe) {
 // at each exercise's own set count if they differ. Each row is prefixed
 // with its exercise's name (see renderSetRow's exerciseLabel param) so the
 // athlete can tell the two apart while interleaved.
-function renderSupersetSlideBody(slide) {
+function renderSupersetSlideBody(slide, isSelfLogged) {
   const first = slide.first
   const second = slide.second
   const firstIsTimed = first.exercises && first.exercises.is_timed
@@ -1977,7 +2046,10 @@ function renderSupersetSlideBody(slide) {
         </button>
         <div>
           ${pe.section_label ? `<p class="active-exercise-section-label">${pe.section_label}</p>` : ''}
-          <div class="active-exercise-title active-exercise-title-small">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+          <div class="active-exercise-title-row">
+            <div class="active-exercise-title active-exercise-title-small">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
+            ${exerciseActionButtonsHtml(pe, isSelfLogged)}
+          </div>
           ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
         </div>
       </div>
@@ -1996,6 +2068,141 @@ function renderSupersetSlideBody(slide) {
       </div>
     </div>
   `
+}
+
+// ==========================================================================
+// ---- EXERCISE HISTORY ----
+// Every exercise gets this, unconditionally - shows the athlete's own past
+// logged sets for this exercise (matched by exercise_id, so it carries
+// across different programs/weeks, same convention loadAndRenderPRBadges
+// already uses), most recent session first, set-by-set - seeing "80kg x8,
+// 80kg x7, 75kg x10" is what actually answers "what should I load today,"
+// not just one aggregate number.
+// ==========================================================================
+async function loadExerciseHistory(exerciseId) {
+  const { data: pastPEs, error: peError } = await fetchWithRetry((signal) => supabase
+    .from('program_exercises')
+    .select('id')
+    .eq('exercise_id', exerciseId)
+    .abortSignal(signal)
+  )
+  if (peError) { console.log(peError); return null }
+
+  const peIds = pastPEs.map(pe => pe.id)
+  if (peIds.length === 0) return []
+
+  const { data: sets, error: setsError } = await fetchWithRetry((signal) => supabase
+    .from('exercise_log_sets')
+    .select('*')
+    .in('program_exercise_id', peIds)
+    .not('completed_at', 'is', null)
+    .abortSignal(signal)
+  )
+  if (setsError) { console.log(setsError); return null }
+
+  const byDate = {}
+  for (const s of sets) {
+    if (!byDate[s.date]) byDate[s.date] = []
+    byDate[s.date].push(s)
+  }
+
+  // Most recent first, capped so the modal stays a quick glance rather than
+  // a full scroll-forever log
+  return Object.keys(byDate)
+    .sort((a, b) => b.localeCompare(a))
+    .slice(0, 8)
+    .map(date => ({
+      date,
+      sets: byDate[date].sort((a, b) => a.set_number - b.set_number),
+      stats: sessionExerciseStats(byDate[date])
+    }))
+}
+
+async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, tracksWeight) {
+  document.getElementById('exerciseHistoryTitle').textContent = exerciseName || 'History'
+  document.getElementById('exerciseHistoryBody').innerHTML = '<p class="no-metrics">Loading...</p>'
+  document.getElementById('exerciseHistoryModal').classList.add('active')
+
+  const history = await loadExerciseHistory(exerciseId)
+  const body = document.getElementById('exerciseHistoryBody')
+  if (!document.getElementById('exerciseHistoryModal').classList.contains('active')) return // closed while loading
+
+  if (history === null) { body.innerHTML = '<p class="no-metrics">Something went wrong loading history - check your connection and try again</p>'; return }
+  if (history.length === 0) { body.innerHTML = '<p class="no-metrics">No history yet for this exercise</p>'; return }
+
+  body.innerHTML = history.map(function(day) {
+    const setsLine = day.sets.map(function(s) {
+      const repsText = isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`
+      const weightText = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
+      return `<li class="detail-row"><span>Set ${s.set_number}</span><span class="detail-row-value">${repsText}${weightText}</span></li>`
+    }).join('')
+    const volumeText = tracksWeight && day.stats.volume > 0 ? ` · ${Math.round(formatWeight(day.stats.volume, athlete.weight_unit))}${athlete.weight_unit || 'kg'} total` : ''
+    return `
+      <div class="detail-group">
+        <h4 class="detail-group-title">${formatShortDate(parseDateStr(day.date))}${volumeText}</h4>
+        <ul class="detail-list">${setsLine}</ul>
+      </div>
+    `
+  }).join('')
+}
+
+document.getElementById('closeExerciseHistoryBtn').addEventListener('click', function() {
+  document.getElementById('exerciseHistoryModal').classList.remove('active')
+})
+
+// ==========================================================================
+// ---- SWAP EXERCISE ----
+// Substitutes a different exercise from the library into an existing
+// program_exercises row - keeps the same prescribed sets/reps/weight/rest,
+// just changes which exercise fills the slot. Only reachable when
+// canSwapExercise allowed the button to render in the first place (coach-
+// prescribed, athlete.can_change_exercises on, nothing logged yet).
+// ==========================================================================
+function openSwapModal(entry, dateStr, slides, index, sessionPromise, peId) {
+  document.getElementById('exerciseSwapModal').classList.add('active')
+  document.getElementById('exerciseSwapSearchInput').value = ''
+
+  loadExerciseLibrary().then(function(library) {
+    if (library === null) return
+    if (!document.getElementById('exerciseSwapModal').classList.contains('active')) return // closed before this resolved
+
+    wireExercisePicker(
+      document.getElementById('exerciseSwapSearchInput'),
+      document.getElementById('exerciseSwapList'),
+      library,
+      function(newExerciseId) {
+        swapExercise(entry, dateStr, slides, index, sessionPromise, peId, newExerciseId)
+      }
+    )
+  })
+}
+
+document.getElementById('closeExerciseSwapBtn').addEventListener('click', function() {
+  document.getElementById('exerciseSwapModal').classList.remove('active')
+})
+
+async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId, newExerciseId) {
+  const pe = entry.day.program_exercises.find(p => p.id === peId)
+  if (!pe) return
+
+  const { data, error } = await supabase
+    .from('program_exercises')
+    .update({
+      exercise_id: newExerciseId,
+      swapped_by_athlete: true,
+      original_exercise_id: pe.original_exercise_id || pe.exercise_id
+    })
+    .eq('id', peId)
+    .select('*, exercises(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
+    .single()
+
+  if (error) { console.log(error); customAlert('Something went wrong swapping that exercise - please try again'); return }
+
+  Object.assign(pe, data)
+  document.getElementById('exerciseSwapModal').classList.remove('active')
+  // Slide objects hold references to the same pe object mutated above, so
+  // re-rendering the current slide is enough - no need to rebuild slides
+  renderActiveExercise(entry, dateStr, slides, index, sessionPromise)
 }
 
 // Reached by pressing Next (or swiping left) on the last exercise - the

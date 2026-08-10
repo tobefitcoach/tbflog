@@ -104,6 +104,32 @@ document.getElementById('settingsSelfLogToggle').addEventListener('change', asyn
   }
 })
 
+document.getElementById('settingsAddExercisesToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ can_add_exercises: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked
+  }
+})
+
+document.getElementById('settingsChangeExercisesToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ can_change_exercises: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked
+  }
+})
+
 // ==========================================================================
 // ---- STATUS + INVITE ACTIONS ----
 // active = linked to a real login, pending = coach has entered an email but
@@ -229,6 +255,8 @@ document.getElementById('profileDetails').textContent =
   // fields already loaded above, no chart-canvas-sizing concern like Metrics
   document.getElementById('settingsNextWeekToggle').checked = !!data.can_preview_next_week
   document.getElementById('settingsSelfLogToggle').checked = !!data.can_self_log_workouts
+  document.getElementById('settingsAddExercisesToggle').checked = !!data.can_add_exercises
+  document.getElementById('settingsChangeExercisesToggle').checked = !!data.can_change_exercises
 
  // Edit info button
   document.getElementById('editAthleteBtn').addEventListener('click', function() {

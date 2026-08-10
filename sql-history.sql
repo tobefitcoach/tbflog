@@ -1113,3 +1113,60 @@ alter table athletes add column if not exists archived boolean not null default 
 -- ==========================================================================
 alter table workout_sessions add column if not exists avg_heart_rate int
   check (avg_heart_rate is null or avg_heart_rate between 30 and 250);
+
+-- ==========================================================================
+-- Athlete-side exercise flexibility on coach-assigned workouts: two
+-- separate per-athlete toggles (add extra exercises / swap a prescribed
+-- one), plus tracking columns on program_exercises so the coach can see
+-- when their program was touched. Additive to the existing "coach manages
+-- own program exercises" (all) and "athlete views own program exercises"
+-- (select) policies - Postgres OR's multiple permissive policies together,
+-- so these only add new allowed cases without touching what's already
+-- there.
+-- ==========================================================================
+alter table athletes add column if not exists can_add_exercises boolean not null default false;
+alter table athletes add column if not exists can_change_exercises boolean not null default false;
+
+alter table program_exercises add column if not exists added_by_athlete boolean not null default false;
+alter table program_exercises add column if not exists swapped_by_athlete boolean not null default false;
+alter table program_exercises add column if not exists original_exercise_id uuid references exercises(id);
+
+create or replace function public.athlete_owns_program_day(check_day_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_days d join program_weeks w on w.id = d.week_id
+    join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where d.id = check_day_id and a.user_id = (select auth.uid())
+  );
+$$;
+
+create or replace function public.athlete_can_add_exercises_to_day(check_day_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_days d join program_weeks w on w.id = d.week_id
+    join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where d.id = check_day_id and a.user_id = (select auth.uid()) and a.can_add_exercises = true
+  );
+$$;
+
+create or replace function public.athlete_can_change_exercises_on_day(check_day_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_days d join program_weeks w on w.id = d.week_id
+    join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where d.id = check_day_id and a.user_id = (select auth.uid()) and a.can_change_exercises = true
+  );
+$$;
+
+drop policy if exists "athlete adds extra exercises when allowed" on program_exercises;
+create policy "athlete adds extra exercises when allowed" on program_exercises for insert
+  with check (athlete_can_add_exercises_to_day(day_id));
+
+drop policy if exists "athlete swaps exercises when allowed" on program_exercises;
+create policy "athlete swaps exercises when allowed" on program_exercises for update
+  using (athlete_can_change_exercises_on_day(day_id))
+  with check (athlete_can_change_exercises_on_day(day_id));
+
+drop policy if exists "athlete deletes own added exercises" on program_exercises;
+create policy "athlete deletes own added exercises" on program_exercises for delete
+  using (added_by_athlete = true and athlete_owns_program_day(day_id));

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard — TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=13" />
-    <link rel="stylesheet" href="../athlete.css?v=27" />
-    <link rel="stylesheet" href="app.css?v=30" />
+    <link rel="stylesheet" href="../athlete.css?v=28" />
+    <link rel="stylesheet" href="app.css?v=31" />
   </head>
   <body>
 
@@ -48,8 +48,35 @@
       </div>
     </div>
 
+    <!-- Per-exercise history, opened via the 📈 History button during a
+         guided workout - see openExerciseHistoryModal() in dashboard.js -->
+    <div class="modal-overlay" id="exerciseHistoryModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2 id="exerciseHistoryTitle">History</h2>
+          <button type="button" class="btn-cancel" id="closeExerciseHistoryBtn">✕</button>
+        </div>
+        <div id="exerciseHistoryBody"></div>
+      </div>
+    </div>
+
+    <!-- Swap a coach-prescribed exercise for a different one from the
+         library, opened via the 🔁 Swap button - see openSwapModal() in
+         dashboard.js. Same search+list shape as the full-page Add Exercise
+         screen, just in a modal so the athlete doesn't lose their place -->
+    <div class="modal-overlay" id="exerciseSwapModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Swap Exercise</h2>
+          <button type="button" class="btn-cancel" id="closeExerciseSwapBtn">✕</button>
+        </div>
+        <input type="text" id="exerciseSwapSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
+        <div id="exerciseSwapList"></div>
+      </div>
+    </div>
+
     <script type="module" src="../loading-bar.js?v=1"></script>
     <script type="module" src="../confirm-modal.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=54"></script>
+    <script type="module" src="dashboard.js?v=55"></script>
   </body>
 </html>
