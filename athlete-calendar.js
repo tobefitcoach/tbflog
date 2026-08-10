@@ -359,7 +359,7 @@ function renderScheduledExerciseCard(pe, siblingExercises) {
     : 'Link with other exercises (superset)'
 
   return `
-    <div class="builder-exercise-card" data-id="${pe.id}" data-superset-group-id="${pe.superset_group_id || ''}">
+    <div class="builder-exercise-card" data-id="${pe.id}" data-superset-group-id="${pe.superset_group_id || ''}" data-section-instance-id="${pe.section_instance_id || ''}" data-section-label="${pe.section_label || ''}">
       <div class="builder-exercise-card-header">
         <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
@@ -540,44 +540,60 @@ document.getElementById('dayDetailContent').addEventListener('focusout', functio
 // within the same group - the new order is only written to order_index
 // when that group's own Save button is pressed, same as every other edit
 // here. Dragging between different day-entry groups isn't supported.
-let draggingCardCal = null
+// Grabbing any member of a section drags the whole section together - see
+// dataset.sectionInstanceId grouping below - since the whole point of a
+// section is that it stays together.
+let draggingCardsCal = []
 let draggingGroupCal = null
 
 document.getElementById('dayDetailContent').addEventListener('dragstart', function(e) {
   const handle = e.target.closest('.builder-drag-handle')
   if (!handle) return
-  draggingCardCal = handle.closest('.builder-exercise-card')
-  draggingGroupCal = draggingCardCal.closest('.detail-group')
+  const card = handle.closest('.builder-exercise-card')
+  draggingGroupCal = card.closest('.detail-group')
+  const instanceId = card.dataset.sectionInstanceId
+  draggingCardsCal = instanceId
+    ? [...draggingGroupCal.querySelectorAll(`.builder-exercise-card[data-section-instance-id="${instanceId}"]`)]
+    : [card]
   e.dataTransfer.effectAllowed = 'move'
   e.dataTransfer.setData('text/plain', '')
-  e.dataTransfer.setDragImage(draggingCardCal, 20, 20)
-  setTimeout(function() { draggingCardCal.classList.add('dragging') }, 0)
+  e.dataTransfer.setDragImage(card, 20, 20)
+  setTimeout(function() { draggingCardsCal.forEach(c => c.classList.add('dragging')) }, 0)
 })
 
 document.getElementById('dayDetailContent').addEventListener('dragover', function(e) {
-  if (!draggingCardCal) return
+  if (!draggingCardsCal.length) return
   if (e.target.closest('.detail-group') !== draggingGroupCal) return
   e.preventDefault()
 
+  // Only a standalone card, or the FIRST card of a stationary section,
+  // counts as a valid drop-target boundary - this is what makes it
+  // impossible to drop in the middle of someone else's section
   const cards = [...draggingGroupCal.querySelectorAll('.builder-exercise-card:not(.dragging)')]
-  const after = cards.reduce(function(closest, card) {
+  const unitLeaders = cards.filter(function(c) {
+    const id = c.dataset.sectionInstanceId
+    if (!id) return true
+    const prev = c.previousElementSibling
+    return !prev || prev.dataset.sectionInstanceId !== id
+  })
+  const after = unitLeaders.reduce(function(closest, card) {
     const box = card.getBoundingClientRect()
     const offset = e.clientY - box.top - box.height / 2
     return (offset < 0 && offset > closest.offset) ? { offset, element: card } : closest
   }, { offset: -Infinity, element: null }).element
 
   if (after) {
-    draggingGroupCal.insertBefore(draggingCardCal, after)
+    draggingCardsCal.forEach(c => draggingGroupCal.insertBefore(c, after))
   } else {
     const saveBtn = draggingGroupCal.querySelector('[data-action="save-scheduled-day"]')
-    if (saveBtn) draggingGroupCal.insertBefore(draggingCardCal, saveBtn)
-    else draggingGroupCal.appendChild(draggingCardCal)
+    if (saveBtn) draggingCardsCal.forEach(c => draggingGroupCal.insertBefore(c, saveBtn))
+    else draggingCardsCal.forEach(c => draggingGroupCal.appendChild(c))
   }
 })
 
 document.getElementById('dayDetailContent').addEventListener('dragend', function() {
-  if (draggingCardCal) draggingCardCal.classList.remove('dragging')
-  draggingCardCal = null
+  draggingCardsCal.forEach(c => c.classList.remove('dragging'))
+  draggingCardsCal = []
   draggingGroupCal = null
 })
 
@@ -1520,6 +1536,11 @@ async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
     if (se.superset_group_id && !groupIdMap[se.superset_group_id]) groupIdMap[se.superset_group_id] = crypto.randomUUID()
   }
 
+  // One id shared by the WHOLE batch (unlike groupIdMap above, which is
+  // per superset sub-group within the batch) - this is what keeps the
+  // section together as a single block in the drag-reorder UI from now on
+  const sectionInstanceId = crypto.randomUUID()
+
   const { error: insertError } = await supabase.from('program_exercises').insert(
     sectionExercises.map((se, i) => ({
       day_id: dayId,
@@ -1533,6 +1554,7 @@ async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
       set_targets: se.set_targets,
       notes: se.notes,
       section_label: sectionName,
+      section_instance_id: sectionInstanceId,
       superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
     }))
   )

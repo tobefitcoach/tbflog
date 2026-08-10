@@ -1198,3 +1198,16 @@ create policy "coach reviews sessions for own athletes" on workout_sessions for 
 -- exercises" FOR ALL policy, which isn't column-scoped.
 -- ==========================================================================
 alter table section_exercises add column if not exists superset_group_id uuid;
+
+-- ==========================================================================
+-- Sections stay together as one locked block when reordering: every
+-- exercise copied out of a section in one "Add Section" action shares a
+-- fresh section_instance_id, stamped by the 3 insert-section clone
+-- functions alongside the existing section_label text. Unlike
+-- section_label (just display text, could collide if the same section is
+-- inserted twice), this id is unique per insertion, so two copies of the
+-- same section can be dragged independently. No RLS change needed - same
+-- reasoning as superset_group_id above.
+-- ==========================================================================
+alter table training_exercises add column if not exists section_instance_id uuid;
+alter table program_exercises add column if not exists section_instance_id uuid;

@@ -334,7 +334,7 @@ function renderExerciseCard(pe, siblingExercises) {
     : 'Link with other exercises (superset)'
 
   return `
-    <div class="builder-exercise-card" data-id="${pe.id}" data-superset-group-id="${pe.superset_group_id || ''}">
+    <div class="builder-exercise-card" data-id="${pe.id}" data-superset-group-id="${pe.superset_group_id || ''}" data-section-instance-id="${pe.section_instance_id || ''}" data-section-label="${pe.section_label || ''}">
       <div class="builder-exercise-card-header">
         <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
@@ -625,49 +625,66 @@ document.getElementById('weeksList').addEventListener('focusout', function(e) {
 // Purely a DOM reorder while dragging (no network call), scoped to stay
 // within the same day - the new order is only written to order_index when
 // that day's own Save button is pressed, same as every other edit here.
-// Dragging between different days isn't supported.
-let draggingCard = null
+// Dragging between different days isn't supported. Grabbing any member of
+// a section drags the whole section together - see dataset.sectionInstanceId
+// grouping below - since the whole point of a section is that it stays
+// together.
+let draggingCards = []
 let draggingDayId = null
 
 document.getElementById('weeksList').addEventListener('dragstart', function(e) {
   const handle = e.target.closest('.builder-drag-handle')
   if (!handle) return
-  draggingCard = handle.closest('.builder-exercise-card')
-  draggingDayId = draggingCard.closest('.exercise-item').dataset.dayId
+  const card = handle.closest('.builder-exercise-card')
+  const dayBlock = card.closest('.exercise-item')
+  draggingDayId = dayBlock.dataset.dayId
+  const instanceId = card.dataset.sectionInstanceId
+  draggingCards = instanceId
+    ? [...dayBlock.querySelectorAll(`.builder-exercise-card[data-section-instance-id="${instanceId}"]`)]
+    : [card]
   e.dataTransfer.effectAllowed = 'move'
   e.dataTransfer.setData('text/plain', '')
-  e.dataTransfer.setDragImage(draggingCard, 20, 20)
-  setTimeout(function() { draggingCard.classList.add('dragging') }, 0)
+  e.dataTransfer.setDragImage(card, 20, 20)
+  setTimeout(function() { draggingCards.forEach(c => c.classList.add('dragging')) }, 0)
 })
 
 document.getElementById('weeksList').addEventListener('dragover', function(e) {
-  if (!draggingCard) return
+  if (!draggingCards.length) return
   const dayBlock = e.target.closest(`.exercise-item[data-day-id="${draggingDayId}"]`)
   if (!dayBlock) return
   e.preventDefault()
 
+  // Only a standalone card, or the FIRST card of a stationary section,
+  // counts as a valid drop-target boundary - this is what makes it
+  // impossible to drop in the middle of someone else's section
   const cards = [...dayBlock.querySelectorAll('.builder-exercise-card:not(.dragging)')]
-  const after = cards.reduce(function(closest, card) {
+  const unitLeaders = cards.filter(function(c) {
+    const id = c.dataset.sectionInstanceId
+    if (!id) return true
+    const prev = c.previousElementSibling
+    return !prev || prev.dataset.sectionInstanceId !== id
+  })
+  const after = unitLeaders.reduce(function(closest, card) {
     const box = card.getBoundingClientRect()
     const offset = e.clientY - box.top - box.height / 2
     return (offset < 0 && offset > closest.offset) ? { offset, element: card } : closest
   }, { offset: -Infinity, element: null }).element
 
   if (after) {
-    dayBlock.insertBefore(draggingCard, after)
+    draggingCards.forEach(c => dayBlock.insertBefore(c, after))
   } else {
     // Nothing to insert before means "goes last" - but the Save Day button
     // is also a sibling in this container, so insert before that instead
     // of appendChild (which would drop the card below the Save button)
     const saveBtn = dayBlock.querySelector('[data-action="save-day"]')
-    if (saveBtn) dayBlock.insertBefore(draggingCard, saveBtn)
-    else dayBlock.appendChild(draggingCard)
+    if (saveBtn) draggingCards.forEach(c => dayBlock.insertBefore(c, saveBtn))
+    else draggingCards.forEach(c => dayBlock.appendChild(c))
   }
 })
 
 document.getElementById('weeksList').addEventListener('dragend', function() {
-  if (draggingCard) draggingCard.classList.remove('dragging')
-  draggingCard = null
+  draggingCards.forEach(c => c.classList.remove('dragging'))
+  draggingCards = []
   draggingDayId = null
 })
 
@@ -1085,6 +1102,11 @@ async function insertSectionIntoDay(sectionId, sectionName) {
     if (se.superset_group_id && !groupIdMap[se.superset_group_id]) groupIdMap[se.superset_group_id] = crypto.randomUUID()
   }
 
+  // One id shared by the WHOLE batch (unlike groupIdMap above, which is
+  // per superset sub-group within the batch) - this is what keeps the
+  // section together as a single block in the drag-reorder UI from now on
+  const sectionInstanceId = crypto.randomUUID()
+
   const { data: inserted, error: insertError } = await supabase.from('program_exercises').insert(
     sectionExercises.map((se, i) => ({
       day_id: day.id, exercise_id: se.exercise_id, order_index: baseOrder + i,
@@ -1092,6 +1114,7 @@ async function insertSectionIntoDay(sectionId, sectionName) {
       prescribed_weight: se.prescribed_weight, rest_seconds: se.rest_seconds,
       extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
       section_label: sectionName,
+      section_instance_id: sectionInstanceId,
       superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
     }))
   ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')

@@ -176,6 +176,14 @@
   text-overflow: ellipsis;
 }
 
+/* A section collapses into one row here, draggable as a whole block -
+   same accent family as .builder-section-header so it reads as "this is a
+   group," not just another exercise */
+.workout-outline-item.workout-outline-section {
+  border-color: #4a4a8e;
+  background-color: rgba(74, 74, 142, 0.15);
+}
+
 /* Drop zone highlight while dragging a card over the training's list */
 .drag-over {
   outline: 2px dashed #4a4a8e;

@@ -175,39 +175,58 @@ trainingDropZone.addEventListener('drop', async function(e) {
 // ---- Reorder exercises already in the training by dragging the ⠿ handle ----
 // Purely a DOM reorder while dragging (no network call) - the new order is
 // only written to order_index when the page's own Save button is pressed,
-// same as every other edit on this page.
-let draggingCard = null
+// same as every other edit on this page. Grabbing any member of a section
+// drags the whole section together - see the dataset.sectionInstanceId
+// grouping below - since the whole point of a section is that it stays
+// together.
+let draggingCards = []
 
 trainingDropZone.addEventListener('dragstart', function(e) {
   const handle = e.target.closest('.builder-drag-handle')
   if (!handle) return
-  draggingCard = handle.closest('.builder-exercise-card')
+  const card = handle.closest('.builder-exercise-card')
+  const instanceId = card.dataset.sectionInstanceId
+  draggingCards = instanceId
+    ? [...trainingDropZone.querySelectorAll(`.builder-exercise-card[data-section-instance-id="${instanceId}"]`)]
+    : [card]
   e.dataTransfer.effectAllowed = 'move'
   e.dataTransfer.setData('text/plain', '') // Firefox requires data to be set for drag to start
-  e.dataTransfer.setDragImage(draggingCard, 20, 20)
-  setTimeout(function() { draggingCard.classList.add('dragging') }, 0)
+  e.dataTransfer.setDragImage(card, 20, 20)
+  setTimeout(function() { draggingCards.forEach(c => c.classList.add('dragging')) }, 0)
 })
 
 trainingDropZone.addEventListener('dragover', function(e) {
-  if (!draggingCard) return
+  if (!draggingCards.length) return
   e.preventDefault()
+  // Only a standalone card, or the FIRST card of a stationary section,
+  // counts as a valid drop-target boundary - this is what makes it
+  // impossible to drop in the middle of someone else's section
   const cards = [...trainingDropZone.querySelectorAll('.builder-exercise-card:not(.dragging)')]
-  const after = cards.reduce(function(closest, card) {
+  const unitLeaders = cards.filter(function(c) {
+    const id = c.dataset.sectionInstanceId
+    if (!id) return true
+    const prev = c.previousElementSibling
+    return !prev || prev.dataset.sectionInstanceId !== id
+  })
+  const after = unitLeaders.reduce(function(closest, card) {
     const box = card.getBoundingClientRect()
     const offset = e.clientY - box.top - box.height / 2
     return (offset < 0 && offset > closest.offset) ? { offset, element: card } : closest
   }, { offset: -Infinity, element: null }).element
 
+  // Inserting each dragged card immediately before the same reference node,
+  // in order, naturally reconstructs their original relative order right
+  // before it (or, via appendChild below, at the very end)
   if (after) {
-    trainingDropZone.insertBefore(draggingCard, after)
+    draggingCards.forEach(c => trainingDropZone.insertBefore(c, after))
   } else {
-    trainingDropZone.appendChild(draggingCard)
+    draggingCards.forEach(c => trainingDropZone.appendChild(c))
   }
 })
 
 trainingDropZone.addEventListener('dragend', function() {
-  if (draggingCard) draggingCard.classList.remove('dragging')
-  draggingCard = null
+  draggingCards.forEach(c => c.classList.remove('dragging'))
+  draggingCards = []
   renderWorkoutOutline()
 })
 
@@ -215,7 +234,10 @@ trainingDropZone.addEventListener('dragend', function() {
 // Just names, in order - a much quicker drag target than a whole tall
 // exercise card. Dragging a row here reorders the outline first, then
 // applies that same order to the real cards on the left (syncCardOrder
-// below) - so either list can be dragged and they stay in sync.
+// below) - so either list can be dragged and they stay in sync. A section
+// collapses into one row here ("🧩 Warm-up A (3)") since the whole point
+// of a section is that it stays together - dragging that one row moves
+// every exercise underneath it as a block.
 function renderWorkoutOutline() {
   const panel = document.getElementById('workoutOutlineList')
   const cards = [...trainingDropZone.querySelectorAll('.builder-exercise-card')]
@@ -225,10 +247,30 @@ function renderWorkoutOutline() {
     return
   }
 
-  panel.innerHTML = cards.map(function(card, i) {
-    const name = card.querySelector('.builder-exercise-name').textContent
+  const units = []
+  for (const card of cards) {
+    const instanceId = card.dataset.sectionInstanceId
+    const last = units[units.length - 1]
+    if (instanceId && last && last.instanceId === instanceId) {
+      last.cards.push(card)
+    } else {
+      units.push({ instanceId: instanceId || null, label: card.dataset.sectionLabel || '', cards: [card] })
+    }
+  }
+
+  panel.innerHTML = units.map(function(unit, i) {
+    if (unit.cards.length > 1) {
+      const ids = unit.cards.map(c => c.dataset.id).join(',')
+      return `
+        <div class="workout-outline-item workout-outline-section" draggable="true" data-group-ids="${ids}">
+          <span class="workout-outline-num">${i + 1}</span>
+          <span class="workout-outline-name">🧩 ${unit.label || 'Section'} (${unit.cards.length})</span>
+        </div>
+      `
+    }
+    const name = unit.cards[0].querySelector('.builder-exercise-name').textContent
     return `
-      <div class="workout-outline-item" draggable="true" data-id="${card.dataset.id}">
+      <div class="workout-outline-item" draggable="true" data-id="${unit.cards[0].dataset.id}">
         <span class="workout-outline-num">${i + 1}</span>
         <span class="workout-outline-name">${name}</span>
       </div>
@@ -242,12 +284,15 @@ function renumberOutline() {
   })
 }
 
-// Reorders the real exercise cards to match the outline's current order
+// Reorders the real exercise cards to match the outline's current order -
+// a group row carries every member's id (comma-joined) instead of just one
 function syncCardOrderToOutline() {
-  const order = [...document.querySelectorAll('#workoutOutlineList .workout-outline-item')].map(item => item.dataset.id)
-  order.forEach(function(id) {
-    const card = trainingDropZone.querySelector(`.builder-exercise-card[data-id="${id}"]`)
-    if (card) trainingDropZone.appendChild(card)
+  document.querySelectorAll('#workoutOutlineList .workout-outline-item').forEach(function(item) {
+    const ids = item.dataset.groupIds ? item.dataset.groupIds.split(',') : [item.dataset.id]
+    ids.forEach(function(id) {
+      const card = trainingDropZone.querySelector(`.builder-exercise-card[data-id="${id}"]`)
+      if (card) trainingDropZone.appendChild(card)
+    })
   })
 }
 
@@ -505,7 +550,7 @@ function renderExerciseCard(te) {
     : 'Link with other exercises (superset)'
 
   return `
-    <div class="builder-exercise-card" data-id="${te.id}" data-superset-group-id="${te.superset_group_id || ''}">
+    <div class="builder-exercise-card" data-id="${te.id}" data-superset-group-id="${te.superset_group_id || ''}" data-section-instance-id="${te.section_instance_id || ''}" data-section-label="${te.section_label || ''}">
       <div class="builder-exercise-card-header">
         <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
@@ -1020,6 +1065,11 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
     if (se.superset_group_id && !groupIdMap[se.superset_group_id]) groupIdMap[se.superset_group_id] = crypto.randomUUID()
   }
 
+  // One id shared by the WHOLE batch (unlike groupIdMap above, which is
+  // per superset sub-group within the batch) - this is what keeps the
+  // section together as a single block in the drag-reorder UI from now on
+  const sectionInstanceId = crypto.randomUUID()
+
   const { data: inserted, error: insertError } = await supabase.from('training_exercises').insert(
     sectionExercises.map((se, i) => ({
       training_id: trainingId, exercise_id: se.exercise_id, order_index: baseOrder + i,
@@ -1027,6 +1077,7 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
       prescribed_weight: se.prescribed_weight, rest_seconds: se.rest_seconds,
       extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
       section_label: sectionName,
+      section_instance_id: sectionInstanceId,
       superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
     }))
   ).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
