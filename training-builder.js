@@ -392,17 +392,23 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
         ${Object.entries(SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
       ${isTimed ? `
-        <div class="set-time-input">
-          <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
-          <span class="set-time-sep">:</span>
-          <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
+        <div class="set-time-group">
+          <span class="set-time-group-label">Time (min:sec)</span>
+          <div class="set-time-input">
+            <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
+            <span class="set-time-sep">:</span>
+            <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
+          </div>
         </div>
       ` : `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">`}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
-      <div class="set-time-input" title="Rest">
-        <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
-        <span class="set-time-sep">:</span>
-        <input type="text" inputmode="numeric" class="set-time-ss set-rest-ss" value="${String(restParts.ss).padStart(2, '0')}" maxlength="2">
+      <div class="set-time-group">
+        <span class="set-time-group-label">Rest (min:sec)</span>
+        <div class="set-time-input">
+          <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
+          <span class="set-time-sep">:</span>
+          <input type="text" inputmode="numeric" class="set-time-ss set-rest-ss" value="${String(restParts.ss).padStart(2, '0')}" maxlength="2">
+        </div>
       </div>
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>
@@ -809,7 +815,23 @@ function toggleCreateNewTypeField() {
   document.getElementById('tCreateExerciseNewTypeGroup').style.display = isNew ? 'block' : 'none'
 }
 
-document.getElementById('tCreateExerciseType').addEventListener('change', toggleCreateNewTypeField)
+// Nudges the logging-field toggles to their common defaults when the coach
+// actually picks a type - the coach can still flip either toggle back
+// afterward for a less common combination (e.g. a weighted timed hold)
+function applyTypeLoggingDefaults(type) {
+  if (type === 'timed') {
+    document.getElementById('tCreateExerciseIsTimed').checked = true
+    document.getElementById('tCreateExerciseTracksWeight').checked = false
+  } else if (type === 'weights') {
+    document.getElementById('tCreateExerciseIsTimed').checked = false
+    document.getElementById('tCreateExerciseTracksWeight').checked = true
+  }
+}
+
+document.getElementById('tCreateExerciseType').addEventListener('change', function() {
+  toggleCreateNewTypeField()
+  applyTypeLoggingDefaults(this.value)
+})
 
 document.getElementById('openCreateExerciseBtn').addEventListener('click', function() {
   document.getElementById('tCreateExerciseName').value = ''

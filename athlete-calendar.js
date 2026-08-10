@@ -1598,17 +1598,23 @@ function renderSetTargetRowCal(setNumber, target, isTimed, tracksWeight, isUnila
         ${Object.entries(SET_TYPES_CAL).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
       ${isTimed ? `
-        <div class="set-time-input">
-          <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
-          <span class="set-time-sep">:</span>
-          <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
+        <div class="set-time-group">
+          <span class="set-time-group-label">Time (min:sec)</span>
+          <div class="set-time-input">
+            <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
+            <span class="set-time-sep">:</span>
+            <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
+          </div>
         </div>
       ` : `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">`}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
-      <div class="set-time-input" title="Rest">
-        <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
-        <span class="set-time-sep">:</span>
-        <input type="text" inputmode="numeric" class="set-time-ss set-rest-ss" value="${String(restParts.ss).padStart(2, '0')}" maxlength="2">
+      <div class="set-time-group">
+        <span class="set-time-group-label">Rest (min:sec)</span>
+        <div class="set-time-input">
+          <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
+          <span class="set-time-sep">:</span>
+          <input type="text" inputmode="numeric" class="set-time-ss set-rest-ss" value="${String(restParts.ss).padStart(2, '0')}" maxlength="2">
+        </div>
       </div>
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>

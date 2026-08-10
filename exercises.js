@@ -97,7 +97,26 @@ function toggleNewTypeField() {
   document.getElementById('exercisePlyoFields').style.display = type === 'plyometric' ? 'block' : 'none'
 }
 
-document.getElementById('exerciseType').addEventListener('change', toggleNewTypeField)
+// Nudges the logging-field toggles to their common defaults when the coach
+// actually picks a type - only wired to the change event below, never
+// called when the modal is just being opened/populated (populateTypeSelect
+// calls toggleNewTypeField directly, not this), so it never silently
+// overwrites an exercise's real saved values (e.g. a deliberately weighted
+// timed hold). The coach can still flip either toggle back afterward.
+function applyTypeLoggingDefaults(type) {
+  if (type === 'timed') {
+    document.getElementById('exerciseIsTimed').checked = true
+    document.getElementById('exerciseTracksWeight').checked = false
+  } else if (type === 'weights') {
+    document.getElementById('exerciseIsTimed').checked = false
+    document.getElementById('exerciseTracksWeight').checked = true
+  }
+}
+
+document.getElementById('exerciseType').addEventListener('change', function() {
+  toggleNewTypeField()
+  applyTypeLoggingDefaults(this.value)
+})
 
 // YouTube's thumbnail images are available at a predictable URL from just
 // the video id, no API key needed - other hosts (Vimeo etc.) fall back to
