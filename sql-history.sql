@@ -1170,3 +1170,22 @@ create policy "athlete swaps exercises when allowed" on program_exercises for up
 drop policy if exists "athlete deletes own added exercises" on program_exercises;
 create policy "athlete deletes own added exercises" on program_exercises for delete
   using (added_by_athlete = true and athlete_owns_program_day(day_id));
+
+-- ==========================================================================
+-- RPE 9-10 follow-up: when a session's effort rating is very high, the
+-- athlete is asked whether that's because it was just heavy/tiring or
+-- because of pain/injury - if pain/injury, a short note. reviewed_at lets
+-- the coach acknowledge a report (clearing it from their Overview inbox)
+-- without deleting the history, which still shows read-only on the
+-- Calendar day detail. The coach previously had no UPDATE policy on
+-- workout_sessions at all (SELECT only) - this adds one, row-level only
+-- like every other write policy in this file, not column-scoped.
+-- ==========================================================================
+alter table workout_sessions add column if not exists rpe_flag_reason text check (rpe_flag_reason in ('pain_injury', 'heavy_tiring'));
+alter table workout_sessions add column if not exists rpe_flag_note text;
+alter table workout_sessions add column if not exists rpe_flag_reviewed_at timestamptz;
+
+drop policy if exists "coach reviews sessions for own athletes" on workout_sessions;
+create policy "coach reviews sessions for own athletes" on workout_sessions for update
+  using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = (select auth.uid())))
+  with check (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = (select auth.uid())));

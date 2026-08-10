@@ -105,14 +105,14 @@ async function loadCalendarMonth(year, month) {
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, tracks_weight, is_timed, is_unilateral))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, tracks_weight, is_timed, is_unilateral))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
       .abortSignal(signal)
     ),
     fetchWithRetry((signal) => supabase
       .from('workout_sessions')
-      .select('program_day_id, started_at, ended_at, session_rpe, session_type')
+      .select('program_day_id, started_at, ended_at, session_rpe, session_type, rpe_flag_reason, rpe_flag_note, rpe_flag_reviewed_at')
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
     ),
@@ -395,7 +395,26 @@ function renderSessionSummaryCal(session) {
   const durationMin = Math.round((new Date(session.ended_at) - new Date(session.started_at)) / 60000)
   const parts = [`⏱ ${durationMin} min`]
   if (session.session_rpe != null) parts.push(`💪 RPE ${session.session_rpe}/10`)
-  return `<p class="workout-preview-target" style="margin-bottom:12px">${parts.join(' · ')}</p>`
+
+  // Read-only here - "Mark Reviewed" lives on the Overview tab's report
+  // inbox (athlete.js), so this stays a single source of truth for that
+  // write and Calendar is purely context when browsing history
+  const flagHtml = session.rpe_flag_reason === 'pain_injury'
+    ? `<p class="pain-flag-note ${session.rpe_flag_reviewed_at ? 'reviewed' : ''}">🚩 Reported pain/injury${session.rpe_flag_reviewed_at ? ' (reviewed)' : ''}: ${escapeHtmlCal(session.rpe_flag_note) || '<em>No description given</em>'}</p>`
+    : ''
+
+  return `<p class="workout-preview-target" style="margin-bottom:${flagHtml ? '4px' : '12px'}">${parts.join(' · ')}</p>${flagHtml}`
+}
+
+// Only used for user-entered free text rendered into a coach-facing
+// template via innerHTML (the pain/injury note above) - every other
+// string in this file is coach-authored or comes from a fixed set of
+// options, so this is deliberately not applied everywhere
+function escapeHtmlCal(str) {
+  if (!str) return ''
+  const div = document.createElement('div')
+  div.textContent = str
+  return div.innerHTML
 }
 
 // Read-only version of renderScheduledExerciseCard - what the athlete

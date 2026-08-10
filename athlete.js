@@ -367,7 +367,7 @@ async function loadOverviewStats() {
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(tracks_weight))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(tracks_weight))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -552,8 +552,75 @@ async function loadOverviewStats() {
   document.getElementById('statMonotony').textContent = monotonyValue === null ? '—' : monotonyValue.toFixed(2)
   document.getElementById('statStrain').textContent = strainValue === null ? '—' : Math.round(strainValue).toLocaleString()
 
+  renderPainReports(sessions, dayInfoById)
+
   const updatedLabel = document.getElementById('overviewUpdatedLabel')
   if (updatedLabel) updatedLabel.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+// The Overview tab's pain/injury inbox - unreviewed reports only (see
+// wireRpeFlagFollowup in athlete-app/dashboard.js for how these get set).
+// Reuses the same 90-day `sessions` fetch loadOverviewStats already made -
+// no extra query. Known limitation, same as every other stat on this tab:
+// a report older than that window with no coach visit in the meantime
+// ages out of this list silently.
+function renderPainReports(sessions, dayInfoById) {
+  const section = document.getElementById('painReportsSection')
+  const list = document.getElementById('painReportsList')
+  const reports = sessions.filter(s => s.rpe_flag_reason === 'pain_injury' && !s.rpe_flag_reviewed_at)
+
+  if (reports.length === 0) {
+    section.style.display = 'none'
+    return
+  }
+
+  section.style.display = 'block'
+  list.innerHTML = reports.map(s => {
+    const info = dayInfoById[s.program_day_id]
+    const dateStr = info ? info.dateStr : s.started_at.split('T')[0]
+    const name = info ? info.name : 'Workout'
+    return `
+      <div class="pain-report-row">
+        <div class="pain-report-meta">${formatDisplayDate(dateStr)} — ${name} · RPE ${s.session_rpe}/10</div>
+        <p class="pain-report-note">${escapeHtml(s.rpe_flag_note) || '<em>No description given</em>'}</p>
+        <button type="button" class="unit-btn pain-report-review-btn" data-session-id="${s.id}">Mark Reviewed</button>
+      </div>
+    `
+  }).join('')
+
+  list.querySelectorAll('.pain-report-review-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const row = btn.closest('.pain-report-row')
+      btn.disabled = true
+      btn.textContent = 'Marking...'
+
+      const { error } = await supabase
+        .from('workout_sessions')
+        .update({ rpe_flag_reviewed_at: new Date().toISOString() })
+        .eq('id', btn.dataset.sessionId)
+
+      if (error) {
+        console.log(error)
+        customAlert('Something went wrong - please try again')
+        btn.disabled = false
+        btn.textContent = 'Mark Reviewed'
+        return
+      }
+
+      row.remove()
+      if (list.children.length === 0) section.style.display = 'none'
+    })
+  })
+}
+
+// Only used for user-entered free text rendered via innerHTML (the
+// pain/injury note above) - every other string on this tab is either
+// coach-authored or a fixed option, so this isn't applied everywhere
+function escapeHtml(str) {
+  if (!str) return ''
+  const div = document.createElement('div')
+  div.textContent = str
+  return div.innerHTML
 }
 
 // Opened by clicking the "Avg Duration (30d)" stat tile. Individual

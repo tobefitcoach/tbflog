@@ -399,7 +399,7 @@ async function loadTrainingData() {
   ] = await Promise.all([
     saveWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral))))')
       .eq('athlete_id', athlete.id)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -1319,7 +1319,7 @@ async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseI
   const { data, error } = await supabase
     .from('program_exercises')
     .insert([{ day_id: entry.day.id, exercise_id: exerciseId, order_index: orderIndex, added_by_athlete: true }])
-    .select('*, exercises(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
+    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
     .single()
 
   if (error) { console.log(error); customAlert('Something went wrong adding that exercise - please try again'); return }
@@ -2193,7 +2193,7 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
       original_exercise_id: pe.original_exercise_id || pe.exercise_id
     })
     .eq('id', peId)
-    .select('*, exercises(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
+    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
     .single()
 
   if (error) { console.log(error); customAlert('Something went wrong swapping that exercise - please try again'); return }
@@ -2461,17 +2461,38 @@ function renderWorkoutSummary(finishedSession, entry) {
         ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button type="button" class="rpe-btn ${finishedSession.session_rpe === n ? 'selected' : ''}" data-rpe="${n}">${n}</button>`).join('')}
       </div>
       <p class="rpe-picker-hint" id="rpePickerHint">${finishedSession.session_rpe ? RPE_DESCRIPTIONS[finishedSession.session_rpe] : 'Tap a number to rate how hard it felt'}</p>
+      <div class="rpe-flag-followup" id="rpeFlagFollowup" style="display:${finishedSession.session_rpe >= 9 ? 'block' : 'none'}">
+        <p class="rpe-flag-question">That's a high rating - what made it feel that hard?</p>
+        <div class="rpe-flag-choice-row" id="rpeFlagChoiceRow">
+          <button type="button" class="rpe-flag-choice-btn ${finishedSession.rpe_flag_reason === 'heavy_tiring' ? 'selected' : ''}" data-reason="heavy_tiring">😮‍💨 Just heavy / tiring</button>
+          <button type="button" class="rpe-flag-choice-btn ${finishedSession.rpe_flag_reason === 'pain_injury' ? 'selected' : ''}" data-reason="pain_injury">🤕 Pain or injury</button>
+        </div>
+        <div class="rpe-flag-note-row" id="rpeFlagNoteRow" style="display:${finishedSession.rpe_flag_reason === 'pain_injury' ? 'block' : 'none'}">
+          <label>What happened / what hurts?</label>
+          <textarea id="rpeFlagNoteInput" rows="3" placeholder="e.g. Sharp pain in my left knee on the last set of squats">${finishedSession.rpe_flag_note || ''}</textarea>
+          <button type="button" class="btn-save" id="rpeFlagNoteSaveBtn">Save note</button>
+          <span class="rpe-flag-note-saved" id="rpeFlagNoteSaved" style="display:none">Saved ✓</span>
+        </div>
+      </div>
     </div>
 
     ${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}
     <button class="btn-save start-workout-btn" id="summaryDoneBtn">Done</button>
   `
 
-  document.getElementById('summaryDoneBtn').addEventListener('click', function() {
+  document.getElementById('summaryDoneBtn').addEventListener('click', async function() {
+    // Safety net: a typed-but-unsaved pain/injury note shouldn't be lost
+    // just because the athlete tapped Done instead of "Save note"
+    const noteRow = document.getElementById('rpeFlagNoteRow')
+    const noteInput = document.getElementById('rpeFlagNoteInput')
+    if (noteRow && noteInput && noteRow.style.display !== 'none' && noteInput.value !== (finishedSession.rpe_flag_note || '')) {
+      await saveRpeFlagNote(finishedSession, noteInput.value)
+    }
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
   })
 
   wireSummaryRpePicker(finishedSession)
+  wireRpeFlagFollowup(finishedSession)
   wireSummaryDurationEdit(finishedSession, entry)
   // Not awaited - the summary above is already fully usable from data
   // already in memory, same reasoning as why Start Workout no longer waits
@@ -2497,6 +2518,9 @@ function wireSummaryRpePicker(session) {
     session.session_rpe = rpe
     document.getElementById('rpePickerHint').textContent = RPE_DESCRIPTIONS[rpe]
 
+    const followup = document.getElementById('rpeFlagFollowup')
+    if (followup) followup.style.display = rpe >= 9 ? 'block' : 'none'
+
     // This session was never actually created in the database (see the
     // local- placeholder in findOrCreateSession) - nothing to update there
     if (session.id.startsWith('local-')) return
@@ -2511,8 +2535,102 @@ function wireSummaryRpePicker(session) {
     if (error) {
       console.log(error)
       customAlert('Something went wrong saving your effort rating: ' + describeError(error))
+      return
+    }
+
+    // Dropping back below 9 clears any flag already answered - an
+    // accidental high tap followed by a correction shouldn't leave a
+    // stale pain/injury report behind
+    if (rpe < 9 && session.rpe_flag_reason) {
+      session.rpe_flag_reason = null
+      session.rpe_flag_note = null
+      session.rpe_flag_reviewed_at = null
+      document.querySelectorAll('#rpeFlagChoiceRow .rpe-flag-choice-btn').forEach(b => b.classList.remove('selected'))
+      const noteRow = document.getElementById('rpeFlagNoteRow')
+      if (noteRow) noteRow.style.display = 'none'
+      await saveWithRetry((signal) => supabase
+        .from('workout_sessions')
+        .update({ rpe_flag_reason: null, rpe_flag_note: null, rpe_flag_reviewed_at: null })
+        .eq('id', session.id)
+        .abortSignal(signal)
+      )
     }
   })
+}
+
+// The RPE >= 9 follow-up: is this heavy/tiring, or pain/injury? Reason
+// saves instantly like the RPE tap itself; the note (free text) gets its
+// own explicit "Save note" button, plus a safety-net flush on the
+// summary's Done button (see renderWorkoutSummary) in case it's skipped.
+function wireRpeFlagFollowup(session) {
+  const choiceRow = document.getElementById('rpeFlagChoiceRow')
+  const noteRow = document.getElementById('rpeFlagNoteRow')
+  const noteSaveBtn = document.getElementById('rpeFlagNoteSaveBtn')
+  if (!choiceRow) return
+
+  choiceRow.addEventListener('click', async function(e) {
+    const btn = e.target.closest('.rpe-flag-choice-btn')
+    if (!btn) return
+    const reason = btn.dataset.reason
+
+    choiceRow.querySelectorAll('.rpe-flag-choice-btn').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+    session.rpe_flag_reason = reason
+    noteRow.style.display = reason === 'pain_injury' ? 'block' : 'none'
+
+    // A new or changed reason needs the coach to look at it again
+    const update = { rpe_flag_reason: reason, rpe_flag_reviewed_at: null }
+    if (reason === 'heavy_tiring') {
+      session.rpe_flag_note = null
+      document.getElementById('rpeFlagNoteInput').value = ''
+      update.rpe_flag_note = null
+    }
+    session.rpe_flag_reviewed_at = null
+
+    if (session.id.startsWith('local-')) return
+    const { error } = await saveWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .update(update)
+      .eq('id', session.id)
+      .abortSignal(signal)
+    )
+    if (error) {
+      console.log(error)
+      customAlert('Something went wrong saving that: ' + describeError(error))
+    }
+  })
+
+  noteSaveBtn?.addEventListener('click', async function() {
+    await saveRpeFlagNote(session, document.getElementById('rpeFlagNoteInput').value)
+  })
+}
+
+// Shared by the explicit "Save note" button and the summaryDoneBtn
+// safety-net flush (renderWorkoutSummary) - also resets
+// rpe_flag_reviewed_at, since an edited note needs the coach to see it again
+async function saveRpeFlagNote(session, note) {
+  session.rpe_flag_note = note
+  session.rpe_flag_reviewed_at = null
+
+  if (!session.id.startsWith('local-')) {
+    const { error } = await saveWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .update({ rpe_flag_note: note, rpe_flag_reviewed_at: null })
+      .eq('id', session.id)
+      .abortSignal(signal)
+    )
+    if (error) {
+      console.log(error)
+      customAlert('Something went wrong saving your note: ' + describeError(error))
+      return
+    }
+  }
+
+  const saved = document.getElementById('rpeFlagNoteSaved')
+  if (saved) {
+    saved.style.display = 'inline'
+    setTimeout(() => { saved.style.display = 'none' }, 2000)
+  }
 }
 
 // A correction, not part of the tap-to-log flow - reveals a plain minutes

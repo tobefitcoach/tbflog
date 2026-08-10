@@ -1152,6 +1152,82 @@
   margin-top: 8px;
 }
 
+/* --- RPE 9-10 follow-up: heavy/tiring vs pain/injury, shown under the RPE
+   picker once a high effort rating is selected --- */
+.rpe-flag-followup {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #2a2a4e;
+}
+
+.rpe-flag-question {
+  color: #ffffff;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.rpe-flag-choice-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rpe-flag-choice-btn {
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid #2a2a4e;
+  background: transparent;
+  color: #aaaacc;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rpe-flag-choice-btn:hover {
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.rpe-flag-choice-btn.selected {
+  background-color: #4a4a8e;
+  border-color: #4a4a8e;
+  color: #ffffff;
+}
+
+.rpe-flag-note-row {
+  margin-top: 14px;
+  text-align: left;
+}
+
+.rpe-flag-note-row label {
+  display: block;
+  color: #aaaacc;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.rpe-flag-note-row textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 16px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.rpe-flag-note-row .btn-save {
+  margin-top: 8px;
+}
+
+.rpe-flag-note-saved {
+  margin-left: 10px;
+  color: #4ade80;
+  font-size: 12px;
+}
+
 /* --- PR badges: one color per PR type, shown under the exercise name in
    the workout summary's per-exercise breakdown --- */
 .pr-badges {

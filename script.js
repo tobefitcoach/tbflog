@@ -15,6 +15,7 @@ const athleteGrid = document.querySelector('.athlete-grid');
 // status chips re-renders instantly from memory instead of re-querying
 let allAthletes = []
 let latestWeightByAthlete = {}
+let flaggedCountByAthlete = {}
 let currentStatusFilter = 'active'
 
 // Require a logged-in coach before loading anything. RLS is on, so the
@@ -52,7 +53,8 @@ async function loadAthletes() {
   // leaving this page looking like the athletes are missing
   const [
     { data, error },
-    { data: bodyweightData }
+    { data: bodyweightData },
+    { data: flaggedData }
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase.from('athletes').select('*').abortSignal(signal)),
     // Every athlete's most recent bodyweight entry, so the card shows
@@ -62,6 +64,16 @@ async function loadAthletes() {
       .from('bodyweight')
       .select('athlete_id, weight, date')
       .order('date', { ascending: false })
+      .abortSignal(signal)
+    ),
+    // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
+    // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
+    // stats, since this is meant to stay visible until acknowledged
+    fetchWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('athlete_id')
+      .eq('rpe_flag_reason', 'pain_injury')
+      .is('rpe_flag_reviewed_at', null)
       .abortSignal(signal)
     )
   ])
@@ -82,6 +94,13 @@ async function loadAthletes() {
       if (!(entry.athlete_id in latestWeightByAthlete)) {
         latestWeightByAthlete[entry.athlete_id] = entry.weight
       }
+    }
+  }
+
+  flaggedCountByAthlete = {}
+  if (flaggedData) {
+    for (const row of flaggedData) {
+      flaggedCountByAthlete[row.athlete_id] = (flaggedCountByAthlete[row.athlete_id] || 0) + 1
     }
   }
 
@@ -129,7 +148,7 @@ function applyStatusFilter(status) {
     return
   }
   filtered.forEach(athlete => {
-    createAthleteCard(athlete, latestWeightByAthlete[athlete.id])
+    createAthleteCard(athlete, latestWeightByAthlete[athlete.id], flaggedCountByAthlete[athlete.id])
   })
 }
 
@@ -149,7 +168,7 @@ document.getElementById('athleteStatusFilter').addEventListener('click', functio
 // ==========================================================================
 const STATUS_LABELS = { active: 'Active', pending: 'Pending', offline: 'Offline', archived: 'Archived' }
 
-function createAthleteCard(athlete, latestWeight) {
+function createAthleteCard(athlete, latestWeight, flaggedCount) {
   const initials = athlete.name.split(' ').map(word => word[0]).join('').toUpperCase()
   const weightText = latestWeight ? ` · ${latestWeight}kg` : ''
   const status = athleteStatus(athlete)
@@ -158,9 +177,10 @@ function createAthleteCard(athlete, latestWeight) {
   card.classList.add('athlete-card')
 card.innerHTML = `
     <div class="card-top">
-      <div style="display:flex; align-items:center; gap:8px">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
         <div class="athlete-initials">${initials}</div>
         <span class="athlete-status-badge status-${status}">${STATUS_LABELS[status]}</span>
+        ${flaggedCount ? `<span class="pain-flag-badge">🚩 ${flaggedCount > 1 ? flaggedCount + ' pain reports' : 'Pain reported'}</span>` : ''}
       </div>
       <div class="kebab-menu">
         <button class="kebab-btn" data-athlete-id="${athlete.id}">⋮</button>

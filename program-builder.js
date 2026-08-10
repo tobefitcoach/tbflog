@@ -211,7 +211,7 @@ function removeSetTargetRow(row) {
 async function loadWeeks() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('program_weeks')
-    .select('*, program_days(*, program_exercises(*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)))')
+    .select('*, program_days(*, program_exercises(*, exercises!exercise_id(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)))')
     .eq('program_id', programId)
     .abortSignal(signal)
   )
@@ -750,7 +750,7 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
     day_id: currentDayIdForAddExercise,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }]).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
+  }]).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -1014,7 +1014,7 @@ async function insertSectionIntoDay(sectionId, sectionName) {
       extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
       section_label: sectionName
     }))
-  ).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
+  ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 
   day.program_exercises.push(...inserted)

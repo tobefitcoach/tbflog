@@ -1010,6 +1010,52 @@
   color: #7a7a9e;
 }
 
+/* ==========================================================================
+   PAIN/INJURY FLAG - shown when an athlete answers a high RPE with "pain
+   or injury" (see wireRpeFlagFollowup, athlete-app/dashboard.js). Badge on
+   the dashboard card + Overview tab's report list (script.js/athlete.js);
+   .pain-flag-note is the read-only line on Calendar's day detail
+   (athlete-calendar.js).
+   ========================================================================== */
+.pain-flag-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: rgba(255, 107, 107, 0.15);
+  color: #ff6b6b;
+}
+
+.pain-flag-note {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.pain-flag-note.reviewed {
+  color: #aaaacc;
+}
+
+.pain-report-row {
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.pain-report-meta {
+  color: #aaaacc;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.pain-report-note {
+  color: #ffffff;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
 .stretch-item-areas {
   display: flex;
   flex-wrap: wrap;
