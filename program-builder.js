@@ -452,6 +452,7 @@ function handleLinkClick(id, listScopeEl) {
   const currentGroupId = card.dataset.supersetGroupId || null
   if (currentGroupId && !pickingGroupIds) { removeFromSupersetGroup(id, listScopeEl); return }
   if (pickingGroupIds && pickingGroupIds[0] === id) { finalizePicking(listScopeEl); return }
+  if (pickingGroupIds && pickingGroupIds.includes(id)) return // already picked, not the original - ignore
   if (pickingGroupIds) { addToPickingGroup(id, listScopeEl); return }
   enterPickingMode(id, listScopeEl)
 }
@@ -459,6 +460,7 @@ function handleLinkClick(id, listScopeEl) {
 function enterPickingMode(id, listScopeEl) {
   pickingGroupIds = [id]
   refreshPickingHighlight(listScopeEl)
+  updatePickingModeBar(listScopeEl)
 }
 
 // Tapping another unlinked card adds it to the group being built - once
@@ -467,6 +469,7 @@ function addToPickingGroup(id, listScopeEl) {
   pickingGroupIds.push(id)
   if (pickingGroupIds.length >= SUPERSET_CAP) { finalizePicking(listScopeEl); return }
   refreshPickingHighlight(listScopeEl)
+  updatePickingModeBar(listScopeEl)
 }
 
 function refreshPickingHighlight(listScopeEl) {
@@ -481,6 +484,24 @@ function refreshPickingHighlight(listScopeEl) {
 function exitPickingMode(listScopeEl) {
   pickingGroupIds = null
   listScopeEl.querySelectorAll('.builder-exercise-card').forEach(c => c.classList.remove('picking-self', 'pickable'))
+  updatePickingModeBar(listScopeEl)
+}
+
+// Floating bar shown only while picking mode is active - the only way to
+// confirm a superset used to be tapping the original card's 🔗 button
+// again (undiscoverable, no visible affordance), so this gives an explicit
+// "Finish Superset" button for stopping at 2 or 3 instead of the 4-cap
+function updatePickingModeBar(listScopeEl) {
+  const bar = document.getElementById('pickingModeBar')
+  if (!bar) return
+  if (!pickingGroupIds) { bar.style.display = 'none'; return }
+  bar.style.display = 'flex'
+  const n = pickingGroupIds.length
+  document.getElementById('pickingModeBarCount').textContent = `${n} exercise${n === 1 ? '' : 's'} selected`
+  const finishBtn = document.getElementById('pickingModeBarFinishBtn')
+  finishBtn.disabled = n < 2
+  finishBtn.onclick = () => finalizePicking(listScopeEl)
+  document.getElementById('pickingModeBarCancelBtn').onclick = () => exitPickingMode(listScopeEl)
 }
 
 // Tapping the original card again finishes early with fewer than the cap -

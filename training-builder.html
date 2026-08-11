@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workout Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=13" />
-    <link rel="stylesheet" href="athlete.css?v=34" />
+    <link rel="stylesheet" href="athlete.css?v=35" />
   </head>
   <body>
 
@@ -175,10 +175,20 @@
       </div>
     </div>
 
+    <!-- Shown only while linking a superset - see updatePickingModeBar() in
+         training-builder.js -->
+    <div class="picking-mode-bar" id="pickingModeBar" style="display:none">
+      <span class="picking-mode-bar-count" id="pickingModeBarCount"></span>
+      <div class="picking-mode-bar-actions">
+        <button type="button" class="btn-cancel" id="pickingModeBarCancelBtn">Cancel</button>
+        <button type="button" class="btn-save" id="pickingModeBarFinishBtn">✓ Finish Superset</button>
+      </div>
+    </div>
+
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="training-builder.js?v=21"></script>
+    <script type="module" src="training-builder.js?v=22"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

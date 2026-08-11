@@ -478,20 +478,15 @@ function findPE(peId) {
   return null
 }
 
-// "Every prescribed set across every exercise scheduled has a completed_at"
+// "The athlete tapped End Workout" - not a percentage-complete check, so a
+// workout finished at 50% goes green on the week strip exactly the same as
+// one finished at 100%. A day with more than one scheduled workout only
+// counts as done once every one of them (that actually has exercises) has
+// been ended, so the checkmark doesn't show early while one is still open.
 function dayIsFullyLogged(entries) {
-  if (entries.length === 0) return false
-  let totalSets = 0
-  let doneSets = 0
-  for (const entry of entries) {
-    for (const pe of entry.day.program_exercises) {
-      const prescribed = pe.prescribed_sets || 1
-      totalSets += prescribed
-      const logged = logSetsByPE[pe.id] || []
-      doneSets += logged.filter(s => s.completed_at && s.set_number <= prescribed).length
-    }
-  }
-  return totalSets > 0 && doneSets >= totalSets
+  const withExercises = entries.filter(entry => entry.day.program_exercises.length > 0)
+  if (withExercises.length === 0) return false
+  return withExercises.every(entry => !!completedSessionsByDayId[entry.day.id])
 }
 
 // "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,

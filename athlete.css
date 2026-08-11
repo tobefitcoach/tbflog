@@ -1954,6 +1954,42 @@
   cursor: pointer;
 }
 
+/* Floating "Finish Superset" bar shown only while picking mode is active -
+   lets the coach explicitly confirm a group of 2 or 3 exercises instead of
+   only ever being able to auto-finalize at the 4-exercise cap */
+.picking-mode-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background-color: #1a1a2e;
+  border: 1px solid #4a4a8e;
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.picking-mode-bar-count {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.picking-mode-bar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.picking-mode-bar-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .builder-link-btn {
   flex-shrink: 0;
   background: none;

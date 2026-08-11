@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=13" />
-  <link rel="stylesheet" href="athlete.css?v=34" />
+  <link rel="stylesheet" href="athlete.css?v=35" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -1086,12 +1086,22 @@
       </div>
     </div>
 
+    <!-- Shown only while linking a superset on the Calendar tab - see
+         updatePickingModeBarCal() in athlete-calendar.js -->
+    <div class="picking-mode-bar" id="pickingModeBar" style="display:none">
+      <span class="picking-mode-bar-count" id="pickingModeBarCount"></span>
+      <div class="picking-mode-bar-actions">
+        <button type="button" class="btn-cancel" id="pickingModeBarCancelBtn">Cancel</button>
+        <button type="button" class="btn-save" id="pickingModeBarFinishBtn">✓ Finish Superset</button>
+      </div>
+    </div>
+
     <!-- Main page logic (see athlete.js) -->
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
     <script type="module" src="athlete.js?v=24"></script>
-    <script type="module" src="athlete-calendar.js?v=33"></script>
+    <script type="module" src="athlete-calendar.js?v=34"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>
