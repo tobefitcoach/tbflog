@@ -3078,22 +3078,65 @@ function computeWorkoutOverviewSection(cache, range) {
   }
 }
 
-// Same first-vs-latest %-change convention already used on the Metrics tab
-// cards (renderMetrics()), scoped to the report window instead of "latest
-// vs previous 5 entries"
+// Same 30-days-vs-previous-30-days formula the Metrics tab's zone2 change
+// badge uses (renderMetrics()), so the report's % always matches the app's
+function zone2ChangePct(allForMetric) {
+  const now = new Date()
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const sixtyDaysAgo = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const last30 = allForMetric.filter(m => m.date >= thirtyDaysAgo)
+  const prev30 = allForMetric.filter(m => m.date >= sixtyDaysAgo && m.date < thirtyDaysAgo)
+  if (last30.length === 0 || prev30.length === 0) return null
+  const avg30 = last30.reduce((sum, m) => sum + m.value, 0) / last30.length
+  const avgPrev = prev30.reduce((sum, m) => sum + m.value, 0) / prev30.length
+  if (!avgPrev) return null
+  return +(((avg30 - avgPrev) / avgPrev) * 100).toFixed(1)
+}
+
+// Same "latest vs avg of previous 5 entries" formula the Metrics tab uses
+// for every non-zone2 metric type - also always matches the app's number
+function simpleChangePct(allForMetric, getValue) {
+  if (allForMetric.length < 2) return null
+  const latestVal = getValue(allForMetric[allForMetric.length - 1])
+  const previous = allForMetric.slice(0, -1).slice(-5)
+  const avgPrev = previous.reduce((sum, m) => sum + getValue(m), 0) / previous.length
+  if (!avgPrev) return null
+  return +(((latestVal - avgPrev) / avgPrev) * 100).toFixed(1)
+}
+
+// Converts a metric's raw stored values into whatever unit actually gets
+// charted, so the trend chart's axis is never in a different unit than the
+// headline "Latest" tile next to it (ft/in display units aren't directly
+// plottable as feet'inches" text, so both chart as inches instead)
+function chartUnitAndValues(metric, rawValues) {
+  if (metric.type === 'pogo') return { unit: 'RSI', values: rawValues }
+  if (metric.type === 'zone2') return { unit: 'Score', values: rawValues }
+  const displayUnit = metric.display_unit
+  if (displayUnit === 'in' || displayUnit === 'ft') {
+    return { unit: 'in', values: rawValues.map(v => +(v / 2.54).toFixed(1)) }
+  }
+  return { unit: displayUnit || '', values: rawValues }
+}
+
+// "Latest" + its % change always reuse the exact same formulas/history the
+// Metrics tab itself uses (see zone2ChangePct/simpleChangePct above), so
+// they can never disagree with what the coach already sees there - only
+// the trend chart is actually scoped to the chosen report window
 function computeCustomMetricSection(metric, range) {
-  const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
-  const inRange = allMeasurementsCache
-    .filter(m => m.metric_id === metric.id && m.date >= range.from && m.date <= range.to)
+  const allForMetric = allMeasurementsCache
+    .filter(m => m.metric_id === metric.id)
     .sort((a, b) => a.date.localeCompare(b.date))
 
-  if (inRange.length === 0) return { metric, hasData: false }
+  if (allForMetric.length === 0) return { metric, hasData: false }
 
-  const first = getValue(inRange[0])
-  const last = getValue(inRange[inRange.length - 1])
-  const pct = first ? +(((last - first) / Math.abs(first)) * 100).toFixed(1) : null
+  const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
+  const latestValue = getValue(allForMetric[allForMetric.length - 1])
+  const pct = metric.type === 'zone2' ? zone2ChangePct(allForMetric) : simpleChangePct(allForMetric, getValue)
 
-  return { metric, hasData: true, first, last, pct, dates: inRange.map(m => m.date), values: inRange.map(getValue) }
+  const inRange = allForMetric.filter(m => m.date >= range.from && m.date <= range.to)
+  const { unit: chartUnit, values: chartValues } = chartUnitAndValues(metric, inRange.map(getValue))
+
+  return { metric, hasData: true, latestValue, pct, dates: inRange.map(m => m.date), chartValues, chartUnit }
 }
 
 // Walks the athlete's ENTIRE logged history (not just the report window) in
@@ -3214,12 +3257,6 @@ function formatMetricValue(metric, value) {
   return converted.unit ? `${converted.text} ${converted.unit}` : `${converted.text}`
 }
 
-function metricUnitLabel(metric) {
-  if (metric.type === 'pogo') return 'RSI'
-  if (metric.type === 'zone2') return 'Score'
-  return metric.display_unit || ''
-}
-
 // Renders a Chart.js line chart into a throwaway off-screen canvas (never
 // attached to the page, so this never disturbs what's visible on the
 // Metrics tab), forces a white background (these charts are transparent by
@@ -3287,6 +3324,9 @@ async function generateReportPDF() {
   }
 
   const range = buildReportRange(reportSelectedMonths)
+  const MONTHS_LABELS = { 1: 'Last Month', 3: 'Last 3 Months', 6: 'Last 6 Months', 9: 'Last 9 Months', 12: 'Last 12 Months' }
+  const periodLabel = MONTHS_LABELS[reportSelectedMonths] || `Last ${reportSelectedMonths} Months`
+
   const btn = document.getElementById('generatePdfBtn')
   btn.disabled = true
   btn.textContent = 'Generating…'
@@ -3301,6 +3341,21 @@ async function generateReportPDF() {
     const margin = 15
     let y = margin
 
+    // Spacing constants, shared between the actual drawing code below and
+    // the per-section height estimates sectionBlock() uses to decide
+    // whether a whole section (heading + stats + chart) needs to move to
+    // the next page together - keeping these in one place means the
+    // estimate can never drift out of sync with what's actually drawn
+    const HEADING_H = 8, HEADING_GAP = 3
+    const TILE_H = 21, TILE_GAP = 6
+    const CHART_H = 46, CHART_GAP = 4
+    const PR_ROW_H = 7
+    const EMPTY_LINE_H = 8
+    const SECTION_GAP = 3
+    const HEADING_TOTAL = HEADING_H + HEADING_GAP
+    const TILE_TOTAL = TILE_H + TILE_GAP
+    const CHART_TOTAL = CHART_H + CHART_GAP
+
     function ensureSpace(blockHeight) {
       if (y + blockHeight > pageHeight - margin) {
         doc.addPage()
@@ -3308,18 +3363,27 @@ async function generateReportPDF() {
       }
     }
 
+    // Reserves room for an ENTIRE section (heading + stats + chart) in one
+    // go, so a section only ever splits across a page break if it's too
+    // tall to fit on any single page - never mid-way, e.g. heading+stats on
+    // one page and its chart alone on the next
+    function sectionBlock(totalHeight, drawFn) {
+      if (totalHeight <= pageHeight - margin * 2) ensureSpace(totalHeight)
+      drawFn()
+    }
+
     // Colored banner bar, white bold text - reads as a real report section
     // divider rather than a plain bold line of text
     function heading(text) {
-      ensureSpace(16)
+      ensureSpace(HEADING_TOTAL)
       doc.setFillColor(74, 74, 142)
-      doc.rect(margin, y, pageWidth - margin * 2, 8, 'F')
+      doc.rect(margin, y, pageWidth - margin * 2, HEADING_H, 'F')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
       doc.setTextColor(255, 255, 255)
       doc.text(text, margin + 3, y + 5.5)
       doc.setTextColor(0, 0, 0)
-      y += 8 + 5
+      y += HEADING_TOTAL
     }
 
     // Boxed "stat card" tiles, same visual idea as the app's own .stat-item
@@ -3327,54 +3391,58 @@ async function generateReportPDF() {
     // width so a single tile doesn't stretch awkwardly across the page
     function statTiles(items) {
       const tileWidth = 50
-      const tileHeight = 22
       const gap = 4
-      ensureSpace(tileHeight + 8)
+      ensureSpace(TILE_TOTAL)
       items.forEach((item, i) => {
         const x = margin + i * (tileWidth + gap)
         doc.setDrawColor(210, 210, 220)
         doc.setLineWidth(0.3)
-        doc.roundedRect(x, y, tileWidth, tileHeight, 2, 2, 'S')
+        doc.roundedRect(x, y, tileWidth, TILE_H, 2, 2, 'S')
 
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(13)
+        doc.setFontSize(12.5)
         doc.setTextColor(30, 30, 50)
-        doc.text(String(item.value), x + tileWidth / 2, y + 10, { align: 'center' })
+        doc.text(String(item.value), x + tileWidth / 2, y + 9, { align: 'center' })
 
         doc.setFont('helvetica', 'normal')
-        doc.setFontSize(8)
+        doc.setFontSize(7.5)
         doc.setTextColor(120, 120, 130)
-        doc.text(item.label, x + tileWidth / 2, y + 15.5, { align: 'center' })
+        doc.text(item.label, x + tileWidth / 2, y + 14, { align: 'center' })
 
         if (item.delta) {
-          const isUp = item.delta.startsWith('▲')
-          const isDown = item.delta.startsWith('▼')
-          doc.setFontSize(7.5)
+          // deltaPositive (when given) overrides the arrow-direction color
+          // guess, since a metric can be "lower is better" - a ▼ on those
+          // should read green, not red, matching the app's own coloring rule
+          let isUp, isDown
+          if (item.deltaPositive === true) { isUp = true; isDown = false }
+          else if (item.deltaPositive === false) { isUp = false; isDown = true }
+          else { isUp = item.delta.startsWith('▲'); isDown = item.delta.startsWith('▼') }
+          doc.setFontSize(7)
           if (isUp) doc.setTextColor(40, 140, 90)
           else if (isDown) doc.setTextColor(190, 70, 70)
           else doc.setTextColor(120, 120, 130)
-          doc.text(item.delta, x + tileWidth / 2, y + 19.5, { align: 'center' })
+          doc.text(item.delta, x + tileWidth / 2, y + 18, { align: 'center' })
         }
       })
       doc.setTextColor(0, 0, 0)
-      y += tileHeight + 8
+      y += TILE_TOTAL
     }
 
     function emptyStateLine(text) {
-      ensureSpace(9)
+      ensureSpace(EMPTY_LINE_H)
       doc.setFont('helvetica', 'italic')
       doc.setFontSize(9.5)
       doc.setTextColor(140, 140, 150)
       doc.text(text, margin, y)
       doc.setTextColor(0, 0, 0)
       doc.setFont('helvetica', 'normal')
-      y += 9
+      y += EMPTY_LINE_H
     }
 
     // One PR per line, three styled fragments in sequence (muted date, bold
     // exercise name, purple PR type + value) instead of one plain sentence
     function prRow(ev) {
-      ensureSpace(8)
+      ensureSpace(PR_ROW_H)
       let x = margin
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
@@ -3392,7 +3460,7 @@ async function generateReportPDF() {
       doc.text(`— ${ev.type} PR (${Math.round(ev.value * 10) / 10})`, x, y)
 
       doc.setTextColor(0, 0, 0)
-      y += 7.5
+      y += PR_ROW_H
     }
 
     function deltaText(current, previous) {
@@ -3404,31 +3472,31 @@ async function generateReportPDF() {
     }
 
     // ---- Header: logo + athlete name/title + period, then a divider rule ----
-    const logoHeight = 14
+    const logoHeight = 22
     let logoWidth = 0
     if (logo) {
       logoWidth = (logo.width / logo.height) * logoHeight
       doc.addImage(logo.dataUrl, 'PNG', margin, y, logoWidth, logoHeight)
     }
-    const textX = margin + (logo ? logoWidth + 6 : 0)
+    const textX = margin + (logo ? logoWidth + 7 : 0)
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(17)
+    doc.setFontSize(18)
     doc.setTextColor(30, 30, 50)
-    doc.text(currentAthlete ? currentAthlete.name : 'Athlete', textX, y + 6)
+    doc.text(currentAthlete ? currentAthlete.name : 'Athlete', textX, y + 8)
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
+    doc.setFontSize(9.5)
     doc.setTextColor(74, 74, 142)
-    doc.text('PHYSICAL ABILITY REPORT', textX, y + 11.5)
+    doc.text('PHYSICAL ABILITY REPORT', textX, y + 13.5)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
     doc.setTextColor(130, 130, 140)
-    doc.text(`${range.from} to ${range.to}  ·  Generated ${toDateStrOv(new Date())}`, textX, y + 16.5)
+    doc.text(`${periodLabel}  ·  ${range.from} to ${range.to}  ·  Generated ${toDateStrOv(new Date())}`, textX, y + 18.5)
 
     doc.setTextColor(0, 0, 0)
-    y += Math.max(logoHeight, 18) + 5
+    y += logoHeight + 6
 
     doc.setDrawColor(74, 74, 142)
     doc.setLineWidth(0.8)
@@ -3440,39 +3508,54 @@ async function generateReportPDF() {
 
       if (section.kind === 'overview') {
         const s = computeWorkoutOverviewSection(reportDataCache, range)
-        heading('Workout Overview')
-        statTiles([
-          { label: 'Completion Rate', value: s.completion === null ? '—' : `${s.completion}%`, delta: deltaText(s.completion, s.prevCompletion) },
-          { label: 'Total Volume', value: `${s.volumeKg.toLocaleString()}kg`, delta: deltaText(s.volumeKg, s.prevVolumeKg) },
-          { label: 'Avg Session Duration', value: s.avgDurationMin === null ? '—' : formatDurationOv(s.avgDurationMin), delta: deltaText(s.avgDurationMin, s.prevAvgDurationMin) }
-        ])
+        sectionBlock(HEADING_TOTAL + TILE_TOTAL + SECTION_GAP, () => {
+          heading('Workout Overview')
+          statTiles([
+            { label: 'Completion Rate', value: s.completion === null ? '—' : `${s.completion}%`, delta: deltaText(s.completion, s.prevCompletion) },
+            { label: 'Total Volume', value: `${s.volumeKg.toLocaleString()}kg`, delta: deltaText(s.volumeKg, s.prevVolumeKg) },
+            { label: 'Avg Session Duration', value: s.avgDurationMin === null ? '—' : formatDurationOv(s.avgDurationMin), delta: deltaText(s.avgDurationMin, s.prevAvgDurationMin) }
+          ])
+          y += SECTION_GAP
+        })
       } else if (section.kind === 'prs') {
         const events = computePRSection(reportDataCache, range)
-        heading('Personal Records')
-        if (events.length === 0) emptyStateLine('No new PRs in this period.')
-        else events.forEach(prRow)
-        y += 4
+        const bodyHeight = events.length === 0 ? EMPTY_LINE_H : events.length * PR_ROW_H
+        sectionBlock(HEADING_TOTAL + bodyHeight + SECTION_GAP, () => {
+          heading('Personal Records')
+          if (events.length === 0) emptyStateLine('No new PRs in this period.')
+          else events.forEach(prRow)
+          y += SECTION_GAP
+        })
       } else if (section.kind === 'plyo') {
         const s = computePlyoSection(reportDataCache, range)
-        heading('Plyometric Load')
-        statTiles([{ label: 'Total Load', value: s.totalInRange.toLocaleString(), delta: deltaText(s.totalInRange, s.totalPrev) }])
-        if (s.hasData && s.values.length > 1) {
-          ensureSpace(59)
-          y = drawTrendChart(doc, s.dates, s.values, 'Plyometric Load Trend', margin, y, pageWidth, 55)
-        }
+        const hasChart = s.hasData && s.values.length > 1
+        sectionBlock(HEADING_TOTAL + TILE_TOTAL + (hasChart ? CHART_TOTAL : 0) + SECTION_GAP, () => {
+          heading('Plyometric Load')
+          statTiles([{ label: 'Total Load', value: s.totalInRange.toLocaleString(), delta: deltaText(s.totalInRange, s.totalPrev) }])
+          if (hasChart) y = drawTrendChart(doc, s.dates, s.values, 'Plyometric Load Trend', margin, y, pageWidth, CHART_H)
+          y += SECTION_GAP
+        })
       } else if (section.kind === 'metric') {
         const s = computeCustomMetricSection(section.metric, range)
-        heading(section.metric.name)
         if (!s.hasData) {
-          emptyStateLine('No data logged in this period.')
+          sectionBlock(HEADING_TOTAL + EMPTY_LINE_H + SECTION_GAP, () => {
+            heading(section.metric.name)
+            emptyStateLine('No data logged yet.')
+            y += SECTION_GAP
+          })
         } else {
+          const hasChart = s.chartValues.length > 1
           const pctDelta = s.pct === null ? null : `${s.pct > 0 ? '▲' : '▼'} ${Math.abs(s.pct)}%`
-          statTiles([{ label: 'Latest', value: formatMetricValue(section.metric, s.last), delta: pctDelta }])
-          if (s.values.length > 1) {
-            const unit = metricUnitLabel(section.metric)
-            ensureSpace(59)
-            y = drawTrendChart(doc, s.dates, s.values, `${section.metric.name} Trend${unit ? ' (' + unit + ')' : ''}`, margin, y, pageWidth, 55)
-          }
+          const deltaPositive = s.pct === null || s.pct === 0 ? undefined : (section.metric.higher_is_better ? s.pct > 0 : s.pct < 0)
+          sectionBlock(HEADING_TOTAL + TILE_TOTAL + (hasChart ? CHART_TOTAL : 0) + SECTION_GAP, () => {
+            heading(section.metric.name)
+            statTiles([{ label: 'Latest', value: formatMetricValue(section.metric, s.latestValue), delta: pctDelta, deltaPositive }])
+            if (hasChart) {
+              const title = `${section.metric.name} Trend${s.chartUnit ? ' (' + s.chartUnit + ')' : ''}`
+              y = drawTrendChart(doc, s.dates, s.chartValues, title, margin, y, pageWidth, CHART_H)
+            }
+            y += SECTION_GAP
+          })
         }
       }
     }
