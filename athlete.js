@@ -2983,9 +2983,6 @@ async function fetchReportData() {
   if (sessions.length > 0) {
     availableSections.push({ key: 'overview', label: 'Workout Overview', kind: 'overview' })
   }
-  if (logSets.some(s => peInfoById[s.program_exercise_id] && peInfoById[s.program_exercise_id].tracks_weight)) {
-    availableSections.push({ key: 'prs', label: 'Personal Records', kind: 'prs' })
-  }
   if (logSets.some(s => { const ex = peInfoById[s.program_exercise_id]; return ex && ex.type === 'plyometric' && ex.foot_contacts })) {
     availableSections.push({ key: 'plyo', label: 'Plyometric Load', kind: 'plyo' })
   }
@@ -3139,71 +3136,6 @@ function computeCustomMetricSection(metric, range) {
   return { metric, hasData: true, latestValue, pct, dates: inRange.map(m => m.date), chartValues, chartUnit }
 }
 
-// Walks the athlete's ENTIRE logged history (not just the report window) in
-// date order per exercise, tracking a running best for each of the 5 PR
-// types (same shape as loadAndRenderPRBadges in the athlete app) - a PR
-// only counts if it beats every session before it, so a short report window
-// still correctly excludes an "improvement" that isn't really a lifetime PR.
-// Only events whose date falls inside the report window are returned.
-function computePRSection(cache, range) {
-  const buckets = {} // "exerciseId|date" -> { exerciseId, exerciseName, date, sets }
-  for (const s of cache.logSets) {
-    const ex = cache.peInfoById[s.program_exercise_id]
-    if (!ex || !ex.tracks_weight || s.actual_weight == null) continue
-    const reps = parseInt(s.actual_reps)
-    if (isNaN(reps)) continue
-    const key = `${ex.id}|${s.date}`
-    if (!buckets[key]) buckets[key] = { exerciseId: ex.id, exerciseName: ex.name, date: s.date, sets: [] }
-    buckets[key].sets.push({ reps, weight: s.actual_weight })
-  }
-
-  const bucketList = Object.values(buckets).sort((a, b) => a.date.localeCompare(b.date))
-
-  function statsFor(sets) {
-    return {
-      volume: sets.reduce((sum, s) => sum + s.reps * s.weight, 0),
-      totalReps: sets.reduce((sum, s) => sum + s.reps, 0),
-      maxWeight: Math.max(...sets.map(s => s.weight)),
-      maxOneRM: Math.max(...sets.map(s => s.weight * (1 + s.reps / 30))),
-      setCount: sets.length
-    }
-  }
-
-  const PR_TYPES = [
-    { key: 'volume', label: 'Volume' },
-    { key: 'maxWeight', label: 'Weight' },
-    { key: 'totalReps', label: 'Reps' },
-    { key: 'setCount', label: 'Sets' },
-    { key: 'maxOneRM', label: 'Est. 1RM' }
-  ]
-
-  const bestByExercise = {}
-  const events = []
-
-  for (const bucket of bucketList) {
-    const stats = statsFor(bucket.sets)
-    const best = bestByExercise[bucket.exerciseId]
-    if (best) {
-      for (const type of PR_TYPES) {
-        if (stats[type.key] > best[type.key]) {
-          events.push({ date: bucket.date, exerciseName: bucket.exerciseName, type: type.label, value: stats[type.key] })
-        }
-      }
-      bestByExercise[bucket.exerciseId] = {
-        volume: Math.max(best.volume, stats.volume),
-        maxWeight: Math.max(best.maxWeight, stats.maxWeight),
-        totalReps: Math.max(best.totalReps, stats.totalReps),
-        setCount: Math.max(best.setCount, stats.setCount),
-        maxOneRM: Math.max(best.maxOneRM, stats.maxOneRM)
-      }
-    } else {
-      bestByExercise[bucket.exerciseId] = stats
-    }
-  }
-
-  return events.filter(e => e.date >= range.from && e.date <= range.to).sort((a, b) => a.date.localeCompare(b.date))
-}
-
 // Same formula as the athlete app's per-session plyo load (foot_contacts x
 // intensity multiplier x completed sets), summed per date across the whole
 // report window, plus the equal-length prior period for a delta callout
@@ -3266,9 +3198,16 @@ function formatMetricValue(metric, value) {
 // up the real screen's DPR on its own, and the chart title is baked
 // straight into the image so the report doesn't need a separate caption.
 function drawTrendChart(doc, labels, values, title, margin, y, pageWidth, heightMm) {
+  // Canvas is built at EXACTLY the same aspect ratio as the box it'll be
+  // placed into below - addImage stretches to fit whatever width/height
+  // it's given, so any mismatch here previously showed up as a visibly
+  // squashed/compressed chart
+  const boxWidthMm = pageWidth - margin * 2
+  const canvasWidth = 1000
+  const canvasHeight = Math.round(canvasWidth / (boxWidthMm / heightMm))
   const canvas = document.createElement('canvas')
-  canvas.width = 900
-  canvas.height = 380
+  canvas.width = canvasWidth
+  canvas.height = canvasHeight
   const chart = new Chart(canvas, {
     type: 'line',
     data: {
@@ -3348,8 +3287,7 @@ async function generateReportPDF() {
     // estimate can never drift out of sync with what's actually drawn
     const HEADING_H = 8, HEADING_GAP = 3
     const TILE_H = 21, TILE_GAP = 6
-    const CHART_H = 46, CHART_GAP = 4
-    const PR_ROW_H = 7
+    const CHART_H = 62, CHART_GAP = 5
     const EMPTY_LINE_H = 8
     const SECTION_GAP = 3
     const HEADING_TOTAL = HEADING_H + HEADING_GAP
@@ -3439,30 +3377,6 @@ async function generateReportPDF() {
       y += EMPTY_LINE_H
     }
 
-    // One PR per line, three styled fragments in sequence (muted date, bold
-    // exercise name, purple PR type + value) instead of one plain sentence
-    function prRow(ev) {
-      ensureSpace(PR_ROW_H)
-      let x = margin
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.setTextColor(140, 140, 150)
-      doc.text(ev.date, x, y)
-      x += doc.getTextWidth(ev.date) + 4
-
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(30, 30, 50)
-      doc.text(ev.exerciseName, x, y)
-      x += doc.getTextWidth(ev.exerciseName) + 3
-
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(74, 74, 142)
-      doc.text(`— ${ev.type} PR (${Math.round(ev.value * 10) / 10})`, x, y)
-
-      doc.setTextColor(0, 0, 0)
-      y += PR_ROW_H
-    }
-
     function deltaText(current, previous) {
       if (previous == null || current == null || previous === 0) return null
       const pct = Math.round(((current - previous) / Math.abs(previous)) * 100)
@@ -3471,7 +3385,9 @@ async function generateReportPDF() {
       return `${arrow} ${Math.abs(pct)}%`
     }
 
-    // ---- Header: logo + athlete name/title + period, then a divider rule ----
+    // ---- Header: logo + athlete name/title on the left, the chosen time
+    // period as its own large callout on the right (so which period this
+    // report covers is visible at a glance, not buried in small print) ----
     const logoHeight = 22
     let logoWidth = 0
     if (logo) {
@@ -3488,12 +3404,25 @@ async function generateReportPDF() {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9.5)
     doc.setTextColor(74, 74, 142)
-    doc.text('PHYSICAL ABILITY REPORT', textX, y + 13.5)
+    doc.text('PHYSICAL ABILITY REPORT', textX, y + 14)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(130, 130, 140)
+    doc.text(`Generated ${toDateStrOv(new Date())}`, textX, y + 19.5)
+
+    // Right-aligned period callout - the single biggest piece of text in
+    // the header, since "which period is this" is the first thing a coach
+    // should be able to tell at a glance
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.setTextColor(74, 74, 142)
+    doc.text(periodLabel, pageWidth - margin, y + 10, { align: 'right' })
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
     doc.setTextColor(130, 130, 140)
-    doc.text(`${periodLabel}  ·  ${range.from} to ${range.to}  ·  Generated ${toDateStrOv(new Date())}`, textX, y + 18.5)
+    doc.text(`${range.from} to ${range.to}`, pageWidth - margin, y + 16, { align: 'right' })
 
     doc.setTextColor(0, 0, 0)
     y += logoHeight + 6
@@ -3515,15 +3444,6 @@ async function generateReportPDF() {
             { label: 'Total Volume', value: `${s.volumeKg.toLocaleString()}kg`, delta: deltaText(s.volumeKg, s.prevVolumeKg) },
             { label: 'Avg Session Duration', value: s.avgDurationMin === null ? '—' : formatDurationOv(s.avgDurationMin), delta: deltaText(s.avgDurationMin, s.prevAvgDurationMin) }
           ])
-          y += SECTION_GAP
-        })
-      } else if (section.kind === 'prs') {
-        const events = computePRSection(reportDataCache, range)
-        const bodyHeight = events.length === 0 ? EMPTY_LINE_H : events.length * PR_ROW_H
-        sectionBlock(HEADING_TOTAL + bodyHeight + SECTION_GAP, () => {
-          heading('Personal Records')
-          if (events.length === 0) emptyStateLine('No new PRs in this period.')
-          else events.forEach(prRow)
           y += SECTION_GAP
         })
       } else if (section.kind === 'plyo') {
