@@ -1608,6 +1608,20 @@
   background-color: rgba(255, 68, 68, 0.15);
 }
 
+/* Not enough history yet for a reliable ACWR - informational, not a warning,
+   so it uses the same amber accent as other "heads up" notes rather than red */
+.stat-risk-badge.neutral {
+  color: #e0a030;
+  background-color: rgba(224, 160, 48, 0.15);
+}
+
+.stat-insufficient-note {
+  color: #e0a030;
+  font-size: 12px;
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
 /* --- Responsive: 4 stats collapse to 2 columns on mobile --- */
 @media (max-width: 768px) {
   .stats-bar {

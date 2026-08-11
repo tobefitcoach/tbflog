@@ -306,6 +306,12 @@ function addDaysOv(date, n) {
   return d
 }
 
+function daysBetweenDateStrsOv(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number)
+  const [by, bm, bd] = b.split('-').map(Number)
+  return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000)
+}
+
 function startOfWeekOv(date) {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
@@ -349,6 +355,7 @@ let chronicLoadValue = 0
 let acwrValue = null
 let monotonyValue = null
 let strainValue = null
+let daysOfLoadHistoryValue = 0 // how many days back the earliest rated session goes - read by the ACWR modal's "building history" note
 
 async function loadOverviewStats() {
   const ninetyDaysAgo = toDateStrOv(addDaysOv(new Date(), -89))
@@ -529,9 +536,18 @@ async function loadOverviewStats() {
       .reduce((sum, [, v]) => sum + v, 0)
   }
 
+  // ACWR only means something once there's a real 4-week baseline to compare
+  // against - with less than 28 days of rated-session history, loadSum(28)/4
+  // divides a partial sum by 4 as if a full chronic period had passed,
+  // understating the baseline and inflating the ratio. Held back as "—"
+  // until enough history exists, rather than showing a falsely high number.
+  const loadDates = Object.keys(dailyLoad).sort()
+  daysOfLoadHistoryValue = loadDates.length ? daysBetweenDateStrsOv(loadDates[0], toDateStrOv(new Date())) + 1 : 0
+  const hasEnoughHistoryForAcwr = daysOfLoadHistoryValue >= 28
+
   acuteLoadValue = loadSum(7)
-  chronicLoadValue = loadSum(28) / 4
-  acwrValue = chronicLoadValue > 0 ? acuteLoadValue / chronicLoadValue : null
+  chronicLoadValue = hasEnoughHistoryForAcwr ? loadSum(28) / 4 : 0
+  acwrValue = (hasEnoughHistoryForAcwr && chronicLoadValue > 0) ? acuteLoadValue / chronicLoadValue : null
   const highRisk = acwrValue !== null && acwrValue > 1.5
 
   // Rest days count as 0, not skipped - monotony measures variation across
@@ -548,7 +564,18 @@ async function loadOverviewStats() {
 
   document.getElementById('statWeeklyLoad').textContent = acuteLoadValue > 0 ? Math.round(acuteLoadValue).toLocaleString() : '—'
   document.getElementById('statAcwr').textContent = acwrValue === null ? '—' : acwrValue.toFixed(2)
-  document.getElementById('statAcwrRisk').style.display = highRisk ? 'inline-block' : 'none'
+  const acwrRiskBadge = document.getElementById('statAcwrRisk')
+  if (highRisk) {
+    acwrRiskBadge.textContent = 'High Risk'
+    acwrRiskBadge.className = 'stat-risk-badge'
+    acwrRiskBadge.style.display = 'inline-block'
+  } else if (!hasEnoughHistoryForAcwr && loadDates.length > 0) {
+    acwrRiskBadge.textContent = 'Building History'
+    acwrRiskBadge.className = 'stat-risk-badge neutral'
+    acwrRiskBadge.style.display = 'inline-block'
+  } else {
+    acwrRiskBadge.style.display = 'none'
+  }
   document.getElementById('statMonotony').textContent = monotonyValue === null ? '—' : monotonyValue.toFixed(2)
   document.getElementById('statStrain').textContent = strainValue === null ? '—' : Math.round(strainValue).toLocaleString()
 
@@ -745,6 +772,13 @@ document.getElementById('statAcwrCard').addEventListener('click', function() {
   document.getElementById('statAcuteLoad').textContent = acuteLoadValue > 0 ? Math.round(acuteLoadValue).toLocaleString() : '—'
   document.getElementById('statChronicLoad').textContent = chronicLoadValue > 0 ? Math.round(chronicLoadValue).toLocaleString() : '—'
   document.getElementById('statAcwrDetail').textContent = acwrValue === null ? '—' : acwrValue.toFixed(2)
+  const acwrNote = document.getElementById('acwrInsufficientNote')
+  if (acwrValue === null && daysOfLoadHistoryValue > 0 && daysOfLoadHistoryValue < 28) {
+    acwrNote.textContent = `Needs 28 days of rated training history to calculate a reliable ratio — ${daysOfLoadHistoryValue} day${daysOfLoadHistoryValue === 1 ? '' : 's'} so far.`
+    acwrNote.style.display = 'block'
+  } else {
+    acwrNote.style.display = 'none'
+  }
 })
 
 document.getElementById('closeAcwrModalBtn').addEventListener('click', function() {

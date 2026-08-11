@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=13" />
-  <link rel="stylesheet" href="athlete.css?v=33" />
+  <link rel="stylesheet" href="athlete.css?v=34" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -144,7 +144,7 @@
         <div class="stat-item stat-item-clickable" id="statAcwrCard">
           <span class="stat-value" id="statAcwr">—</span>
           <span class="stat-label">ACWR</span>
-          <span class="stat-risk-badge" id="statAcwrRisk" style="display:none">High Risk</span>
+          <span class="stat-risk-badge" id="statAcwrRisk" style="display:none"></span>
         </div>
         <div class="stat-item stat-item-clickable" id="statMonotonyCard">
           <span class="stat-value" id="statMonotony">—</span>
@@ -570,6 +570,7 @@
             <span class="stat-label">Ratio</span>
           </div>
         </div>
+        <p class="stat-insufficient-note" id="acwrInsufficientNote" style="display:none"></p>
       </div>
     </div>
 
@@ -1054,7 +1055,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=19"></script>
+    <script type="module" src="athlete.js?v=20"></script>
     <script type="module" src="athlete-calendar.js?v=33"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
