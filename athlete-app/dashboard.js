@@ -1413,10 +1413,11 @@ function renderAddWorkoutFieldForm() {
       </div>
       <div class="set-time-input" style="width:fit-content; margin-top:8px">
         <input type="text" inputmode="numeric" class="field-duration-hh" id="fieldDurationHH" value="00" maxlength="2">
-        <span class="set-time-sep">:</span>
+        <span class="set-time-sep">h</span>
         <input type="text" inputmode="numeric" class="field-duration-mm" id="fieldDurationMM" value="00" maxlength="2">
+        <span class="set-time-sep">m</span>
       </div>
-      <p style="color:#aaaacc; font-size:11px; margin-top:4px">hours : minutes</p>
+      <p style="color:#aaaacc; font-size:11px; margin-top:4px">Hours and minutes - not mm:ss</p>
     </div>
     <div class="rpe-picker">
       <p class="rpe-picker-label">Effort (RPE)</p>
