@@ -3297,7 +3297,7 @@ async function generateReportPDF() {
     // the next page together - keeping these in one place means the
     // estimate can never drift out of sync with what's actually drawn
     const HEADING_H = 8, HEADING_GAP = 3
-    const TILE_H = 21, TILE_GAP = 6
+    const TILE_H = 26, TILE_GAP = 6
     const CHART_H = 62, CHART_GAP = 5
     const EMPTY_LINE_H = 8
     const SECTION_GAP = 3
@@ -3337,7 +3337,9 @@ async function generateReportPDF() {
 
     // Boxed "stat card" tiles, same visual idea as the app's own .stat-item
     // tiles on the Overview/Metrics tabs - laid out left-aligned at a fixed
-    // width so a single tile doesn't stretch awkwardly across the page
+    // width so a single tile doesn't stretch awkwardly across the page.
+    // The % change is drawn big and bold, since "did this go up or down" is
+    // meant to be readable at a glance, not squinted at.
     function statTiles(items) {
       const tileWidth = 50
       const gap = 4
@@ -3359,18 +3361,20 @@ async function generateReportPDF() {
         doc.text(item.label, x + tileWidth / 2, y + 14, { align: 'center' })
 
         if (item.delta) {
-          // deltaPositive (when given) overrides the arrow-direction color
-          // guess, since a metric can be "lower is better" - a ▼ on those
-          // should read green, not red, matching the app's own coloring rule
+          // deltaPositive (when given) overrides the sign-based color guess,
+          // since a metric can be "lower is better" - a negative change on
+          // those should read green, not red, matching the app's own rule
           let isUp, isDown
           if (item.deltaPositive === true) { isUp = true; isDown = false }
           else if (item.deltaPositive === false) { isUp = false; isDown = true }
-          else { isUp = item.delta.startsWith('▲'); isDown = item.delta.startsWith('▼') }
-          doc.setFontSize(7)
+          else { isUp = item.delta.startsWith('+'); isDown = item.delta.startsWith('-') }
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(11)
           if (isUp) doc.setTextColor(40, 140, 90)
           else if (isDown) doc.setTextColor(190, 70, 70)
           else doc.setTextColor(120, 120, 130)
-          doc.text(item.delta, x + tileWidth / 2, y + 18, { align: 'center' })
+          doc.text(item.delta, x + tileWidth / 2, y + 21, { align: 'center' })
+          doc.setFont('helvetica', 'normal')
         }
       })
       doc.setTextColor(0, 0, 0)
@@ -3388,12 +3392,15 @@ async function generateReportPDF() {
       y += EMPTY_LINE_H
     }
 
+    // jsPDF's built-in fonts don't support the ▲/▼ characters used
+    // elsewhere in the app (they're outside WinAnsi encoding and render as
+    // garbled glyphs, e.g. a stray superscript mark next to the %) - a
+    // leading +/- sign is fully supported and reads just as clearly
     function deltaText(current, previous) {
       if (previous == null || current == null || previous === 0) return null
       const pct = Math.round(((current - previous) / Math.abs(previous)) * 100)
       if (pct === 0) return null
-      const arrow = pct > 0 ? '▲' : '▼'
-      return `${arrow} ${Math.abs(pct)}%`
+      return `${pct > 0 ? '+' : ''}${pct}%`
     }
 
     // ---- Header: logo + athlete name/title on the left, the chosen time
@@ -3476,7 +3483,7 @@ async function generateReportPDF() {
           })
         } else {
           const hasChart = s.chartValues.length > 1
-          const pctDelta = s.pct === null ? null : `${s.pct > 0 ? '▲' : '▼'} ${Math.abs(s.pct)}%`
+          const pctDelta = s.pct === null ? null : `${s.pct > 0 ? '+' : ''}${s.pct}%`
           const deltaPositive = s.pct === null || s.pct === 0 ? undefined : (section.metric.higher_is_better ? s.pct > 0 : s.pct < 0)
           sectionBlock(HEADING_TOTAL + TILE_TOTAL + (hasChart ? CHART_TOTAL : 0) + SECTION_GAP, () => {
             heading(section.metric.name)

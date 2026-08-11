@@ -1475,8 +1475,12 @@ function renderAddWorkoutFieldForm() {
   })
 
   document.getElementById('fieldSaveBtn').addEventListener('click', async function() {
-    const hh = parseInt(document.getElementById('fieldDurationHH').value) || 0
-    const mm = parseInt(document.getElementById('fieldDurationMM').value) || 0
+    // Clamped here too, not just on focusout - on some devices/keyboards,
+    // tapping Save doesn't reliably fire a blur on whichever box still has
+    // focus first, so an un-clamped raw value (e.g. "34" left in the hours
+    // box) could otherwise sail straight through as 34 HOURS instead of 23
+    const hh = Math.min(parseInt(document.getElementById('fieldDurationHH').value) || 0, 23)
+    const mm = Math.min(parseInt(document.getElementById('fieldDurationMM').value) || 0, 59)
     const minutes = hh * 60 + mm
     if (!minutes || minutes < 1) { customAlert('Pick a duration first'); return }
     if (!selectedRpe) { customAlert('Pick an RPE first'); return }
