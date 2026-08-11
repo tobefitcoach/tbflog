@@ -2989,9 +2989,6 @@ async function fetchReportData() {
   if (logSets.some(s => { const ex = peInfoById[s.program_exercise_id]; return ex && ex.type === 'plyometric' && ex.foot_contacts })) {
     availableSections.push({ key: 'plyo', label: 'Plyometric Load', kind: 'plyo' })
   }
-  if (sessions.some(s => s.session_rpe != null)) {
-    availableSections.push({ key: 'training-load', label: 'Training Load', kind: 'training-load' })
-  }
 
   return { workoutEntries, peInfoById, logSets, sessions, availableSections }
 }
@@ -3189,49 +3186,38 @@ function computePlyoSection(cache, range) {
   }
 }
 
-// Rebuilds dailyLoad (same shape as loadOverviewStats) from the report's
-// full-history session cache, bounded to the window, then reuses the same
-// 28-day-minimum-history guard before computing ACWR - anchored to the
-// report's END date rather than "today", since a past report period
-// shouldn't judge itself against data that hadn't happened yet at the time
-function computeTrainingLoadSection(cache, range) {
-  const dailyLoad = {}
-  for (const s of cache.sessions) {
-    if (s.session_rpe == null) continue
-    const dateStr = toDateStrOv(new Date(s.started_at))
-    const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
-    dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
-  }
+// Loads an image from this same origin (the TBFlog logo) and re-draws it
+// onto a canvas so it can be embedded in the PDF as a data URL - resolves
+// null on any failure so a broken/slow logo load never blocks the report
+function loadImageAsDataUrl(url) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      canvas.getContext('2d').drawImage(img, 0, 0)
+      resolve({ dataUrl: canvas.toDataURL('image/png'), width: img.naturalWidth, height: img.naturalHeight })
+    }
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
 
-  const allRatedDates = Object.keys(dailyLoad).sort()
-  const daysOfHistory = allRatedDates.length ? daysBetweenDateStrsOv(allRatedDates[0], range.to) + 1 : 0
-  const hasEnoughHistory = daysOfHistory >= 28
+// Same value+unit formatting the Metrics tab cards already use
+// (renderMetrics()) - pogo shows "RSI", zone2 shows "Score", everything
+// else goes through convertValue() for its real display unit (cm/kg/etc)
+function formatMetricValue(metric, value) {
+  if (metric.type === 'pogo') return `${value} RSI`
+  if (metric.type === 'zone2') return `Score: ${value}`
+  const converted = convertValue(value, metric.display_unit)
+  return converted.unit ? `${converted.text} ${converted.unit}` : `${converted.text}`
+}
 
-  function sumRange(fromStr, toStr) {
-    return Object.entries(dailyLoad).filter(([d]) => d >= fromStr && d <= toStr).reduce((sum, [, v]) => sum + v, 0)
-  }
-
-  const acuteFrom = toDateStrOv(addDaysOv(parseDateStrOv(range.to), -6))
-  const chronicFrom = toDateStrOv(addDaysOv(parseDateStrOv(range.to), -27))
-  const acuteLoad = sumRange(acuteFrom, range.to)
-  const chronicLoad = hasEnoughHistory ? sumRange(chronicFrom, range.to) / 4 : 0
-  const acwr = (hasEnoughHistory && chronicLoad > 0) ? acuteLoad / chronicLoad : null
-
-  const weeks = {}
-  for (const [dateStr, load] of Object.entries(dailyLoad)) {
-    if (dateStr < range.from || dateStr > range.to) continue
-    const weekStart = toDateStrOv(startOfWeekOv(parseDateStrOv(dateStr)))
-    weeks[weekStart] = (weeks[weekStart] || 0) + load
-  }
-  const weekStarts = Object.keys(weeks).sort()
-
-  return {
-    hasData: allRatedDates.length > 0,
-    acwr,
-    acuteLoad: Math.round(acuteLoad),
-    dates: weekStarts,
-    values: weekStarts.map(w => Math.round(weeks[w]))
-  }
+function metricUnitLabel(metric) {
+  if (metric.type === 'pogo') return 'RSI'
+  if (metric.type === 'zone2') return 'Score'
+  return metric.display_unit || ''
 }
 
 // Renders a Chart.js line chart into a throwaway off-screen canvas (never
@@ -3239,20 +3225,39 @@ function computeTrainingLoadSection(cache, range) {
 // Metrics tab), forces a white background (these charts are transparent by
 // default against this app's dark theme, which would look wrong on a white
 // PDF page), and returns the new y-cursor position after placing the image.
-function drawTrendChart(doc, labels, values, margin, y, pageWidth, heightMm) {
+// devicePixelRatio is forced to 2 since an off-screen canvas never picked
+// up the real screen's DPR on its own, and the chart title is baked
+// straight into the image so the report doesn't need a separate caption.
+function drawTrendChart(doc, labels, values, title, margin, y, pageWidth, heightMm) {
   const canvas = document.createElement('canvas')
-  canvas.width = 800
-  canvas.height = 300
+  canvas.width = 900
+  canvas.height = 380
   const chart = new Chart(canvas, {
     type: 'line',
-    data: { labels, datasets: [{ data: values, borderColor: '#4a4a8e', backgroundColor: 'rgba(74,74,142,0.15)', fill: true, tension: 0.3, pointRadius: 2 }] },
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#4a4a8e',
+        backgroundColor: 'rgba(74,74,142,0.12)',
+        fill: true,
+        tension: 0.35,
+        borderWidth: 3,
+        pointRadius: 0
+      }]
+    },
     options: {
       responsive: false,
       animation: false,
-      plugins: { legend: { display: false } },
+      devicePixelRatio: 2,
+      layout: { padding: { top: 6, right: 10, bottom: 2, left: 4 } },
+      plugins: {
+        legend: { display: false },
+        title: { display: !!title, text: title, color: '#333333', font: { size: 15, weight: 'bold' }, padding: { bottom: 10 } }
+      },
       scales: {
-        x: { ticks: { color: '#333333', font: { size: 9 } } },
-        y: { ticks: { color: '#333333', font: { size: 9 } } }
+        x: { grid: { display: false }, ticks: { color: '#888888', font: { size: 11 }, autoSkip: true, maxTicksLimit: 6 } },
+        y: { grid: { color: '#eeeeee' }, ticks: { color: '#888888', font: { size: 11 } } }
       }
     },
     plugins: [{
@@ -3287,6 +3292,8 @@ async function generateReportPDF() {
   btn.textContent = 'Generating…'
 
   try {
+    const logo = await loadImageAsDataUrl('logo.png')
+
     const { jsPDF } = window.jspdf
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -3301,20 +3308,91 @@ async function generateReportPDF() {
       }
     }
 
+    // Colored banner bar, white bold text - reads as a real report section
+    // divider rather than a plain bold line of text
     function heading(text) {
-      ensureSpace(14)
+      ensureSpace(16)
+      doc.setFillColor(74, 74, 142)
+      doc.rect(margin, y, pageWidth - margin * 2, 8, 'F')
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text(text, margin, y)
-      y += 8
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(11)
+      doc.setFontSize(12)
+      doc.setTextColor(255, 255, 255)
+      doc.text(text, margin + 3, y + 5.5)
+      doc.setTextColor(0, 0, 0)
+      y += 8 + 5
     }
 
-    function statLine(label, value, delta) {
-      ensureSpace(7)
-      doc.text(`${label}: ${value}${delta ? '  (' + delta + ')' : ''}`, margin, y)
-      y += 7
+    // Boxed "stat card" tiles, same visual idea as the app's own .stat-item
+    // tiles on the Overview/Metrics tabs - laid out left-aligned at a fixed
+    // width so a single tile doesn't stretch awkwardly across the page
+    function statTiles(items) {
+      const tileWidth = 50
+      const tileHeight = 22
+      const gap = 4
+      ensureSpace(tileHeight + 8)
+      items.forEach((item, i) => {
+        const x = margin + i * (tileWidth + gap)
+        doc.setDrawColor(210, 210, 220)
+        doc.setLineWidth(0.3)
+        doc.roundedRect(x, y, tileWidth, tileHeight, 2, 2, 'S')
+
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(13)
+        doc.setTextColor(30, 30, 50)
+        doc.text(String(item.value), x + tileWidth / 2, y + 10, { align: 'center' })
+
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8)
+        doc.setTextColor(120, 120, 130)
+        doc.text(item.label, x + tileWidth / 2, y + 15.5, { align: 'center' })
+
+        if (item.delta) {
+          const isUp = item.delta.startsWith('▲')
+          const isDown = item.delta.startsWith('▼')
+          doc.setFontSize(7.5)
+          if (isUp) doc.setTextColor(40, 140, 90)
+          else if (isDown) doc.setTextColor(190, 70, 70)
+          else doc.setTextColor(120, 120, 130)
+          doc.text(item.delta, x + tileWidth / 2, y + 19.5, { align: 'center' })
+        }
+      })
+      doc.setTextColor(0, 0, 0)
+      y += tileHeight + 8
+    }
+
+    function emptyStateLine(text) {
+      ensureSpace(9)
+      doc.setFont('helvetica', 'italic')
+      doc.setFontSize(9.5)
+      doc.setTextColor(140, 140, 150)
+      doc.text(text, margin, y)
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+      y += 9
+    }
+
+    // One PR per line, three styled fragments in sequence (muted date, bold
+    // exercise name, purple PR type + value) instead of one plain sentence
+    function prRow(ev) {
+      ensureSpace(8)
+      let x = margin
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(140, 140, 150)
+      doc.text(ev.date, x, y)
+      x += doc.getTextWidth(ev.date) + 4
+
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(30, 30, 50)
+      doc.text(ev.exerciseName, x, y)
+      x += doc.getTextWidth(ev.exerciseName) + 3
+
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(74, 74, 142)
+      doc.text(`— ${ev.type} PR (${Math.round(ev.value * 10) / 10})`, x, y)
+
+      doc.setTextColor(0, 0, 0)
+      y += 7.5
     }
 
     function deltaText(current, previous) {
@@ -3322,22 +3400,40 @@ async function generateReportPDF() {
       const pct = Math.round(((current - previous) / Math.abs(previous)) * 100)
       if (pct === 0) return null
       const arrow = pct > 0 ? '▲' : '▼'
-      return `${arrow} ${Math.abs(pct)}% vs previous period`
+      return `${arrow} ${Math.abs(pct)}%`
     }
 
-    // ---- Header ----
+    // ---- Header: logo + athlete name/title + period, then a divider rule ----
+    const logoHeight = 14
+    let logoWidth = 0
+    if (logo) {
+      logoWidth = (logo.width / logo.height) * logoHeight
+      doc.addImage(logo.dataUrl, 'PNG', margin, y, logoWidth, logoHeight)
+    }
+    const textX = margin + (logo ? logoWidth + 6 : 0)
+
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(18)
-    doc.text(currentAthlete ? currentAthlete.name : 'Athlete', margin, y)
-    y += 9
+    doc.setFontSize(17)
+    doc.setTextColor(30, 30, 50)
+    doc.text(currentAthlete ? currentAthlete.name : 'Athlete', textX, y + 6)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(74, 74, 142)
+    doc.text('PHYSICAL ABILITY REPORT', textX, y + 11.5)
+
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(11)
-    doc.text(`Progress Report: ${range.from} to ${range.to}`, margin, y)
-    y += 6
-    doc.setTextColor(120)
-    doc.text(`Generated ${toDateStrOv(new Date())}`, margin, y)
-    doc.setTextColor(0)
-    y += 12
+    doc.setFontSize(8.5)
+    doc.setTextColor(130, 130, 140)
+    doc.text(`${range.from} to ${range.to}  ·  Generated ${toDateStrOv(new Date())}`, textX, y + 16.5)
+
+    doc.setTextColor(0, 0, 0)
+    y += Math.max(logoHeight, 18) + 5
+
+    doc.setDrawColor(74, 74, 142)
+    doc.setLineWidth(0.8)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 9
 
     for (const section of reportDataCache.availableSections) {
       if (!reportSelectedSections.has(section.key)) continue
@@ -3345,55 +3441,39 @@ async function generateReportPDF() {
       if (section.kind === 'overview') {
         const s = computeWorkoutOverviewSection(reportDataCache, range)
         heading('Workout Overview')
-        statLine('Completion Rate', s.completion === null ? 'No scheduled workouts' : `${s.completion}%`, deltaText(s.completion, s.prevCompletion))
-        statLine('Total Volume', `${s.volumeKg.toLocaleString()}kg`, deltaText(s.volumeKg, s.prevVolumeKg))
-        statLine('Avg Session Duration', s.avgDurationMin === null ? 'No completed sessions' : formatDurationOv(s.avgDurationMin), deltaText(s.avgDurationMin, s.prevAvgDurationMin))
-        y += 6
+        statTiles([
+          { label: 'Completion Rate', value: s.completion === null ? '—' : `${s.completion}%`, delta: deltaText(s.completion, s.prevCompletion) },
+          { label: 'Total Volume', value: `${s.volumeKg.toLocaleString()}kg`, delta: deltaText(s.volumeKg, s.prevVolumeKg) },
+          { label: 'Avg Session Duration', value: s.avgDurationMin === null ? '—' : formatDurationOv(s.avgDurationMin), delta: deltaText(s.avgDurationMin, s.prevAvgDurationMin) }
+        ])
       } else if (section.kind === 'prs') {
         const events = computePRSection(reportDataCache, range)
         heading('Personal Records')
-        if (events.length === 0) {
-          statLine('No new PRs', 'in this period', null)
-        } else {
-          for (const ev of events) {
-            ensureSpace(7)
-            doc.text(`★ ${ev.date} - ${ev.exerciseName}: ${ev.type} PR (${Math.round(ev.value * 10) / 10})`, margin, y)
-            y += 7
-          }
-        }
-        y += 6
+        if (events.length === 0) emptyStateLine('No new PRs in this period.')
+        else events.forEach(prRow)
+        y += 4
       } else if (section.kind === 'plyo') {
         const s = computePlyoSection(reportDataCache, range)
         heading('Plyometric Load')
-        statLine('Total Load', s.totalInRange.toLocaleString(), deltaText(s.totalInRange, s.totalPrev))
+        statTiles([{ label: 'Total Load', value: s.totalInRange.toLocaleString(), delta: deltaText(s.totalInRange, s.totalPrev) }])
         if (s.hasData && s.values.length > 1) {
-          ensureSpace(54)
-          y = drawTrendChart(doc, s.dates, s.values, margin, y, pageWidth, 50)
+          ensureSpace(59)
+          y = drawTrendChart(doc, s.dates, s.values, 'Plyometric Load Trend', margin, y, pageWidth, 55)
         }
-        y += 6
-      } else if (section.kind === 'training-load') {
-        const s = computeTrainingLoadSection(reportDataCache, range)
-        heading('Training Load')
-        statLine('Acute Load (last 7 days of period)', s.acuteLoad.toLocaleString(), null)
-        statLine('ACWR', s.acwr === null ? 'Not enough history yet' : s.acwr.toFixed(2), null)
-        if (s.values.length > 1) {
-          ensureSpace(54)
-          y = drawTrendChart(doc, s.dates, s.values, margin, y, pageWidth, 50)
-        }
-        y += 6
       } else if (section.kind === 'metric') {
         const s = computeCustomMetricSection(section.metric, range)
         heading(section.metric.name)
         if (!s.hasData) {
-          statLine('No data', 'in this period', null)
+          emptyStateLine('No data logged in this period.')
         } else {
-          statLine('Latest', `${s.last}`, s.pct === null ? null : `${s.pct > 0 ? '▲' : '▼'} ${Math.abs(s.pct)}% vs start of period`)
+          const pctDelta = s.pct === null ? null : `${s.pct > 0 ? '▲' : '▼'} ${Math.abs(s.pct)}%`
+          statTiles([{ label: 'Latest', value: formatMetricValue(section.metric, s.last), delta: pctDelta }])
           if (s.values.length > 1) {
-            ensureSpace(54)
-            y = drawTrendChart(doc, s.dates, s.values, margin, y, pageWidth, 50)
+            const unit = metricUnitLabel(section.metric)
+            ensureSpace(59)
+            y = drawTrendChart(doc, s.dates, s.values, `${section.metric.name} Trend${unit ? ' (' + unit + ')' : ''}`, margin, y, pageWidth, 55)
           }
         }
-        y += 6
       }
     }
 
