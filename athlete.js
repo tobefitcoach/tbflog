@@ -445,7 +445,10 @@ async function loadOverviewStats() {
   // date, so a day with two separate trainings counts as two, not one.
   // Set-level within a workout (not "every exercise finished") so 2 fully
   // done exercises plus 1 barely started still gets fair partial credit.
-  // Workouts with no exercises don't count toward either side.
+  // Workouts with no exercises don't count toward either side. Today's
+  // workout(s) only count once actually done - the day isn't over yet, so
+  // an unfinished/not-yet-started workout scheduled for today shouldn't
+  // drag the rate down as if it had been missed.
   function completionRate(windowDays) {
     const cutoff = toDateStrOv(addDaysOv(new Date(), -(windowDays - 1)))
     const todayStr = toDateStrOv(new Date())
@@ -455,7 +458,6 @@ async function loadOverviewStats() {
     for (const entry of workoutEntries) {
       if (entry.dateStr < cutoff || entry.dateStr > todayStr) continue
       if (entry.exercises.length === 0) continue
-      scheduled++
 
       let totalSets = 0
       let doneSets = 0
@@ -466,6 +468,9 @@ async function loadOverviewStats() {
         doneSets += Math.min(logged.length, prescribed)
       }
       const workoutDone = totalSets > 0 && (doneSets / totalSets) >= 0.5
+      if (entry.dateStr === todayStr && !workoutDone) continue
+
+      scheduled++
       if (workoutDone) completed++
     }
 
@@ -3022,14 +3027,17 @@ function buildReportRange(months) {
 // already-fetched reportDataCache plus a date range from buildReportRange ----
 
 // Same rule completionRate() (loadOverviewStats) uses, generalized from a
-// fixed windowDays to an arbitrary [from, to] range
+// fixed windowDays to an arbitrary [from, to] range - including the "today
+// isn't over yet" exception, so a report window ending today (as every
+// report window does, see buildReportRange) doesn't count an unfinished
+// same-day workout as missed
 function completionRateForRange(workoutEntries, logSetsByPE, from, to) {
+  const todayStr = toDateStrOv(new Date())
   let scheduled = 0
   let completed = 0
   for (const entry of workoutEntries) {
     if (entry.dateStr < from || entry.dateStr > to) continue
     if (entry.exercises.length === 0) continue
-    scheduled++
     let totalSets = 0
     let doneSets = 0
     for (const pe of entry.exercises) {
@@ -3038,7 +3046,10 @@ function completionRateForRange(workoutEntries, logSetsByPE, from, to) {
       const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
       doneSets += Math.min(logged.length, prescribed)
     }
-    if (totalSets > 0 && (doneSets / totalSets) >= 0.5) completed++
+    const workoutDone = totalSets > 0 && (doneSets / totalSets) >= 0.5
+    if (entry.dateStr === todayStr && !workoutDone) continue
+    scheduled++
+    if (workoutDone) completed++
   }
   return scheduled === 0 ? null : Math.round((completed / scheduled) * 100)
 }
