@@ -11,6 +11,9 @@
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" defer></script>
+    <!-- PDF generation for the athlete progress report - pinned + defer,
+         same convention as Chart.js above. UMD build exposes window.jspdf.jsPDF -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
   </head>
   <body>
 
@@ -169,6 +172,12 @@
       </div>
 
       <div class="tab-panel" id="tab-metrics">
+      <!-- PDF progress report - opens the Report Builder modal (checklist +
+           time period), see openReportBuilderModal() in athlete.js -->
+      <div style="display:flex; justify-content:flex-end; margin-bottom:12px">
+        <button class="btn-add" id="generateReportBtn">📄 Generate Report</button>
+      </div>
+
       <!-- Summary stats row: metrics tracked, total entries, last updated, PRs this month -->
       <div class="stats-bar" id="statsBar">
         <div class="stat-item stat-item-clickable" id="statMetricsCard">
@@ -593,6 +602,32 @@
           <button class="btn-cancel" id="closeStrainModalBtn">✕</button>
         </div>
         <p style="color:#aaaacc; font-size:13px; margin-top:-8px; margin-bottom:16px">Weekly Load × Monotony. Combines how much training was done with how repetitive the week was - a high strain number means a lot of load packed into a monotonous week (little variation between hard and easy days), which research links to a higher risk of injury or illness.</p>
+      </div>
+    </div>
+
+    <!-- Report Builder Modal: opened by "Generate Report" at the top of the
+         Metrics tab. Checklist only shows sections with real data (filled
+         in by renderReportChecklist() in athlete.js), then a time-period
+         picker, then "Generate PDF" opens the finished PDF in a new tab -->
+    <div class="modal-overlay" id="reportBuilderModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Generate Progress Report</h2>
+          <button class="btn-cancel" id="closeReportBuilderModalBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px">Choose what to include - only sections with logged data are shown.</p>
+        <div id="reportSectionChecklist" class="chip-row"></div>
+        <p class="bodyweight-label" style="margin-top:20px">Time Period</p>
+        <div class="graph-time-filters" id="reportMonthsRow">
+          <button type="button" class="time-filter-btn" data-months="1">1M</button>
+          <button type="button" class="time-filter-btn active" data-months="3">3M</button>
+          <button type="button" class="time-filter-btn" data-months="6">6M</button>
+          <button type="button" class="time-filter-btn" data-months="9">9M</button>
+          <button type="button" class="time-filter-btn" data-months="12">12M</button>
+        </div>
+        <div class="form-actions" style="margin-top:24px">
+          <button type="button" class="btn-save" id="generatePdfBtn">📄 Generate PDF</button>
+        </div>
       </div>
     </div>
 
@@ -1055,7 +1090,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=20"></script>
+    <script type="module" src="athlete.js?v=21"></script>
     <script type="module" src="athlete-calendar.js?v=33"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>

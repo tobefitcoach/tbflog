@@ -357,6 +357,12 @@ let monotonyValue = null
 let strainValue = null
 let daysOfLoadHistoryValue = 0 // how many days back the earliest rated session goes - read by the ACWR modal's "building history" note
 
+// PDF Progress Report - all filled in fresh every time the Report Builder
+// modal opens (no saved template), see fetchReportData()/generateReportPDF() below
+let reportDataCache = null
+let reportSelectedSections = new Set()
+let reportSelectedMonths = 3
+
 async function loadOverviewStats() {
   const ninetyDaysAgo = toDateStrOv(addDaysOv(new Date(), -89))
   const ninetyDaysAgoISO = addDaysOv(new Date(), -89).toISOString()
@@ -2847,3 +2853,558 @@ function openChangeExplain(el) {
 document.getElementById('closeChangeExplainBtn').addEventListener('click', function() {
   document.getElementById('changeExplainModal').classList.remove('active')
 })
+
+// ==========================================================================
+// ---- PDF PROGRESS REPORT ----
+// "Generate Report" button at the top of the Metrics tab opens a checklist
+// of sections (only ones with real logged data are offered) + a 1/3/6/9/12
+// month picker, then builds a PDF client-side with jsPDF and opens it in a
+// new tab. No saved template - the checklist is picked fresh every time.
+// ==========================================================================
+
+document.getElementById('generateReportBtn').addEventListener('click', openReportBuilderModal)
+
+document.getElementById('closeReportBuilderModalBtn').addEventListener('click', function() {
+  document.getElementById('reportBuilderModal').classList.remove('active')
+})
+
+document.getElementById('reportSectionChecklist').addEventListener('click', function(e) {
+  const btn = e.target.closest('.chip-btn')
+  if (!btn) return
+  const key = btn.dataset.key
+  if (reportSelectedSections.has(key)) {
+    reportSelectedSections.delete(key)
+    btn.classList.remove('selected')
+  } else {
+    reportSelectedSections.add(key)
+    btn.classList.add('selected')
+  }
+})
+
+document.getElementById('reportMonthsRow').addEventListener('click', function(e) {
+  const btn = e.target.closest('.time-filter-btn')
+  if (!btn) return
+  document.querySelectorAll('#reportMonthsRow .time-filter-btn').forEach(b => b.classList.remove('active'))
+  btn.classList.add('active')
+  reportSelectedMonths = parseInt(btn.dataset.months)
+})
+
+document.getElementById('generatePdfBtn').addEventListener('click', generateReportPDF)
+
+async function openReportBuilderModal() {
+  document.getElementById('reportBuilderModal').classList.add('active')
+  document.getElementById('reportSectionChecklist').innerHTML = '<p class="no-metrics">Checking available data...</p>'
+  reportDataCache = await fetchReportData()
+  if (!reportDataCache) {
+    document.getElementById('reportBuilderModal').classList.remove('active')
+    return
+  }
+  reportSelectedSections = new Set(reportDataCache.availableSections.map(s => s.key))
+  renderReportChecklist()
+}
+
+// One batch of unbounded-history queries, cached in reportDataCache for the
+// lifetime of one modal-open - both the eligibility checklist AND the final
+// PDF read from this same cache, filtered to whichever date range the coach
+// picks, so there's exactly one round-trip to Supabase per report attempt.
+async function fetchReportData() {
+  const [
+    { data: programs, error: programsError },
+    { data: sessions, error: sessionsError }
+  ] = await Promise.all([
+    fetchWithRetry((signal) => supabase
+      .from('programs')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(id, name, type, tracks_weight, foot_contacts, intensity_tier))))')
+      .eq('athlete_id', athleteId)
+      .eq('is_template', false)
+      .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .not('ended_at', 'is', null)
+      .order('started_at', { ascending: true })
+      .abortSignal(signal)
+    )
+  ])
+
+  if (programsError || sessionsError) {
+    console.log('Error loading report data:', programsError || sessionsError)
+    customAlert('Something went wrong loading report data - check your connection and try again')
+    return null
+  }
+
+  // Same workoutEntries/peInfoById shape loadOverviewStats already builds,
+  // just unbounded (no 90-day cap) since PR baselines and a 12-month report
+  // both need full history
+  const workoutEntries = [] // { dateStr, exercises }
+  const peInfoById = {} // program_exercise_id -> joined exercises row
+  for (const program of programs) {
+    for (const week of program.program_weeks) {
+      for (const day of week.program_days) {
+        const dateStr = resolveDateOv(program.start_date, week.week_number, day.day_number)
+        workoutEntries.push({ dateStr, exercises: day.program_exercises })
+        for (const pe of day.program_exercises) {
+          if (pe.exercises) peInfoById[pe.id] = pe.exercises
+        }
+      }
+    }
+  }
+
+  const peIds = Object.keys(peInfoById)
+  let logSets = []
+  if (peIds.length > 0) {
+    const { data, error } = await fetchWithRetry((signal) => supabase
+      .from('exercise_log_sets')
+      .select('*')
+      .in('program_exercise_id', peIds)
+      .not('completed_at', 'is', null)
+      .order('date', { ascending: true })
+      .abortSignal(signal)
+    )
+    if (error) {
+      console.log('Error loading report log sets:', error)
+      customAlert('Something went wrong loading report data - check your connection and try again')
+      return null
+    }
+    logSets = data || []
+  }
+
+  // Eligibility - a section is only offered if the athlete actually has
+  // qualifying data, anywhere in their history
+  const availableSections = []
+  for (const am of athleteMetrics) {
+    if (!am.metrics) continue
+    if (allMeasurementsCache.some(m => m.metric_id === am.metrics.id)) {
+      availableSections.push({ key: `metric:${am.metrics.id}`, label: am.metrics.name, kind: 'metric', metric: am.metrics })
+    }
+  }
+  if (sessions.length > 0) {
+    availableSections.push({ key: 'overview', label: 'Workout Overview', kind: 'overview' })
+  }
+  if (logSets.some(s => peInfoById[s.program_exercise_id] && peInfoById[s.program_exercise_id].tracks_weight)) {
+    availableSections.push({ key: 'prs', label: 'Personal Records', kind: 'prs' })
+  }
+  if (logSets.some(s => { const ex = peInfoById[s.program_exercise_id]; return ex && ex.type === 'plyometric' && ex.foot_contacts })) {
+    availableSections.push({ key: 'plyo', label: 'Plyometric Load', kind: 'plyo' })
+  }
+  if (sessions.some(s => s.session_rpe != null)) {
+    availableSections.push({ key: 'training-load', label: 'Training Load', kind: 'training-load' })
+  }
+
+  return { workoutEntries, peInfoById, logSets, sessions, availableSections }
+}
+
+function renderReportChecklist() {
+  const container = document.getElementById('reportSectionChecklist')
+  if (reportDataCache.availableSections.length === 0) {
+    container.innerHTML = '<p class="no-metrics">No logged data yet for this athlete - nothing to report on.</p>'
+    return
+  }
+  container.innerHTML = reportDataCache.availableSections.map(s => `
+    <button type="button" class="chip-btn selected" data-key="${s.key}">${s.label}</button>
+  `).join('')
+}
+
+// { from, to } is the chosen report window; { prevFrom, prevTo } is the
+// immediately-preceding period of equal length, used for the "vs previous
+// period" deltas that make this read as a progress report, not a snapshot
+function buildReportRange(months) {
+  const to = new Date()
+  const from = new Date(to)
+  from.setMonth(from.getMonth() - months)
+  const prevTo = new Date(from)
+  prevTo.setDate(prevTo.getDate() - 1)
+  const prevFrom = new Date(prevTo)
+  prevFrom.setMonth(prevFrom.getMonth() - months)
+  return {
+    from: toDateStrOv(from), to: toDateStrOv(to),
+    prevFrom: toDateStrOv(prevFrom), prevTo: toDateStrOv(prevTo)
+  }
+}
+
+// ---- Section calculators - pure functions, no DOM/network, operate on the
+// already-fetched reportDataCache plus a date range from buildReportRange ----
+
+// Same rule completionRate() (loadOverviewStats) uses, generalized from a
+// fixed windowDays to an arbitrary [from, to] range
+function completionRateForRange(workoutEntries, logSetsByPE, from, to) {
+  let scheduled = 0
+  let completed = 0
+  for (const entry of workoutEntries) {
+    if (entry.dateStr < from || entry.dateStr > to) continue
+    if (entry.exercises.length === 0) continue
+    scheduled++
+    let totalSets = 0
+    let doneSets = 0
+    for (const pe of entry.exercises) {
+      const prescribed = pe.prescribed_sets || 1
+      totalSets += prescribed
+      const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
+      doneSets += Math.min(logged.length, prescribed)
+    }
+    if (totalSets > 0 && (doneSets / totalSets) >= 0.5) completed++
+  }
+  return scheduled === 0 ? null : Math.round((completed / scheduled) * 100)
+}
+
+function volumeForRange(logSets, peInfoById, from, to) {
+  return logSets
+    .filter(s => s.date >= from && s.date <= to && peInfoById[s.program_exercise_id] && peInfoById[s.program_exercise_id].tracks_weight)
+    .reduce((sum, s) => sum + setVolumeOv(s), 0)
+}
+
+function durationStatsForRange(sessions, from, to) {
+  const inRange = sessions.filter(s => {
+    const dateStr = toDateStrOv(new Date(s.started_at))
+    return dateStr >= from && dateStr <= to
+  })
+  if (inRange.length === 0) return null
+  const totalMinutes = inRange.reduce((sum, s) => sum + (new Date(s.ended_at) - new Date(s.started_at)) / 60000, 0)
+  return Math.round(totalMinutes / inRange.length)
+}
+
+function computeWorkoutOverviewSection(cache, range) {
+  const logSetsByPE = {}
+  for (const row of cache.logSets) {
+    if (!logSetsByPE[row.program_exercise_id]) logSetsByPE[row.program_exercise_id] = []
+    logSetsByPE[row.program_exercise_id].push(row)
+  }
+  return {
+    completion: completionRateForRange(cache.workoutEntries, logSetsByPE, range.from, range.to),
+    prevCompletion: completionRateForRange(cache.workoutEntries, logSetsByPE, range.prevFrom, range.prevTo),
+    volumeKg: Math.round(volumeForRange(cache.logSets, cache.peInfoById, range.from, range.to)),
+    prevVolumeKg: Math.round(volumeForRange(cache.logSets, cache.peInfoById, range.prevFrom, range.prevTo)),
+    avgDurationMin: durationStatsForRange(cache.sessions, range.from, range.to),
+    prevAvgDurationMin: durationStatsForRange(cache.sessions, range.prevFrom, range.prevTo)
+  }
+}
+
+// Same first-vs-latest %-change convention already used on the Metrics tab
+// cards (renderMetrics()), scoped to the report window instead of "latest
+// vs previous 5 entries"
+function computeCustomMetricSection(metric, range) {
+  const getValue = m => metric.type === 'pogo' ? m.rsi : m.value
+  const inRange = allMeasurementsCache
+    .filter(m => m.metric_id === metric.id && m.date >= range.from && m.date <= range.to)
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  if (inRange.length === 0) return { metric, hasData: false }
+
+  const first = getValue(inRange[0])
+  const last = getValue(inRange[inRange.length - 1])
+  const pct = first ? +(((last - first) / Math.abs(first)) * 100).toFixed(1) : null
+
+  return { metric, hasData: true, first, last, pct, dates: inRange.map(m => m.date), values: inRange.map(getValue) }
+}
+
+// Walks the athlete's ENTIRE logged history (not just the report window) in
+// date order per exercise, tracking a running best for each of the 5 PR
+// types (same shape as loadAndRenderPRBadges in the athlete app) - a PR
+// only counts if it beats every session before it, so a short report window
+// still correctly excludes an "improvement" that isn't really a lifetime PR.
+// Only events whose date falls inside the report window are returned.
+function computePRSection(cache, range) {
+  const buckets = {} // "exerciseId|date" -> { exerciseId, exerciseName, date, sets }
+  for (const s of cache.logSets) {
+    const ex = cache.peInfoById[s.program_exercise_id]
+    if (!ex || !ex.tracks_weight || s.actual_weight == null) continue
+    const reps = parseInt(s.actual_reps)
+    if (isNaN(reps)) continue
+    const key = `${ex.id}|${s.date}`
+    if (!buckets[key]) buckets[key] = { exerciseId: ex.id, exerciseName: ex.name, date: s.date, sets: [] }
+    buckets[key].sets.push({ reps, weight: s.actual_weight })
+  }
+
+  const bucketList = Object.values(buckets).sort((a, b) => a.date.localeCompare(b.date))
+
+  function statsFor(sets) {
+    return {
+      volume: sets.reduce((sum, s) => sum + s.reps * s.weight, 0),
+      totalReps: sets.reduce((sum, s) => sum + s.reps, 0),
+      maxWeight: Math.max(...sets.map(s => s.weight)),
+      maxOneRM: Math.max(...sets.map(s => s.weight * (1 + s.reps / 30))),
+      setCount: sets.length
+    }
+  }
+
+  const PR_TYPES = [
+    { key: 'volume', label: 'Volume' },
+    { key: 'maxWeight', label: 'Weight' },
+    { key: 'totalReps', label: 'Reps' },
+    { key: 'setCount', label: 'Sets' },
+    { key: 'maxOneRM', label: 'Est. 1RM' }
+  ]
+
+  const bestByExercise = {}
+  const events = []
+
+  for (const bucket of bucketList) {
+    const stats = statsFor(bucket.sets)
+    const best = bestByExercise[bucket.exerciseId]
+    if (best) {
+      for (const type of PR_TYPES) {
+        if (stats[type.key] > best[type.key]) {
+          events.push({ date: bucket.date, exerciseName: bucket.exerciseName, type: type.label, value: stats[type.key] })
+        }
+      }
+      bestByExercise[bucket.exerciseId] = {
+        volume: Math.max(best.volume, stats.volume),
+        maxWeight: Math.max(best.maxWeight, stats.maxWeight),
+        totalReps: Math.max(best.totalReps, stats.totalReps),
+        setCount: Math.max(best.setCount, stats.setCount),
+        maxOneRM: Math.max(best.maxOneRM, stats.maxOneRM)
+      }
+    } else {
+      bestByExercise[bucket.exerciseId] = stats
+    }
+  }
+
+  return events.filter(e => e.date >= range.from && e.date <= range.to).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// Same formula as the athlete app's per-session plyo load (foot_contacts x
+// intensity multiplier x completed sets), summed per date across the whole
+// report window, plus the equal-length prior period for a delta callout
+function computePlyoSection(cache, range) {
+  const multiplier = { low: 1, moderate: 1.5, high: 2 }
+  const byDate = {}
+  for (const s of cache.logSets) {
+    const ex = cache.peInfoById[s.program_exercise_id]
+    if (!ex || ex.type !== 'plyometric' || !ex.foot_contacts) continue
+    const load = ex.foot_contacts * (multiplier[ex.intensity_tier] || 1)
+    byDate[s.date] = (byDate[s.date] || 0) + load
+  }
+
+  const inRangeDates = Object.keys(byDate).filter(d => d >= range.from && d <= range.to).sort()
+  const prevDates = Object.keys(byDate).filter(d => d >= range.prevFrom && d <= range.prevTo)
+
+  return {
+    hasData: inRangeDates.length > 0,
+    dates: inRangeDates,
+    values: inRangeDates.map(d => Math.round(byDate[d])),
+    totalInRange: Math.round(inRangeDates.reduce((sum, d) => sum + byDate[d], 0)),
+    totalPrev: Math.round(prevDates.reduce((sum, d) => sum + byDate[d], 0))
+  }
+}
+
+// Rebuilds dailyLoad (same shape as loadOverviewStats) from the report's
+// full-history session cache, bounded to the window, then reuses the same
+// 28-day-minimum-history guard before computing ACWR - anchored to the
+// report's END date rather than "today", since a past report period
+// shouldn't judge itself against data that hadn't happened yet at the time
+function computeTrainingLoadSection(cache, range) {
+  const dailyLoad = {}
+  for (const s of cache.sessions) {
+    if (s.session_rpe == null) continue
+    const dateStr = toDateStrOv(new Date(s.started_at))
+    const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
+    dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
+  }
+
+  const allRatedDates = Object.keys(dailyLoad).sort()
+  const daysOfHistory = allRatedDates.length ? daysBetweenDateStrsOv(allRatedDates[0], range.to) + 1 : 0
+  const hasEnoughHistory = daysOfHistory >= 28
+
+  function sumRange(fromStr, toStr) {
+    return Object.entries(dailyLoad).filter(([d]) => d >= fromStr && d <= toStr).reduce((sum, [, v]) => sum + v, 0)
+  }
+
+  const acuteFrom = toDateStrOv(addDaysOv(parseDateStrOv(range.to), -6))
+  const chronicFrom = toDateStrOv(addDaysOv(parseDateStrOv(range.to), -27))
+  const acuteLoad = sumRange(acuteFrom, range.to)
+  const chronicLoad = hasEnoughHistory ? sumRange(chronicFrom, range.to) / 4 : 0
+  const acwr = (hasEnoughHistory && chronicLoad > 0) ? acuteLoad / chronicLoad : null
+
+  const weeks = {}
+  for (const [dateStr, load] of Object.entries(dailyLoad)) {
+    if (dateStr < range.from || dateStr > range.to) continue
+    const weekStart = toDateStrOv(startOfWeekOv(parseDateStrOv(dateStr)))
+    weeks[weekStart] = (weeks[weekStart] || 0) + load
+  }
+  const weekStarts = Object.keys(weeks).sort()
+
+  return {
+    hasData: allRatedDates.length > 0,
+    acwr,
+    acuteLoad: Math.round(acuteLoad),
+    dates: weekStarts,
+    values: weekStarts.map(w => Math.round(weeks[w]))
+  }
+}
+
+// Renders a Chart.js line chart into a throwaway off-screen canvas (never
+// attached to the page, so this never disturbs what's visible on the
+// Metrics tab), forces a white background (these charts are transparent by
+// default against this app's dark theme, which would look wrong on a white
+// PDF page), and returns the new y-cursor position after placing the image.
+function drawTrendChart(doc, labels, values, margin, y, pageWidth, heightMm) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 800
+  canvas.height = 300
+  const chart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [{ data: values, borderColor: '#4a4a8e', backgroundColor: 'rgba(74,74,142,0.15)', fill: true, tension: 0.3, pointRadius: 2 }] },
+    options: {
+      responsive: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#333333', font: { size: 9 } } },
+        y: { ticks: { color: '#333333', font: { size: 9 } } }
+      }
+    },
+    plugins: [{
+      id: 'whiteBackground',
+      beforeDraw: (c) => {
+        const ctx = c.canvas.getContext('2d')
+        ctx.save()
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, c.width, c.height)
+        ctx.restore()
+      }
+    }]
+  })
+
+  const imgData = chart.toBase64Image()
+  chart.destroy()
+
+  doc.addImage(imgData, 'PNG', margin, y, pageWidth - margin * 2, heightMm)
+  return y + heightMm + 4
+}
+
+async function generateReportPDF() {
+  if (!reportDataCache) return
+  if (!window.jspdf) {
+    customAlert('The PDF library is still loading - please try again in a moment.')
+    return
+  }
+
+  const range = buildReportRange(reportSelectedMonths)
+  const btn = document.getElementById('generatePdfBtn')
+  btn.disabled = true
+  btn.textContent = 'Generating…'
+
+  try {
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 15
+    let y = margin
+
+    function ensureSpace(blockHeight) {
+      if (y + blockHeight > pageHeight - margin) {
+        doc.addPage()
+        y = margin
+      }
+    }
+
+    function heading(text) {
+      ensureSpace(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text(text, margin, y)
+      y += 8
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(11)
+    }
+
+    function statLine(label, value, delta) {
+      ensureSpace(7)
+      doc.text(`${label}: ${value}${delta ? '  (' + delta + ')' : ''}`, margin, y)
+      y += 7
+    }
+
+    function deltaText(current, previous) {
+      if (previous == null || current == null || previous === 0) return null
+      const pct = Math.round(((current - previous) / Math.abs(previous)) * 100)
+      if (pct === 0) return null
+      const arrow = pct > 0 ? '▲' : '▼'
+      return `${arrow} ${Math.abs(pct)}% vs previous period`
+    }
+
+    // ---- Header ----
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.text(currentAthlete ? currentAthlete.name : 'Athlete', margin, y)
+    y += 9
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.text(`Progress Report: ${range.from} to ${range.to}`, margin, y)
+    y += 6
+    doc.setTextColor(120)
+    doc.text(`Generated ${toDateStrOv(new Date())}`, margin, y)
+    doc.setTextColor(0)
+    y += 12
+
+    for (const section of reportDataCache.availableSections) {
+      if (!reportSelectedSections.has(section.key)) continue
+
+      if (section.kind === 'overview') {
+        const s = computeWorkoutOverviewSection(reportDataCache, range)
+        heading('Workout Overview')
+        statLine('Completion Rate', s.completion === null ? 'No scheduled workouts' : `${s.completion}%`, deltaText(s.completion, s.prevCompletion))
+        statLine('Total Volume', `${s.volumeKg.toLocaleString()}kg`, deltaText(s.volumeKg, s.prevVolumeKg))
+        statLine('Avg Session Duration', s.avgDurationMin === null ? 'No completed sessions' : formatDurationOv(s.avgDurationMin), deltaText(s.avgDurationMin, s.prevAvgDurationMin))
+        y += 6
+      } else if (section.kind === 'prs') {
+        const events = computePRSection(reportDataCache, range)
+        heading('Personal Records')
+        if (events.length === 0) {
+          statLine('No new PRs', 'in this period', null)
+        } else {
+          for (const ev of events) {
+            ensureSpace(7)
+            doc.text(`★ ${ev.date} - ${ev.exerciseName}: ${ev.type} PR (${Math.round(ev.value * 10) / 10})`, margin, y)
+            y += 7
+          }
+        }
+        y += 6
+      } else if (section.kind === 'plyo') {
+        const s = computePlyoSection(reportDataCache, range)
+        heading('Plyometric Load')
+        statLine('Total Load', s.totalInRange.toLocaleString(), deltaText(s.totalInRange, s.totalPrev))
+        if (s.hasData && s.values.length > 1) {
+          ensureSpace(54)
+          y = drawTrendChart(doc, s.dates, s.values, margin, y, pageWidth, 50)
+        }
+        y += 6
+      } else if (section.kind === 'training-load') {
+        const s = computeTrainingLoadSection(reportDataCache, range)
+        heading('Training Load')
+        statLine('Acute Load (last 7 days of period)', s.acuteLoad.toLocaleString(), null)
+        statLine('ACWR', s.acwr === null ? 'Not enough history yet' : s.acwr.toFixed(2), null)
+        if (s.values.length > 1) {
+          ensureSpace(54)
+          y = drawTrendChart(doc, s.dates, s.values, margin, y, pageWidth, 50)
+        }
+        y += 6
+      } else if (section.kind === 'metric') {
+        const s = computeCustomMetricSection(section.metric, range)
+        heading(section.metric.name)
+        if (!s.hasData) {
+          statLine('No data', 'in this period', null)
+        } else {
+          statLine('Latest', `${s.last}`, s.pct === null ? null : `${s.pct > 0 ? '▲' : '▼'} ${Math.abs(s.pct)}% vs start of period`)
+          if (s.values.length > 1) {
+            ensureSpace(54)
+            y = drawTrendChart(doc, s.dates, s.values, margin, y, pageWidth, 50)
+          }
+        }
+        y += 6
+      }
+    }
+
+    const blobUrl = doc.output('bloburl')
+    window.open(blobUrl, '_blank')
+    document.getElementById('reportBuilderModal').classList.remove('active')
+  } catch (err) {
+    console.log('Error generating report PDF:', err)
+    customAlert('Something went wrong generating the PDF - please try again')
+  } finally {
+    btn.disabled = false
+    btn.textContent = '📄 Generate PDF'
+  }
+}
