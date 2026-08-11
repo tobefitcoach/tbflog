@@ -3466,11 +3466,15 @@ async function generateReportPDF() {
         })
       } else if (section.kind === 'plyo') {
         const s = computePlyoSection(reportDataCache, range)
-        const hasChart = s.hasData && s.values.length > 1
-        sectionBlock(HEADING_TOTAL + TILE_TOTAL + (hasChart ? CHART_TOTAL : 0) + SECTION_GAP, () => {
+        // A trend line needs at least 2 points IN THIS WINDOW - a short
+        // window (e.g. 1 month) legitimately has 0 or 1 some of the time,
+        // which isn't a bug, so say so instead of just showing nothing
+        const hasChart = s.values.length > 1
+        sectionBlock(HEADING_TOTAL + TILE_TOTAL + (hasChart ? CHART_TOTAL : EMPTY_LINE_H) + SECTION_GAP, () => {
           heading('Plyometric Load')
           statTiles([{ label: 'Total Load', value: s.totalInRange.toLocaleString(), delta: deltaText(s.totalInRange, s.totalPrev) }])
           if (hasChart) y = drawTrendChart(doc, s.dates, s.values, 'Plyometric Load Trend', margin, y, pageWidth, CHART_H)
+          else emptyStateLine('Not enough data in this period to chart a trend.')
           y += SECTION_GAP
         })
       } else if (section.kind === 'metric') {
@@ -3485,12 +3489,14 @@ async function generateReportPDF() {
           const hasChart = s.chartValues.length > 1
           const pctDelta = s.pct === null ? null : `${s.pct > 0 ? '+' : ''}${s.pct}%`
           const deltaPositive = s.pct === null || s.pct === 0 ? undefined : (section.metric.higher_is_better ? s.pct > 0 : s.pct < 0)
-          sectionBlock(HEADING_TOTAL + TILE_TOTAL + (hasChart ? CHART_TOTAL : 0) + SECTION_GAP, () => {
+          sectionBlock(HEADING_TOTAL + TILE_TOTAL + (hasChart ? CHART_TOTAL : EMPTY_LINE_H) + SECTION_GAP, () => {
             heading(section.metric.name)
             statTiles([{ label: 'Latest', value: formatMetricValue(section.metric, s.latestValue), delta: pctDelta, deltaPositive }])
             if (hasChart) {
               const title = `${section.metric.name} Trend${s.chartUnit ? ' (' + s.chartUnit + ')' : ''}`
               y = drawTrendChart(doc, s.dates, s.chartValues, title, margin, y, pageWidth, CHART_H)
+            } else {
+              emptyStateLine('Not enough data in this period to chart a trend.')
             }
             y += SECTION_GAP
           })
