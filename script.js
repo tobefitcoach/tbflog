@@ -49,59 +49,11 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 // (or a placeholder message if there are none yet).
 // ==========================================================================
 async function loadAthletes() {
-  const thirtyDaysAgo = toDateStrIdx(addDaysIdx(new Date(), -29))
-  const ninetyDaysAgoISO = addDaysIdx(new Date(), -89).toISOString()
-
-  // None of these 5 depend on each other's results, so they all fire
-  // together - each goes through fetchWithRetry (network-retry.js) so a
-  // slow/flaky connection gets a couple of automatic retries instead of
-  // silently leaving this page looking like the athletes are missing. None
-  // of the last 3 filter by athlete_id - same "fetch everything this coach
-  // owns, group in JS" pattern the pain-flag query above already uses,
-  // avoiding one query per athlete card.
-  const [
-    { data, error },
-    { data: flaggedData },
-    { data: programs, error: programsError },
-    { data: logSets, error: logError },
-    { data: sessions, error: sessionsError }
-  ] = await Promise.all([
-    fetchWithRetry((signal) => supabase.from('athletes').select('*').abortSignal(signal)),
-    // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
-    // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
-    // stats, since this is meant to stay visible until acknowledged
-    fetchWithRetry((signal) => supabase
-      .from('workout_sessions')
-      .select('athlete_id')
-      .eq('rpe_flag_reason', 'pain_injury')
-      .is('rpe_flag_reviewed_at', null)
-      .abortSignal(signal)
-    ),
-    // Every non-template scheduled day, for "Programmed Through" + 30-day
-    // completion - same nested shape athlete.js's loadOverviewStats() uses
-    fetchWithRetry((signal) => supabase
-      .from('programs')
-      .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, date_override, program_exercises(id, prescribed_sets)))')
-      .eq('is_template', false)
-      .abortSignal(signal)
-    ),
-    // Logged sets for the last 30 days only - completion rate never looks
-    // further back than that
-    fetchWithRetry((signal) => supabase
-      .from('exercise_log_sets')
-      .select('athlete_id, program_exercise_id, date, completed_at, set_number')
-      .gte('date', thirtyDaysAgo)
-      .abortSignal(signal)
-    ),
-    // Rated sessions for ACWR - 90 days back, same window athlete.js uses
-    fetchWithRetry((signal) => supabase
-      .from('workout_sessions')
-      .select('athlete_id, started_at, ended_at, session_rpe')
-      .not('ended_at', 'is', null)
-      .gte('started_at', ninetyDaysAgoISO)
-      .abortSignal(signal)
-    )
-  ])
+  // Just the athletes themselves - the one query the whole page actually
+  // depends on to show anything. Kept alone in its own await (default 3
+  // retries) so a slow/flaky connection still gets retried, but nothing
+  // else can ever hold this up.
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('athletes').select('*').abortSignal(signal))
 
   if (error) {
     console.log('Error loading athletes:', error)
@@ -110,6 +62,68 @@ async function loadAthletes() {
   }
 
   allAthletes = data
+  updateFilterCounts()
+  applyFilters()
+
+  // Pain-flag badges + card stats (ACWR/Programmed Through/Completion) are
+  // enhancements, not required to see the athlete list - fetched
+  // separately so a failure here (e.g. a query erroring because a pending
+  // migration hasn't been run yet) can never block the page above from
+  // rendering. This used to be bundled into the same Promise.all as the
+  // athletes query, with the default 3 retries each - a single broken
+  // "nice to have" query could make the whole page look empty for up to a
+  // minute while it retried a request that was never going to succeed.
+  loadAthleteExtras()
+}
+
+async function loadAthleteExtras() {
+  const thirtyDaysAgo = toDateStrIdx(addDaysIdx(new Date(), -29))
+  const ninetyDaysAgoISO = addDaysIdx(new Date(), -89).toISOString()
+
+  // maxAttempts=1 (no retries) - these are all secondary/derived data, so
+  // failing fast and just showing '—'/no badge is better than making the
+  // coach wait through 3 rounds of backoff for something non-essential
+  const [
+    { data: flaggedData },
+    { data: programs, error: programsError },
+    { data: logSets, error: logError },
+    { data: sessions, error: sessionsError }
+  ] = await Promise.all([
+    // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
+    // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
+    // stats, since this is meant to stay visible until acknowledged
+    fetchWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('athlete_id')
+      .eq('rpe_flag_reason', 'pain_injury')
+      .is('rpe_flag_reviewed_at', null)
+      .abortSignal(signal), 1
+    ),
+    // Every non-template scheduled day, for "Programmed Through" + 30-day
+    // completion - same nested shape athlete.js's loadOverviewStats() uses
+    fetchWithRetry((signal) => supabase
+      .from('programs')
+      .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, date_override, program_exercises(id, prescribed_sets)))')
+      .eq('is_template', false)
+      .abortSignal(signal), 1
+    ),
+    // Logged sets for the last 30 days only - completion rate never looks
+    // further back than that
+    fetchWithRetry((signal) => supabase
+      .from('exercise_log_sets')
+      .select('athlete_id, program_exercise_id, date, completed_at, set_number')
+      .gte('date', thirtyDaysAgo)
+      .abortSignal(signal), 1
+    ),
+    // Rated sessions for ACWR - 90 days back, same window athlete.js uses
+    fetchWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('athlete_id, started_at, ended_at, session_rpe')
+      .not('ended_at', 'is', null)
+      .gte('started_at', ninetyDaysAgoISO)
+      .abortSignal(signal), 1
+    )
+  ])
 
   flaggedCountByAthlete = {}
   if (flaggedData) {
@@ -118,8 +132,6 @@ async function loadAthletes() {
     }
   }
 
-  // Card stats are non-critical - if any of these 3 queries failed, cards
-  // just show '—' instead of blocking the whole athlete list from loading
   if (programsError || logError || sessionsError) {
     console.log('Error loading card stats:', programsError || logError || sessionsError)
     athleteStatsById = {}
@@ -127,8 +139,7 @@ async function loadAthletes() {
     athleteStatsById = computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo)
   }
 
-  updateFilterCounts()
-  applyFilters()
+  applyFilters() // re-render now that badges/stats are in (counts already shown, don't depend on this)
 }
 
 // ==========================================================================
