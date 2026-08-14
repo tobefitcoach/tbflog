@@ -210,7 +210,32 @@ header {
   font-size: 13px;
   color: #aaaacc;
 }
- 
+
+/* Quick-glance stat rows on each athlete card - ACWR / Programmed Through /
+   30-Day Completion, computed in script.js's computeAthleteCardStats() */
+.athlete-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.athlete-card-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.athlete-card-stat-label {
+  color: #aaaacc;
+}
+
+.athlete-card-stat-value {
+  color: #ffffff;
+  font-weight: 600;
+  margin-left: auto;
+}
+
 /* Circular avatar with initials, used on athlete cards */
 .athlete-initials {
   width: 48px;

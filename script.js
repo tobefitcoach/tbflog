@@ -12,11 +12,13 @@ const saveBtn = document.getElementById('saveBtn');
 const athleteGrid = document.querySelector('.athlete-grid');
 
 // Cached full list + the filter currently applied to it, so switching
-// status chips re-renders instantly from memory instead of re-querying
+// status chips (or typing a search) re-renders instantly from memory
+// instead of re-querying
 let allAthletes = []
-let latestWeightByAthlete = {}
 let flaggedCountByAthlete = {}
+let athleteStatsById = {} // athlete_id -> { acwr, acwrBuilding, furthestDate, completionRate30 } - see loadAthleteCardStats()
 let currentStatusFilter = 'active'
+let currentSearchQuery = ''
 
 // Require a logged-in coach before loading anything. RLS is on, so the
 // database itself only ever returns this coach's own athletes - this is
@@ -47,25 +49,24 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
 // (or a placeholder message if there are none yet).
 // ==========================================================================
 async function loadAthletes() {
-  // These 2 don't depend on each other's results, so they fire together -
-  // both go through fetchWithRetry (network-retry.js) so a slow/flaky
-  // connection gets a couple of automatic retries instead of silently
-  // leaving this page looking like the athletes are missing
+  const thirtyDaysAgo = toDateStrIdx(addDaysIdx(new Date(), -29))
+  const ninetyDaysAgoISO = addDaysIdx(new Date(), -89).toISOString()
+
+  // None of these 5 depend on each other's results, so they all fire
+  // together - each goes through fetchWithRetry (network-retry.js) so a
+  // slow/flaky connection gets a couple of automatic retries instead of
+  // silently leaving this page looking like the athletes are missing. None
+  // of the last 3 filter by athlete_id - same "fetch everything this coach
+  // owns, group in JS" pattern the pain-flag query above already uses,
+  // avoiding one query per athlete card.
   const [
     { data, error },
-    { data: bodyweightData },
-    { data: flaggedData }
+    { data: flaggedData },
+    { data: programs, error: programsError },
+    { data: logSets, error: logError },
+    { data: sessions, error: sessionsError }
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase.from('athletes').select('*').abortSignal(signal)),
-    // Every athlete's most recent bodyweight entry, so the card shows
-    // what's actually been logged instead of the static weight set when
-    // the athlete was created
-    fetchWithRetry((signal) => supabase
-      .from('bodyweight')
-      .select('athlete_id, weight, date')
-      .order('date', { ascending: false })
-      .abortSignal(signal)
-    ),
     // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
     // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
     // stats, since this is meant to stay visible until acknowledged
@@ -74,6 +75,30 @@ async function loadAthletes() {
       .select('athlete_id')
       .eq('rpe_flag_reason', 'pain_injury')
       .is('rpe_flag_reviewed_at', null)
+      .abortSignal(signal)
+    ),
+    // Every non-template scheduled day, for "Programmed Through" + 30-day
+    // completion - same nested shape athlete.js's loadOverviewStats() uses
+    fetchWithRetry((signal) => supabase
+      .from('programs')
+      .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, program_exercises(id, prescribed_sets)))')
+      .eq('is_template', false)
+      .abortSignal(signal)
+    ),
+    // Logged sets for the last 30 days only - completion rate never looks
+    // further back than that
+    fetchWithRetry((signal) => supabase
+      .from('exercise_log_sets')
+      .select('athlete_id, program_exercise_id, date, completed_at, set_number')
+      .gte('date', thirtyDaysAgo)
+      .abortSignal(signal)
+    ),
+    // Rated sessions for ACWR - 90 days back, same window athlete.js uses
+    fetchWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('athlete_id, started_at, ended_at, session_rpe')
+      .not('ended_at', 'is', null)
+      .gte('started_at', ninetyDaysAgoISO)
       .abortSignal(signal)
     )
   ])
@@ -86,17 +111,6 @@ async function loadAthletes() {
 
   allAthletes = data
 
-  // Since bodyweightData is sorted newest-first, the first entry we see for
-  // each athlete_id is their most recent one
-  latestWeightByAthlete = {}
-  if (bodyweightData) {
-    for (const entry of bodyweightData) {
-      if (!(entry.athlete_id in latestWeightByAthlete)) {
-        latestWeightByAthlete[entry.athlete_id] = entry.weight
-      }
-    }
-  }
-
   flaggedCountByAthlete = {}
   if (flaggedData) {
     for (const row of flaggedData) {
@@ -104,8 +118,141 @@ async function loadAthletes() {
     }
   }
 
+  // Card stats are non-critical - if any of these 3 queries failed, cards
+  // just show '—' instead of blocking the whole athlete list from loading
+  if (programsError || logError || sessionsError) {
+    console.log('Error loading card stats:', programsError || logError || sessionsError)
+    athleteStatsById = {}
+  } else {
+    athleteStatsById = computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo)
+  }
+
   updateFilterCounts()
-  applyStatusFilter(currentStatusFilter)
+  applyFilters()
+}
+
+// ==========================================================================
+// ---- PER-ATHLETE CARD STATS (ACWR / Programmed Through / 30-Day Completion) ----
+// Same math as athlete.js's loadOverviewStats(), computed here in bulk
+// across every athlete in one pass. Date helpers duplicated from athlete.js
+// per this codebase's per-file convention (this is a separate module with
+// no shared scope).
+// ==========================================================================
+function toDateStrIdx(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function parseDateStrIdx(dateStr) {
+  return new Date(dateStr + 'T00:00:00')
+}
+
+function addDaysIdx(date, n) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + n)
+  return d
+}
+
+function daysBetweenDateStrsIdx(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number)
+  const [by, bm, bd] = b.split('-').map(Number)
+  return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000)
+}
+
+function resolveDateIdx(startDateStr, weekNumber, dayNumber) {
+  const start = parseDateStrIdx(startDateStr)
+  const result = new Date(start)
+  result.setDate(result.getDate() + (weekNumber - 1) * 7 + (dayNumber - 1))
+  return toDateStrIdx(result)
+}
+
+function computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo) {
+  const programsByAthlete = {}
+  for (const p of programs) (programsByAthlete[p.athlete_id] ||= []).push(p)
+
+  const logSetsByAthletePE = {}
+  for (const row of logSets) {
+    const byPE = (logSetsByAthletePE[row.athlete_id] ||= {})
+    ;(byPE[row.program_exercise_id] ||= []).push(row)
+  }
+
+  const sessionsByAthlete = {}
+  for (const s of sessions) (sessionsByAthlete[s.athlete_id] ||= []).push(s)
+
+  const todayStr = toDateStrIdx(new Date())
+  const result = {}
+
+  for (const athlete of allAthletes) {
+    const athletePrograms = programsByAthlete[athlete.id] || []
+    const logSetsByPE = logSetsByAthletePE[athlete.id] || {}
+    const athleteSessions = sessionsByAthlete[athlete.id] || []
+
+    // ---- Programmed through: furthest scheduled date + this window's
+    // workout entries (reused for completion below) ----
+    let furthestDate = null
+    const workoutEntries = []
+    for (const program of athletePrograms) {
+      for (const week of program.program_weeks) {
+        for (const day of week.program_days) {
+          const dateStr = resolveDateIdx(program.start_date, week.week_number, day.day_number)
+          if (furthestDate === null || dateStr > furthestDate) furthestDate = dateStr
+          workoutEntries.push({ dateStr, exercises: day.program_exercises })
+        }
+      }
+    }
+
+    // ---- 30-day completion (same rule as athlete.js's completionRate) ----
+    let scheduled = 0
+    let completed = 0
+    for (const entry of workoutEntries) {
+      if (entry.dateStr < thirtyDaysAgo || entry.dateStr > todayStr) continue
+      if (entry.exercises.length === 0) continue
+      let totalSets = 0
+      let doneSets = 0
+      for (const pe of entry.exercises) {
+        const prescribed = pe.prescribed_sets || 1
+        totalSets += prescribed
+        const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
+        doneSets += Math.min(logged.length, prescribed)
+      }
+      const workoutDone = totalSets > 0 && (doneSets / totalSets) >= 0.5
+      if (entry.dateStr === todayStr && !workoutDone) continue
+      scheduled++
+      if (workoutDone) completed++
+    }
+    const completionRate30 = scheduled === 0 ? null : Math.round((completed / scheduled) * 100)
+
+    // ---- ACWR (Foster's session-RPE method, same 28-day-history guard
+    // used on the athlete's own Overview tab) ----
+    const dailyLoad = {}
+    for (const s of athleteSessions) {
+      if (s.session_rpe == null) continue
+      const dateStr = toDateStrIdx(new Date(s.started_at))
+      const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
+      dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
+    }
+    function loadSum(days) {
+      const cutoff = toDateStrIdx(addDaysIdx(new Date(), -(days - 1)))
+      return Object.entries(dailyLoad).filter(([d]) => d >= cutoff && d <= todayStr).reduce((sum, [, v]) => sum + v, 0)
+    }
+    const loadDates = Object.keys(dailyLoad).sort()
+    const daysOfHistory = loadDates.length ? daysBetweenDateStrsIdx(loadDates[0], todayStr) + 1 : 0
+    const hasEnoughHistory = daysOfHistory >= 28
+    const acuteLoad = loadSum(7)
+    const chronicLoad = hasEnoughHistory ? loadSum(28) / 4 : 0
+    const acwr = (hasEnoughHistory && chronicLoad > 0) ? acuteLoad / chronicLoad : null
+
+    result[athlete.id] = {
+      acwr,
+      acwrBuilding: !hasEnoughHistory && loadDates.length > 0,
+      furthestDate,
+      completionRate30
+    }
+  }
+
+  return result
 }
 
 // ==========================================================================
@@ -136,19 +283,30 @@ function updateFilterCounts() {
 
 function applyStatusFilter(status) {
   currentStatusFilter = status
+  applyFilters()
+}
+
+// Re-renders the grid from the cached athlete list using both the status
+// chip and the search box together (AND, not either/or) - no re-query for
+// either one, matching how the status filter already worked before search
+// was added.
+function applyFilters() {
   document.querySelectorAll('#athleteStatusFilter .chip-btn').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.status === status)
+    btn.classList.toggle('selected', btn.dataset.status === currentStatusFilter)
   })
 
-  const filtered = allAthletes.filter(a => athleteStatus(a) === status)
+  const query = currentSearchQuery.trim().toLowerCase()
+  const filtered = allAthletes.filter(a =>
+    athleteStatus(a) === currentStatusFilter && (!query || a.name.toLowerCase().includes(query))
+  )
 
   athleteGrid.innerHTML = ''
   if (filtered.length === 0) {
-    athleteGrid.innerHTML = '<p>No athletes here yet.</p>'
+    athleteGrid.innerHTML = query ? '<p>No athletes match your search.</p>' : '<p>No athletes here yet.</p>'
     return
   }
   filtered.forEach(athlete => {
-    createAthleteCard(athlete, latestWeightByAthlete[athlete.id], flaggedCountByAthlete[athlete.id])
+    createAthleteCard(athlete, flaggedCountByAthlete[athlete.id])
   })
 }
 
@@ -157,21 +315,39 @@ document.getElementById('athleteStatusFilter').addEventListener('click', functio
   if (btn) applyStatusFilter(btn.dataset.status)
 })
 
+document.getElementById('athleteSearchInput').addEventListener('input', function(e) {
+  currentSearchQuery = e.target.value
+  applyFilters()
+})
+
 // ==========================================================================
 // ---- CREATE ATHLETE CARD ----
 // Builds one athlete card (initials, name, basic stats), wires up:
 //  - clicking the card → go to that athlete's profile page
 //  - the kebab (⋮) menu → toggle a dropdown
 //  - "Delete athlete" in that dropdown → confirm, then delete from DB
-// latestWeight is the athlete's most recent logged bodyweight (in kg), or
-// undefined if they don't have any bodyweight entries yet
 // ==========================================================================
 const STATUS_LABELS = { active: 'Active', pending: 'Pending', offline: 'Offline', archived: 'Archived' }
 
-function createAthleteCard(athlete, latestWeight, flaggedCount) {
+function createAthleteCard(athlete, flaggedCount) {
   const initials = athlete.name.split(' ').map(word => word[0]).join('').toUpperCase()
-  const weightText = latestWeight ? ` · ${latestWeight}kg` : ''
   const status = athleteStatus(athlete)
+  const stats = athleteStatsById[athlete.id] || {}
+  const todayStr = toDateStrIdx(new Date())
+
+  const acwrText = stats.acwr == null ? '—' : stats.acwr.toFixed(2)
+  const acwrHighRisk = stats.acwr != null && stats.acwr > 1.5
+  const acwrBadgeHtml = acwrHighRisk
+    ? '<span class="stat-risk-badge">High Risk</span>'
+    : (stats.acwrBuilding ? '<span class="stat-risk-badge neutral">Building History</span>' : '')
+
+  const programmedThroughText = stats.furthestDate
+    ? parseDateStrIdx(stats.furthestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '—'
+  const programRanOut = stats.furthestDate && stats.furthestDate < todayStr
+  const programBadgeHtml = programRanOut ? '<span class="stat-risk-badge neutral">Needs New Program</span>' : ''
+
+  const completionText = stats.completionRate30 == null ? '—' : `${stats.completionRate30}%`
 
   const card = document.createElement('div')
   card.classList.add('athlete-card')
@@ -195,9 +371,22 @@ card.innerHTML = `
       </div>
     </div>
     <h3>${athlete.name}</h3>
-    <p>${athlete.gender} · ${athlete.height}cm${weightText}</p>
-    <p>DOB: ${athlete.date_of_birth}</p>
-    <p>0 metrics tracked</p>
+    <div class="athlete-card-stats">
+      <div class="athlete-card-stat-row">
+        <span class="athlete-card-stat-label">ACWR</span>
+        <span class="athlete-card-stat-value">${acwrText}</span>
+        ${acwrBadgeHtml}
+      </div>
+      <div class="athlete-card-stat-row">
+        <span class="athlete-card-stat-label">Programmed Through</span>
+        <span class="athlete-card-stat-value">${programmedThroughText}</span>
+        ${programBadgeHtml}
+      </div>
+      <div class="athlete-card-stat-row">
+        <span class="athlete-card-stat-label">30-Day Completion</span>
+        <span class="athlete-card-stat-value">${completionText}</span>
+      </div>
+    </div>
   `
 
   // Clicking anywhere on the card (except the kebab menu) opens the athlete's profile
