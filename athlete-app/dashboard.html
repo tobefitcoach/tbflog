@@ -6,7 +6,7 @@
     <title>Dashboard — TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=15" />
     <link rel="stylesheet" href="../athlete.css?v=35" />
-    <link rel="stylesheet" href="app.css?v=33" />
+    <link rel="stylesheet" href="app.css?v=34" />
   </head>
   <body>
 
@@ -75,8 +75,28 @@
       </div>
     </div>
 
+    <!-- Reschedule a workout to a different day, opened via the 📅 Move
+         button - see openMoveWorkoutModal() in dashboard.js. Only shown when
+         the coach has turned on can_reschedule_workouts for this athlete -->
+    <div class="modal-overlay" id="moveWorkoutModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Move Workout</h2>
+          <button type="button" class="btn-cancel" id="closeMoveWorkoutBtn">✕</button>
+        </div>
+        <div class="form-group">
+          <label>New Date</label>
+          <input type="date" id="moveWorkoutDateInput" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelMoveWorkoutBtn">Cancel</button>
+          <button class="btn-save" id="saveMoveWorkoutBtn">Move</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="../loading-bar.js?v=1"></script>
     <script type="module" src="../confirm-modal.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=61"></script>
+    <script type="module" src="dashboard.js?v=62"></script>
   </body>
 </html>

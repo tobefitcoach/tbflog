@@ -676,6 +676,15 @@
   border-color: #4caf50;
 }
 
+/* Started but never ended - see the "in progress" note in renderWeekView() */
+.week-day-card.in-progress {
+  border-color: #e0a030;
+}
+
+.week-day-card.in-progress .week-day-badge {
+  background-color: #e0a030;
+}
+
 .week-day-name {
   font-size: 13px;
   color: #aaaacc;
@@ -755,6 +764,22 @@
 }
 
 /* --- Day preview (read-only exercise list before starting a workout) --- */
+.day-preview-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.day-preview-group-header .detail-group-title {
+  margin-bottom: 0;
+}
+
+.day-preview-move-btn {
+  flex-shrink: 0;
+}
+
 .day-preview-exercise {
   display: flex;
   align-items: center;

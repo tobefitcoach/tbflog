@@ -132,7 +132,7 @@ async function loadCalendarMonth(year, month) {
   for (const program of data) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
-        const dateStr = resolveDate(program.start_date, week.week_number, day.day_number)
+        const dateStr = day.date_override || resolveDate(program.start_date, week.week_number, day.day_number)
         if (!calendarEntriesByDate[dateStr]) calendarEntriesByDate[dateStr] = []
         calendarEntriesByDate[dateStr].push({ program, week, day })
       }
@@ -291,7 +291,10 @@ function openDayModal(dateStr) {
         <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
           <div style="display:flex; justify-content:space-between; align-items:center">
             <h4 class="detail-group-title">${label}</h4>
-            <button class="btn-delete-metric" ${deleteAction}>🗑 Delete Workout</button>
+            <div style="display:flex; align-items:center; gap:8px">
+              ${entry.day.date_override ? '<span class="athlete-modified-badge">📅 Moved by athlete</span>' : ''}
+              <button class="btn-delete-metric" ${deleteAction}>🗑 Delete Workout</button>
+            </div>
           </div>
           ${showReview ? renderSessionSummaryCal(session) : ''}
           ${exercises.length === 0

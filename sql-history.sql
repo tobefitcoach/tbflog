@@ -1211,3 +1211,30 @@ alter table section_exercises add column if not exists superset_group_id uuid;
 -- ==========================================================================
 alter table training_exercises add column if not exists section_instance_id uuid;
 alter table program_exercises add column if not exists section_instance_id uuid;
+
+-- ==========================================================================
+-- Athlete-side workout rescheduling. A scheduled day's calendar date is
+-- normally derived (start_date + week_number + day_number) - date_override,
+-- when set, wins over that computed date at every place that resolves a
+-- day's dateStr. Gated by a new per-athlete coach toggle, same pattern as
+-- can_add_exercises/can_change_exercises. Row-level, not column-scoped -
+-- same accepted simplification as those two: an athlete with this toggle on
+-- could technically update other program_days columns via a raw API call,
+-- not just date_override, consistent with this app's existing threat model.
+-- ==========================================================================
+alter table program_days add column if not exists date_override date;
+alter table athletes add column if not exists can_reschedule_workouts boolean not null default false;
+
+create or replace function public.athlete_can_reschedule_day(check_day_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from program_days d join program_weeks w on w.id = d.week_id
+    join programs p on p.id = w.program_id join athletes a on a.id = p.athlete_id
+    where d.id = check_day_id and a.user_id = (select auth.uid()) and a.can_reschedule_workouts = true
+  );
+$$;
+
+drop policy if exists "athlete reschedules days when allowed" on program_days;
+create policy "athlete reschedules days when allowed" on program_days for update
+  using (athlete_can_reschedule_day(id))
+  with check (athlete_can_reschedule_day(id));

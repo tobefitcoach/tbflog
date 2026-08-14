@@ -130,6 +130,19 @@ document.getElementById('settingsChangeExercisesToggle').addEventListener('chang
   }
 })
 
+document.getElementById('settingsRescheduleToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ can_reschedule_workouts: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked
+  }
+})
+
 // ==========================================================================
 // ---- STATUS + INVITE ACTIONS ----
 // active = linked to a real login, pending = coach has entered an email but
@@ -257,6 +270,7 @@ document.getElementById('profileDetails').textContent =
   document.getElementById('settingsSelfLogToggle').checked = !!data.can_self_log_workouts
   document.getElementById('settingsAddExercisesToggle').checked = !!data.can_add_exercises
   document.getElementById('settingsChangeExercisesToggle').checked = !!data.can_change_exercises
+  document.getElementById('settingsRescheduleToggle').checked = !!data.can_reschedule_workouts
 
  // Edit info button
   document.getElementById('editAthleteBtn').addEventListener('click', function() {
@@ -423,7 +437,7 @@ async function loadOverviewStats() {
   for (const program of programs) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
-        const dateStr = resolveDateOv(program.start_date, week.week_number, day.day_number)
+        const dateStr = day.date_override || resolveDateOv(program.start_date, week.week_number, day.day_number)
         workoutEntries.push({ dateStr, exercises: day.program_exercises })
         dayInfoById[day.id] = { dateStr, name: trainingDisplayNameOv(program, day) }
         for (const pe of day.program_exercises) {
@@ -2948,7 +2962,7 @@ async function fetchReportData() {
   for (const program of programs) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
-        const dateStr = resolveDateOv(program.start_date, week.week_number, day.day_number)
+        const dateStr = day.date_override || resolveDateOv(program.start_date, week.week_number, day.day_number)
         workoutEntries.push({ dateStr, exercises: day.program_exercises })
         for (const pe of day.program_exercises) {
           if (pe.exercises) peInfoById[pe.id] = pe.exercises

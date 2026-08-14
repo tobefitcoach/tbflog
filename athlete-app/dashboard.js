@@ -91,7 +91,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, coach_id')
+    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, coach_id')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -426,7 +426,7 @@ async function loadTrainingData() {
   for (const program of data) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
-        const dateStr = resolveDate(program.start_date, week.week_number, day.day_number)
+        const dateStr = day.date_override || resolveDate(program.start_date, week.week_number, day.day_number)
         if (!entriesByDate[dateStr]) entriesByDate[dateStr] = []
         entriesByDate[dateStr].push({ program, week, day })
       }
@@ -578,17 +578,23 @@ function renderWeekView(weekStart) {
     // distinct from what the coach actually assigned
     const names = [...new Set(entries.map(entry => (entry.program.created_by_athlete ? '🙋 ' : '') + trainingDisplayName(entry)))]
     const done = dayIsFullyLogged(entries)
+    // A day with an open (started, never ended) session but not yet fully
+    // logged - most often a past day the athlete forgot to tap "End
+    // Workout" on - gets its own indicator so it's easy to spot in the
+    // week strip instead of looking identical to a day nothing happened on
+    const inProgress = !done && entries.some(entry => !!openSessionsByDayId[entry.day.id])
     const mobility = mobilitySessionsByDate[dateStr]
 
     const classes = ['week-day-card']
     if (dateStr === todayStr) classes.push('today')
     if (done) classes.push('done')
+    if (inProgress) classes.push('in-progress')
 
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <span class="week-day-name">${DAY_NAMES[date.getDay() === 0 ? 6 : date.getDay() - 1]}</span>
         <span class="week-day-number">${date.getDate()}</span>
-        ${names.map(name => `<span class="week-day-badge">${done ? '✓ ' : ''}${name}</span>`).join('')}
+        ${names.map(name => `<span class="week-day-badge">${done ? '✓ ' : (inProgress ? '▶ ' : '')}${name}</span>`).join('')}
         ${mobility ? '<span class="week-day-badge week-day-badge-mobility">🧘 Mobility</span>' : ''}
       </div>
     `
@@ -1637,7 +1643,7 @@ function renderDayPreview(dateStr) {
 
   const bodyHtml = entries.length === 0
     ? '<p class="no-metrics">Rest day — nothing scheduled</p>'
-    : entries.map(entry => renderDayPreviewGroup(entry, isToday)).join('')
+    : entries.map(entry => renderDayPreviewGroup(entry, isToday, dateStr)).join('')
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -1668,10 +1674,13 @@ function renderDayPreview(dateStr) {
     if (summaryBtn) summaryBtn.addEventListener('click', function() {
       renderWorkoutSummary(completedSessionsByDayId[entry.day.id], entry)
     })
+
+    const moveBtn = document.getElementById('moveWorkoutBtn-' + entry.day.id)
+    if (moveBtn) moveBtn.addEventListener('click', function() { openMoveWorkoutModal(entry.day.id, dateStr) })
   })
 }
 
-function renderDayPreviewGroup(entry, isToday) {
+function renderDayPreviewGroup(entry, isToday, dateStr) {
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   const openSession = openSessionsByDayId[entry.day.id]
   const completedSession = completedSessionsByDayId[entry.day.id]
@@ -1691,10 +1700,15 @@ function renderDayPreviewGroup(entry, isToday) {
   // back in - Field/Training never reaches here with 0 exercises since it
   // always has a completedSession the instant it's saved, so this can't
   // wrongly offer "Continue" on a Field/Training entry.
+  // An open session (started, never ended) keeps showing "Continue
+  // Workout" no matter how many days have passed since - it used to only
+  // show on the day it was started, so forgetting to tap "End Workout"
+  // meant the very next day the button just vanished with no way back in
+  // short of hunting the day down manually.
   let actionButton = ''
   if (completedSession && !openSession) {
     actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}">📋 View Summary</button>`
-  } else if (isToday && (exercises.length > 0 || entry.program.created_by_athlete)) {
+  } else if (openSession || (isToday && (exercises.length > 0 || entry.program.created_by_athlete))) {
     actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
   }
 
@@ -1713,7 +1727,10 @@ function renderDayPreviewGroup(entry, isToday) {
 
   return `
     <div class="detail-group">
-      <h4 class="detail-group-title">${trainingDisplayName(entry)}</h4>
+      <div class="day-preview-group-header">
+        <h4 class="detail-group-title">${trainingDisplayName(entry)}</h4>
+        ${athlete.can_reschedule_workouts ? `<button type="button" class="exercise-history-btn day-preview-move-btn" id="moveWorkoutBtn-${entry.day.id}">📅 Move</button>` : ''}
+      </div>
       ${exercisesHtml}
       ${actionButton}
     </div>
@@ -1750,6 +1767,47 @@ function renderDayPreviewExercise(pe, showLogged) {
     </div>
   `
 }
+
+// ==========================================================================
+// ---- MOVE WORKOUT (reschedule a day, gated by athlete.can_reschedule_workouts) ----
+// Sets program_days.date_override, which every dateStr-resolving query in
+// this app (loadTrainingData here, plus the coach's own calendar/Overview/
+// PDF report) checks first, ahead of the normal start_date + week_number +
+// day_number computation - see resolveDate()'s call site above.
+// ==========================================================================
+let moveWorkoutDayId = null
+
+function openMoveWorkoutModal(dayId, currentDateStr) {
+  moveWorkoutDayId = dayId
+  document.getElementById('moveWorkoutDateInput').value = currentDateStr
+  document.getElementById('moveWorkoutModal').classList.add('active')
+}
+
+document.getElementById('closeMoveWorkoutBtn').addEventListener('click', function() {
+  document.getElementById('moveWorkoutModal').classList.remove('active')
+})
+
+document.getElementById('cancelMoveWorkoutBtn').addEventListener('click', function() {
+  document.getElementById('moveWorkoutModal').classList.remove('active')
+})
+
+document.getElementById('saveMoveWorkoutBtn').addEventListener('click', async function() {
+  const newDate = document.getElementById('moveWorkoutDateInput').value
+  if (!newDate) { customAlert('Please pick a date'); return }
+
+  const { error } = await saveWithRetry((signal) => supabase
+    .from('program_days')
+    .update({ date_override: newDate })
+    .eq('id', moveWorkoutDayId)
+    .abortSignal(signal)
+  )
+
+  if (error) { console.log(error); customAlert('Something went wrong moving this workout'); return }
+
+  document.getElementById('moveWorkoutModal').classList.remove('active')
+  await loadTrainingData()
+  renderWeekView(startOfWeek(parseDateStr(newDate)))
+})
 
 // ==========================================================================
 // ---- ACTIVE WORKOUT (one exercise at a time) ----

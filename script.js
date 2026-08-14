@@ -81,7 +81,7 @@ async function loadAthletes() {
     // completion - same nested shape athlete.js's loadOverviewStats() uses
     fetchWithRetry((signal) => supabase
       .from('programs')
-      .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, program_exercises(id, prescribed_sets)))')
+      .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, date_override, program_exercises(id, prescribed_sets)))')
       .eq('is_template', false)
       .abortSignal(signal)
     ),
@@ -196,7 +196,7 @@ function computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo) {
     for (const program of athletePrograms) {
       for (const week of program.program_weeks) {
         for (const day of week.program_days) {
-          const dateStr = resolveDateIdx(program.start_date, week.week_number, day.day_number)
+          const dateStr = day.date_override || resolveDateIdx(program.start_date, week.week_number, day.day_number)
           if (furthestDate === null || dateStr > furthestDate) furthestDate = dateStr
           workoutEntries.push({ dateStr, exercises: day.program_exercises })
         }
