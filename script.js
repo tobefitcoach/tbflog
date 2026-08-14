@@ -345,7 +345,7 @@ function createAthleteCard(athlete, flaggedCount) {
     ? parseDateStrIdx(stats.furthestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : '—'
   const programRanOut = stats.furthestDate && stats.furthestDate < todayStr
-  const programBadgeHtml = programRanOut ? '<span class="stat-risk-badge neutral">Needs New Program</span>' : ''
+  const programBadgeHtml = programRanOut ? '<span class="stat-risk-badge neutral">Program Ended</span>' : ''
 
   const completionText = stats.completionRate30 == null ? '—' : `${stats.completionRate30}%`
 
@@ -373,18 +373,24 @@ card.innerHTML = `
     <h3>${athlete.name}</h3>
     <div class="athlete-card-stats">
       <div class="athlete-card-stat-row">
-        <span class="athlete-card-stat-label">ACWR</span>
-        <span class="athlete-card-stat-value">${acwrText}</span>
+        <div class="athlete-card-stat-top">
+          <span class="athlete-card-stat-label">ACWR</span>
+          <span class="athlete-card-stat-value">${acwrText}</span>
+        </div>
         ${acwrBadgeHtml}
       </div>
       <div class="athlete-card-stat-row">
-        <span class="athlete-card-stat-label">Programmed Through</span>
-        <span class="athlete-card-stat-value">${programmedThroughText}</span>
+        <div class="athlete-card-stat-top">
+          <span class="athlete-card-stat-label">Programmed Through</span>
+          <span class="athlete-card-stat-value">${programmedThroughText}</span>
+        </div>
         ${programBadgeHtml}
       </div>
       <div class="athlete-card-stat-row">
-        <span class="athlete-card-stat-label">30-Day Completion</span>
-        <span class="athlete-card-stat-value">${completionText}</span>
+        <div class="athlete-card-stat-top">
+          <span class="athlete-card-stat-label">30-Day Completion</span>
+          <span class="athlete-card-stat-value">${completionText}</span>
+        </div>
       </div>
     </div>
   `

@@ -212,17 +212,30 @@ header {
 }
 
 /* Quick-glance stat rows on each athlete card - ACWR / Programmed Through /
-   30-Day Completion, computed in script.js's computeAthleteCardStats() */
+   30-Day Completion, computed in script.js's computeAthleteCardStats(). Any
+   risk/status badge renders on its own line below the label+value row
+   (rather than crammed into it) so a long badge like "Needs New Program"
+   never forces the row to overflow the card on narrow widths. */
 .athlete-card-stats {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a4e;
 }
 
 .athlete-card-stat-row {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.athlete-card-stat-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 13px;
 }
 
@@ -233,7 +246,11 @@ header {
 .athlete-card-stat-value {
   color: #ffffff;
   font-weight: 600;
-  margin-left: auto;
+}
+
+.athlete-card-stats .stat-risk-badge {
+  align-self: flex-start;
+  margin-top: 0;
 }
 
 /* Circular avatar with initials, used on athlete cards */
