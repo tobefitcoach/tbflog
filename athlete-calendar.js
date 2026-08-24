@@ -1356,6 +1356,13 @@ async function applyTrainingToDay(trainingId, trainingName, dateStr) {
 // same reasoning as cloneTemplateToAthlete() below: editing the Training
 // Library entry later shouldn't retroactively change a day already built
 // from it.
+//
+// Offsets order_index past whatever's already on the target day (same fix
+// as cloneSectionToDayCal below) instead of copying verbatim - copying
+// verbatim used to collide/interleave order_index with any exercises
+// already on that day (e.g. adding a second Training to a day that already
+// has one), which is what made a second workout look like it silently
+// failed to add.
 async function cloneTrainingToDay(trainingId, dayId) {
   const { data: trainingExercises, error } = await supabase
     .from('training_exercises')
@@ -1367,6 +1374,13 @@ async function cloneTrainingToDay(trainingId, dayId) {
   trainingExercises.sort((a, b) => a.order_index - b.order_index)
 
   if (trainingExercises.length === 0) return
+
+  const { data: existingExercises, error: existingError } = await supabase
+    .from('program_exercises')
+    .select('order_index')
+    .eq('day_id', dayId)
+  if (existingError) { console.log(existingError); customAlert('Something went wrong'); return }
+  const baseOrder = existingExercises.length ? Math.max(...existingExercises.map(pe => pe.order_index)) + 1 : 0
 
   // A Training built with a Section or superset inside it carries
   // section_label/section_instance_id/superset_group_id on its own
@@ -1387,10 +1401,10 @@ async function cloneTrainingToDay(trainingId, dayId) {
   // One bulk insert instead of one insert per exercise - used to be N
   // sequential round-trips for an N-exercise training
   const { error: insertError } = await supabase.from('program_exercises').insert(
-    trainingExercises.map(te => ({
+    trainingExercises.map((te, i) => ({
       day_id: dayId,
       exercise_id: te.exercise_id,
-      order_index: te.order_index,
+      order_index: baseOrder + i,
       prescribed_sets: te.prescribed_sets,
       prescribed_reps: te.prescribed_reps,
       prescribed_weight: te.prescribed_weight,
