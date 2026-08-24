@@ -573,10 +573,14 @@ function renderWeekView(weekStart) {
   const cardsHtml = days.map(date => {
     const dateStr = toDateStr(date)
     const entries = entriesByDate[dateStr] || []
-    // One badge per distinct training name, prefixed with 🙋 for a workout
-    // the athlete added themselves (see Add Own Workout) so it's visually
-    // distinct from what the coach actually assigned
-    const names = [...new Set(entries.map(entry => (entry.program.created_by_athlete ? '🙋 ' : '') + trainingDisplayName(entry)))]
+    // One badge per entry, keyed by day.id (always unique) - not by display
+    // name. Two separate entries that happen to share a name (e.g. two
+    // default-named "Field Training" self-logged workouts the same day)
+    // used to incorrectly collapse into a single badge here - same fix
+    // already applied to the coach's own calendar (athlete-calendar.js).
+    // 🙋 prefixes a workout the athlete added themselves (see Add Own
+    // Workout) so it's visually distinct from what the coach assigned.
+    const badgeEntries = [...new Map(entries.map(entry => [entry.day.id, entry])).values()]
     const done = dayIsFullyLogged(entries)
     // A day with an open (started, never ended) session but not yet fully
     // logged - most often a past day the athlete forgot to tap "End
@@ -594,7 +598,7 @@ function renderWeekView(weekStart) {
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <span class="week-day-name">${DAY_NAMES[date.getDay() === 0 ? 6 : date.getDay() - 1]}</span>
         <span class="week-day-number">${date.getDate()}</span>
-        ${names.map(name => `<span class="week-day-badge">${done ? '✓ ' : (inProgress ? '▶ ' : '')}${name}</span>`).join('')}
+        ${badgeEntries.map(entry => `<span class="week-day-badge">${done ? '✓ ' : (inProgress ? '▶ ' : '')}${entry.program.created_by_athlete ? '🙋 ' : ''}${trainingDisplayName(entry)}</span>`).join('')}
         ${mobility ? '<span class="week-day-badge week-day-badge-mobility">🧘 Mobility</span>' : ''}
       </div>
     `
