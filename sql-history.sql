@@ -1238,3 +1238,13 @@ drop policy if exists "athlete reschedules days when allowed" on program_days;
 create policy "athlete reschedules days when allowed" on program_days for update
   using (athlete_can_reschedule_day(id))
   with check (athlete_can_reschedule_day(id));
+
+-- ==========================================================================
+-- Athlete-facing Weekly Stats view (pick one of the last 8 weeks, see
+-- workouts completed/volume/training time/PRs for it) - purely a read of
+-- data already loaded client-side, no new tables. Defaults to true, unlike
+-- every other athlete-permission toggle in this file, so a brand-new
+-- athlete has Stats available immediately without the coach needing to
+-- remember to turn it on - the coach can still switch it off per-athlete.
+-- ==========================================================================
+alter table athletes add column if not exists can_view_weekly_stats boolean not null default true;

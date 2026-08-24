@@ -36,6 +36,13 @@ document.getElementById('settingsBtn').addEventListener('click', function() {
   if (athlete) renderSettings()
 })
 
+// Also hidden entirely (see enterWeekView) unless the coach has
+// can_view_weekly_stats on for this athlete - this guard is just a safety
+// net for the brief pre-load window
+document.getElementById('statsBtn').addEventListener('click', function() {
+  if (athlete) openWeeklyStatsModal()
+})
+
 document.getElementById('weeklyRecapCloseBtn').addEventListener('click', function() {
   document.getElementById('weeklyRecapModal').classList.remove('active')
 })
@@ -91,7 +98,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, coach_id')
+    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -186,6 +193,7 @@ function renderSetPasswordPrompt() {
 }
 
 async function enterWeekView() {
+  document.getElementById('statsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
   await loadTrainingData()
   renderWeekView(startOfWeek(new Date()))
   maybeShowWeeklyRecap()
@@ -1603,17 +1611,31 @@ function maybeShowWeeklyRecap() {
   showWeeklyRecapModal(stats)
 }
 
+// Also powers the on-demand Weekly Stats view (see openWeeklyStatsModal
+// below) - scheduledCount/scheduledCompletedCount/totalVolume/hasVolumeData/
+// prEvents are additive fields that view needs; totalWorkouts/totalSets/
+// totalReps/totalDurationMs keep their exact original meaning and
+// accumulation so the auto-popup above is unaffected
 function computeWeekRecap(weekStart) {
   let totalWorkouts = 0
   let totalSets = 0
   let totalReps = 0
   let totalDurationMs = 0
+  let scheduledCount = 0
+  let scheduledCompletedCount = 0
+  let totalVolume = 0
+  let hasVolumeData = false
 
   for (let i = 0; i < 7; i++) {
     const dateStr = toDateStr(addDays(weekStart, i))
     const entries = entriesByDate[dateStr] || []
     for (const entry of entries) {
+      const isScheduled = entry.day.program_exercises.length > 0
       const session = completedSessionsByDayId[entry.day.id]
+      if (isScheduled) {
+        scheduledCount++
+        if (session) scheduledCompletedCount++
+      }
       if (!session) continue // only count workouts that were actually finished
 
       totalWorkouts++
@@ -1625,12 +1647,20 @@ function computeWeekRecap(weekStart) {
         for (const s of sets) {
           const reps = parseInt(s.actual_reps)
           if (!isNaN(reps)) totalReps += reps
+          if (pe.exercises && pe.exercises.tracks_weight && s.actual_weight != null && !isNaN(reps)) {
+            totalVolume += reps * s.actual_weight
+            hasVolumeData = true
+          }
         }
       }
     }
   }
 
-  return { totalWorkouts, totalSets, totalReps, totalDurationMs }
+  return {
+    totalWorkouts, totalSets, totalReps, totalDurationMs,
+    scheduledCount, scheduledCompletedCount, totalVolume, hasVolumeData,
+    prEvents: computeWeekPREvents(weekStart)
+  }
 }
 
 // A little tiered feel-good message rather than one fixed line - a quiet
@@ -1656,6 +1686,57 @@ function showWeeklyRecapModal(stats) {
   `
   document.getElementById('weeklyRecapModal').classList.add('active')
 }
+
+// ==========================================================================
+// ---- WEEKLY STATS (header button, gated by athlete.can_view_weekly_stats) ----
+// Same underlying computeWeekRecap() as the auto-popup above, just picked
+// on demand for any of the last 8 Monday-Sunday weeks instead of always
+// "last week" - see the exerciseHistoryModal pattern this borrows from
+// (open with a default selection, re-render the body in place on each
+// pick, no modal close/reopen needed).
+// ==========================================================================
+function openWeeklyStatsModal() {
+  document.getElementById('weeklyStatsModal').classList.add('active')
+  const thisMonday = startOfWeek(new Date())
+  document.getElementById('weeklyStatsWeekList').innerHTML = Array.from({ length: 8 }, (_, i) => {
+    const ws = addDays(thisMonday, -7 * i)
+    const label = i === 0 ? 'This Week' : i === 1 ? 'Last Week' : `${i} Weeks Ago`
+    return `<button type="button" class="week-picker-row ${i === 0 ? 'selected' : ''}" data-week-start="${toDateStr(ws)}">
+      <span class="week-picker-label">${label}</span>
+      <span class="week-picker-range">${formatShortDate(ws)} – ${formatShortDate(addDays(ws, 6))}</span>
+    </button>`
+  }).join('')
+  renderWeeklyStatsBody(thisMonday)
+}
+
+function renderWeeklyStatsBody(weekStart) {
+  const stats = computeWeekRecap(weekStart)
+  const durationMin = Math.round(stats.totalDurationMs / 60000)
+  const durationText = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : `${durationMin}m`
+
+  document.getElementById('weeklyStatsBody').innerHTML = `
+    <div class="workout-summary-stats" style="flex-wrap:wrap; gap:20px">
+      <div><div class="workout-summary-stat-value">${stats.scheduledCompletedCount} / ${stats.scheduledCount}</div><div class="workout-summary-stat-label">Workouts</div></div>
+      ${stats.hasVolumeData ? `<div><div class="workout-summary-stat-value">${Math.round(formatWeight(stats.totalVolume, athlete.weight_unit))}${athlete.weight_unit || 'kg'}</div><div class="workout-summary-stat-label">Volume</div></div>` : ''}
+      <div><div class="workout-summary-stat-value">${durationText}</div><div class="workout-summary-stat-label">Training Time</div></div>
+      <div><div class="workout-summary-stat-value">${stats.prEvents.length}</div><div class="workout-summary-stat-label">PRs</div></div>
+    </div>
+    ${stats.prEvents.length ? `<div class="summary-exercise-list" style="margin-top:20px">${stats.prEvents.map(e => `<p class="summary-exercise-sets">🏆 ${e.exerciseName} — ${e.badges.join(', ')}</p>`).join('')}</div>` : ''}
+    ${stats.scheduledCount === 0 && stats.totalWorkouts === 0 ? '<p class="no-metrics" style="margin-top:16px">Nothing logged this week</p>' : ''}
+  `
+}
+
+document.getElementById('weeklyStatsWeekList').addEventListener('click', function(e) {
+  const btn = e.target.closest('.week-picker-row')
+  if (!btn) return
+  document.querySelectorAll('#weeklyStatsWeekList .week-picker-row').forEach(b => b.classList.remove('selected'))
+  btn.classList.add('selected')
+  renderWeeklyStatsBody(parseDateStr(btn.dataset.weekStart))
+})
+
+document.getElementById('closeWeeklyStatsBtn').addEventListener('click', function() {
+  document.getElementById('weeklyStatsModal').classList.remove('active')
+})
 
 // ==========================================================================
 // ---- DAY PREVIEW (read-only, no logging inputs) ----
@@ -3065,6 +3146,61 @@ async function loadAndRenderPRBadges(session, entry) {
     const container = document.getElementById(`prBadges-${pe.id}`)
     if (container) container.innerHTML = badges.map(b => `<span class="pr-badge pr-badge-${b.type}">🏆 ${b.label}</span>`).join('')
   }
+}
+
+// Same bucket-by-(exercise_id, date) + beat-your-own-best comparison as
+// loadAndRenderPRBadges above, generalized from "today" to any 7-day
+// window and run entirely off data already in entriesByDate/logSetsByPE
+// (loadTrainingData's queries are unbounded) instead of a fresh network
+// query - used by the Weekly Stats view (computeWeekRecap) to report which
+// PRs, if any, were set during a picked past week
+function computeWeekPREvents(weekStart) {
+  const buckets = {}
+  for (const dateStr in entriesByDate) {
+    for (const entry of entriesByDate[dateStr]) {
+      for (const pe of entry.day.program_exercises) {
+        const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at)
+        if (sets.length === 0) continue
+        const key = `${pe.exercise_id}|${dateStr}`
+        if (!buckets[key]) buckets[key] = { exerciseId: pe.exercise_id, exerciseName: pe.exercises ? pe.exercises.name : 'Exercise', date: dateStr, sets: [] }
+        buckets[key].sets.push(...sets)
+      }
+    }
+  }
+
+  const weekDateStrs = new Set()
+  for (let i = 0; i < 7; i++) weekDateStrs.add(toDateStr(addDays(weekStart, i)))
+
+  const events = []
+  for (const key in buckets) {
+    const bucket = buckets[key]
+    if (!weekDateStrs.has(bucket.date)) continue
+    const stats = sessionExerciseStats(bucket.sets)
+
+    let bestVolume = 0, bestReps = 0, bestWeight = 0, bestOneRM = 0, bestSets = 0, hasHistory = false
+    for (const otherKey in buckets) {
+      if (otherKey === key || !otherKey.startsWith(bucket.exerciseId + '|')) continue
+      hasHistory = true
+      const otherStats = sessionExerciseStats(buckets[otherKey].sets)
+      bestVolume = Math.max(bestVolume, otherStats.volume)
+      bestReps = Math.max(bestReps, otherStats.totalReps)
+      bestWeight = Math.max(bestWeight, otherStats.maxWeight)
+      bestOneRM = Math.max(bestOneRM, otherStats.maxOneRM)
+      bestSets = Math.max(bestSets, otherStats.setCount)
+    }
+    if (!hasHistory) continue
+
+    const badges = []
+    if (stats.volume > bestVolume) badges.push('Volume PR')
+    if (stats.maxWeight > bestWeight) badges.push('Weight PR')
+    if (stats.totalReps > bestReps) badges.push('Reps PR')
+    if (stats.setCount > bestSets) badges.push('Sets PR')
+    if (stats.maxOneRM > bestOneRM) badges.push('Est. 1RM PR')
+    if (badges.length === 0) continue
+
+    events.push({ exerciseName: bucket.exerciseName, date: bucket.date, badges })
+  }
+  return events.sort((a, b) => a.date.localeCompare(b.date))
 }
 
 // ==========================================================================

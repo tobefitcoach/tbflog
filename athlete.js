@@ -143,6 +143,19 @@ document.getElementById('settingsRescheduleToggle').addEventListener('change', a
   }
 })
 
+document.getElementById('settingsWeeklyStatsToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ can_view_weekly_stats: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked
+  }
+})
+
 // ==========================================================================
 // ---- STATUS + INVITE ACTIONS ----
 // active = linked to a real login, pending = coach has entered an email but
@@ -271,6 +284,7 @@ document.getElementById('profileDetails').textContent =
   document.getElementById('settingsAddExercisesToggle').checked = !!data.can_add_exercises
   document.getElementById('settingsChangeExercisesToggle').checked = !!data.can_change_exercises
   document.getElementById('settingsRescheduleToggle').checked = !!data.can_reschedule_workouts
+  document.getElementById('settingsWeeklyStatsToggle').checked = !!data.can_view_weekly_stats
 
  // Edit info button
   document.getElementById('editAthleteBtn').addEventListener('click', function() {
