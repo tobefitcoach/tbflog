@@ -2637,20 +2637,6 @@ async function finishWorkout(entry, session) {
   renderWorkoutSummary(finishedSession, entry)
 }
 
-// Same compact-line convention formatSetTargetsCal (athlete-calendar.js)
-// already uses for coach-set targets - "12/10/8 reps @ 60kg" when weight
-// stayed the same, "12@60kg, 10@65kg" when it changed set to set - applied
-// here to what was actually logged instead of what was planned, so a
-// multi-exercise summary fits on one screen instead of a set-per-line scroll
-function formatActualSets(sets, isTimed, tracksWeight) {
-  const weightText = w => w != null ? ' @ ' + formatWeight(w, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
-  if (isTimed && !tracksWeight) return sets.map(s => formatTimedReps(s.actual_reps)).join(' / ')
-  if (isTimed && tracksWeight) return sets.map(s => `${formatTimedReps(s.actual_reps)}${weightText(s.actual_weight)}`).join(', ')
-  const sameWeight = sets.every(s => s.actual_weight === sets[0].actual_weight)
-  if (sameWeight) return `${sets.map(s => s.actual_reps || '-').join('/')} reps${weightText(sets[0].actual_weight)}`
-  return sets.map(s => `${s.actual_reps || '-'} reps${weightText(s.actual_weight)}`).join(', ')
-}
-
 function renderWorkoutSummary(finishedSession, entry) {
   clearRestTimer()
   pageWrap.classList.add('wide')
@@ -2687,8 +2673,6 @@ function renderWorkoutSummary(finishedSession, entry) {
 
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   const breakdownHtml = exercises.map(pe => {
-    const isTimed = pe.exercises && pe.exercises.is_timed
-    const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
     const isPlyo = pe.exercises && pe.exercises.type === 'plyometric'
     const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
     if (sets.length === 0) return ''
@@ -2704,7 +2688,7 @@ function renderWorkoutSummary(finishedSession, entry) {
         <div class="summary-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         <div class="pr-badges" id="prBadges-${pe.id}"></div>
         ${plyoLoad != null ? `<p class="plyo-load-line">Plyo Load: ${Math.round(plyoLoad)}</p>` : ''}
-        <p class="summary-exercise-sets">${sets.length} set${sets.length === 1 ? '' : 's'} · ${formatActualSets(sets, isTimed, tracksWeight)}</p>
+        <p class="summary-exercise-sets">${sets.length} set${sets.length === 1 ? '' : 's'}</p>
       </div>
     `
   }).join('')

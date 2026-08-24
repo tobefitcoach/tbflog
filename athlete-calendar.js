@@ -430,8 +430,6 @@ function escapeHtmlCal(str) {
 // editable set_targets, so a coach opening a done workout sees a real
 // review instead of the still-blank plan they set beforehand
 function renderLoggedExerciseCardCal(pe) {
-  const isTimed = pe.exercises && pe.exercises.is_timed
-  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnailCal(videoUrl)
@@ -439,7 +437,7 @@ function renderLoggedExerciseCardCal(pe) {
 
   const rowsHtml = sets.length === 0
     ? '<p class="no-metrics">Not logged yet</p>'
-    : `<p class="summary-exercise-sets">${sets.length} set${sets.length === 1 ? '' : 's'} · ${formatActualSetsCal(sets, isTimed, tracksWeight)}</p>`
+    : `<p class="summary-exercise-sets">${sets.length} set${sets.length === 1 ? '' : 's'}</p>`
 
   return `
     <div class="builder-exercise-card">
@@ -1039,19 +1037,6 @@ function renderWorkoutPreviewExercise(te) {
 function formatTimedRepsCal(val) {
   if (!val && val !== 0) return '-'
   return /^\d+(\.\d+)?$/.test(String(val).trim()) ? `${val} sec` : val
-}
-
-// Same compact-line convention as formatSetTargetsCal just below, applied
-// to what the athlete actually logged instead of the coach's planned
-// targets - condenses a completed exercise's sets to one line instead of
-// a set-per-row list, so the day-detail review doesn't turn into a long scroll
-function formatActualSetsCal(sets, isTimed, tracksWeight) {
-  const weightText = w => w != null ? ` @ ${w}kg` : ''
-  if (isTimed && !tracksWeight) return sets.map(s => formatTimedRepsCal(s.actual_reps)).join(' / ')
-  if (isTimed && tracksWeight) return sets.map(s => `${formatTimedRepsCal(s.actual_reps)}${weightText(s.actual_weight)}`).join(', ')
-  const sameWeight = sets.every(s => s.actual_weight === sets[0].actual_weight)
-  if (sameWeight) return `${sets.map(s => s.actual_reps || '-').join('/')} reps${weightText(sets[0].actual_weight)}`
-  return sets.map(s => `${s.actual_reps || '-'} reps${weightText(s.actual_weight)}`).join(', ')
 }
 
 // "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,
