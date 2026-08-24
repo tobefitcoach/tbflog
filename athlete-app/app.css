@@ -372,7 +372,8 @@
 }
 
 .set-reps-input,
-.set-weight-input {
+.set-weight-input,
+.set-distance-input {
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
@@ -386,7 +387,8 @@
 }
 
 .set-reps-input:disabled,
-.set-weight-input:disabled {
+.set-weight-input:disabled,
+.set-distance-input:disabled {
   opacity: 0.6;
 }
 

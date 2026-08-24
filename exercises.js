@@ -289,6 +289,7 @@ function openExerciseModal(exercise) {
   document.getElementById('exerciseTracksWeight').checked = exercise ? !!exercise.tracks_weight : true
   document.getElementById('exerciseIsTimed').checked = exercise ? !!exercise.is_timed : false
   document.getElementById('exerciseIsUnilateral').checked = exercise ? !!exercise.is_unilateral : false
+  document.getElementById('exerciseTracksDistance').checked = exercise ? !!exercise.tracks_distance : false
   document.getElementById('exerciseVideoUrl').value = exercise ? (exercise.video_url || '') : ''
   document.getElementById('exerciseInstructions').value = exercise ? (exercise.instructions || '') : ''
 
@@ -329,6 +330,7 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   const tracksWeight = document.getElementById('exerciseTracksWeight').checked
   const isTimed = document.getElementById('exerciseIsTimed').checked
   const isUnilateral = document.getElementById('exerciseIsUnilateral').checked
+  const tracksDistance = document.getElementById('exerciseTracksDistance').checked
 
   if (!name) { customAlert('Please enter a name'); return }
 
@@ -336,12 +338,12 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   if (currentExercise) {
     ({ error } = await supabase
       .from('exercises')
-      .update({ name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral })
+      .update({ name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance })
       .eq('id', currentExercise.id))
   } else {
     ({ error } = await supabase
       .from('exercises')
-      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral }]))
+      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }]))
   }
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }

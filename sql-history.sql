@@ -1248,3 +1248,12 @@ create policy "athlete reschedules days when allowed" on program_days for update
 -- remember to turn it on - the coach can still switch it off per-athlete.
 -- ==========================================================================
 alter table athletes add column if not exists can_view_weekly_stats boolean not null default true;
+
+-- ==========================================================================
+-- Distance (meters) logging field - a 4th independent exercise-level toggle
+-- alongside tracks_weight/is_timed/is_unilateral, off by default. No RLS
+-- change needed on either column (both already covered by existing
+-- policies on exercises/exercise_log_sets).
+-- ==========================================================================
+alter table exercises add column if not exists tracks_distance boolean not null default false;
+alter table exercise_log_sets add column if not exists actual_distance numeric;

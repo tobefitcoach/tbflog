@@ -407,7 +407,7 @@ async function loadTrainingData() {
   ] = await Promise.all([
     saveWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
       .eq('athlete_id', athlete.id)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -500,24 +500,38 @@ function dayIsFullyLogged(entries) {
 // "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,
 // 8@50kg" for a real pyramid (both reps and weight differ per set). Returns
 // null when this exercise has no per-set targets yet, so targetLine() can
-// fall back to its old single-value summary for pre-pyramid data.
-function formatSetTargets(setTargets, isTimed, tracksWeight) {
+// fall back to its old single-value summary for pre-pyramid data. A
+// distance-tracking exercise gets a " · 400m" (or per-set "400m/300m")
+// suffix appended, independent of the reps/weight branch above it.
+function formatSetTargets(setTargets, isTimed, tracksWeight, tracksDistance) {
   if (!setTargets || setTargets.length === 0) return null
   const unit = athlete.weight_unit || 'kg'
-  if (isTimed && !tracksWeight) return setTargets.map(s => formatTimedReps(s.reps)).join(' / ')
-  if (isTimed && tracksWeight) return setTargets.map(s => `${formatTimedReps(s.reps)}${s.weight != null ? ' @ ' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
-  const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
-  if (sameWeight) {
-    const reps = setTargets.map(s => s.reps || '-').join('/')
-    return `${reps} reps${setTargets[0].weight != null ? ' @ ' + formatWeight(setTargets[0].weight, unit) + unit : ''}`
+  let text
+  if (isTimed && !tracksWeight) {
+    text = setTargets.map(s => formatTimedReps(s.reps)).join(' / ')
+  } else if (isTimed && tracksWeight) {
+    text = setTargets.map(s => `${formatTimedReps(s.reps)}${s.weight != null ? ' @ ' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
+  } else {
+    const sameWeight = setTargets.every(s => s.weight === setTargets[0].weight)
+    if (sameWeight) {
+      const reps = setTargets.map(s => s.reps || '-').join('/')
+      text = `${reps} reps${setTargets[0].weight != null ? ' @ ' + formatWeight(setTargets[0].weight, unit) + unit : ''}`
+    } else {
+      text = setTargets.map(s => `${s.reps || '-'}${s.weight != null ? '@' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
+    }
   }
-  return setTargets.map(s => `${s.reps || '-'}${s.weight != null ? '@' + formatWeight(s.weight, unit) + unit : ''}`).join(', ')
+  if (tracksDistance && setTargets.some(s => s.distance != null)) {
+    const sameDistance = setTargets.every(s => s.distance === setTargets[0].distance)
+    text += ' · ' + (sameDistance ? `${setTargets[0].distance}m` : setTargets.map(s => s.distance != null ? `${s.distance}m` : '-').join('/'))
+  }
+  return text
 }
 
 function targetLine(pe) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
-  const setTargetsText = formatSetTargets(pe.set_targets, isTimed, tracksWeight)
+  const tracksDistance = pe.exercises && pe.exercises.tracks_distance
+  const setTargetsText = formatSetTargets(pe.set_targets, isTimed, tracksWeight, tracksDistance)
   const parts = []
   if (setTargetsText) {
     parts.push(setTargetsText)
@@ -1337,7 +1351,7 @@ async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseI
   const { data, error } = await supabase
     .from('program_exercises')
     .insert([{ day_id: entry.day.id, exercise_id: exerciseId, order_index: orderIndex, added_by_athlete: true }])
-    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
+    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .single()
 
   if (error) { console.log(error); customAlert('Something went wrong adding that exercise - please try again'); return }
@@ -2167,7 +2181,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
     const historyBtn = e.target.closest('.exercise-history-btn')
     if (historyBtn) {
-      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight)
+      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight, !!historyBtn.dataset.tracksDistance)
       return
     }
     const swapBtn = e.target.closest('.exercise-swap-btn')
@@ -2299,7 +2313,7 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
   document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
     const historyBtn = e.target.closest('.exercise-history-btn')
     if (historyBtn) {
-      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight)
+      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight, !!historyBtn.dataset.tracksDistance)
     }
     // No Swap inside a group step - swapping one exercise mid-round has no
     // clean "which round does the new exercise start at" answer, so
@@ -2374,9 +2388,10 @@ function exerciseActionButtonsHtml(pe, isSelfLogged, hideSwap) {
   const name = pe.exercises ? pe.exercises.name : 'Exercise'
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  const tracksDistance = pe.exercises && pe.exercises.tracks_distance
   return `
     <div class="exercise-action-btns">
-      <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}">📈 History</button>
+      <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}" data-tracks-distance="${tracksDistance ? '1' : ''}">📈 History</button>
       ${!hideSwap && canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}">🔁 Swap</button>` : ''}
     </div>
   `
@@ -2467,10 +2482,10 @@ async function loadExerciseHistory(exerciseId, months) {
     }))
 }
 
-let exerciseHistoryState = { exerciseId: null, isTimed: false, tracksWeight: true, months: 3 }
+let exerciseHistoryState = { exerciseId: null, isTimed: false, tracksWeight: true, tracksDistance: false, months: 3 }
 
-async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, tracksWeight) {
-  exerciseHistoryState = { exerciseId, isTimed, tracksWeight, months: 3 }
+async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, tracksWeight, tracksDistance) {
+  exerciseHistoryState = { exerciseId, isTimed, tracksWeight, tracksDistance, months: 3 }
   document.getElementById('exerciseHistoryTitle').textContent = exerciseName || 'History'
   document.querySelectorAll('#exerciseHistoryTimeFilters .time-filter-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.months === '3')
@@ -2480,7 +2495,7 @@ async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, track
 }
 
 async function renderExerciseHistoryBody() {
-  const { exerciseId, isTimed, tracksWeight, months } = exerciseHistoryState
+  const { exerciseId, isTimed, tracksWeight, tracksDistance, months } = exerciseHistoryState
   const body = document.getElementById('exerciseHistoryBody')
   body.innerHTML = '<p class="no-metrics">Loading...</p>'
 
@@ -2495,7 +2510,8 @@ async function renderExerciseHistoryBody() {
     const setsLine = day.sets.map(function(s) {
       const repsText = isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`
       const weightText = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
-      return `<li class="detail-row"><span>Set ${s.set_number}</span><span class="detail-row-value">${repsText}${weightText}</span></li>`
+      const distanceText = tracksDistance && s.actual_distance != null ? ` · ${s.actual_distance}m` : ''
+      return `<li class="detail-row"><span>Set ${s.set_number}</span><span class="detail-row-value">${repsText}${weightText}${distanceText}</span></li>`
     }).join('')
     const volumeText = tracksWeight && day.stats.volume > 0 ? ` · ${Math.round(formatWeight(day.stats.volume, athlete.weight_unit))}${athlete.weight_unit || 'kg'} total` : ''
     return `
@@ -2563,7 +2579,7 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
       original_exercise_id: pe.original_exercise_id || pe.exercise_id
     })
     .eq('id', peId)
-    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral)')
+    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .single()
 
   if (error) { console.log(error); customAlert('Something went wrong swapping that exercise - please try again'); return }
@@ -3246,6 +3262,8 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exe
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
   const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
   const { mm, ss } = parseTimeToParts(repsVal)
+  const tracksDistance = pe.exercises && pe.exercises.tracks_distance
+  const distanceVal = logged ? (logged.actual_distance != null ? logged.actual_distance : '') : ((target && target.distance != null) ? target.distance : '')
 
   return `
     <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
@@ -3261,6 +3279,7 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exe
         <input type="number" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
         <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
       ` : ''}
+      ${tracksDistance ? `<input type="number" class="set-distance-input" value="${distanceVal}" placeholder="meters" step="1" ${checked ? 'disabled' : ''}>` : ''}
       <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
       ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>
@@ -3403,6 +3422,7 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   const mmInput = rowEl.querySelector('.set-time-mm')
   const ssInput = rowEl.querySelector('.set-time-ss')
   const weightInput = rowEl.querySelector('.set-weight-input')
+  const distanceInput = rowEl.querySelector('.set-distance-input')
   let actualReps
   if (isTimed) {
     const mm = parseInt(mmInput.value) || 0
@@ -3415,12 +3435,14 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   // the only thing that ever gets saved
   const rowUnit = rowEl.dataset.unit || 'kg'
   const actualWeight = weightInput ? (weightInput.value ? weightToKg(parseFloat(weightInput.value), rowUnit) : null) : null
+  const actualDistance = distanceInput ? (distanceInput.value ? parseFloat(distanceInput.value) : null) : null
   const removedBtn = rowEl.querySelector('.set-remove-btn')
 
   rowEl.classList.add('completed')
   rowEl.classList.remove('unsynced')
   if (isTimed) { mmInput.disabled = true; ssInput.disabled = true } else { repsInput.disabled = true }
   if (weightInput) weightInput.disabled = true
+  if (distanceInput) distanceInput.disabled = true
   const checkBtn = rowEl.querySelector('.set-check-btn')
   checkBtn.textContent = '✓'
   checkBtn.classList.add('checked')
@@ -3443,6 +3465,7 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
     set_number: setNumber,
     actual_reps: actualReps,
     actual_weight: actualWeight,
+    actual_distance: actualDistance,
     completed_at: new Date().toISOString(),
     deleted: false
   }
@@ -3469,6 +3492,7 @@ function uncheckSet(peId, setNumber, dateStr, rowEl) {
   const mmInput = rowEl.querySelector('.set-time-mm')
   const ssInput = rowEl.querySelector('.set-time-ss')
   const weightInput = rowEl.querySelector('.set-weight-input')
+  const distanceInput = rowEl.querySelector('.set-distance-input')
   const checkBtn = rowEl.querySelector('.set-check-btn')
   const isExtra = setNumber > (pe.prescribed_sets || 0)
 
@@ -3476,6 +3500,7 @@ function uncheckSet(peId, setNumber, dateStr, rowEl) {
   rowEl.classList.remove('completed', 'unsynced')
   if (isTimed) { mmInput.disabled = false; ssInput.disabled = false } else { repsInput.disabled = false }
   if (weightInput) weightInput.disabled = false
+  if (distanceInput) distanceInput.disabled = false
   checkBtn.textContent = ''
   checkBtn.classList.remove('checked')
   checkBtn.title = 'Mark done'
@@ -3757,6 +3782,7 @@ function performQueuedSave(entry) {
       set_number: entry.set_number,
       actual_reps: entry.actual_reps,
       actual_weight: entry.actual_weight,
+      actual_distance: entry.actual_distance,
       completed_at: entry.completed_at
     }], { onConflict: 'program_exercise_id,date,set_number' })
     .select()

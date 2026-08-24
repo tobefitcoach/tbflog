@@ -2154,6 +2154,7 @@
 
 .set-target-row .set-reps-input,
 .set-target-row .set-weight-input,
+.set-target-row .set-distance-input,
 .set-target-row .set-rest-input {
   flex: 0 0 56px;
   width: 56px;
@@ -2297,6 +2298,7 @@
 
   .set-target-row .set-reps-input,
   .set-target-row .set-weight-input,
+  .set-target-row .set-distance-input,
   .set-target-row .set-rest-input {
     min-width: 70px;
   }

@@ -296,7 +296,7 @@ async function addExerciseToSection(exerciseId) {
     section_id: sectionId,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }]).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
+  }]).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -424,7 +424,7 @@ function removeSetTargetRow(row) {
 async function loadExercisesList() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('section_exercises')
-    .select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral)')
+    .select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .eq('section_id', sectionId)
     .abortSignal(signal)
   )
@@ -830,6 +830,7 @@ document.getElementById('openCreateExerciseBtn').addEventListener('click', funct
   document.getElementById('sCreateExerciseTracksWeight').checked = true
   document.getElementById('sCreateExerciseIsTimed').checked = false
   document.getElementById('sCreateExerciseIsUnilateral').checked = false
+  document.getElementById('sCreateExerciseTracksDistance').checked = false
   document.getElementById('sCreateExerciseVideoUrl').value = ''
   document.getElementById('sCreateExerciseInstructions').value = ''
   document.getElementById('sCreateExerciseModal').classList.add('active')
@@ -854,12 +855,13 @@ document.getElementById('saveSCreateExerciseBtn').addEventListener('click', asyn
   const tracksWeight = document.getElementById('sCreateExerciseTracksWeight').checked
   const isTimed = document.getElementById('sCreateExerciseIsTimed').checked
   const isUnilateral = document.getElementById('sCreateExerciseIsUnilateral').checked
+  const tracksDistance = document.getElementById('sCreateExerciseTracksDistance').checked
 
   if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
     .from('exercises')
-    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral }])
+    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }])
     .select()
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
