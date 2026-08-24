@@ -1630,7 +1630,11 @@ function computeWeekRecap(weekStart) {
     const dateStr = toDateStr(addDays(weekStart, i))
     const entries = entriesByDate[dateStr] || []
     for (const entry of entries) {
-      const isScheduled = entry.day.program_exercises.length > 0
+      // A self-logged workout (Strength or Field/Training) counts as
+      // "scheduled" too, not just coach-assigned days - a Field/Training
+      // entry in particular has zero program_exercises by design, so the
+      // exercise-count check alone would silently drop it from the count
+      const isScheduled = entry.day.program_exercises.length > 0 || !!(entry.program && entry.program.created_by_athlete)
       const session = completedSessionsByDayId[entry.day.id]
       if (isScheduled) {
         scheduledCount++
@@ -1709,6 +1713,14 @@ function openWeeklyStatsModal() {
   renderWeeklyStatsBody(thisMonday)
 }
 
+// Weight-based badges (Volume/Weight/Est. 1RM) convert kg -> the athlete's
+// unit and round for display, same as every other weight readout in this
+// file; Reps/Sets badges are already unitless counts
+function formatPRBadgeValue(value, isWeight) {
+  if (isWeight) return `${Math.round(formatWeight(value, athlete.weight_unit)).toLocaleString()}${athlete.weight_unit || 'kg'}`
+  return Math.round(value).toLocaleString()
+}
+
 function renderWeeklyStatsBody(weekStart) {
   const stats = computeWeekRecap(weekStart)
   const durationMin = Math.round(stats.totalDurationMs / 60000)
@@ -1721,7 +1733,12 @@ function renderWeeklyStatsBody(weekStart) {
       <div><div class="workout-summary-stat-value">${durationText}</div><div class="workout-summary-stat-label">Training Time</div></div>
       <div><div class="workout-summary-stat-value">${stats.prEvents.length}</div><div class="workout-summary-stat-label">PRs</div></div>
     </div>
-    ${stats.prEvents.length ? `<div class="summary-exercise-list" style="margin-top:20px">${stats.prEvents.map(e => `<p class="summary-exercise-sets">🏆 ${e.exerciseName} — ${e.badges.join(', ')}</p>`).join('')}</div>` : ''}
+    ${stats.prEvents.length ? `<div class="summary-exercise-list" style="margin-top:20px">${stats.prEvents.map(e => `
+      <div class="summary-exercise-row">
+        <div class="summary-exercise-name">🏆 ${e.exerciseName}</div>
+        ${e.badges.map(b => `<p class="summary-exercise-sets">${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</p>`).join('')}
+      </div>
+    `).join('')}</div>` : ''}
     ${stats.scheduledCount === 0 && stats.totalWorkouts === 0 ? '<p class="no-metrics" style="margin-top:16px">Nothing logged this week</p>' : ''}
   `
 }
@@ -3191,11 +3208,11 @@ function computeWeekPREvents(weekStart) {
     if (!hasHistory) continue
 
     const badges = []
-    if (stats.volume > bestVolume) badges.push('Volume PR')
-    if (stats.maxWeight > bestWeight) badges.push('Weight PR')
-    if (stats.totalReps > bestReps) badges.push('Reps PR')
-    if (stats.setCount > bestSets) badges.push('Sets PR')
-    if (stats.maxOneRM > bestOneRM) badges.push('Est. 1RM PR')
+    if (stats.volume > bestVolume) badges.push({ label: 'Volume PR', before: bestVolume, after: stats.volume, isWeight: true })
+    if (stats.maxWeight > bestWeight) badges.push({ label: 'Weight PR', before: bestWeight, after: stats.maxWeight, isWeight: true })
+    if (stats.totalReps > bestReps) badges.push({ label: 'Reps PR', before: bestReps, after: stats.totalReps, isWeight: false })
+    if (stats.setCount > bestSets) badges.push({ label: 'Sets PR', before: bestSets, after: stats.setCount, isWeight: false })
+    if (stats.maxOneRM > bestOneRM) badges.push({ label: 'Est. 1RM PR', before: bestOneRM, after: stats.maxOneRM, isWeight: true })
     if (badges.length === 0) continue
 
     events.push({ exerciseName: bucket.exerciseName, date: bucket.date, badges })
