@@ -1387,15 +1387,14 @@ async function findOrCreateSelfLoggedDay(dateStr, name) {
 
   if (findError) { console.log(findError) }
 
+  // completedSessionsByDayId is already loaded/refreshed by loadTrainingData()
+  // (every write path here calls it right after saving) - reused directly
+  // instead of firing a fresh per-program query, since a previous version of
+  // this check (a separate query per program) never correctly detected an
+  // already-finished day and kept reusing it indefinitely
   for (const program of existingPrograms || []) {
     const dayId = program.program_weeks[0].program_days[0].id
-    const { data: finishedSessions } = await supabase
-      .from('workout_sessions')
-      .select('id')
-      .eq('program_day_id', dayId)
-      .not('ended_at', 'is', null)
-      .limit(1)
-    if (!finishedSessions || finishedSessions.length === 0) return dayId
+    if (!completedSessionsByDayId[dayId]) return dayId
   }
 
   const { data: newProgram, error: programError } = await supabase
