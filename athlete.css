@@ -1517,6 +1517,14 @@
   font-weight: 600;
 }
 
+/* Compact one-line "N sets · 10/10/8 reps @ 60kg" summary, replacing a
+   set-per-row list in the day-detail review of a completed workout */
+.summary-exercise-sets {
+  color: #aaaacc;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
 /* --- Pagination controls at the bottom of the "Last updated" detail modal --- */
 .pagination-row {
   display: flex;

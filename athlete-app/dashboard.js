@@ -2637,6 +2637,20 @@ async function finishWorkout(entry, session) {
   renderWorkoutSummary(finishedSession, entry)
 }
 
+// Same compact-line convention formatSetTargetsCal (athlete-calendar.js)
+// already uses for coach-set targets - "12/10/8 reps @ 60kg" when weight
+// stayed the same, "12@60kg, 10@65kg" when it changed set to set - applied
+// here to what was actually logged instead of what was planned, so a
+// multi-exercise summary fits on one screen instead of a set-per-line scroll
+function formatActualSets(sets, isTimed, tracksWeight) {
+  const weightText = w => w != null ? ' @ ' + formatWeight(w, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
+  if (isTimed && !tracksWeight) return sets.map(s => formatTimedReps(s.actual_reps)).join(' / ')
+  if (isTimed && tracksWeight) return sets.map(s => `${formatTimedReps(s.actual_reps)}${weightText(s.actual_weight)}`).join(', ')
+  const sameWeight = sets.every(s => s.actual_weight === sets[0].actual_weight)
+  if (sameWeight) return `${sets.map(s => s.actual_reps || '-').join('/')} reps${weightText(sets[0].actual_weight)}`
+  return sets.map(s => `${s.actual_reps || '-'} reps${weightText(s.actual_weight)}`).join(', ')
+}
+
 function renderWorkoutSummary(finishedSession, entry) {
   clearRestTimer()
   pageWrap.classList.add('wide')
@@ -2686,18 +2700,11 @@ function renderWorkoutSummary(finishedSession, entry) {
     const plyoLoad = isPlyo ? (pe.exercises.foot_contacts || 0) * plyoMultiplier * sets.length : null
 
     return `
-      <div class="detail-group">
-        <h4 class="detail-group-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</h4>
+      <div class="summary-exercise-row">
+        <div class="summary-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         <div class="pr-badges" id="prBadges-${pe.id}"></div>
         ${plyoLoad != null ? `<p class="plyo-load-line">Plyo Load: ${Math.round(plyoLoad)}</p>` : ''}
-        <ul class="detail-list">
-          ${sets.map(s => `
-            <li class="detail-row">
-              <span>Set ${s.set_number}</span>
-              <span class="detail-row-value">${(isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`) + (tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : '')}</span>
-            </li>
-          `).join('')}
-        </ul>
+        <p class="summary-exercise-sets">${sets.length} set${sets.length === 1 ? '' : 's'} · ${formatActualSets(sets, isTimed, tracksWeight)}</p>
       </div>
     `
   }).join('')
@@ -2748,7 +2755,7 @@ function renderWorkoutSummary(finishedSession, entry) {
       </div>
     </div>
 
-    ${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}
+    <div class="summary-exercise-list">${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}</div>
     <button class="btn-save start-workout-btn" id="summaryDoneBtn">Done</button>
   `
 

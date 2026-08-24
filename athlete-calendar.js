@@ -439,11 +439,7 @@ function renderLoggedExerciseCardCal(pe) {
 
   const rowsHtml = sets.length === 0
     ? '<p class="no-metrics">Not logged yet</p>'
-    : `<div class="detail-list">${sets.map(s => {
-        const repsPart = isTimed ? formatTimedRepsCal(s.actual_reps) : `${s.actual_reps || '-'} reps`
-        const weightPart = tracksWeight && s.actual_weight != null ? ` @ ${s.actual_weight}kg` : ''
-        return `<div class="detail-row"><span>Set ${s.set_number}</span><span class="detail-row-value">${repsPart}${weightPart}</span></div>`
-      }).join('')}</div>`
+    : `<p class="summary-exercise-sets">${sets.length} set${sets.length === 1 ? '' : 's'} · ${formatActualSetsCal(sets, isTimed, tracksWeight)}</p>`
 
   return `
     <div class="builder-exercise-card">
@@ -1043,6 +1039,19 @@ function renderWorkoutPreviewExercise(te) {
 function formatTimedRepsCal(val) {
   if (!val && val !== 0) return '-'
   return /^\d+(\.\d+)?$/.test(String(val).trim()) ? `${val} sec` : val
+}
+
+// Same compact-line convention as formatSetTargetsCal just below, applied
+// to what the athlete actually logged instead of the coach's planned
+// targets - condenses a completed exercise's sets to one line instead of
+// a set-per-row list, so the day-detail review doesn't turn into a long scroll
+function formatActualSetsCal(sets, isTimed, tracksWeight) {
+  const weightText = w => w != null ? ` @ ${w}kg` : ''
+  if (isTimed && !tracksWeight) return sets.map(s => formatTimedRepsCal(s.actual_reps)).join(' / ')
+  if (isTimed && tracksWeight) return sets.map(s => `${formatTimedRepsCal(s.actual_reps)}${weightText(s.actual_weight)}`).join(', ')
+  const sameWeight = sets.every(s => s.actual_weight === sets[0].actual_weight)
+  if (sameWeight) return `${sets.map(s => s.actual_reps || '-').join('/')} reps${weightText(sets[0].actual_weight)}`
+  return sets.map(s => `${s.actual_reps || '-'} reps${weightText(s.actual_weight)}`).join(', ')
 }
 
 // "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,

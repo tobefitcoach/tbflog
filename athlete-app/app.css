@@ -1299,6 +1299,34 @@
   margin: 0 0 8px;
 }
 
+/* --- Post-workout summary breakdown: one compact row per exercise instead
+   of a full set-by-set list, so a multi-exercise workout fits on one
+   screen without scrolling --- */
+.summary-exercise-list {
+  margin-top: 20px;
+}
+
+.summary-exercise-row {
+  padding: 12px 0;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.summary-exercise-row:last-child {
+  border-bottom: none;
+}
+
+.summary-exercise-name {
+  font-weight: 600;
+  color: white;
+  margin-bottom: 2px;
+}
+
+.summary-exercise-sets {
+  color: #aaaacc;
+  font-size: 13px;
+  margin: 0;
+}
+
 .pr-badge {
   font-size: 11px;
   font-weight: 600;
