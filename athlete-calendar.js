@@ -238,6 +238,8 @@ function renderCalendarGrid(year, month) {
   grid.querySelectorAll('.calendar-day-add-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation()
+      adHocDayIdForThisSession = null
+      adHocDayDateForThisSession = null
       openDayAddTrainingModal(btn.dataset.date)
     })
   })
@@ -886,15 +888,27 @@ async function deleteScheduledExercise(peId) {
 
 // ==========================================================================
 // ---- ADD TRAINING (hover "+" on a calendar day) ----
-// findOrCreateAdHocDay reuses the same (is_adhoc=true, start_date=dateStr)
-// container for repeated adds to the same date, instead of creating a new
-// one each time. Only way to put exercises on a day is via a saved
-// Training - no more "add one loose exercise" flow, that's what the
-// Training Library / training-builder.html is for. Two tabs share this one
-// popup: a single saved Training onto just this day, or a whole Program
-// starting on this day (see switchDayAddTab below).
+// findOrCreateAdHocDay reuses the same ad-hoc day container across the
+// Single Workout and Section tabs within ONE popup session (so adding a
+// Section then a Training in one sitting combines into one day), but always
+// creates a fresh one on a new "+" click - see adHocDayIdForThisSession.
+// Only way to put exercises on a day is via a saved Training - no more
+// "add one loose exercise" flow, that's what the Training Library /
+// training-builder.html is for. Two tabs share this one popup: a single
+// saved Training onto just this day, or a whole Program starting on this
+// day (see switchDayAddTab below).
 // ==========================================================================
 let currentDayDateForAddTraining = null // remembered so "+ New Training" can come back to the same day's popup afterward
+
+// Which ad-hoc day findOrCreateAdHocDay should reuse, scoped to THIS popup
+// session only - reset every time the + button is freshly clicked (not on
+// the "+ New Training"/"+ New Section" round-trips, which reopen the same
+// popup and should still land on the same day). Without this, reopening
+// the popup for a date that already had an earlier, separate workout added
+// to it would silently find that old ad-hoc day by date and merge into it
+// instead of starting a new one.
+let adHocDayIdForThisSession = null
+let adHocDayDateForThisSession = null
 
 // Both lists rarely change, but were previously re-fetched from Supabase on
 // every single "+" click - the main reason that popup felt slow. Cached
@@ -1420,22 +1434,14 @@ async function cloneTrainingToDay(trainingId, dayId) {
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 }
 
-// name is only used the first time a training is created for this date -
-// if one already exists (repeated adds to the same day), its existing name
-// is kept as-is
+// name is only used the first time a training is created for this popup
+// session - reusing across tabs (e.g. add a Section, then a Training, both
+// in the same "+ Add Workout" popup) is what combines them into one day;
+// see adHocDayIdForThisSession above for why this is no longer a
+// date-based database lookup
 async function findOrCreateAdHocDay(dateStr, name) {
-  const { data: existing, error: findError } = await supabase
-    .from('programs')
-    .select('*, program_weeks(*, program_days(*))')
-    .eq('athlete_id', athleteId)
-    .eq('is_adhoc', true)
-    .eq('start_date', dateStr)
-    .maybeSingle()
-
-  if (findError) { console.log(findError) }
-
-  if (existing) {
-    return existing.program_weeks[0].program_days[0].id
+  if (adHocDayIdForThisSession && adHocDayDateForThisSession === dateStr) {
+    return adHocDayIdForThisSession
   }
 
   const { data: newProgram, error: programError } = await supabase
@@ -1456,6 +1462,8 @@ async function findOrCreateAdHocDay(dateStr, name) {
     .select()
   if (dayError) { console.log(dayError); customAlert('Something went wrong'); throw dayError }
 
+  adHocDayIdForThisSession = newDay[0].id
+  adHocDayDateForThisSession = dateStr
   return newDay[0].id
 }
 
