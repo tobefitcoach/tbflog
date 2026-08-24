@@ -2328,7 +2328,7 @@ function renderSingleSlideBody(pe, isSelfLogged) {
 // 80kg x7, 75kg x10" is what actually answers "what should I load today,"
 // not just one aggregate number.
 // ==========================================================================
-async function loadExerciseHistory(exerciseId) {
+async function loadExerciseHistory(exerciseId, months) {
   const { data: pastPEs, error: peError } = await fetchWithRetry((signal) => supabase
     .from('program_exercises')
     .select('id')
@@ -2340,11 +2340,15 @@ async function loadExerciseHistory(exerciseId) {
   const peIds = pastPEs.map(pe => pe.id)
   if (peIds.length === 0) return []
 
+  const cutoff = new Date()
+  cutoff.setMonth(cutoff.getMonth() - months)
+
   const { data: sets, error: setsError } = await fetchWithRetry((signal) => supabase
     .from('exercise_log_sets')
     .select('*')
     .in('program_exercise_id', peIds)
     .not('completed_at', 'is', null)
+    .gte('date', toDateStr(cutoff))
     .abortSignal(signal)
   )
   if (setsError) { console.log(setsError); return null }
@@ -2355,11 +2359,9 @@ async function loadExerciseHistory(exerciseId) {
     byDate[s.date].push(s)
   }
 
-  // Most recent first, capped so the modal stays a quick glance rather than
-  // a full scroll-forever log
+  // Most recent first - bounded by the chosen time window, not a hard cap
   return Object.keys(byDate)
     .sort((a, b) => b.localeCompare(a))
-    .slice(0, 8)
     .map(date => ({
       date,
       sets: byDate[date].sort((a, b) => a.set_number - b.set_number),
@@ -2367,17 +2369,29 @@ async function loadExerciseHistory(exerciseId) {
     }))
 }
 
-async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, tracksWeight) {
-  document.getElementById('exerciseHistoryTitle').textContent = exerciseName || 'History'
-  document.getElementById('exerciseHistoryBody').innerHTML = '<p class="no-metrics">Loading...</p>'
-  document.getElementById('exerciseHistoryModal').classList.add('active')
+let exerciseHistoryState = { exerciseId: null, isTimed: false, tracksWeight: true, months: 3 }
 
-  const history = await loadExerciseHistory(exerciseId)
+async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, tracksWeight) {
+  exerciseHistoryState = { exerciseId, isTimed, tracksWeight, months: 3 }
+  document.getElementById('exerciseHistoryTitle').textContent = exerciseName || 'History'
+  document.querySelectorAll('#exerciseHistoryTimeFilters .time-filter-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.months === '3')
+  })
+  document.getElementById('exerciseHistoryModal').classList.add('active')
+  await renderExerciseHistoryBody()
+}
+
+async function renderExerciseHistoryBody() {
+  const { exerciseId, isTimed, tracksWeight, months } = exerciseHistoryState
   const body = document.getElementById('exerciseHistoryBody')
+  body.innerHTML = '<p class="no-metrics">Loading...</p>'
+
+  const history = await loadExerciseHistory(exerciseId, months)
   if (!document.getElementById('exerciseHistoryModal').classList.contains('active')) return // closed while loading
+  if (exerciseHistoryState.exerciseId !== exerciseId) return // a different exercise/filter was opened while this was loading
 
   if (history === null) { body.innerHTML = '<p class="no-metrics">Something went wrong loading history - check your connection and try again</p>'; return }
-  if (history.length === 0) { body.innerHTML = '<p class="no-metrics">No history yet for this exercise</p>'; return }
+  if (history.length === 0) { body.innerHTML = `<p class="no-metrics">No history in the last ${months} month${months > 1 ? 's' : ''}</p>`; return }
 
   body.innerHTML = history.map(function(day) {
     const setsLine = day.sets.map(function(s) {
@@ -2394,6 +2408,15 @@ async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, track
     `
   }).join('')
 }
+
+document.getElementById('exerciseHistoryTimeFilters').addEventListener('click', function(e) {
+  const btn = e.target.closest('.time-filter-btn')
+  if (!btn) return
+  document.querySelectorAll('#exerciseHistoryTimeFilters .time-filter-btn').forEach(b => b.classList.remove('active'))
+  btn.classList.add('active')
+  exerciseHistoryState.months = parseInt(btn.dataset.months)
+  renderExerciseHistoryBody()
+})
 
 document.getElementById('closeExerciseHistoryBtn').addEventListener('click', function() {
   document.getElementById('exerciseHistoryModal').classList.remove('active')

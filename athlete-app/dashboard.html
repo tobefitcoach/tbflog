@@ -56,6 +56,11 @@
           <h2 id="exerciseHistoryTitle">History</h2>
           <button type="button" class="btn-cancel" id="closeExerciseHistoryBtn">✕</button>
         </div>
+        <div class="graph-time-filters" id="exerciseHistoryTimeFilters" style="margin: 4px 0 16px">
+          <button type="button" class="time-filter-btn" data-months="1">1M</button>
+          <button type="button" class="time-filter-btn active" data-months="3">3M</button>
+          <button type="button" class="time-filter-btn" data-months="6">6M</button>
+        </div>
         <div id="exerciseHistoryBody"></div>
       </div>
     </div>
@@ -97,6 +102,7 @@
 
     <script type="module" src="../loading-bar.js?v=1"></script>
     <script type="module" src="../confirm-modal.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=65"></script>
+    <script type="module" src="../network-retry.js?v=1"></script>
+    <script type="module" src="dashboard.js?v=66"></script>
   </body>
 </html>
