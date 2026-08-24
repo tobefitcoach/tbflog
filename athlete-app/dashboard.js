@@ -1221,13 +1221,18 @@ function renderAddWorkoutChoice() {
 // logs actual sets as they go, same as always.
 async function startOwnStrengthWorkout() {
   const dateStr = toDateStr(new Date())
+  let dayId
   try {
-    await findOrCreateSelfLoggedDay(dateStr, 'My Workout')
+    dayId = await findOrCreateSelfLoggedDay(dateStr, 'My Workout')
   } catch (err) {
     return
   }
   await loadTrainingData()
-  const entry = (entriesByDate[dateStr] || []).find(e => e.program.created_by_athlete)
+  // Matched by day id, not just "any self-logged entry today" - today can
+  // now genuinely hold more than one (see findOrCreateSelfLoggedDay), so
+  // grabbing the first one found could open an already-finished workout
+  // instead of the fresh one just created/resumed here
+  const entry = (entriesByDate[dateStr] || []).find(e => e.day.id === dayId)
   if (!entry) { customAlert('Something went wrong starting your workout'); return }
   startWorkout(entry, dateStr)
 }
@@ -1355,20 +1360,39 @@ function removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId) {
 }
 
 // name is only used the first time a self-logged workout is created for
-// this date - repeated adds on the same day reuse the same container,
-// same convention as the coach's own findOrCreateAdHocDay
+// this date - repeated adds on the same day reuse the same container ONLY
+// while it's still unfinished (a still-empty or in-progress draft) - same
+// convention as the coach's own findOrCreateAdHocDay for that case. Once a
+// self-logged workout on this date has actually been completed, reusing it
+// again would silently merge a second, separate workout into the first
+// one's program_days row - and since the Calendar day-detail only shows
+// the most-recently-ended session's summary per row, the first workout's
+// data would effectively vanish behind the second. So a finished day
+// always gets a fresh one instead.
 async function findOrCreateSelfLoggedDay(dateStr, name) {
-  const { data: existing, error: findError } = await supabase
+  // Not .maybeSingle() - this date can now genuinely hold more than one
+  // self-logged program (see the finished-session check below), so every
+  // match needs checking, not just the first/only one
+  const { data: existingPrograms, error: findError } = await supabase
     .from('programs')
     .select('*, program_weeks(*, program_days(*))')
     .eq('athlete_id', athlete.id)
     .eq('is_adhoc', true)
     .eq('created_by_athlete', true)
     .eq('start_date', dateStr)
-    .maybeSingle()
 
   if (findError) { console.log(findError) }
-  if (existing) return existing.program_weeks[0].program_days[0].id
+
+  for (const program of existingPrograms || []) {
+    const dayId = program.program_weeks[0].program_days[0].id
+    const { data: finishedSessions } = await supabase
+      .from('workout_sessions')
+      .select('id')
+      .eq('program_day_id', dayId)
+      .not('ended_at', 'is', null)
+      .limit(1)
+    if (!finishedSessions || finishedSessions.length === 0) return dayId
+  }
 
   const { data: newProgram, error: programError } = await supabase
     .from('programs')
