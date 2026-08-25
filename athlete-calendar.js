@@ -125,6 +125,11 @@ function resolveDate(startDateStr, weekNumber, dayNumber) {
   return toDateStr(result)
 }
 
+function trainingDisplayName(entry) {
+  if (entry.program.is_adhoc) return entry.program.name || 'Training'
+  return entry.day.label || ('Day ' + entry.day.day_number)
+}
+
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 // ==========================================================================
