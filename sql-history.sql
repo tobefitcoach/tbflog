@@ -1284,3 +1284,13 @@ create policy "coach views own athletes' tournaments" on tournaments for select
 
 create index if not exists idx_tournaments_athlete_id on tournaments(athlete_id);
 create index if not exists idx_tournaments_date on tournaments(date);
+
+-- ==========================================================================
+-- Lets an athlete read their own coach's name (for the new athlete-app
+-- Profile tab) - additive to "select own profile" (Postgres OR's multiple
+-- permissive select policies together), so this only ever widens what an
+-- athlete can see, never what a coach can see of anyone else's profile.
+-- ==========================================================================
+drop policy if exists "athlete views own coach's profile" on profiles;
+create policy "athlete views own coach's profile" on profiles for select
+  using (exists (select 1 from athletes a where a.coach_id = profiles.id and a.user_id = (select auth.uid())));

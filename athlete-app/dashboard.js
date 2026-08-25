@@ -25,23 +25,45 @@ if (!session) {
   window.location.href = 'index.html'
 }
 
-document.getElementById('logoutBtn').addEventListener('click', async function() {
-  await supabase.auth.signOut()
-  window.location.href = 'index.html'
-})
-
-// Guarded on athlete being loaded - the button's in the header, so it's on
-// screen even during the brief "Loading..." state before athlete exists
-document.getElementById('settingsBtn').addEventListener('click', function() {
-  if (athlete) renderSettings()
+// ==========================================================================
+// ---- BOTTOM NAV ----
+// Lives outside #pageContent (declared once in dashboard.html), so
+// re-rendering pageContent for every screen never wipes it out - this is
+// what makes it a persistent tab bar instead of per-screen chrome. Hidden
+// entirely (see enterWeekView) until there's a real athlete to navigate
+// for; every click here is guarded the same way the old header buttons
+// were, as a safety net for the brief pre-load window.
+// ==========================================================================
+document.getElementById('navHomeBtn').addEventListener('click', function() {
+  if (athlete) renderWeekView(currentWeekStart || startOfWeek(new Date()))
 })
 
 // Also hidden entirely (see enterWeekView) unless the coach has
-// can_view_weekly_stats on for this athlete - this guard is just a safety
-// net for the brief pre-load window
-document.getElementById('statsBtn').addEventListener('click', function() {
+// can_view_weekly_stats on for this athlete
+document.getElementById('navStatsBtn').addEventListener('click', function() {
   if (athlete) openWeeklyStatsModal()
 })
+
+document.getElementById('navSettingsBtn').addEventListener('click', function() {
+  if (athlete) renderSettings()
+})
+
+document.getElementById('navProfileBtn').addEventListener('click', function() {
+  if (athlete) renderProfile()
+})
+
+// Tabs are sticky, not re-asserted by every screen: only the 3 tab-root
+// renderers below (renderWeekView/renderSettings/renderProfile) call this.
+// Every other screen (Day Preview, Add Own Workout, Mobility, Tournaments,
+// the guided workout itself, ...) is only ever reached by drilling down
+// from Home, so leaving the highlight untouched while on one of those
+// naturally keeps "Home" selected the whole time - correct without having
+// to touch every render function in the file.
+function setActiveBottomTab(tab) {
+  document.querySelectorAll('.bottom-nav-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.tab === tab)
+  })
+}
 
 document.getElementById('weeklyRecapCloseBtn').addEventListener('click', function() {
   document.getElementById('weeklyRecapModal').classList.remove('active')
@@ -61,6 +83,7 @@ let stretchLibraryCache = null              // stretches visible to this athlete
 let athleteStretchPreferencesCache = null   // Map<stretch_id, 'liked'|'disliked'>
 let mobilityFlowInterval = null             // countdown for the guided flow screen, parallel to mobilityTimerInterval
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
+let coachName = null // fetched once, lazily, the first time the Profile tab is opened
 
 // Session RPE (1-10, modified Borg CR-10 scale) - this exact scale is what
 // Training Load's session_rpe x duration_minutes formula (loadOverviewStats,
@@ -205,7 +228,8 @@ function renderSetPasswordPrompt() {
 }
 
 async function enterWeekView() {
-  document.getElementById('statsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
+  document.getElementById('bottomNav').style.display = 'flex'
+  document.getElementById('navStatsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
   await loadTrainingData()
   await loadTournaments()
   renderWeekView(startOfWeek(new Date()))
@@ -221,6 +245,7 @@ async function enterWeekView() {
 // separate, bigger piece of work (not built yet), this just captures the
 // preference so it's ready to use once that exists.
 function renderSettings() {
+  setActiveBottomTab('settings')
   pageContent.innerHTML = `
     <div class="settings-row">
       <div class="settings-row-info">
@@ -296,6 +321,52 @@ function renderSettings() {
       e.target.checked = previousValue
       customAlert('Something went wrong saving that - try again')
     }
+  })
+}
+
+// Athlete's own name + their coach's name, plus Log Out (moved out of the
+// old header now that it's just the logo). Coach's name isn't already
+// loaded anywhere in this app (the athletes row only carries coach_id), so
+// it's fetched lazily here, once, the first time this tab is opened.
+async function renderProfile() {
+  setActiveBottomTab('profile')
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <h2 class="day-view-date">Profile</h2>
+    </div>
+    <p class="no-metrics">Loading...</p>
+  `
+
+  if (coachName === null) {
+    const { data } = await saveWithRetry((signal) => supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', athlete.coach_id)
+      .maybeSingle()
+      .abortSignal(signal)
+    )
+    coachName = (data && data.name) || ''
+  }
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <h2 class="day-view-date">Profile</h2>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-info"><div class="settings-row-title">Name</div></div>
+      <span>${escapeHtml(athlete.name)}</span>
+    </div>
+    ${coachName ? `
+    <div class="settings-row">
+      <div class="settings-row-info"><div class="settings-row-title">Coach</div></div>
+      <span>${escapeHtml(coachName)}</span>
+    </div>` : ''}
+    <button type="button" class="btn-cancel" id="profileLogoutBtn" style="margin-top:24px">Log Out</button>
+  `
+
+  document.getElementById('profileLogoutBtn').addEventListener('click', async function() {
+    await supabase.auth.signOut()
+    window.location.href = 'index.html'
   })
 }
 
@@ -726,6 +797,7 @@ function playInlineVideo(containerEl, url) {
 // ---- WEEK VIEW (default landing) ----
 // ==========================================================================
 function renderWeekView(weekStart) {
+  setActiveBottomTab('home')
   clearRestTimer()
   currentWeekStart = weekStart
   pageWrap.classList.add('wide')
