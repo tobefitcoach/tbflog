@@ -1515,6 +1515,21 @@
   overflow-y: auto;
 }
 
+/* --- Message Athletes' recipient checklist (index.html) --- */
+.message-recipient-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  cursor: pointer;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.message-recipient-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
 /* --- Shared layout for the 4 stats-bar detail modals (PRs, Metrics tracked,
    Total entries, Last updated): category groups (reuse .category-title),
    each containing one block per metric with a list of label/value rows --- */

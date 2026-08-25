@@ -1393,3 +1393,40 @@ alter table program_exercises add column if not exists tracks_weight_override bo
 alter table program_exercises add column if not exists is_timed_override boolean;
 alter table program_exercises add column if not exists is_unilateral_override boolean;
 alter table program_exercises add column if not exists tracks_distance_override boolean;
+
+-- ==========================================================================
+-- Coach -> athlete messages. One row per recipient (fan-out at send time,
+-- same shape notifications already uses) - "all athletes" or "specific
+-- athletes" is just how many rows get inserted, no separate targeting
+-- table needed. timing decides when the athlete-app shows it: 'on_open'
+-- (next app open) or 'before_workout' (right before Start/Continue
+-- Workout, gated in startWorkout() in athlete-app/dashboard.js). Real push
+-- notifications are a deliberately separate, bigger project (needs a
+-- service worker + a server-side piece to send) - not attempted here.
+-- ==========================================================================
+create table if not exists coach_messages (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  athlete_id bigint not null references athletes(id) on delete cascade,
+  message text not null,
+  timing text not null check (timing in ('on_open', 'before_workout')),
+  seen_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table coach_messages enable row level security;
+
+drop policy if exists "coach manages own messages" on coach_messages;
+create policy "coach manages own messages" on coach_messages for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+
+drop policy if exists "athlete views own messages" on coach_messages;
+create policy "athlete views own messages" on coach_messages for select
+  using (is_own_athlete_as_athlete(athlete_id));
+
+drop policy if exists "athlete marks own messages seen" on coach_messages;
+create policy "athlete marks own messages seen" on coach_messages for update
+  using (is_own_athlete_as_athlete(athlete_id))
+  with check (is_own_athlete_as_athlete(athlete_id));
+
+create index if not exists idx_coach_messages_unseen on coach_messages(athlete_id) where seen_at is null;
+create index if not exists idx_coach_messages_coach_id on coach_messages(coach_id, created_at desc);

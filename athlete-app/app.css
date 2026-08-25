@@ -179,6 +179,21 @@
   margin: 0 0 20px 0;
 }
 
+/* --- Coach message modal body - white-space:pre-wrap keeps line breaks
+   the coach typed instead of collapsing them, same as any plain textarea
+   would render (see #coachMessageModal in dashboard.html) --- */
+.coach-message-text {
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  margin-bottom: 12px;
+}
+
+.coach-message-text:last-child {
+  margin-bottom: 0;
+}
+
 /* --- Duration presets: reused by the Mobility picker and the Field/Training
    quick-log form --- */
 .duration-preset-row {

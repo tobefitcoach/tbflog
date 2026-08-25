@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
     <link rel="stylesheet" href="style.css?v=16" />
-    <link rel="stylesheet" href="athlete.css?v=42" />
+    <link rel="stylesheet" href="athlete.css?v=43" />
   </head>
   <body>
 
@@ -50,7 +50,10 @@
       <div class="dashboard">
     <div class="dashboard-header">
       <h2>Your Athletes</h2>
-      <button class="btn-add">+ Add Athlete</button>
+      <div style="display:flex; gap:10px">
+        <button class="btn-profile-action" id="messageAthletesBtn">📣 Message Athletes</button>
+        <button class="btn-add">+ Add Athlete</button>
+      </div>
     </div>
         <input type="text" id="athleteSearchInput" class="exercise-search-input" placeholder="Search athletes by name..." />
         <div class="chip-row" id="athleteStatusFilter">
@@ -106,11 +109,47 @@
   </div>
 </div>
 
+<!-- Message Athletes Modal: compose + send, to all athletes or specific
+     ones, shown either the next time they open the app or right before
+     they start their next workout - see sendCoachMessage() in script.js.
+     Real push notifications (works even with the app fully closed)
+     aren't built yet - deliberately deferred, needs new infrastructure. -->
+<div class="modal-overlay" id="messageAthletesModal">
+  <div class="modal">
+    <div class="graph-modal-header">
+      <h2>Message Athletes</h2>
+      <button type="button" class="btn-cancel" id="closeMessageAthletesBtn">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Message</label>
+      <textarea id="coachMessageText" class="notes-textarea" placeholder="e.g. Reminder: no training tomorrow, enjoy the rest day!"></textarea>
+    </div>
+    <div class="form-group">
+      <label>When should they see it?</label>
+      <div class="chip-row" id="messageTimingChips">
+        <button type="button" class="chip-btn selected" data-timing="on_open">When they open the app</button>
+        <button type="button" class="chip-btn" data-timing="before_workout">Right before they start a workout</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Send to</label>
+      <label class="bodyweight-toggle" style="margin-bottom:10px"><span>All athletes</span>
+        <span class="toggle-switch"><input type="checkbox" id="messageToAllToggle" checked><span class="toggle-slider"></span></span>
+      </label>
+      <div id="messageRecipientList" class="entries-modal-body" style="display:none"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" id="cancelMessageAthletesBtn">Cancel</button>
+      <button class="btn-save" id="sendMessageAthletesBtn">Send</button>
+    </div>
+  </div>
+</div>
+
 <!-- Main page logic (see script.js) -->
 <script type="module" src="loading-bar.js?v=1"></script>
 <script type="module" src="confirm-modal.js?v=1"></script>
 <script type="module" src="network-retry.js?v=1"></script>
-<script type="module" src="script.js?v=13"></script>
+<script type="module" src="script.js?v=14"></script>
 <script type="module" src="bell.js?v=1"></script>
 <script type="module" src="sidebar.js?v=1"></script>
   </body>

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard — TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=16" />
-    <link rel="stylesheet" href="../athlete.css?v=42" />
-    <link rel="stylesheet" href="app.css?v=42" />
+    <link rel="stylesheet" href="../athlete.css?v=43" />
+    <link rel="stylesheet" href="app.css?v=43" />
   </head>
   <body>
 
@@ -39,6 +39,22 @@
         <div id="weeklyRecapBody"></div>
         <div class="form-actions" style="justify-content:flex-end; margin-top:24px">
           <button class="btn-save" id="weeklyRecapCloseBtn">Nice!</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coach message(s) - shown either right after entering the app
+         (queued 'on_open' rows) or right before Start/Continue Workout
+         (queued 'before_workout' rows, via startWorkout()) - see
+         showCoachMessagesModal() in dashboard.js. The Continue button's
+         label/action are set per-show: closes-only for on_open, actually
+         starts the workout for before_workout. -->
+    <div class="modal-overlay" id="coachMessageModal">
+      <div class="modal">
+        <h2>Message from your coach</h2>
+        <div id="coachMessageBody"></div>
+        <div class="form-actions" style="justify-content:flex-end; margin-top:24px">
+          <button class="btn-save" id="coachMessageContinueBtn">Got it</button>
         </div>
       </div>
     </div>
@@ -150,6 +166,6 @@
     <script type="module" src="../loading-bar.js?v=1"></script>
     <script type="module" src="../confirm-modal.js?v=1"></script>
     <script type="module" src="../network-retry.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=82"></script>
+    <script type="module" src="dashboard.js?v=83"></script>
   </body>
 </html>

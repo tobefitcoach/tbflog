@@ -67,6 +67,10 @@ function setActiveBottomTab(tab) {
 
 document.getElementById('weeklyRecapCloseBtn').addEventListener('click', function() {
   document.getElementById('weeklyRecapModal').classList.remove('active')
+  // Chained rather than both firing at app-entry independently - two
+  // modal-overlays active at once would just overlap. Coach messages wait
+  // for the recap to be dismissed first when both would otherwise show.
+  maybeShowOnOpenMessages()
 })
 
 let athlete = null
@@ -232,8 +236,13 @@ async function enterWeekView() {
   document.getElementById('navStatsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
   await loadTrainingData()
   await loadTournaments()
+  await loadCoachMessages()
   renderWeekView(startOfWeek(new Date()))
-  maybeShowWeeklyRecap()
+  // Only one modal-overlay should ever be active at once - if the recap
+  // actually shows, its own close button chains into
+  // maybeShowOnOpenMessages() afterward instead of this firing right away
+  const recapShown = maybeShowWeeklyRecap()
+  if (!recapShown) maybeShowOnOpenMessages()
   flushPendingQueue() // not awaited - picks up anything left over from a previous session
   flushPendingSessionEnds()
 }
@@ -1933,11 +1942,14 @@ async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, av
 // "have I already shown this on this device" flag, not something the coach
 // or any other device needs to know about.
 // ==========================================================================
+// Returns whether it actually showed - enterWeekView() uses this to decide
+// whether to show queued coach messages right away or wait for this
+// modal's own close button to chain into them instead
 function maybeShowWeeklyRecap() {
-  if (!athlete.weekly_recap_enabled) return
+  if (!athlete.weekly_recap_enabled) return false
 
   const thisWeekKey = toDateStr(startOfWeek(new Date()))
-  if (localStorage.getItem('tbflog-recap-shown-week') === thisWeekKey) return
+  if (localStorage.getItem('tbflog-recap-shown-week') === thisWeekKey) return false
 
   const lastWeekStart = addDays(startOfWeek(new Date()), -7)
   const stats = computeWeekRecap(lastWeekStart)
@@ -1945,9 +1957,75 @@ function maybeShowWeeklyRecap() {
 
   // Nothing happened last week (e.g. a brand new athlete) - showing an
   // empty recap isn't useful, so skip the popup but still mark it seen
-  if (stats.totalWorkouts === 0 && stats.totalSets === 0) return
+  if (stats.totalWorkouts === 0 && stats.totalSets === 0) return false
 
   showWeeklyRecapModal(stats)
+  return true
+}
+
+// ==========================================================================
+// ---- COACH MESSAGES ----
+// A coach can send a message that shows either the next time this athlete
+// opens the app ('on_open') or right before they start their next workout
+// ('before_workout', gated inside startWorkout() below). Loaded once per
+// session into these two caches; each queue is cleared and marked seen the
+// moment it's actually shown, so re-opening the app or starting another
+// workout later in the same session never shows the same message twice.
+// Real push notifications (works even with the app fully closed) aren't
+// built yet - deliberately deferred, needs a service worker + a way to
+// send from a server, neither of which this app has.
+// ==========================================================================
+let onOpenMessagesCache = []
+let beforeWorkoutMessagesCache = []
+
+async function loadCoachMessages() {
+  const { data, error } = await saveWithRetry((signal) => supabase
+    .from('coach_messages')
+    .select('*')
+    .eq('athlete_id', athlete.id)
+    .is('seen_at', null)
+    .order('created_at')
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); return }
+  onOpenMessagesCache = (data || []).filter(m => m.timing === 'on_open')
+  beforeWorkoutMessagesCache = (data || []).filter(m => m.timing === 'before_workout')
+}
+
+// Never awaited by callers - a failed "mark seen" shouldn't block or alert
+// on the athlete's own flow (same reasoning as notifyCoach above); worst
+// case the same message shows again next time, which is harmless
+async function markMessagesSeen(messages) {
+  const ids = messages.map(m => m.id)
+  if (ids.length === 0) return
+  const { error } = await supabase.from('coach_messages').update({ seen_at: new Date().toISOString() }).in('id', ids)
+  if (error) console.log(error)
+}
+
+// onContinue is null for the on_open case (the button just closes the
+// modal) and the actual "now really start the workout" callback for the
+// before_workout case - see startWorkout() below
+function showCoachMessagesModal(messages, onContinue) {
+  document.getElementById('coachMessageBody').innerHTML = messages
+    .map(m => `<p class="coach-message-text">${escapeHtml(m.message)}</p>`)
+    .join('')
+  document.getElementById('coachMessageModal').classList.add('active')
+  document.getElementById('coachMessageContinueBtn').textContent = onContinue ? 'Continue' : 'Got it'
+  // Overwriting .onclick (not addEventListener) means each show cleanly
+  // replaces the previous one instead of listeners piling up across a
+  // long-lived session with several messages shown over time
+  document.getElementById('coachMessageContinueBtn').onclick = function() {
+    document.getElementById('coachMessageModal').classList.remove('active')
+    if (onContinue) onContinue()
+  }
+}
+
+function maybeShowOnOpenMessages() {
+  if (onOpenMessagesCache.length === 0) return
+  const messages = onOpenMessagesCache
+  onOpenMessagesCache = []
+  markMessagesSeen(messages)
+  showCoachMessagesModal(messages, null)
 }
 
 // Also powers the on-demand Weekly Stats view (see renderWeeklyStats
@@ -2408,6 +2486,20 @@ function findResumeStepIndex(steps) {
   return Math.max(steps.length - 1, 0)
 }
 
+// Gate for any queued 'before_workout' coach messages - shown once, right
+// before Start/Continue Workout actually proceeds (both buttons call this
+// same function, see renderDayPreviewGroup's actionButton wiring)
+function startWorkout(entry, dateStr) {
+  if (beforeWorkoutMessagesCache.length > 0) {
+    const messages = beforeWorkoutMessagesCache
+    beforeWorkoutMessagesCache = []
+    markMessagesSeen(messages)
+    showCoachMessagesModal(messages, function() { proceedToStartWorkout(entry, dateStr) })
+    return
+  }
+  proceedToStartWorkout(entry, dateStr)
+}
+
 // Renders the first exercise immediately - findResumeIndex only needs data
 // already loaded in memory, no network required. findOrCreateSession does
 // need a round trip (look up an in-progress session, or create one), but
@@ -2415,7 +2507,7 @@ function findResumeStepIndex(steps) {
 // pressed, so it's kicked off in the background instead of being awaited
 // here - awaiting it first was the actual cause of "pressing Start Workout
 // does nothing for a second or more", especially on a slow connection.
-function startWorkout(entry, dateStr) {
+function proceedToStartWorkout(entry, dateStr) {
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
   if (exercises.length === 0 && !isSelfLogged) { customAlert('No exercises in this training'); return }

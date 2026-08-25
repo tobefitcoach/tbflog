@@ -42,7 +42,81 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
   await supabase.auth.signOut()
   window.location.href = 'login.html'
 })
- 
+
+// ==========================================================================
+// ---- MESSAGE ATHLETES ----
+// Compose a message, sent to all athletes or specific ones - one row per
+// recipient (fan-out at send time), same shape notifications already
+// uses, so "seen" tracking is just a per-row timestamp with no separate
+// join table. timing decides which of the two in-app moments the athlete
+// app shows it at (see loadCoachMessages()/startWorkout() in
+// athlete-app/dashboard.js) - real push notifications aren't built yet,
+// deliberately deferred (needs a service worker + a way to send from a
+// server, which this app doesn't have).
+// ==========================================================================
+document.getElementById('messageAthletesBtn').addEventListener('click', function() {
+  document.getElementById('coachMessageText').value = ''
+  document.querySelectorAll('#messageTimingChips .chip-btn').forEach(b => b.classList.toggle('selected', b.dataset.timing === 'on_open'))
+  document.getElementById('messageToAllToggle').checked = true
+  document.getElementById('messageRecipientList').style.display = 'none'
+  renderMessageRecipientList()
+  document.getElementById('messageAthletesModal').classList.add('active')
+})
+
+document.getElementById('closeMessageAthletesBtn').addEventListener('click', function() {
+  document.getElementById('messageAthletesModal').classList.remove('active')
+})
+document.getElementById('cancelMessageAthletesBtn').addEventListener('click', function() {
+  document.getElementById('messageAthletesModal').classList.remove('active')
+})
+
+document.querySelectorAll('#messageTimingChips .chip-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#messageTimingChips .chip-btn').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+  })
+})
+
+document.getElementById('messageToAllToggle').addEventListener('change', function(e) {
+  document.getElementById('messageRecipientList').style.display = e.target.checked ? 'none' : 'block'
+})
+
+function renderMessageRecipientList() {
+  const list = document.getElementById('messageRecipientList')
+  const eligible = allAthletes.filter(a => !a.archived)
+  list.innerHTML = eligible.length === 0
+    ? '<p class="no-metrics">No athletes yet</p>'
+    : eligible.map(a => `
+        <label class="message-recipient-row">
+          <input type="checkbox" class="message-recipient-checkbox" value="${a.id}">
+          <span>${a.name}</span>
+        </label>
+      `).join('')
+}
+
+document.getElementById('sendMessageAthletesBtn').addEventListener('click', async function() {
+  const message = document.getElementById('coachMessageText').value.trim()
+  if (!message) { customAlert('Please write a message first'); return }
+
+  const timingBtn = document.querySelector('#messageTimingChips .chip-btn.selected')
+  const timing = timingBtn ? timingBtn.dataset.timing : 'on_open'
+
+  const sendToAll = document.getElementById('messageToAllToggle').checked
+  const recipientIds = sendToAll
+    ? allAthletes.filter(a => !a.archived).map(a => a.id)
+    : [...document.querySelectorAll('.message-recipient-checkbox:checked')].map(cb => parseInt(cb.value))
+
+  if (recipientIds.length === 0) { customAlert('Please choose at least one athlete'); return }
+
+  const { error } = await supabase.from('coach_messages').insert(
+    recipientIds.map(athleteId => ({ coach_id: session.user.id, athlete_id: athleteId, message, timing }))
+  )
+  if (error) { console.log(error); customAlert('Something went wrong sending that - try again'); return }
+
+  document.getElementById('messageAthletesModal').classList.remove('active')
+  customAlert(`Sent to ${recipientIds.length} athlete${recipientIds.length === 1 ? '' : 's'}.`)
+})
+
 // ==========================================================================
 // ---- LOAD ATHLETES ----
 // Fetches every athlete from the DB and renders a card for each one
