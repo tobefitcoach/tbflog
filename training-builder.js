@@ -483,6 +483,21 @@ function removeSetTargetRow(row) {
 // ==========================================================================
 // ---- LOAD + RENDER EXERCISE LIST ----
 // ==========================================================================
+// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
+// straight from the exercise's own row (te.exercises) - an explicit
+// *_override on THIS training_exercises row (set via a card's "Adjust
+// Fields" menu, scoped to just this one workout) takes precedence instead.
+// Merging the override into te.exercises here, once per fetch, means every
+// existing read of te.exercises.* downstream (set-target rows, badges,
+// etc.) sees the right effective value with no other changes needed.
+function applyFieldOverrides(te) {
+  if (!te.exercises) return
+  if (te.tracks_weight_override != null) te.exercises.tracks_weight = te.tracks_weight_override
+  if (te.is_timed_override != null) te.exercises.is_timed = te.is_timed_override
+  if (te.is_unilateral_override != null) te.exercises.is_unilateral = te.is_unilateral_override
+  if (te.tracks_distance_override != null) te.exercises.tracks_distance = te.tracks_distance_override
+}
+
 async function loadExercisesList() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('training_exercises')
@@ -494,6 +509,7 @@ async function loadExercisesList() {
   if (error) { console.log('Error loading training exercises:', error); customAlert('Something went wrong loading this workout\'s exercises - check your connection and try again'); return }
 
   data.sort((a, b) => a.order_index - b.order_index)
+  data.forEach(applyFieldOverrides)
   exercisesCache = data
   renderExercisesList()
 }
@@ -867,24 +883,28 @@ document.addEventListener('click', function(e) {
 
 // ==========================================================================
 // ---- ADJUST FIELDS (from an exercise card's ⋮ menu) ----
-// tracks_weight/is_timed/is_unilateral/tracks_distance live on `exercises`
-// itself, not on this training's row - the same fields Exercise Library's
-// own edit modal already exposes, just reachable without leaving the
-// builder. Saves straight to the exercises table (immediate, like every
-// other exercises-table edit in this app), so it applies everywhere this
-// exercise is used, not just this one training - every card on screen that
-// uses the same exercise gets refreshed in place afterward.
+// tracks_weight/is_timed/is_unilateral/tracks_distance normally come from
+// the exercise's own row (Exercise Library's own edit modal). This saves
+// an override on THIS training_exercises row instead - scoped to just this
+// one workout, never touching the shared exercise (see the 4 *_override
+// columns added alongside this feature). The checkboxes start from the
+// resolved effective value (applyFieldOverrides already merged any
+// existing override into te.exercises at load time), so Save always
+// writes a full, explicit snapshot of all 4 fields as this instance's
+// override - simple and predictable, at the cost of no longer tracking
+// the exercise's default if it changes later (expected: an adjustment is
+// a deliberate one-off pin, not a subscription to future defaults).
 // ==========================================================================
-let adjustFieldsExerciseId = null
+let adjustFieldsTeId = null
 
 function openAdjustFieldsModal(te) {
-  if (!te || !te.exercises) return
-  adjustFieldsExerciseId = te.exercises.id
-  document.getElementById('adjustFieldsExerciseName').textContent = te.exercises.name || ''
-  document.getElementById('adjustFieldsTracksWeight').checked = !!te.exercises.tracks_weight
-  document.getElementById('adjustFieldsIsTimed').checked = !!te.exercises.is_timed
-  document.getElementById('adjustFieldsIsUnilateral').checked = !!te.exercises.is_unilateral
-  document.getElementById('adjustFieldsTracksDistance').checked = !!te.exercises.tracks_distance
+  if (!te) return
+  adjustFieldsTeId = te.id
+  document.getElementById('adjustFieldsExerciseName').textContent = te.exercises ? te.exercises.name : ''
+  document.getElementById('adjustFieldsTracksWeight').checked = !te.exercises || !!te.exercises.tracks_weight
+  document.getElementById('adjustFieldsIsTimed').checked = !!(te.exercises && te.exercises.is_timed)
+  document.getElementById('adjustFieldsIsUnilateral').checked = !!(te.exercises && te.exercises.is_unilateral)
+  document.getElementById('adjustFieldsTracksDistance').checked = !!(te.exercises && te.exercises.tracks_distance)
   document.getElementById('adjustFieldsModal').classList.add('active')
 }
 
@@ -896,33 +916,26 @@ document.getElementById('cancelAdjustFieldsBtn').addEventListener('click', funct
 })
 
 document.getElementById('saveAdjustFieldsBtn').addEventListener('click', async function() {
-  if (!adjustFieldsExerciseId) return
+  if (!adjustFieldsTeId) return
   const updates = {
-    tracks_weight: document.getElementById('adjustFieldsTracksWeight').checked,
-    is_timed: document.getElementById('adjustFieldsIsTimed').checked,
-    is_unilateral: document.getElementById('adjustFieldsIsUnilateral').checked,
-    tracks_distance: document.getElementById('adjustFieldsTracksDistance').checked
+    tracks_weight_override: document.getElementById('adjustFieldsTracksWeight').checked,
+    is_timed_override: document.getElementById('adjustFieldsIsTimed').checked,
+    is_unilateral_override: document.getElementById('adjustFieldsIsUnilateral').checked,
+    tracks_distance_override: document.getElementById('adjustFieldsTracksDistance').checked
   }
-  const { error } = await supabase.from('exercises').update(updates).eq('id', adjustFieldsExerciseId)
+  const { error } = await supabase.from('training_exercises').update(updates).eq('id', adjustFieldsTeId)
   if (error) { console.log(error); customAlert('Something went wrong saving those fields - try again'); return }
 
-  const libExercise = allExercises.find(ex => ex.id === adjustFieldsExerciseId)
-  if (libExercise) Object.assign(libExercise, updates)
-
-  // Every card on this training using this same exercise needs its set-
-  // target rows redrawn (weight/timed/distance inputs, unilateral badge) -
-  // a targeted per-card replace, not the page-level renderExercisesList(),
-  // since that would wipe any unsaved edits on every OTHER card too (this
-  // builder only writes training_exercises to the DB once, from the single
-  // page-level Save button - see saveExerciseCard's own comment)
-  for (const te of exercisesCache) {
-    if (!te.exercises || te.exercises.id !== adjustFieldsExerciseId) continue
-    Object.assign(te.exercises, updates)
+  const te = exercisesCache.find(t => t.id === adjustFieldsTeId)
+  if (te) {
+    Object.assign(te, updates)
+    applyFieldOverrides(te)
     const card = document.querySelector(`.builder-exercise-card[data-id="${te.id}"]`)
-    if (!card) continue
-    card.outerHTML = renderExerciseCard(te)
-    if (te.extra_fields) {
-      for (const [k, v] of Object.entries(te.extra_fields)) addExtraFieldRow(`extraFields-${te.id}`, k, v)
+    if (card) {
+      card.outerHTML = renderExerciseCard(te)
+      if (te.extra_fields) {
+        for (const [k, v] of Object.entries(te.extra_fields)) addExtraFieldRow(`extraFields-${te.id}`, k, v)
+      }
     }
   }
 

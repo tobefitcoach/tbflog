@@ -401,6 +401,22 @@ async function notifyCoach(type, message) {
   if (error) console.log(error)
 }
 
+// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
+// straight from the exercise's own row (pe.exercises) - an explicit
+// *_override on THIS program_exercises row (set by the coach in Workout
+// Builder's "Adjust Fields", scoped to just this one workout) takes
+// precedence instead. Merging the override into pe.exercises here, once
+// per fetch, means every existing read of pe.exercises.* downstream (set
+// rows, badges, volume calc, etc.) sees the right effective value with no
+// other changes needed.
+function applyFieldOverrides(pe) {
+  if (!pe.exercises) return
+  if (pe.tracks_weight_override != null) pe.exercises.tracks_weight = pe.tracks_weight_override
+  if (pe.is_timed_override != null) pe.exercises.is_timed = pe.is_timed_override
+  if (pe.is_unilateral_override != null) pe.exercises.is_unilateral = pe.is_unilateral_override
+  if (pe.tracks_distance_override != null) pe.exercises.tracks_distance = pe.tracks_distance_override
+}
+
 // All the calendar-day dates a tournament covers, inclusive of both ends -
 // a single-day tournament (date === end_date) is just a one-element range
 function eachDateStrInRange(startStr, endStr) {
@@ -708,6 +724,7 @@ async function loadTrainingData() {
   for (const program of data) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
+        day.program_exercises.forEach(applyFieldOverrides)
         const dateStr = day.date_override || resolveDate(program.start_date, week.week_number, day.day_number)
         if (!entriesByDate[dateStr]) entriesByDate[dateStr] = []
         entriesByDate[dateStr].push({ program, week, day })
@@ -2895,7 +2912,13 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
     .update({
       exercise_id: newExerciseId,
       swapped_by_athlete: true,
-      original_exercise_id: pe.original_exercise_id || pe.exercise_id
+      original_exercise_id: pe.original_exercise_id || pe.exercise_id,
+      // Any field override was pinned for the OLD exercise - carrying it
+      // over to whatever the athlete just swapped in wouldn't make sense
+      tracks_weight_override: null,
+      is_timed_override: null,
+      is_unilateral_override: null,
+      tracks_distance_override: null
     })
     .eq('id', peId)
     .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral, tracks_distance)')

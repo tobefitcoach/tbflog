@@ -91,6 +91,21 @@ function formatShortDateCal(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
+// straight from the exercise's own row (row.exercises) - an explicit
+// *_override on THIS training_exercises/program_exercises row (set via
+// Workout Builder's "Adjust Fields") takes precedence instead, scoped to
+// just that one workout. Merging the override into row.exercises here,
+// once per fetch, means every existing read of row.exercises.* downstream
+// sees the right effective value with no other changes needed.
+function applyFieldOverridesCal(row) {
+  if (!row.exercises) return
+  if (row.tracks_weight_override != null) row.exercises.tracks_weight = row.tracks_weight_override
+  if (row.is_timed_override != null) row.exercises.is_timed = row.is_timed_override
+  if (row.is_unilateral_override != null) row.exercises.is_unilateral = row.is_unilateral_override
+  if (row.tracks_distance_override != null) row.exercises.tracks_distance = row.tracks_distance_override
+}
+
 // All the calendar-day dates a tournament covers, inclusive of both ends -
 // a single-day tournament (date === end_date) is just a one-element range
 function eachDateStrInRangeCal(startStr, endStr) {
@@ -166,6 +181,7 @@ async function loadCalendarMonth(year, month) {
   for (const program of data) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
+        day.program_exercises.forEach(applyFieldOverridesCal)
         const dateStr = day.date_override || resolveDate(program.start_date, week.week_number, day.day_number)
         if (!calendarEntriesByDate[dateStr]) calendarEntriesByDate[dateStr] = []
         calendarEntriesByDate[dateStr].push({ program, week, day })
@@ -1070,6 +1086,7 @@ async function previewTraining(trainingId, trainingName) {
       .order('order_index')
     if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
     exercises = data
+    exercises.forEach(applyFieldOverridesCal)
     cachedTrainingExercises[trainingId] = exercises
   }
 
@@ -1508,7 +1525,15 @@ async function cloneTrainingToDay(trainingId, dayId) {
       notes: te.notes,
       section_label: te.section_label,
       section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
-      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null
+      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
+      // Carry any "Adjust Fields" per-instance overrides from the Training
+      // over to this real athlete day - without this, assigning a Training
+      // whose exercises were adjusted in Workout Builder would silently
+      // lose those adjustments the moment it landed on a calendar day
+      tracks_weight_override: te.tracks_weight_override,
+      is_timed_override: te.is_timed_override,
+      is_unilateral_override: te.is_unilateral_override,
+      tracks_distance_override: te.tracks_distance_override
     }))
   )
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
@@ -1979,7 +2004,13 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
         notes: pe.notes,
         section_label: pe.section_label,
         section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
-        superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null
+        superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
+        // Carry any per-instance "Adjust Fields" overrides forward too -
+        // assigning a template shouldn't silently drop them
+        tracks_weight_override: pe.tracks_weight_override,
+        is_timed_override: pe.is_timed_override,
+        is_unilateral_override: pe.is_unilateral_override,
+        tracks_distance_override: pe.tracks_distance_override
       })
     })
   })

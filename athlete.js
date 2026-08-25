@@ -455,7 +455,10 @@ async function loadOverviewStats() {
         workoutEntries.push({ dateStr, exercises: day.program_exercises })
         dayInfoById[day.id] = { dateStr, name: trainingDisplayNameOv(program, day) }
         for (const pe of day.program_exercises) {
-          if (pe.exercises && pe.exercises.tracks_weight) weightsPEIds.add(pe.id)
+          // A per-instance "Adjust Fields" override (Workout Builder) wins
+          // over the exercise's own tracks_weight default when present
+          const tracksWeight = pe.tracks_weight_override != null ? pe.tracks_weight_override : !!(pe.exercises && pe.exercises.tracks_weight)
+          if (tracksWeight) weightsPEIds.add(pe.id)
         }
       }
     }
@@ -2979,7 +2982,14 @@ async function fetchReportData() {
         const dateStr = day.date_override || resolveDateOv(program.start_date, week.week_number, day.day_number)
         workoutEntries.push({ dateStr, exercises: day.program_exercises })
         for (const pe of day.program_exercises) {
-          if (pe.exercises) peInfoById[pe.id] = pe.exercises
+          // A per-instance "Adjust Fields" override (Workout Builder) wins
+          // over the exercise's own tracks_weight default when present -
+          // durationStatsForRange() below reads .tracks_weight off this
+          // same object, so it needs to see the resolved value too
+          if (pe.exercises) {
+            const tracksWeight = pe.tracks_weight_override != null ? pe.tracks_weight_override : !!pe.exercises.tracks_weight
+            peInfoById[pe.id] = { ...pe.exercises, tracks_weight: tracksWeight }
+          }
         }
       }
     }

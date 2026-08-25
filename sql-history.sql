@@ -1369,3 +1369,27 @@ alter table tournaments drop constraint if exists tournaments_end_after_start;
 alter table tournaments add constraint tournaments_end_after_start check (end_date >= date);
 
 create index if not exists idx_tournaments_end_date on tournaments(end_date);
+
+-- ==========================================================================
+-- Per-instance logging-field overrides. "Adjust Fields" (Workout Builder's
+-- exercise card kebab menu) used to write straight to `exercises` - that
+-- changed the field everywhere that exercise is used, which wasn't the
+-- intent. These 4 nullable columns instead let ONE placement of an
+-- exercise override tracks_weight/is_timed/is_unilateral/tracks_distance
+-- for just that one workout - null means "use the exercise's own default"
+-- (the normal case), non-null pins it regardless of what the Exercise
+-- Library default is or later becomes. Added to both training_exercises
+-- (Workout Builder's own table) and program_exercises (what an athlete
+-- actually logs against) since a Training's overrides need to survive
+-- being assigned onto a real athlete's calendar/program - see the updated
+-- cloneTrainingToDay/cloneTemplateToAthlete in athlete-calendar.js.
+-- ==========================================================================
+alter table training_exercises add column if not exists tracks_weight_override boolean;
+alter table training_exercises add column if not exists is_timed_override boolean;
+alter table training_exercises add column if not exists is_unilateral_override boolean;
+alter table training_exercises add column if not exists tracks_distance_override boolean;
+
+alter table program_exercises add column if not exists tracks_weight_override boolean;
+alter table program_exercises add column if not exists is_timed_override boolean;
+alter table program_exercises add column if not exists is_unilateral_override boolean;
+alter table program_exercises add column if not exists tracks_distance_override boolean;

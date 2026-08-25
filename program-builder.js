@@ -220,6 +220,22 @@ function removeSetTargetRow(row) {
 // One nested query pulls the whole tree; sorted client-side since the
 // dataset per template is always small.
 // ==========================================================================
+// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
+// straight from the exercise's own row (pe.exercises) - an explicit
+// *_override on THIS program_exercises row (set via Workout Builder's
+// "Adjust Fields" on the Training this day was cloned from, or carried
+// forward from a cloned template) takes precedence instead, scoped to
+// just this one placement. Merging the override into pe.exercises here,
+// once per fetch, means every existing read of pe.exercises.* downstream
+// sees the right effective value with no other changes needed.
+function applyFieldOverrides(pe) {
+  if (!pe.exercises) return
+  if (pe.tracks_weight_override != null) pe.exercises.tracks_weight = pe.tracks_weight_override
+  if (pe.is_timed_override != null) pe.exercises.is_timed = pe.is_timed_override
+  if (pe.is_unilateral_override != null) pe.exercises.is_unilateral = pe.is_unilateral_override
+  if (pe.tracks_distance_override != null) pe.exercises.tracks_distance = pe.tracks_distance_override
+}
+
 async function loadWeeks() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('program_weeks')
@@ -235,6 +251,7 @@ async function loadWeeks() {
     week.program_days.sort((a, b) => a.day_number - b.day_number)
     week.program_days.forEach(day => {
       day.program_exercises.sort((a, b) => a.order_index - b.order_index)
+      day.program_exercises.forEach(applyFieldOverrides)
     })
   })
 
