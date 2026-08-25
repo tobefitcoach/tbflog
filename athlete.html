@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=18" />
-  <link rel="stylesheet" href="athlete.css?v=43" />
+  <link rel="stylesheet" href="athlete.css?v=44" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -966,6 +966,25 @@
       </div>
     </div>
 
+    <!-- Copy Workout Modal: opened from a workout's ⋮ menu inside
+         Day Detail - creates a fresh, unlogged copy on a chosen date (see
+         cloneDayToDate() in athlete-calendar.js), never a copy of what was
+         actually logged. -->
+    <div class="modal-overlay" id="copyWorkoutModal">
+      <div class="modal">
+        <h2>Copy Workout</h2>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px">Creates a fresh, unlogged copy on the new date - not a copy of what was actually logged.</p>
+        <div class="form-group">
+          <label>New Date</label>
+          <input type="date" id="copyWorkoutDateInput" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelCopyWorkoutBtn">Cancel</button>
+          <button class="btn-save" id="saveCopyWorkoutBtn">Copy</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Add Training popup: opens from the small "+" that appears when
          hovering a calendar day (see .calendar-day-add-btn). Two tabs: drop
          a single saved Training onto just this day, or assign a whole
@@ -1124,7 +1143,7 @@
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
     <script type="module" src="athlete.js?v=31"></script>
-    <script type="module" src="athlete-calendar.js?v=48"></script>
+    <script type="module" src="athlete-calendar.js?v=49"></script>
     <script type="module" src="bell.js?v=3"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>

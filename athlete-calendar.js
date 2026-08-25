@@ -51,6 +51,11 @@ window.addEventListener('calendar-tab-activated', function() {
   if (calendarLoaded) return
   calendarLoaded = true
   loadCalendarMonth(currentViewYear, currentViewMonth)
+  // #calendarGrid itself is a persistent node (only its innerHTML gets
+  // replaced on every month change) - delegated listeners are wired here,
+  // once, rather than inside renderCalendarGrid (which reruns on every
+  // month load and would otherwise stack a new set of listeners each time)
+  wireCalendarDragToMove(document.getElementById('calendarGrid'))
 })
 
 document.getElementById('calPrevBtn').addEventListener('click', function() {
@@ -280,7 +285,9 @@ function renderCalendarGrid(year, month) {
       const status = session ? (session.ended_at ? 'done' : 'in-progress') : 'planned'
       const glyph = status === 'done' ? '✓' : (status === 'in-progress' ? '▶' : '')
       const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
-      return { status, glyph, label: selfLogged + trainingDisplayName(entry) }
+      // dayId marks this as a real, draggable workout - mobility/tournament
+      // items below never get one, so they're never draggable
+      return { status, glyph, label: selfLogged + trainingDisplayName(entry), dayId: entry.day.id }
     })
     if (mobility) items.push({ status: 'done', glyph: '🧘', label: 'Mobility' })
     if (tournament) items.push({ status: 'tournament', glyph: '🏆', label: tournament.name })
@@ -289,7 +296,7 @@ function renderCalendarGrid(year, month) {
     const extraCount = items.length - visibleItems.length
     const dotsHtml = visibleItems.map(it => `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`).join('')
       + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
-    const badgesHtml = visibleItems.map(it => `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`).join('')
+    const badgesHtml = visibleItems.map(it => `<span class="calendar-day-badge calendar-day-badge-${it.status}" ${it.dayId ? `draggable="true" data-day-id="${it.dayId}"` : ''}>${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
     return `
@@ -318,6 +325,55 @@ function renderCalendarGrid(year, month) {
       openDayAddTrainingModal(btn.dataset.date)
     })
   })
+}
+
+// ==========================================================================
+// ---- DRAG A WORKOUT BADGE TO A NEW DAY ----
+// Desktop-only in practice - only .calendar-day-badge (hidden on mobile in
+// favor of the tiny dots) carries draggable="true", and only for real
+// workouts (mobility/tournament items never get a data-day-id, see
+// renderCalendarGrid's items build). Wired once on the persistent
+// #calendarGrid node itself (see the calendar-tab-activated listener
+// above) rather than per-render, since delegated listeners on a node whose
+// children get replaced don't need re-attaching.
+// ==========================================================================
+function wireCalendarDragToMove(grid) {
+  grid.addEventListener('dragstart', function(e) {
+    const badge = e.target.closest('.calendar-day-badge[draggable="true"]')
+    if (!badge) return
+    e.dataTransfer.setData('text/plain', badge.dataset.dayId)
+    e.dataTransfer.effectAllowed = 'move'
+    setTimeout(() => badge.classList.add('dragging'), 0)
+  })
+  grid.addEventListener('dragend', function(e) {
+    const badge = e.target.closest('.calendar-day-badge')
+    if (badge) badge.classList.remove('dragging')
+  })
+  grid.addEventListener('dragover', function(e) {
+    const cell = e.target.closest('.calendar-day')
+    if (!cell) return
+    e.preventDefault()
+    cell.classList.add('drag-over')
+  })
+  grid.addEventListener('dragleave', function(e) {
+    const cell = e.target.closest('.calendar-day')
+    if (cell) cell.classList.remove('drag-over')
+  })
+  grid.addEventListener('drop', async function(e) {
+    const cell = e.target.closest('.calendar-day')
+    if (!cell) return
+    e.preventDefault()
+    cell.classList.remove('drag-over')
+    const dayId = e.dataTransfer.getData('text/plain')
+    if (!dayId) return
+    await moveWorkoutToDate(dayId, cell.dataset.date)
+  })
+}
+
+async function moveWorkoutToDate(dayId, newDateStr) {
+  const { error } = await supabase.from('program_days').update({ date_override: newDateStr }).eq('id', dayId)
+  if (error) { console.log(error); customAlert('Something went wrong moving that workout'); return }
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
 }
 
 // ==========================================================================
@@ -384,7 +440,13 @@ function openDayModal(dateStr) {
             <h4 class="detail-group-title">${label}</h4>
             <div style="display:flex; align-items:center; gap:8px">
               ${entry.day.date_override ? '<span class="athlete-modified-badge">📅 Moved by athlete</span>' : ''}
-              <button class="btn-delete-metric" ${deleteAction}>🗑 Delete Workout</button>
+              <div class="kebab-menu">
+                <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
+                <div class="kebab-dropdown">
+                  <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${entry.day.id}" data-name="${escapeHtmlCal(trainingDisplayName(entry))}">📋 Copy to another day</button>
+                  <button class="kebab-item" ${deleteAction}>🗑 Delete Workout</button>
+                </div>
+              </div>
             </div>
           </div>
           ${showReview ? renderSessionSummaryCal(session) : ''}
@@ -570,6 +632,20 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
     return
   }
 
+  if (btn.dataset.action === 'toggle-kebab') {
+    const dropdown = btn.parentElement.querySelector('.kebab-dropdown')
+    const wasActive = dropdown.classList.contains('active')
+    document.querySelectorAll('#dayDetailContent .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+    if (!wasActive) dropdown.classList.add('active')
+    return
+  }
+
+  if (btn.dataset.action === 'copy-training') {
+    btn.closest('.kebab-dropdown').classList.remove('active')
+    openCopyWorkoutModal(btn.dataset.programDayId, btn.dataset.name)
+    return
+  }
+
   if (btn.dataset.action === 'save-scheduled-day') {
     await saveScheduledDay(btn.closest('.detail-group'))
     return
@@ -601,6 +677,14 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
   } else if (btn.dataset.action === 'toggle-link') {
     handleLinkClickCal(peId, btn.closest('.detail-group'))
   }
+})
+
+// Kebab dropdowns (see toggle-kebab above) close on their own toggle or on
+// picking an item, but not yet on an outside click - add that here so one
+// left open doesn't linger while the coach works on other cards
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.kebab-menu')) return
+  document.querySelectorAll('#dayDetailContent .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
 })
 
 // mm:ss time boxes: strip anything non-digit as it's typed, then pad back
@@ -1575,6 +1659,116 @@ async function findOrCreateAdHocDay(dateStr, name) {
   adHocDayIdForThisSession = newDay[0].id
   adHocDayDateForThisSession = dateStr
   return newDay[0].id
+}
+
+// ==========================================================================
+// ---- COPY A WORKOUT TO ANOTHER DAY (⋮ menu, day-detail modal) ----
+// Always creates a brand new ad-hoc day - unlike findOrCreateAdHocDay above,
+// this deliberately does NOT reuse adHocDayIdForThisSession, since that
+// cache is scoped to the "+ Add Workout" popup's own session and Copy is an
+// unrelated one-shot action; reusing it here would risk silently merging
+// into whatever day that popup last touched.
+// ==========================================================================
+let copyWorkoutSourceDayId = null
+let copyWorkoutSourceName = null
+
+function openCopyWorkoutModal(sourceDayId, sourceName) {
+  copyWorkoutSourceDayId = sourceDayId
+  copyWorkoutSourceName = sourceName
+  document.getElementById('copyWorkoutDateInput').value = ''
+  document.getElementById('copyWorkoutModal').classList.add('active')
+}
+
+document.getElementById('cancelCopyWorkoutBtn').addEventListener('click', function() {
+  document.getElementById('copyWorkoutModal').classList.remove('active')
+})
+
+document.getElementById('saveCopyWorkoutBtn').addEventListener('click', async function() {
+  const newDate = document.getElementById('copyWorkoutDateInput').value
+  if (!newDate) { customAlert('Please pick a date'); return }
+
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Copying...'
+  await cloneDayToDate(copyWorkoutSourceDayId, copyWorkoutSourceName, newDate)
+  btn.disabled = false
+  btn.textContent = 'Copy'
+
+  document.getElementById('copyWorkoutModal').classList.remove('active')
+  document.getElementById('dayDetailModal').classList.remove('active')
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+})
+
+async function createFreshAdHocDay(dateStr, name) {
+  const { data: newProgram, error: programError } = await supabase
+    .from('programs')
+    .insert([{ coach_id: session.user.id, athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: name || 'Workout' }])
+    .select()
+  if (programError) { console.log(programError); customAlert('Something went wrong'); throw programError }
+
+  const { data: newWeek, error: weekError } = await supabase
+    .from('program_weeks')
+    .insert([{ program_id: newProgram[0].id, week_number: 1 }])
+    .select()
+  if (weekError) { console.log(weekError); customAlert('Something went wrong'); throw weekError }
+
+  const { data: newDay, error: dayError } = await supabase
+    .from('program_days')
+    .insert([{ week_id: newWeek[0].id, day_number: 1 }])
+    .select()
+  if (dayError) { console.log(dayError); customAlert('Something went wrong'); throw dayError }
+
+  return newDay[0].id
+}
+
+// program_exercises never stores logged data (that lives in
+// exercise_log_sets/workout_sessions, separate tables) - so copying these
+// rows straight is already "fresh and unlogged" with no extra filtering
+// needed, even when the source day is already completed. Same clone shape
+// as cloneTrainingToDay below (order_index offset, superset/section id
+// remap, Adjust Fields overrides carried over) - just sourced from an
+// existing day's program_exercises instead of a Training Library entry.
+async function cloneDayToDate(sourceDayId, name, targetDateStr) {
+  const { data: sourceExercises, error } = await supabase
+    .from('program_exercises')
+    .select('*')
+    .eq('day_id', sourceDayId)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+
+  sourceExercises.sort((a, b) => a.order_index - b.order_index)
+
+  const newDayId = await createFreshAdHocDay(targetDateStr, name)
+  if (sourceExercises.length === 0) return
+
+  const groupIdMap = {}
+  const sectionInstanceMap = {}
+  for (const pe of sourceExercises) {
+    if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
+    if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
+  }
+
+  const { error: insertError } = await supabase.from('program_exercises').insert(
+    sourceExercises.map((pe, i) => ({
+      day_id: newDayId,
+      exercise_id: pe.exercise_id,
+      order_index: i,
+      prescribed_sets: pe.prescribed_sets,
+      prescribed_reps: pe.prescribed_reps,
+      prescribed_weight: pe.prescribed_weight,
+      rest_seconds: pe.rest_seconds,
+      extra_fields: pe.extra_fields,
+      set_targets: pe.set_targets,
+      notes: pe.notes,
+      section_label: pe.section_label,
+      section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
+      superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
+      tracks_weight_override: pe.tracks_weight_override,
+      is_timed_override: pe.is_timed_override,
+      is_unilateral_override: pe.is_unilateral_override,
+      tracks_distance_override: pe.tracks_distance_override
+    }))
+  )
+  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 }
 
 // ==========================================================================

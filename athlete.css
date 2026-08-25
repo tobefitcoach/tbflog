@@ -727,6 +727,20 @@
   color: #1a1a2e;
 }
 
+/* Drag-to-move a workout badge to a different day - see
+   wireCalendarDragToMove in athlete-calendar.js. Only badges carrying
+   draggable="true" (real workouts) get the grab cursor. */
+.calendar-day-badge[draggable="true"] {
+  cursor: grab;
+}
+.calendar-day-badge.dragging {
+  opacity: 0.4;
+}
+.calendar-day.drag-over {
+  outline: 2px solid #4a4a8e;
+  outline-offset: -2px;
+}
+
 .calendar-day-badge-more {
   background-color: rgba(255, 255, 255, 0.08);
   color: #aaaacc;
