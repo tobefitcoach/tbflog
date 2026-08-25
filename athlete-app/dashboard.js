@@ -4120,6 +4120,11 @@ document.addEventListener('visibilitychange', function() {
     flushPendingQueue()
     flushPendingSessionEnds()
   }
+  // Catches the rest timer up immediately on return instead of waiting up
+  // to a second for the next setInterval tick - most noticeable right
+  // after a rest finished entirely while backgrounded, where this is what
+  // fires the "done" sound/callback the moment the athlete's back
+  if (document.visibilityState === 'visible') tickRestTimer()
 })
 
 // Belt-and-suspenders on top of the visibilitychange retry above: iOS kills
@@ -4226,6 +4231,16 @@ function maybeStartRestTimer(pe, rowEl) {
 // auto-continue into the next round without also firing on every
 // unrelated slide change.
 let restTimerOnDone = null
+// Wall-clock end time, not a tick counter - a backgrounded tab or a locked
+// phone screen throttles or fully pauses setInterval, so a plain
+// "remaining--" per tick just stalls instead of reflecting real elapsed
+// time (the athlete comes back to the app and the timer looks frozen,
+// still showing however much was left when it got backgrounded). Compared
+// against a fixed end timestamp instead, the very next tick - even a late
+// one, or the visibilitychange re-sync below - always recovers the true
+// remaining time and finishes instantly if it's already elapsed, rather
+// than continuing to count down slowly from a stale number.
+let restTimerEndAt = null
 
 function startRestTimer(totalSeconds, onDone) {
   clearRestTimer()
@@ -4233,11 +4248,11 @@ function startRestTimer(totalSeconds, onDone) {
   const bar = document.getElementById('restTimerBar')
   if (!bar) return
 
-  let remaining = totalSeconds
+  restTimerEndAt = Date.now() + totalSeconds * 1000
   bar.style.display = 'flex'
   bar.innerHTML = `
     <span class="rest-timer-label">Rest</span>
-    <span class="rest-timer-time" id="restTimerTime">${formatTimer(remaining)}</span>
+    <span class="rest-timer-time" id="restTimerTime">${formatTimer(totalSeconds)}</span>
     <button type="button" class="rest-timer-skip" id="restTimerSkipBtn">Skip</button>
   `
   document.getElementById('restTimerSkipBtn').addEventListener('click', function() {
@@ -4246,24 +4261,28 @@ function startRestTimer(totalSeconds, onDone) {
     if (cb) cb()
   })
 
-  restTimerInterval = setInterval(function() {
-    remaining--
-    if (remaining <= 0) {
-      playRestDoneSound()
-      const cb = restTimerOnDone
-      clearRestTimer()
-      if (cb) cb()
-      return
-    }
-    const timeEl = document.getElementById('restTimerTime')
-    if (timeEl) timeEl.textContent = formatTimer(remaining)
-  }, 1000)
+  restTimerInterval = setInterval(tickRestTimer, 1000)
+}
+
+function tickRestTimer() {
+  if (restTimerEndAt == null) return
+  const remaining = Math.ceil((restTimerEndAt - Date.now()) / 1000)
+  if (remaining <= 0) {
+    playRestDoneSound()
+    const cb = restTimerOnDone
+    clearRestTimer()
+    if (cb) cb()
+    return
+  }
+  const timeEl = document.getElementById('restTimerTime')
+  if (timeEl) timeEl.textContent = formatTimer(remaining)
 }
 
 function clearRestTimer() {
   if (restTimerInterval) clearInterval(restTimerInterval)
   restTimerInterval = null
   restTimerOnDone = null
+  restTimerEndAt = null
   const bar = document.getElementById('restTimerBar')
   if (bar) { bar.style.display = 'none'; bar.innerHTML = '' }
 }
