@@ -851,22 +851,28 @@ function renderWeekView(weekStart) {
     if (done) classes.push('done')
     if (inProgress) classes.push('in-progress')
 
-    // A busy day (several workouts + mobility + a tournament) used to stack
-    // every badge full-height, which blew up the whole week row's height -
-    // capped at 2 visible badges + a "+N more" pill instead (tapping the
-    // card already opens the full day preview, so nothing's actually lost)
-    const allBadges = badgeEntries.map(entry => `<span class="week-day-badge">${done ? '✓ ' : (inProgress ? '▶ ' : '')}${entry.program.created_by_athlete ? '🙋 ' : ''}${trainingDisplayName(entry)}</span>`)
-    if (mobility) allBadges.push('<span class="week-day-badge week-day-badge-mobility">🧘 Mobility</span>')
-    if (tournament) allBadges.push(`<span class="week-day-badge week-day-badge-tournament">🏆 ${escapeHtml(tournament.name)}</span>`)
-    const visibleBadges = allBadges.slice(0, 2)
-    const extraCount = allBadges.length - visibleBadges.length
+    // A busy day (several workouts + mobility + a tournament) used to show
+    // one full-name badge per item, which either stacked tall (wrapped
+    // text) or blew a grid column wide (unwrapped text - a 1fr grid track
+    // won't shrink below an unwrapped child's content width). Small
+    // fixed-size status dots avoid both - every cell stays a uniform size
+    // no matter what's scheduled. Tapping the card still opens the full
+    // day preview with real names.
+    const dayStatus = done ? 'done' : (inProgress ? 'in-progress' : 'planned')
+    const dots = badgeEntries.map(() => `<span class="week-day-dot week-day-dot-${dayStatus}">${done ? '✓' : (inProgress ? '▶' : '')}</span>`)
+    if (mobility) dots.push('<span class="week-day-dot week-day-dot-mobility">🧘</span>')
+    if (tournament) dots.push('<span class="week-day-dot week-day-dot-tournament">🏆</span>')
+    const visibleDots = dots.slice(0, 4)
+    const extraCount = dots.length - visibleDots.length
 
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <span class="week-day-name">${DAY_NAMES[date.getDay() === 0 ? 6 : date.getDay() - 1]}</span>
         <span class="week-day-number">${date.getDate()}</span>
-        ${visibleBadges.join('')}
-        ${extraCount > 0 ? `<span class="week-day-badge week-day-badge-more">+${extraCount} more</span>` : ''}
+        <div class="week-day-dots">
+          ${visibleDots.join('')}
+          ${extraCount > 0 ? `<span class="week-day-dot week-day-dot-more">+${extraCount}</span>` : ''}
+        </div>
       </div>
     `
   }).join('')

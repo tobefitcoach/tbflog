@@ -324,13 +324,17 @@
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0, 1fr), not a bare 1fr - an implicit 1fr track won't shrink
+     below its content's unwrapped width, so one day with a wide child can
+     silently blow that column out wider than its 6 neighbors */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
 }
 
 .calendar-day {
   position: relative;
   min-height: 90px;
+  min-width: 0;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
   padding: 8px;
@@ -680,39 +684,51 @@
   color: #ff4444;
 }
 
-.calendar-day-badge {
-  align-self: flex-start;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background-color: #4a4a8e;
-  color: white;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 10px;
+/* Status/type dots replacing full-name badges in each day cell - see the
+   comment above dots' construction in renderCalendarGrid() for why */
+.calendar-day-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.calendar-day-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #3b82f6;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  flex-shrink: 0;
 }
 
 /* Status colors: blue = scheduled but not started, orange = athlete is
    mid-workout (an open workout_sessions row, no ended_at yet), green =
-   finished. See sessionStatusByDayId in athlete-calendar.js. */
-.calendar-day-badge-planned {
+   finished. See sessionByDayId in athlete-calendar.js. */
+.calendar-day-dot-planned {
   background-color: #3b82f6;
 }
-.calendar-day-badge-in-progress {
+.calendar-day-dot-in-progress {
   background-color: #ff9800;
 }
-.calendar-day-badge-done {
+.calendar-day-dot-done {
   background-color: #4caf50;
 }
-.calendar-day-badge-tournament {
+.calendar-day-dot-tournament {
   background-color: #d4a017;
-  color: #1a1a2e;
 }
 
-.calendar-day-badge-more {
+.calendar-day-dot-more {
+  width: auto;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
   background-color: rgba(255, 255, 255, 0.08);
   color: #aaaacc;
+  font-size: 8px;
 }
 
 .profile-header {
@@ -1892,9 +1908,16 @@
     font-size: 11px;
   }
 
-  .calendar-day-badge {
-    font-size: 9px;
-    padding: 2px 5px;
+  .calendar-day-dot {
+    width: 12px;
+    height: 12px;
+    font-size: 7px;
+  }
+
+  .calendar-day-dot-more {
+    min-width: 12px;
+    padding: 0 3px;
+    font-size: 6px;
   }
 
   .calendar-weekday-header span {

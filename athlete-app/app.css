@@ -716,7 +716,10 @@
 
 .week-strip {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0, 1fr), not a bare 1fr - an implicit 1fr track won't shrink
+     below its content's unwrapped width, so one day with a wide child can
+     silently blow that column out wider than its 6 neighbors */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 20px;
 }
@@ -730,6 +733,7 @@
   cursor: pointer;
   transition: border-color 0.2s;
   min-height: 130px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -754,10 +758,6 @@
   border-color: #e0a030;
 }
 
-.week-day-card.in-progress .week-day-badge {
-  background-color: #e0a030;
-}
-
 .week-day-name {
   font-size: 13px;
   color: #aaaacc;
@@ -769,36 +769,53 @@
   color: #ffffff;
 }
 
-.week-day-badge {
-  font-size: 12px;
-  line-height: 1.3;
+/* Status/type dots replacing full-name badges in each day cell - see the
+   comment above dots' construction in renderWeekView() for why */
+.week-day-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.week-day-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
   background-color: #3b82f6;
   color: #ffffff;
-  padding: 4px 8px;
-  border-radius: 8px;
-  align-self: stretch;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
 }
 
-.week-day-badge-more {
-  background-color: #2a2a4e;
-  color: #aaaacc;
-}
-
-.week-day-card.done .week-day-badge {
+.week-day-dot-done {
   background-color: #4caf50;
 }
 
-.week-day-badge-mobility {
+.week-day-dot-in-progress {
+  background-color: #e0a030;
+}
+
+.week-day-dot-mobility {
   background-color: #4caf50;
 }
 
-.week-day-badge-tournament {
+.week-day-dot-tournament {
   background-color: #d4a017;
-  color: #1a1a2e;
+}
+
+.week-day-dot-more {
+  width: auto;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background-color: transparent;
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  font-size: 9px;
 }
 
 /* --- Home screen tiles: Add Own Workout / Daily Mobility, below the week
@@ -1629,9 +1646,16 @@
     font-size: 15px;
   }
 
-  .week-day-badge {
-    font-size: 9px;
-    padding: 2px 4px;
+  .week-day-dot {
+    width: 14px;
+    height: 14px;
+    font-size: 8px;
+  }
+
+  .week-day-dot-more {
+    min-width: 14px;
+    padding: 0 4px;
+    font-size: 7px;
   }
 
   .day-preview-thumb {

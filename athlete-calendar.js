@@ -96,14 +96,6 @@ function resolveDate(startDateStr, weekNumber, dayNumber) {
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-// Ad-hoc trainings show the name the coach gave them; days from an assigned
-// template show the day's own label (falling back to "Day N"), since that's
-// more useful at a glance than the template's overall name
-function trainingDisplayName(entry) {
-  if (entry.program.is_adhoc) return entry.program.name || 'Workout'
-  return entry.day.label || ('Day ' + entry.day.day_number)
-}
-
 // ==========================================================================
 // ---- LOAD + RENDER MONTH GRID ----
 // ==========================================================================
@@ -236,27 +228,30 @@ function renderCalendarGrid(year, month) {
     if (cell.outside) classes.push('calendar-day-outside')
     if (dateStr === todayStr) classes.push('calendar-day-today')
 
-    // A busy day used to stack every badge full-height, blowing up the
-    // whole month row - capped at 2 visible badges + a "+N more" pill
-    // instead (clicking the day already opens the full detail modal)
-    const allBadges = badges.map(entry => {
+    // A busy day used to show one full-name badge per item, blowing the
+    // cell's height (wrapped text) or width (unwrapped text, in a 1fr grid
+    // column) out. Small fixed-size status dots avoid both - every cell
+    // stays a uniform size no matter what's scheduled. Clicking the day
+    // still opens the full detail modal with real names.
+    const dots = badges.map(entry => {
       const session = sessionByDayId[entry.day.id]
-      const status = session ? (session.ended_at ? 'done' : 'in-progress') : undefined
-      const statusClass = status === 'in-progress' ? 'calendar-day-badge-in-progress' : status === 'done' ? 'calendar-day-badge-done' : 'calendar-day-badge-planned'
-      const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
-      return `<span class="calendar-day-badge ${statusClass}">${selfLogged}${trainingDisplayName(entry)}</span>`
+      const status = session ? (session.ended_at ? 'done' : 'in-progress') : 'planned'
+      const glyph = status === 'done' ? '✓' : (status === 'in-progress' ? '▶' : '')
+      return `<span class="calendar-day-dot calendar-day-dot-${status}">${glyph}</span>`
     })
-    if (mobility) allBadges.push('<span class="calendar-day-badge calendar-day-badge-done">🧘 Mobility</span>')
-    if (tournament) allBadges.push(`<span class="calendar-day-badge calendar-day-badge-tournament">🏆 ${escapeHtmlCal(tournament.name)}</span>`)
-    const visibleBadges = allBadges.slice(0, 2)
-    const extraCount = allBadges.length - visibleBadges.length
+    if (mobility) dots.push('<span class="calendar-day-dot calendar-day-dot-done">🧘</span>')
+    if (tournament) dots.push('<span class="calendar-day-dot calendar-day-dot-tournament">🏆</span>')
+    const visibleDots = dots.slice(0, 4)
+    const extraCount = dots.length - visibleDots.length
 
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <button type="button" class="calendar-day-add-btn" data-date="${dateStr}">+</button>
         <span class="calendar-day-number">${cell.date.getDate()}</span>
-        ${visibleBadges.join('')}
-        ${extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : ''}
+        <div class="calendar-day-dots">
+          ${visibleDots.join('')}
+          ${extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : ''}
+        </div>
       </div>
     `
   }).join('')
