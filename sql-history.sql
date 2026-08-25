@@ -1353,3 +1353,19 @@ create policy "athlete creates notifications for own coach" on notifications for
 
 create index if not exists idx_notifications_coach_id on notifications(coach_id, created_at desc);
 create index if not exists idx_notifications_unread on notifications(coach_id) where read_at is null;
+
+-- ==========================================================================
+-- Multi-day tournaments - "date" stays the start date (existing column,
+-- existing index, no rename needed), "end_date" is new and defaults to the
+-- same day for every pre-existing row (a single-day tournament is just a
+-- range where start == end). The week strip / month calendar now mark
+-- every day in [date, end_date], not just the start day.
+-- ==========================================================================
+alter table tournaments add column if not exists end_date date;
+update tournaments set end_date = date where end_date is null;
+alter table tournaments alter column end_date set not null;
+
+alter table tournaments drop constraint if exists tournaments_end_after_start;
+alter table tournaments add constraint tournaments_end_after_start check (end_date >= date);
+
+create index if not exists idx_tournaments_end_date on tournaments(end_date);

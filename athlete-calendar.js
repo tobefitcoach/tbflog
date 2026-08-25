@@ -87,6 +87,22 @@ function formatDisplayDateCal(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function formatShortDateCal(dateStr) {
+  return parseDateStr(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// All the calendar-day dates a tournament covers, inclusive of both ends -
+// a single-day tournament (date === end_date) is just a one-element range
+function eachDateStrInRangeCal(startStr, endStr) {
+  const dates = []
+  const cursor = parseDateStr(startStr)
+  while (toDateStr(cursor) <= endStr) {
+    dates.push(toDateStr(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return dates
+}
+
 function resolveDate(startDateStr, weekNumber, dayNumber) {
   const start = parseDateStr(startDateStr)
   const result = new Date(start)
@@ -142,7 +158,9 @@ async function loadCalendarMonth(year, month) {
   if (tournamentsError) { console.log('Error loading tournaments for calendar:', tournamentsError) }
 
   tournamentsByDateCal = {}
-  for (const t of tournaments || []) tournamentsByDateCal[t.date] = t
+  for (const t of tournaments || []) {
+    for (const dateStr of eachDateStrInRangeCal(t.date, t.end_date)) tournamentsByDateCal[dateStr] = t
+  }
 
   calendarEntriesByDate = {}
   for (const program of data) {
@@ -299,9 +317,13 @@ function openDayModal(dateStr) {
   // Independent of entries.length too - a tournament is its own row, not
   // tied to whether a workout was also scheduled that day
   const tournament = tournamentsByDateCal[dateStr]
+  const tournamentDateRange = tournament && tournament.date !== tournament.end_date
+    ? `${formatShortDateCal(tournament.date)} – ${formatShortDateCal(tournament.end_date)}`
+    : null
   const tournamentHtml = tournament ? `
     <div class="detail-group">
       <h4 class="detail-group-title">🏆 ${escapeHtmlCal(tournament.name)}</h4>
+      ${tournamentDateRange ? `<p class="workout-preview-target">${tournamentDateRange}</p>` : ''}
       <p class="workout-preview-target">Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}</p>
     </div>
   ` : ''

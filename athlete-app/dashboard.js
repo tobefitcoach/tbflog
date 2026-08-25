@@ -401,6 +401,23 @@ async function notifyCoach(type, message) {
   if (error) console.log(error)
 }
 
+// All the calendar-day dates a tournament covers, inclusive of both ends -
+// a single-day tournament (date === end_date) is just a one-element range
+function eachDateStrInRange(startStr, endStr) {
+  const dates = []
+  let cursor = parseDateStr(startStr)
+  while (toDateStr(cursor) <= endStr) {
+    dates.push(toDateStr(cursor))
+    cursor = addDays(cursor, 1)
+  }
+  return dates
+}
+
+function formatTournamentDateRange(t) {
+  if (t.date === t.end_date) return formatDisplayDate(t.date)
+  return `${formatShortDate(parseDateStr(t.date))} – ${formatShortDate(parseDateStr(t.end_date))}`
+}
+
 async function loadTournaments() {
   const { data, error } = await saveWithRetry((signal) => supabase
     .from('tournaments')
@@ -412,12 +429,17 @@ async function loadTournaments() {
   if (error) { console.log(error); return }
   tournamentsCache = data || []
   tournamentsByDate = {}
-  for (const t of tournamentsCache) tournamentsByDate[t.date] = t
+  for (const t of tournamentsCache) {
+    for (const dateStr of eachDateStrInRange(t.date, t.end_date)) tournamentsByDate[dateStr] = t
+  }
 }
 
 function renderTournaments() {
   const todayStr = toDateStr(new Date())
-  const upcoming = tournamentsCache.filter(t => t.date >= todayStr)
+  // A multi-day tournament that's already started but hasn't finished yet
+  // still belongs in "upcoming" - filtering on end_date, not date, keeps
+  // it visible for its whole run instead of dropping off after day 1
+  const upcoming = tournamentsCache.filter(t => t.end_date >= todayStr)
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -431,7 +453,7 @@ function renderTournaments() {
           <div class="tournament-list-row" data-id="${t.id}">
             <div class="tournament-list-info">
               <span class="tournament-list-name">${escapeHtml(t.name)}</span>
-              <span class="tournament-list-date">${formatDisplayDate(t.date)}</span>
+              <span class="tournament-list-date">${formatTournamentDateRange(t)}</span>
             </div>
             <span class="tournament-list-badge">⭐ ${t.importance}/5</span>
             <button type="button" class="tournament-list-delete-btn" data-id="${t.id}" title="Delete">🗑</button>
@@ -476,8 +498,13 @@ function renderAddTournamentForm() {
       <input type="text" id="tournamentNameInput" placeholder="e.g. State Championships" />
     </div>
     <div class="form-group">
-      <label>Date</label>
-      <input type="date" id="tournamentDateInput" min="${toDateStr(new Date())}" />
+      <label>Start Date</label>
+      <input type="date" id="tournamentStartDateInput" min="${toDateStr(new Date())}" />
+    </div>
+    <div class="form-group">
+      <label>End Date</label>
+      <input type="date" id="tournamentEndDateInput" min="${toDateStr(new Date())}" />
+      <p style="color:#aaaacc; font-size:12px; margin-top:4px">Same as start date for a single-day event</p>
     </div>
     <div class="importance-picker">
       <p class="importance-picker-label">How important is this tournament?</p>
@@ -491,6 +518,18 @@ function renderAddTournamentForm() {
 
   document.getElementById('cancelAddTournamentBtn').addEventListener('click', renderTournaments)
 
+  // Picking a start date auto-fills the end date to match (the common
+  // single-day case needs no extra tap) - it only re-syncs when the end
+  // date is missing or would now fall before the start, so dragging the
+  // end date forward for a multi-day event sticks even if the start date
+  // gets nudged around afterward
+  const startInput = document.getElementById('tournamentStartDateInput')
+  const endInput = document.getElementById('tournamentEndDateInput')
+  startInput.addEventListener('change', function() {
+    endInput.min = startInput.value
+    if (!endInput.value || endInput.value < startInput.value) endInput.value = startInput.value
+  })
+
   document.querySelectorAll('.importance-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.importance-btn').forEach(b => b.classList.remove('selected'))
@@ -502,14 +541,16 @@ function renderAddTournamentForm() {
 
   document.getElementById('saveTournamentBtn').addEventListener('click', async function() {
     const name = document.getElementById('tournamentNameInput').value.trim()
-    const date = document.getElementById('tournamentDateInput').value
+    const date = startInput.value
+    const endDate = endInput.value || date
     if (!name) { customAlert('Please enter a name for this tournament'); return }
-    if (!date) { customAlert('Please pick a date'); return }
+    if (!date) { customAlert('Please pick a start date'); return }
+    if (endDate < date) { customAlert("End date can't be before the start date"); return }
     if (!selectedImportance) { customAlert('Please rate how important this tournament is'); return }
 
     const { error } = await saveWithRetry((signal) => supabase
       .from('tournaments')
-      .insert({ athlete_id: athlete.id, name, date, importance: selectedImportance })
+      .insert({ athlete_id: athlete.id, name, date, end_date: endDate, importance: selectedImportance })
       .abortSignal(signal)
     )
     if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
