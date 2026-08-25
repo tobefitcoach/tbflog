@@ -390,6 +390,17 @@ function escapeHtml(str) {
   return div.innerHTML
 }
 
+// Fires a row into the coach's notification bell (see bell.js) - never
+// awaited by callers, a failed insert shouldn't block or alert on the
+// athlete's own flow, same reasoning as the "not awaited" background saves
+// elsewhere in this file (e.g. saveSessionEnd).
+async function notifyCoach(type, message) {
+  const { error } = await supabase
+    .from('notifications')
+    .insert([{ coach_id: athlete.coach_id, athlete_id: athlete.id, type, message }])
+  if (error) console.log(error)
+}
+
 async function loadTournaments() {
   const { data, error } = await saveWithRetry((signal) => supabase
     .from('tournaments')
@@ -502,6 +513,7 @@ function renderAddTournamentForm() {
       .abortSignal(signal)
     )
     if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
+    notifyCoach('tournament_added', `${athlete.name} added a tournament: ${name}`)
     await loadTournaments()
     renderTournaments()
   })
@@ -1481,12 +1493,13 @@ function renderAddWorkoutChoice() {
 // logs actual sets as they go, same as always.
 async function startOwnStrengthWorkout() {
   const dateStr = toDateStr(new Date())
-  let dayId
+  let dayId, created
   try {
-    dayId = await findOrCreateSelfLoggedDay(dateStr, 'My Workout')
+    ({ dayId, created } = await findOrCreateSelfLoggedDay(dateStr, 'My Workout'))
   } catch (err) {
     return
   }
+  if (created) notifyCoach('workout_added', `${athlete.name} added a workout`)
   await loadTrainingData()
   // Matched by day id, not just "any self-logged entry today" - today can
   // now genuinely hold more than one (see findOrCreateSelfLoggedDay), so
@@ -1629,6 +1642,10 @@ function removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId) {
 // the most-recently-ended session's summary per row, the first workout's
 // data would effectively vanish behind the second. So a finished day
 // always gets a fresh one instead.
+// Returns { dayId, created } - `created` lets callers tell a brand-new
+// self-logged day apart from resuming today's already-existing one (used
+// by startOwnStrengthWorkout to fire a "workout added" notification only
+// once, not every time the athlete reopens an in-progress day)
 async function findOrCreateSelfLoggedDay(dateStr, name) {
   // Not .maybeSingle() - this date can now genuinely hold more than one
   // self-logged program (see the finished-session check below), so every
@@ -1650,7 +1667,7 @@ async function findOrCreateSelfLoggedDay(dateStr, name) {
   // already-finished day and kept reusing it indefinitely
   for (const program of existingPrograms || []) {
     const dayId = program.program_weeks[0].program_days[0].id
-    if (!completedSessionsByDayId[dayId]) return dayId
+    if (!completedSessionsByDayId[dayId]) return { dayId, created: false }
   }
 
   const { data: newProgram, error: programError } = await supabase
@@ -1671,7 +1688,7 @@ async function findOrCreateSelfLoggedDay(dateStr, name) {
     .select()
   if (dayError) { console.log(dayError); customAlert('Something went wrong saving your workout'); throw dayError }
 
-  return newDay[0].id
+  return { dayId: newDay[0].id, created: true }
 }
 
 // ---- Field/Training: duration + RPE, no exercises at all ----
@@ -1790,7 +1807,7 @@ function renderAddWorkoutFieldForm() {
 async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, avgHeartRate) {
   let dayId
   try {
-    dayId = await findOrCreateSelfLoggedDay(dateStr, activityName)
+    ({ dayId } = await findOrCreateSelfLoggedDay(dateStr, activityName))
   } catch (err) {
     const btn = document.getElementById('fieldSaveBtn')
     if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
@@ -1827,6 +1844,7 @@ async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, av
     return
   }
 
+  notifyCoach('workout_completed', `${athlete.name} completed ${activityName}`)
   await loadTrainingData()
   const entries = entriesByDate[dateStr] || []
   const entry = entries.find(e => e.day.id === dayId)
@@ -2992,6 +3010,7 @@ async function finishWorkout(entry, session) {
   clearTimeout(flushTimer) // don't wait out the debounce - flush what's pending right now
   flushPendingQueue() // not awaited - runs in the background regardless
   saveSessionEnd(session.id, endedAt) // not awaited
+  notifyCoach('workout_completed', `${athlete.name} completed ${trainingDisplayName(entry)}`) // not awaited
 
   renderWorkoutSummary(finishedSession, entry)
 }

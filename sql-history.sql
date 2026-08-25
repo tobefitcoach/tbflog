@@ -1316,3 +1316,40 @@ alter table workout_sessions add column if not exists local_date date;
 -- e.g. durationEvents' `s.started_at.split('T')[0]`), just made permanent.
 update workout_sessions set local_date = (started_at at time zone 'utc')::date where local_date is null;
 alter table workout_sessions alter column local_date set not null;
+
+-- ==========================================================================
+-- Coach notification bell: a per-coach feed of athlete activity (workout
+-- added/completed, tournament added). Athletes insert their own rows -
+-- their device already knows their own name and what just happened, so the
+-- message is written once, pre-formatted, and read as-is everywhere (same
+-- "write the fixed value once" reasoning as workout_sessions.local_date
+-- above) - coaches read/mark-read/delete their own feed.
+-- ==========================================================================
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  athlete_id bigint references athletes(id) on delete set null,
+  type text not null check (type in ('workout_added', 'workout_completed', 'tournament_added')),
+  message text not null,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table notifications enable row level security;
+
+drop policy if exists "coach manages own notifications" on notifications;
+create policy "coach manages own notifications" on notifications for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+
+create or replace function public.athlete_notifies_own_coach(check_athlete_id bigint, target_coach_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from athletes where id = check_athlete_id and user_id = (select auth.uid()) and coach_id = target_coach_id
+  );
+$$;
+
+drop policy if exists "athlete creates notifications for own coach" on notifications;
+create policy "athlete creates notifications for own coach" on notifications for insert
+  with check (athlete_notifies_own_coach(athlete_id, coach_id));
+
+create index if not exists idx_notifications_coach_id on notifications(coach_id, created_at desc);
+create index if not exists idx_notifications_unread on notifications(coach_id) where read_at is null;
