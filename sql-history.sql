@@ -1257,3 +1257,30 @@ alter table athletes add column if not exists can_view_weekly_stats boolean not 
 -- ==========================================================================
 alter table exercises add column if not exists tracks_distance boolean not null default false;
 alter table exercise_log_sets add column if not exists actual_distance numeric;
+
+-- ==========================================================================
+-- Upcoming Tournaments - athlete-added (name, date, 1-5 importance rating),
+-- visible on both the athlete's week strip and the coach's month calendar.
+-- Coach gets read-only access; only the athlete ever writes their own rows.
+-- ==========================================================================
+create table if not exists tournaments (
+  id uuid primary key default gen_random_uuid(),
+  athlete_id bigint not null references athletes(id) on delete cascade,
+  name text not null,
+  date date not null,
+  importance int not null check (importance between 1 and 5),
+  created_at timestamptz not null default now()
+);
+alter table tournaments enable row level security;
+
+drop policy if exists "athlete manages own tournaments" on tournaments;
+create policy "athlete manages own tournaments" on tournaments for all
+  using (is_own_athlete_as_athlete(athlete_id))
+  with check (is_own_athlete_as_athlete(athlete_id));
+
+drop policy if exists "coach views own athletes' tournaments" on tournaments;
+create policy "coach views own athletes' tournaments" on tournaments for select
+  using (is_own_athlete_as_coach(athlete_id));
+
+create index if not exists idx_tournaments_athlete_id on tournaments(athlete_id);
+create index if not exists idx_tournaments_date on tournaments(date);

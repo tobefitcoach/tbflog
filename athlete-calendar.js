@@ -27,8 +27,21 @@ let calendarEntriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day 
 let sessionByDayId = {} // program_days.id -> the workout_sessions row to show (in-progress wins over done, done wins over older done), absent = not started yet
 let logSetsByPECal = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
 let mobilityEntriesByDateCal = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
+let tournamentsByDateCal = {} // 'YYYY-MM-DD' -> tournaments row (athlete-added, read-only here)
 let calendarLoaded = false
 let currentDayDateForModal = null // date currently shown in the day-detail modal
+
+// Same 1-5 scale/anchors as TOURNAMENT_IMPORTANCE_DESCRIPTIONS in the
+// athlete app's dashboard.js (where the athlete actually picks the
+// rating) - duplicated here since this file is coach-only, read-only
+// display of the same tournaments table.
+const TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL = {
+  1: 'Not important at all - just for fun or experience',
+  2: 'Low priority - a tune-up event',
+  3: 'Moderately important - worth some focused prep',
+  4: 'Important - a key event this season',
+  5: 'Most important tournament of the year - tapering needed'
+}
 
 const today = new Date()
 let currentViewYear = today.getFullYear()
@@ -101,7 +114,8 @@ async function loadCalendarMonth(year, month) {
   const [
     { data, error },
     { data: sessions, error: sessionsError },
-    { data: logSets, error: logSetsError }
+    { data: logSets, error: logSetsError },
+    { data: tournaments, error: tournamentsError }
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
@@ -121,12 +135,22 @@ async function loadCalendarMonth(year, month) {
       .select('*')
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
+      .from('tournaments')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .abortSignal(signal)
     )
   ])
 
   if (error) { console.log('Error loading calendar:', error); customAlert('Something went wrong loading the calendar - check your connection and try again'); return }
   if (sessionsError) { console.log('Error loading sessions for calendar:', sessionsError) }
   if (logSetsError) { console.log('Error loading logged sets for calendar:', logSetsError) }
+  if (tournamentsError) { console.log('Error loading tournaments for calendar:', tournamentsError) }
+
+  tournamentsByDateCal = {}
+  for (const t of tournaments || []) tournamentsByDateCal[t.date] = t
 
   calendarEntriesByDate = {}
   for (const program of data) {
@@ -206,6 +230,7 @@ function renderCalendarGrid(year, month) {
     // it, green once they've finished it.
     const badges = [...new Map(entries.map(entry => [entry.day.id, entry])).values()]
     const mobility = mobilityEntriesByDateCal[dateStr]
+    const tournament = tournamentsByDateCal[dateStr]
 
     const classes = ['calendar-day']
     if (cell.outside) classes.push('calendar-day-outside')
@@ -223,6 +248,7 @@ function renderCalendarGrid(year, month) {
           return `<span class="calendar-day-badge ${statusClass}">${selfLogged}${trainingDisplayName(entry)}</span>`
         }).join('')}
         ${mobility ? '<span class="calendar-day-badge calendar-day-badge-done">🧘 Mobility</span>' : ''}
+        ${tournament ? `<span class="calendar-day-badge calendar-day-badge-tournament">🏆 ${escapeHtmlCal(tournament.name)}</span>` : ''}
       </div>
     `
   }).join('')
@@ -267,10 +293,20 @@ function openDayModal(dateStr) {
     </div>
   ` : ''
 
+  // Independent of entries.length too - a tournament is its own row, not
+  // tied to whether a workout was also scheduled that day
+  const tournament = tournamentsByDateCal[dateStr]
+  const tournamentHtml = tournament ? `
+    <div class="detail-group">
+      <h4 class="detail-group-title">🏆 ${escapeHtmlCal(tournament.name)}</h4>
+      <p class="workout-preview-target">Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}</p>
+    </div>
+  ` : ''
+
   if (entries.length === 0) {
-    content.innerHTML = mobilityHtml || '<p class="no-metrics">Nothing scheduled on this day</p>'
+    content.innerHTML = tournamentHtml + mobilityHtml || '<p class="no-metrics">Nothing scheduled on this day</p>'
   } else {
-    content.innerHTML = mobilityHtml + entries.map(entry => {
+    content.innerHTML = tournamentHtml + mobilityHtml + entries.map(entry => {
       const label = entry.program.is_adhoc
         ? entry.program.name
         : `${entry.program.name} — Week ${entry.week.week_number}, ${entry.day.label || ('Day ' + entry.day.day_number)}`

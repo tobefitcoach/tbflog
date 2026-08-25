@@ -705,6 +705,10 @@
 .calendar-day-badge-done {
   background-color: #4caf50;
 }
+.calendar-day-badge-tournament {
+  background-color: #d4a017;
+  color: #1a1a2e;
+}
 
 .profile-header {
   display: flex;

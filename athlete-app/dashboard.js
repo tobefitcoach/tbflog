@@ -53,6 +53,8 @@ let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, 
 let openSessionsByDayId = {} // program_days.id -> in-progress workout_sessions row (ended_at is null)
 let completedSessionsByDayId = {} // program_days.id -> most recently-ended workout_sessions row
 let mobilitySessionsByDate = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
+let tournamentsCache = [] // every upcoming+past tournaments row for this athlete, sorted by date
+let tournamentsByDate = {} // 'YYYY-MM-DD' -> tournaments row
 let restTimerInterval = null
 let mobilityTimerInterval = null
 let stretchLibraryCache = null              // stretches visible to this athlete (RLS-scoped to their coach)
@@ -78,6 +80,16 @@ const RPE_DESCRIPTIONS = {
   8: 'Very hard - close to your limit',
   9: 'Extremely hard - almost everything you had',
   10: 'Maximal - absolute max, nothing left'
+}
+
+// Same "tap a number, see what it means" mechanic as RPE above, for the
+// athlete's own upcoming-tournament importance rating.
+const TOURNAMENT_IMPORTANCE_DESCRIPTIONS = {
+  1: 'Not important at all - just for fun or experience',
+  2: 'Low priority - a tune-up event',
+  3: 'Moderately important - worth some focused prep',
+  4: 'Important - a key event this season',
+  5: 'Most important tournament of the year - tapering needed'
 }
 
 checkAccountState()
@@ -195,6 +207,7 @@ function renderSetPasswordPrompt() {
 async function enterWeekView() {
   document.getElementById('statsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
   await loadTrainingData()
+  await loadTournaments()
   renderWeekView(startOfWeek(new Date()))
   maybeShowWeeklyRecap()
   flushPendingQueue() // not awaited - picks up anything left over from a previous session
@@ -283,6 +296,143 @@ function renderSettings() {
       e.target.checked = previousValue
       customAlert('Something went wrong saving that - try again')
     }
+  })
+}
+
+// ==========================================================================
+// ---- TOURNAMENTS ----
+// Athlete-added upcoming tournaments/competitions: a name, a date, and a
+// 1-5 importance rating using the same "tap the number, see what it means"
+// mechanic as the RPE picker above. Visible on this athlete's own week
+// strip (renderWeekView) and, read-only, on the coach's month calendar
+// (athlete-calendar.js) - both read from the same tournaments table.
+// ==========================================================================
+
+// Only used for user-entered free text rendered via innerHTML (a
+// tournament's name) - every other string in this file is either
+// hard-coded or already-known-safe data, so this is deliberately not
+// applied everywhere (same convention as escapeHtmlCal in athlete-calendar.js).
+function escapeHtml(str) {
+  if (!str) return ''
+  const div = document.createElement('div')
+  div.textContent = str
+  return div.innerHTML
+}
+
+async function loadTournaments() {
+  const { data, error } = await saveWithRetry((signal) => supabase
+    .from('tournaments')
+    .select('*')
+    .eq('athlete_id', athlete.id)
+    .order('date')
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); return }
+  tournamentsCache = data || []
+  tournamentsByDate = {}
+  for (const t of tournamentsCache) tournamentsByDate[t.date] = t
+}
+
+function renderTournaments() {
+  const todayStr = toDateStr(new Date())
+  const upcoming = tournamentsCache.filter(t => t.date >= todayStr)
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button class="btn-cancel" id="backFromTournamentsBtn">← Back</button>
+      <h2 class="day-view-date">Upcoming Tournaments</h2>
+    </div>
+    <button type="button" class="btn-save" id="addTournamentBtn" style="margin-bottom:16px">+ Add Tournament</button>
+    ${upcoming.length === 0 ? '<p class="no-metrics">No upcoming tournaments yet</p>' : `
+      <div class="tournament-list">
+        ${upcoming.map(t => `
+          <div class="tournament-list-row" data-id="${t.id}">
+            <div class="tournament-list-info">
+              <span class="tournament-list-name">${escapeHtml(t.name)}</span>
+              <span class="tournament-list-date">${formatDisplayDate(t.date)}</span>
+            </div>
+            <span class="tournament-list-badge">⭐ ${t.importance}/5</span>
+            <button type="button" class="tournament-list-delete-btn" data-id="${t.id}" title="Delete">🗑</button>
+          </div>
+        `).join('')}
+      </div>
+    `}
+  `
+
+  document.getElementById('backFromTournamentsBtn').addEventListener('click', function() {
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+  document.getElementById('addTournamentBtn').addEventListener('click', renderAddTournamentForm)
+
+  document.querySelectorAll('.tournament-list-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const ok = await customConfirm('Delete this tournament?')
+      if (!ok) return
+      const { error } = await saveWithRetry((signal) => supabase
+        .from('tournaments')
+        .delete()
+        .eq('id', btn.dataset.id)
+        .abortSignal(signal)
+      )
+      if (error) { console.log(error); customAlert('Something went wrong deleting that - try again'); return }
+      await loadTournaments()
+      renderTournaments()
+    })
+  })
+}
+
+function renderAddTournamentForm() {
+  let selectedImportance = null
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button class="btn-cancel" id="cancelAddTournamentBtn">← Back</button>
+      <h2 class="day-view-date">Add Tournament</h2>
+    </div>
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="tournamentNameInput" placeholder="e.g. State Championships" />
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="tournamentDateInput" min="${toDateStr(new Date())}" />
+    </div>
+    <div class="importance-picker">
+      <p class="importance-picker-label">How important is this tournament?</p>
+      <div class="importance-picker-row">
+        ${[1, 2, 3, 4, 5].map(n => `<button type="button" class="importance-btn" data-importance="${n}">${n}</button>`).join('')}
+      </div>
+      <p class="importance-picker-hint" id="tournamentImportanceHint">Tap a number to see what it means</p>
+    </div>
+    <button type="button" class="btn-save start-workout-btn" id="saveTournamentBtn" style="margin-top:20px">💾 Save Tournament</button>
+  `
+
+  document.getElementById('cancelAddTournamentBtn').addEventListener('click', renderTournaments)
+
+  document.querySelectorAll('.importance-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.importance-btn').forEach(b => b.classList.remove('selected'))
+      btn.classList.add('selected')
+      selectedImportance = parseInt(btn.dataset.importance)
+      document.getElementById('tournamentImportanceHint').textContent = TOURNAMENT_IMPORTANCE_DESCRIPTIONS[selectedImportance]
+    })
+  })
+
+  document.getElementById('saveTournamentBtn').addEventListener('click', async function() {
+    const name = document.getElementById('tournamentNameInput').value.trim()
+    const date = document.getElementById('tournamentDateInput').value
+    if (!name) { customAlert('Please enter a name for this tournament'); return }
+    if (!date) { customAlert('Please pick a date'); return }
+    if (!selectedImportance) { customAlert('Please rate how important this tournament is'); return }
+
+    const { error } = await saveWithRetry((signal) => supabase
+      .from('tournaments')
+      .insert({ athlete_id: athlete.id, name, date, importance: selectedImportance })
+      .abortSignal(signal)
+    )
+    if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
+    await loadTournaments()
+    renderTournaments()
   })
 }
 
@@ -610,6 +760,7 @@ function renderWeekView(weekStart) {
     // week strip instead of looking identical to a day nothing happened on
     const inProgress = !done && entries.some(entry => !!openSessionsByDayId[entry.day.id])
     const mobility = mobilitySessionsByDate[dateStr]
+    const tournament = tournamentsByDate[dateStr]
 
     const classes = ['week-day-card']
     if (dateStr === todayStr) classes.push('today')
@@ -622,6 +773,7 @@ function renderWeekView(weekStart) {
         <span class="week-day-number">${date.getDate()}</span>
         ${badgeEntries.map(entry => `<span class="week-day-badge">${done ? '✓ ' : (inProgress ? '▶ ' : '')}${entry.program.created_by_athlete ? '🙋 ' : ''}${trainingDisplayName(entry)}</span>`).join('')}
         ${mobility ? '<span class="week-day-badge week-day-badge-mobility">🧘 Mobility</span>' : ''}
+        ${tournament ? `<span class="week-day-badge week-day-badge-tournament">🏆 ${escapeHtml(tournament.name)}</span>` : ''}
       </div>
     `
   }).join('')
@@ -651,6 +803,12 @@ function renderWeekView(weekStart) {
         <span class="home-tile-label">Daily Mobility/Stretching</span>
       </button>
     </div>
+    <div class="home-tile-row home-tile-row-single">
+      <button type="button" class="home-tile" id="tournamentsTile">
+        <span class="home-tile-icon">🏆</span>
+        <span class="home-tile-label">Tournaments</span>
+      </button>
+    </div>
   `
 
   document.querySelectorAll('.week-day-card').forEach(cardEl => {
@@ -673,6 +831,9 @@ function renderWeekView(weekStart) {
   })
   document.getElementById('mobilityTile').addEventListener('click', function() {
     renderMobilityAreaPicker()
+  })
+  document.getElementById('tournamentsTile').addEventListener('click', function() {
+    renderTournaments()
   })
 
   wireSyncBanner(function() { renderWeekView(weekStart) })

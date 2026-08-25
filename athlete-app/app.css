@@ -718,6 +718,11 @@
   background-color: #4caf50;
 }
 
+.week-day-badge-tournament {
+  background-color: #d4a017;
+  color: #1a1a2e;
+}
+
 /* --- Home screen tiles: Add Own Workout / Daily Mobility, below the week
    strip. Same tap-target weight as .start-workout-btn, just side by side. --- */
 .home-tile-row {
@@ -725,6 +730,11 @@
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-top: 20px;
+}
+
+.home-tile-row-single {
+  grid-template-columns: 1fr;
+  margin-top: 12px;
 }
 
 .home-tile {
@@ -1246,6 +1256,105 @@
   color: #aaaacc;
   font-size: 11px;
   margin-top: 8px;
+}
+
+/* --- Tournament importance picker: same "tap a number, see what it means"
+   mechanic and visual language as the RPE picker above, its own classes
+   since it's a different 1-5 scale in a different context. --- */
+.importance-picker {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.importance-picker-label {
+  color: #ffffff;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.importance-picker-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.importance-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #2a2a4e;
+  background: transparent;
+  color: #aaaacc;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.importance-btn:hover {
+  border-color: #d4a017;
+  color: #ffffff;
+}
+
+.importance-btn.selected {
+  background-color: #d4a017;
+  border-color: #d4a017;
+  color: #1a1a2e;
+}
+
+.importance-picker-hint {
+  color: #aaaacc;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+/* --- Tournament list (Tournaments screen) --- */
+.tournament-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tournament-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.tournament-list-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.tournament-list-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.tournament-list-date {
+  font-size: 12px;
+  color: #aaaacc;
+}
+
+.tournament-list-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #d4a017;
+  white-space: nowrap;
+}
+
+.tournament-list-delete-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
 }
 
 /* --- RPE 9-10 follow-up: heavy/tiring vs pain/injury, shown under the RPE
