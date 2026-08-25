@@ -2993,26 +2993,41 @@ function mountSlide(direction) {
   })
 }
 
-function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
-  const slide = document.querySelector('.workout-slide')
-  if (!slide) return
+// Listens on the whole page area (not just the exercise card) so a swipe
+// can start from the progress text, the padding around the card, the
+// "Swipe for next exercise" hint, anywhere - only an actual video (an
+// iframe, once the thumbnail's been tapped to play it) can't be swiped
+// over, since touches landing on it never reach this listener at all.
+// Only the card itself (.workout-slide) visually slides - pageContent is
+// persistent across renders (only its innerHTML gets replaced), so unlike
+// the old element-per-render approach, listeners here must be explicitly
+// torn down before attaching a fresh set on the next render, or they'd
+// pile up and old renders' stale closures would keep firing alongside it.
+let swipeCleanup = null
 
+function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
+  if (swipeCleanup) { swipeCleanup(); swipeCleanup = null }
+
+  const touchArea = pageContent
+  let slide = null
   let startX = 0
   let startY = 0
   let currentX = 0
   let dragging = false
   let horizontal = false
 
-  slide.addEventListener('pointerdown', function(e) {
+  function onPointerDown(e) {
     if (e.target.closest('input, button, iframe, select, textarea')) return
+    slide = touchArea.querySelector('.workout-slide')
+    if (!slide) return
     startX = e.clientX
     startY = e.clientY
     currentX = startX
     dragging = true
     horizontal = false
-  })
+  }
 
-  slide.addEventListener('pointermove', function(e) {
+  function onPointerMove(e) {
     if (!dragging) return
     currentX = e.clientX
     const deltaX = currentX - startX
@@ -3024,13 +3039,13 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
       horizontal = true
       slide.classList.add('dragging')
       slide.style.transition = 'none'
-      slide.setPointerCapture(e.pointerId)
+      touchArea.setPointerCapture(e.pointerId)
     }
 
     slide.style.transform = `translateX(${deltaX}px)`
-  })
+  }
 
-  function endDrag(e) {
+  function endDrag() {
     if (!dragging) return
     dragging = false
     if (!horizontal) return
@@ -3055,8 +3070,26 @@ function attachSwipeHandlers(onSwipeLeft, onSwipeRight) {
     setTimeout(callback, 180)
   }
 
-  slide.addEventListener('pointerup', endDrag)
-  slide.addEventListener('pointercancel', endDrag)
+  // .workout-slide's own touch-action:pan-y (still set in CSS, unchanged)
+  // only covered the card itself - now that a drag can start anywhere in
+  // this wider area, the same "let vertical scroll through, don't fight
+  // our horizontal drag" rule needs to apply here too, scoped to exactly
+  // while a workout screen with swipe handling is showing (reset on
+  // cleanup so it doesn't leak onto whatever screen replaces this one).
+  touchArea.style.touchAction = 'pan-y'
+
+  touchArea.addEventListener('pointerdown', onPointerDown)
+  touchArea.addEventListener('pointermove', onPointerMove)
+  touchArea.addEventListener('pointerup', endDrag)
+  touchArea.addEventListener('pointercancel', endDrag)
+
+  swipeCleanup = function() {
+    touchArea.style.touchAction = ''
+    touchArea.removeEventListener('pointerdown', onPointerDown)
+    touchArea.removeEventListener('pointermove', onPointerMove)
+    touchArea.removeEventListener('pointerup', endDrag)
+    touchArea.removeEventListener('pointercancel', endDrag)
+  }
 }
 
 // Goes straight to the summary the instant this is confirmed - it's built
