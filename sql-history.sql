@@ -1430,3 +1430,31 @@ create policy "athlete marks own messages seen" on coach_messages for update
 
 create index if not exists idx_coach_messages_unseen on coach_messages(athlete_id) where seen_at is null;
 create index if not exists idx_coach_messages_coach_id on coach_messages(coach_id, created_at desc);
+
+-- ==========================================================================
+-- Real push notifications (Web Push / VAPID). One row per subscribed
+-- device (coach or athlete - both are real auth.users rows, so one table
+-- covers both sides). The send-push Edge Function reads this table with
+-- the service role key (bypassing RLS) since it needs to push to a user
+-- who isn't the caller - e.g. an athlete's action needs to notify their
+-- coach. Athletes now also get a third message timing option ('push').
+-- ==========================================================================
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth_key text not null,
+  created_at timestamptz not null default now()
+);
+alter table push_subscriptions enable row level security;
+
+drop policy if exists "user manages own push subscriptions" on push_subscriptions;
+create policy "user manages own push subscriptions" on push_subscriptions for all
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+create index if not exists idx_push_subscriptions_user_id on push_subscriptions(user_id);
+
+alter table coach_messages drop constraint if exists coach_messages_timing_check;
+alter table coach_messages add constraint coach_messages_timing_check
+  check (timing in ('on_open', 'before_workout', 'push'));

@@ -15,6 +15,7 @@
 // separate mini-app with its own Supabase client (see athleteClient.js).
 // ==========================================================================
 import { supabase } from './athleteClient.js'
+import { pushStatus, enablePush, disablePush, sendPush } from '../push.js'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')
@@ -250,11 +251,16 @@ async function enterWeekView() {
 // A place for per-athlete settings that live outside the coach-editable
 // Settings tab (which is on the coach's own athlete page) - this one is
 // self-service, for things the athlete should be able to change themselves.
-// Weekly recap here is opt-in only for now - actually sending one is a
-// separate, bigger piece of work (not built yet), this just captures the
-// preference so it's ready to use once that exists.
-function renderSettings() {
+function pushStatusDesc(status) {
+  if (status === 'on') return 'On - your coach can message you even when the app is closed'
+  if (status === 'denied') return 'Blocked in your browser settings - re-enable notifications for this site to turn this on'
+  if (status === 'unsupported') return "This browser doesn't support push notifications"
+  return 'Get notified even when the app is closed'
+}
+
+async function renderSettings() {
   setActiveBottomTab('settings')
+  const status = await pushStatus() // local browser check only, no network - fast enough to await before the first render
   pageContent.innerHTML = `
     <div class="settings-row">
       <div class="settings-row-info">
@@ -279,11 +285,29 @@ function renderSettings() {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">🔔 Push Notifications</div>
+        <div class="settings-row-desc" id="pushStatusDesc">${pushStatusDesc(status)}</div>
+      </div>
+      <button type="button" class="btn-profile-action" id="pushToggleBtn">${status === 'on' ? 'Disable' : 'Enable'}</button>
+    </div>
     <button class="btn-cancel" id="backFromSettingsBtn" style="margin-top:20px">Go Back</button>
   `
 
   document.getElementById('backFromSettingsBtn').addEventListener('click', function() {
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  // Turning ON needs a real user tap (browsers require a user gesture to
+  // show the permission prompt, so this can't be a silent toggle like the
+  // two above) - re-renders the whole screen after either action so the
+  // button label/description reflect what actually happened
+  document.getElementById('pushToggleBtn').addEventListener('click', async function(e) {
+    e.target.disabled = true
+    if (status === 'on') await disablePush(supabase)
+    else await enablePush(supabase, session.user.id)
+    renderSettings()
   })
 
   document.getElementById('weightUnitToggle').addEventListener('change', async function(e) {
@@ -408,6 +432,9 @@ async function notifyCoach(type, message) {
     .from('notifications')
     .insert([{ coach_id: athlete.coach_id, athlete_id: athlete.id, type, message }])
   if (error) console.log(error)
+
+  const url = new URL(`../athlete.html?id=${athlete.id}`, window.location.href).href
+  sendPush(supabase, athlete.coach_id, 'TBFlog', message, url) // not awaited, same as the insert above
 }
 
 // tracks_weight/is_timed/is_unilateral/tracks_distance normally come
@@ -1966,14 +1993,16 @@ function maybeShowWeeklyRecap() {
 // ==========================================================================
 // ---- COACH MESSAGES ----
 // A coach can send a message that shows either the next time this athlete
-// opens the app ('on_open') or right before they start their next workout
-// ('before_workout', gated inside startWorkout() below). Loaded once per
+// opens the app ('on_open'), right before they start their next workout
+// ('before_workout', gated inside startWorkout() below), or as a real push
+// notification ('push', sent immediately from script.js - see sendPush()
+// in push.js). A 'push' message is also inserted into this same table as a
+// fallback, in case it's missed/dismissed or the athlete never enabled
+// push on this device - it just falls into the same on-open bucket as
+// 'on_open' rather than getting its own third bucket. Loaded once per
 // session into these two caches; each queue is cleared and marked seen the
 // moment it's actually shown, so re-opening the app or starting another
 // workout later in the same session never shows the same message twice.
-// Real push notifications (works even with the app fully closed) aren't
-// built yet - deliberately deferred, needs a service worker + a way to
-// send from a server, neither of which this app has.
 // ==========================================================================
 let onOpenMessagesCache = []
 let beforeWorkoutMessagesCache = []
@@ -1988,8 +2017,12 @@ async function loadCoachMessages() {
     .abortSignal(signal)
   )
   if (error) { console.log(error); return }
-  onOpenMessagesCache = (data || []).filter(m => m.timing === 'on_open')
+  // 'push' messages already arrived as a real notification, but if it was
+  // missed/dismissed (or push was never enabled on this device), it still
+  // needs to catch up here - falls into the same on-open bucket as
+  // 'on_open' rather than getting its own third bucket
   beforeWorkoutMessagesCache = (data || []).filter(m => m.timing === 'before_workout')
+  onOpenMessagesCache = (data || []).filter(m => m.timing !== 'before_workout')
 }
 
 // Never awaited by callers - a failed "mark seen" shouldn't block or alert

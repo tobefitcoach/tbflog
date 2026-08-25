@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=16" />
+    <link rel="stylesheet" href="style.css?v=17" />
     <link rel="stylesheet" href="athlete.css?v=43" />
   </head>
   <body>
@@ -110,10 +110,9 @@
 </div>
 
 <!-- Message Athletes Modal: compose + send, to all athletes or specific
-     ones, shown either the next time they open the app or right before
-     they start their next workout - see sendCoachMessage() in script.js.
-     Real push notifications (works even with the app fully closed)
-     aren't built yet - deliberately deferred, needs new infrastructure. -->
+     ones, shown either the next time they open the app, right before they
+     start their next workout, or immediately as a real push notification -
+     see the sendMessageAthletesBtn handler in script.js. -->
 <div class="modal-overlay" id="messageAthletesModal">
   <div class="modal">
     <div class="graph-modal-header">
@@ -129,6 +128,7 @@
       <div class="chip-row" id="messageTimingChips">
         <button type="button" class="chip-btn selected" data-timing="on_open">When they open the app</button>
         <button type="button" class="chip-btn" data-timing="before_workout">Right before they start a workout</button>
+        <button type="button" class="chip-btn" data-timing="push">Push notification, right now</button>
       </div>
     </div>
     <div class="form-group">
@@ -149,8 +149,8 @@
 <script type="module" src="loading-bar.js?v=1"></script>
 <script type="module" src="confirm-modal.js?v=1"></script>
 <script type="module" src="network-retry.js?v=1"></script>
-<script type="module" src="script.js?v=14"></script>
-<script type="module" src="bell.js?v=1"></script>
+<script type="module" src="script.js?v=15"></script>
+<script type="module" src="bell.js?v=2"></script>
 <script type="module" src="sidebar.js?v=1"></script>
   </body>
 </html>

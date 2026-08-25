@@ -4,6 +4,7 @@
 // handles adding/deleting athletes.
 // ==========================================================================
 import { supabase } from './coachClient.js'
+import { sendPush } from './push.js'
  
 const addBtn = document.querySelector('.btn-add');
 const modal = document.getElementById('addAthleteModal');
@@ -112,6 +113,20 @@ document.getElementById('sendMessageAthletesBtn').addEventListener('click', asyn
     recipientIds.map(athleteId => ({ coach_id: session.user.id, athlete_id: athleteId, message, timing }))
   )
   if (error) { console.log(error); customAlert('Something went wrong sending that - try again'); return }
+
+  // The row above is still inserted for 'push' too - a fallback in case the
+  // notification is missed/dismissed or the athlete never enabled push on
+  // this device (see loadCoachMessages() in athlete-app/dashboard.js). The
+  // actual push itself is fire-and-forget, same as every other
+  // notification send in this app - a failed push shouldn't block or alert
+  // on "the message was saved" succeeding.
+  if (timing === 'push') {
+    for (const athleteId of recipientIds) {
+      const athlete = allAthletes.find(a => a.id === athleteId)
+      if (!athlete || !athlete.user_id) continue // not linked to a login yet - nothing to push to
+      sendPush(supabase, athlete.user_id, 'Message from your coach', message, new URL('athlete-app/dashboard.html', window.location.href).href)
+    }
+  }
 
   document.getElementById('messageAthletesModal').classList.remove('active')
   customAlert(`Sent to ${recipientIds.length} athlete${recipientIds.length === 1 ? '' : 's'}.`)

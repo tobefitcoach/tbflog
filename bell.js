@@ -14,6 +14,7 @@
 // first WebSocket subscription.
 // ==========================================================================
 import { supabase } from './coachClient.js'
+import { pushStatus, enablePush, disablePush } from './push.js'
 
 const { data: { session } } = await supabase.auth.getSession()
 if (session) initBell()
@@ -32,9 +33,26 @@ async function initBell() {
       </svg>
       <span class="notification-bell-badge" id="notificationBellBadge" style="display:none">0</span>
     </button>
-    <div class="notification-bell-panel" id="notificationBellPanel"></div>
+    <div class="notification-bell-panel" id="notificationBellPanel">
+      <div class="notification-bell-list" id="notificationBellList"></div>
+      <div class="notification-bell-push-row" id="notificationBellPushRow">
+        <span id="notificationBellPushLabel">Push notifications</span>
+        <button type="button" class="btn-profile-action" id="notificationBellPushBtn"></button>
+      </div>
+    </div>
   `
   logoutBtn.insertAdjacentElement('beforebegin', bell)
+
+  await refreshPushRow()
+  document.getElementById('notificationBellPushBtn').addEventListener('click', async function(e) {
+    e.stopPropagation()
+    const btn = e.target
+    btn.disabled = true
+    const status = await pushStatus()
+    if (status === 'on') await disablePush(supabase)
+    else await enablePush(supabase, session.user.id)
+    await refreshPushRow()
+  })
 
   document.getElementById('notificationBellBtn').addEventListener('click', async function(e) {
     e.stopPropagation()
@@ -58,6 +76,26 @@ async function initBell() {
   })
 }
 
+// Small persistent row at the bottom of the panel, not part of the
+// notification list itself - this is the coach's own opt-in for real push
+// (no coach-facing settings page exists elsewhere to put it, and this is
+// exactly the feature it powers). Re-checked after every enable/disable
+// tap so the label/button always reflect what actually happened.
+async function refreshPushRow() {
+  const status = await pushStatus()
+  const label = document.getElementById('notificationBellPushLabel')
+  const btn = document.getElementById('notificationBellPushBtn')
+  if (!label || !btn) return
+
+  if (status === 'on') label.textContent = '🔔 Push notifications on'
+  else if (status === 'denied') label.textContent = '🔕 Blocked in browser settings'
+  else if (status === 'unsupported') label.textContent = "🔕 Not supported in this browser"
+  else label.textContent = '🔕 Push notifications off'
+
+  btn.textContent = status === 'on' ? 'Disable' : 'Enable'
+  btn.disabled = status === 'unsupported'
+}
+
 async function refreshBadge() {
   // RLS already scopes this to the logged-in coach's own notifications - no
   // explicit .eq('coach_id', ...) needed
@@ -73,8 +111,8 @@ async function refreshBadge() {
 }
 
 async function openPanel() {
-  const panel = document.getElementById('notificationBellPanel')
-  panel.innerHTML = '<p class="notification-bell-empty">Loading...</p>'
+  const list = document.getElementById('notificationBellList')
+  list.innerHTML = '<p class="notification-bell-empty">Loading...</p>'
 
   const { data, error } = await supabase
     .from('notifications')
@@ -84,11 +122,11 @@ async function openPanel() {
 
   if (error) {
     console.log(error)
-    panel.innerHTML = '<p class="notification-bell-empty">Something went wrong loading notifications</p>'
+    list.innerHTML = '<p class="notification-bell-empty">Something went wrong loading notifications</p>'
     return
   }
 
-  panel.innerHTML = data.length === 0
+  list.innerHTML = data.length === 0
     ? '<p class="notification-bell-empty">No notifications yet</p>'
     : data.map(n => `
       <a class="notification-bell-item ${n.read_at ? '' : 'unread'}" href="athlete.html?id=${n.athlete_id}">
