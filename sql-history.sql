@@ -1294,3 +1294,25 @@ create index if not exists idx_tournaments_date on tournaments(date);
 drop policy if exists "athlete views own coach's profile" on profiles;
 create policy "athlete views own coach's profile" on profiles for select
   using (exists (select 1 from athletes a where a.coach_id = profiles.id and a.user_id = (select auth.uid())));
+
+-- ==========================================================================
+-- Fix timezone-dependent date bucketing: workout_sessions.started_at is a
+-- UTC instant, and several places were converting it to a calendar date via
+-- new Date(started_at) in whichever browser happened to be running - so the
+-- same session could land under a different date on the coach's calendar
+-- than on the athlete's own week strip, depending on each person's local
+-- timezone. local_date is written once, by the athlete's own device, at the
+-- moment each session is created (see the 3 workout_sessions insert sites
+-- in athlete-app/dashboard.js) - every date-bucketing read site then uses
+-- this fixed value instead of re-deriving one. Same "write the fixed value
+-- once, read it back everywhere" pattern exercise_log_sets.date already
+-- uses successfully.
+-- ==========================================================================
+alter table workout_sessions add column if not exists local_date date;
+
+-- Best-effort backfill for existing rows - we can't know the athlete's exact
+-- historical local day, so this falls back to the UTC calendar-date of
+-- started_at (the same fallback already used ad hoc elsewhere in the app,
+-- e.g. durationEvents' `s.started_at.split('T')[0]`), just made permanent.
+update workout_sessions set local_date = (started_at at time zone 'utc')::date where local_date is null;
+alter table workout_sessions alter column local_date set not null;

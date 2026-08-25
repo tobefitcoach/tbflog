@@ -118,7 +118,7 @@ async function loadAthleteExtras() {
     // Rated sessions for ACWR - 90 days back, same window athlete.js uses
     fetchWithRetry((signal) => supabase
       .from('workout_sessions')
-      .select('athlete_id, started_at, ended_at, session_rpe')
+      .select('athlete_id, started_at, ended_at, local_date, session_rpe')
       .not('ended_at', 'is', null)
       .gte('started_at', ninetyDaysAgoISO)
       .abortSignal(signal), 1
@@ -240,7 +240,7 @@ function computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo) {
     const dailyLoad = {}
     for (const s of athleteSessions) {
       if (s.session_rpe == null) continue
-      const dateStr = toDateStrIdx(new Date(s.started_at))
+      const dateStr = s.local_date
       const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
       dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
     }

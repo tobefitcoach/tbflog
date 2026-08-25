@@ -545,7 +545,7 @@ async function loadOverviewStats() {
   durationEvents = sessions.map(s => {
     const info = dayInfoById[s.program_day_id]
     const minutes = Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000)
-    return { dateStr: info ? info.dateStr : s.started_at.split('T')[0], name: info ? info.name : 'Workout', minutes }
+    return { dateStr: info ? info.dateStr : s.local_date, name: info ? info.name : 'Workout', minutes }
   })
 
   const thirtyDaysAgo = toDateStrOv(addDaysOv(new Date(), -29))
@@ -562,7 +562,7 @@ async function loadOverviewStats() {
   const dailyLoad = {} // dateStr -> summed session_load that day
   for (const s of sessions) {
     if (s.session_rpe == null) continue // no rating entered - excluded, not treated as 0
-    const dateStr = toDateStrOv(new Date(s.started_at))
+    const dateStr = s.local_date
     const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
     dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
   }
@@ -643,7 +643,7 @@ function renderPainReports(sessions, dayInfoById) {
   section.style.display = 'block'
   list.innerHTML = reports.map(s => {
     const info = dayInfoById[s.program_day_id]
-    const dateStr = info ? info.dateStr : s.started_at.split('T')[0]
+    const dateStr = info ? info.dateStr : s.local_date
     const name = info ? info.name : 'Workout'
     return `
       <div class="pain-report-row">
@@ -3089,10 +3089,7 @@ function volumeForRange(logSets, peInfoById, from, to) {
 }
 
 function durationStatsForRange(sessions, from, to) {
-  const inRange = sessions.filter(s => {
-    const dateStr = toDateStrOv(new Date(s.started_at))
-    return dateStr >= from && dateStr <= to
-  })
+  const inRange = sessions.filter(s => s.local_date >= from && s.local_date <= to)
   if (inRange.length === 0) return null
   const totalMinutes = inRange.reduce((sum, s) => sum + (new Date(s.ended_at) - new Date(s.started_at)) / 60000, 0)
   return Math.round(totalMinutes / inRange.length)

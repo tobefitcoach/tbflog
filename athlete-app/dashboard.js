@@ -676,7 +676,7 @@ async function loadTrainingData() {
   mobilitySessionsByDate = {}
   for (const s of sessions) {
     if (s.session_type === 'mobility') {
-      mobilitySessionsByDate[toDateStr(new Date(s.started_at))] = s
+      mobilitySessionsByDate[s.local_date] = s
       continue
     }
     if (!s.ended_at) {
@@ -1128,7 +1128,8 @@ async function finishMobilitySession(startedAt) {
       program_day_id: null,
       session_type: 'mobility',
       started_at: startedAt.toISOString(),
-      ended_at: new Date().toISOString()
+      ended_at: new Date().toISOString(),
+      local_date: toDateStr(startedAt)
     }])
     .abortSignal(signal)
   )
@@ -1798,10 +1799,9 @@ async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, av
 
   // Today: use the real current time, so logging right after finishing
   // reflects an accurate clock time. A past day: the exact time isn't
-  // known, so anchor near midday - that keeps the derived startedAt safely
-  // within the same calendar day for any reasonable duration, which matters
-  // since Training Load buckets sessions by started_at's own date, not the
-  // program_day it's attached to
+  // known, so anchor near midday - just keeps the derived clock time
+  // looking plausible; local_date below (not started_at) is what actually
+  // decides which day this counts toward everywhere in the app now
   const isToday = dateStr === toDateStr(new Date())
   const endedAt = isToday ? new Date() : new Date(parseDateStr(dateStr).getTime() + 12 * 60 * 60000)
   const startedAt = new Date(endedAt.getTime() - durationMinutes * 60000)
@@ -1813,6 +1813,7 @@ async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, av
       athlete_id: athlete.id,
       started_at: startedAt.toISOString(),
       ended_at: endedAt.toISOString(),
+      local_date: dateStr,
       session_rpe: rpe,
       avg_heart_rate: avgHeartRate
     }])
@@ -2211,7 +2212,7 @@ async function findOrCreateSession(programDayId) {
 
   const { data: newSession, error: insertError } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
-    .insert([{ program_day_id: programDayId, athlete_id: athlete.id }])
+    .insert([{ program_day_id: programDayId, athlete_id: athlete.id, local_date: toDateStr(new Date()) }])
     .select()
     .single()
     .abortSignal(signal)
@@ -3389,7 +3390,7 @@ async function loadAndRenderPRBadges(session, entry) {
     buckets[key].push(s)
   }
 
-  const todayStr = toDateStr(new Date(session.started_at))
+  const todayStr = session.local_date
 
   for (const pe of entry.day.program_exercises) {
     const todayKey = `${pe.exercise_id}|${todayStr}`

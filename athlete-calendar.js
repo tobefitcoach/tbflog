@@ -126,7 +126,7 @@ async function loadCalendarMonth(year, month) {
     ),
     fetchWithRetry((signal) => supabase
       .from('workout_sessions')
-      .select('program_day_id, started_at, ended_at, session_rpe, session_type, rpe_flag_reason, rpe_flag_note, rpe_flag_reviewed_at')
+      .select('program_day_id, started_at, ended_at, local_date, session_rpe, session_type, rpe_flag_reason, rpe_flag_note, rpe_flag_reviewed_at')
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
     ),
@@ -171,7 +171,7 @@ async function loadCalendarMonth(year, month) {
   mobilityEntriesByDateCal = {}
   for (const s of sessions || []) {
     if (s.session_type === 'mobility') {
-      mobilityEntriesByDateCal[toDateStr(new Date(s.started_at))] = s
+      mobilityEntriesByDateCal[s.local_date] = s
       continue
     }
     if (!s.ended_at) {
