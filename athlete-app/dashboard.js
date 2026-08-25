@@ -41,7 +41,7 @@ document.getElementById('navHomeBtn').addEventListener('click', function() {
 // Also hidden entirely (see enterWeekView) unless the coach has
 // can_view_weekly_stats on for this athlete
 document.getElementById('navStatsBtn').addEventListener('click', function() {
-  if (athlete) openWeeklyStatsModal()
+  if (athlete) renderWeeklyStats()
 })
 
 document.getElementById('navSettingsBtn').addEventListener('click', function() {
@@ -1858,7 +1858,7 @@ function maybeShowWeeklyRecap() {
   showWeeklyRecapModal(stats)
 }
 
-// Also powers the on-demand Weekly Stats view (see openWeeklyStatsModal
+// Also powers the on-demand Weekly Stats view (see renderWeeklyStats
 // below) - scheduledCount/scheduledCompletedCount/totalVolume/hasVolumeData/
 // prEvents are additive fields that view needs; totalWorkouts/totalSets/
 // totalReps/totalDurationMs keep their exact original meaning and
@@ -1939,24 +1939,47 @@ function showWeeklyRecapModal(stats) {
 }
 
 // ==========================================================================
-// ---- WEEKLY STATS (header button, gated by athlete.can_view_weekly_stats) ----
+// ---- WEEKLY STATS (Stats tab, gated by athlete.can_view_weekly_stats) ----
 // Same underlying computeWeekRecap() as the auto-popup above, just picked
 // on demand for any of the last 8 Monday-Sunday weeks instead of always
-// "last week" - see the exerciseHistoryModal pattern this borrows from
-// (open with a default selection, re-render the body in place on each
-// pick, no modal close/reopen needed).
+// "last week". A full-page screen like every other tab (was a modal
+// originally, before the bottom nav existed) - open on a default
+// selection, re-render just the body in place on each pick.
 // ==========================================================================
-function openWeeklyStatsModal() {
-  document.getElementById('weeklyStatsModal').classList.add('active')
+function renderWeeklyStats() {
+  setActiveBottomTab('stats')
   const thisMonday = startOfWeek(new Date())
-  document.getElementById('weeklyStatsWeekList').innerHTML = Array.from({ length: 8 }, (_, i) => {
-    const ws = addDays(thisMonday, -7 * i)
-    const label = i === 0 ? 'This Week' : i === 1 ? 'Last Week' : `${i} Weeks Ago`
-    return `<button type="button" class="week-picker-row ${i === 0 ? 'selected' : ''}" data-week-start="${toDateStr(ws)}">
-      <span class="week-picker-label">${label}</span>
-      <span class="week-picker-range">${formatShortDate(ws)} – ${formatShortDate(addDays(ws, 6))}</span>
-    </button>`
-  }).join('')
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button class="btn-cancel" id="backFromWeeklyStatsBtn">← Back</button>
+      <h2 class="day-view-date">Weekly Stats</h2>
+    </div>
+    <div class="week-picker-list" id="weeklyStatsWeekList">
+      ${Array.from({ length: 8 }, (_, i) => {
+        const ws = addDays(thisMonday, -7 * i)
+        const label = i === 0 ? 'This Week' : i === 1 ? 'Last Week' : `${i} Weeks Ago`
+        return `<button type="button" class="week-picker-row ${i === 0 ? 'selected' : ''}" data-week-start="${toDateStr(ws)}">
+          <span class="week-picker-label">${label}</span>
+          <span class="week-picker-range">${formatShortDate(ws)} – ${formatShortDate(addDays(ws, 6))}</span>
+        </button>`
+      }).join('')}
+    </div>
+    <div id="weeklyStatsBody"></div>
+  `
+
+  document.getElementById('backFromWeeklyStatsBtn').addEventListener('click', function() {
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  document.getElementById('weeklyStatsWeekList').addEventListener('click', function(e) {
+    const btn = e.target.closest('.week-picker-row')
+    if (!btn) return
+    document.querySelectorAll('#weeklyStatsWeekList .week-picker-row').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+    renderWeeklyStatsBody(parseDateStr(btn.dataset.weekStart))
+  })
+
   renderWeeklyStatsBody(thisMonday)
 }
 
@@ -1989,18 +2012,6 @@ function renderWeeklyStatsBody(weekStart) {
     ${stats.scheduledCount === 0 && stats.totalWorkouts === 0 ? '<p class="no-metrics" style="margin-top:16px">Nothing logged this week</p>' : ''}
   `
 }
-
-document.getElementById('weeklyStatsWeekList').addEventListener('click', function(e) {
-  const btn = e.target.closest('.week-picker-row')
-  if (!btn) return
-  document.querySelectorAll('#weeklyStatsWeekList .week-picker-row').forEach(b => b.classList.remove('selected'))
-  btn.classList.add('selected')
-  renderWeeklyStatsBody(parseDateStr(btn.dataset.weekStart))
-})
-
-document.getElementById('closeWeeklyStatsBtn').addEventListener('click', function() {
-  document.getElementById('weeklyStatsModal').classList.remove('active')
-})
 
 // ==========================================================================
 // ---- DAY PREVIEW (read-only, no logging inputs) ----

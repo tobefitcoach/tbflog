@@ -6,7 +6,7 @@
     <title>Dashboard — TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=15" />
     <link rel="stylesheet" href="../athlete.css?v=38" />
-    <link rel="stylesheet" href="app.css?v=39" />
+    <link rel="stylesheet" href="app.css?v=40" />
   </head>
   <body>
 
@@ -40,23 +40,6 @@
         <div class="form-actions" style="justify-content:flex-end; margin-top:24px">
           <button class="btn-save" id="weeklyRecapCloseBtn">Nice!</button>
         </div>
-      </div>
-    </div>
-
-    <!-- Weekly Stats, opened via the header's 📊 Stats button (hidden
-         unless the coach has can_view_weekly_stats on) - see
-         openWeeklyStatsModal()/renderWeeklyStatsBody() in dashboard.js.
-         Reuses computeWeekRecap(), the same function powering the auto
-         weekly-recap popup above, just called for whichever past week is
-         picked instead of always "last week" -->
-    <div class="modal-overlay" id="weeklyStatsModal">
-      <div class="modal">
-        <div class="graph-modal-header">
-          <h2>Weekly Stats</h2>
-          <button type="button" class="btn-cancel" id="closeWeeklyStatsBtn">✕</button>
-        </div>
-        <div class="week-picker-list" id="weeklyStatsWeekList"></div>
-        <div id="weeklyStatsBody"></div>
       </div>
     </div>
 
@@ -119,19 +102,47 @@
          coach has can_view_weekly_stats on. -->
     <nav class="bottom-nav" id="bottomNav" style="display:none">
       <button type="button" class="bottom-nav-btn" id="navHomeBtn" data-tab="home">
-        <span class="bottom-nav-icon">🏠</span>
+        <span class="bottom-nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 11.5 12 5 20 11.5"/>
+            <polyline points="6 10.5 6 19 18 19 18 10.5"/>
+            <line x1="10" y1="19" x2="10" y2="14"/>
+            <line x1="14" y1="19" x2="14" y2="14"/>
+            <line x1="10" y1="14" x2="14" y2="14"/>
+          </svg>
+        </span>
         <span class="bottom-nav-label">Home</span>
       </button>
       <button type="button" class="bottom-nav-btn" id="navStatsBtn" data-tab="stats" style="display:none">
-        <span class="bottom-nav-icon">📊</span>
+        <span class="bottom-nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="20" x2="5" y2="11"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="19" y1="20" x2="19" y2="14"/>
+          </svg>
+        </span>
         <span class="bottom-nav-label">Stats</span>
       </button>
       <button type="button" class="bottom-nav-btn" id="navSettingsBtn" data-tab="settings">
-        <span class="bottom-nav-icon">⚙️</span>
+        <span class="bottom-nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <circle cx="15" cy="6" r="2"/>
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <circle cx="9" cy="12" r="2"/>
+            <line x1="4" y1="18" x2="20" y2="18"/>
+            <circle cx="17" cy="18" r="2"/>
+          </svg>
+        </span>
         <span class="bottom-nav-label">Settings</span>
       </button>
       <button type="button" class="bottom-nav-btn" id="navProfileBtn" data-tab="profile">
-        <span class="bottom-nav-icon">👤</span>
+        <span class="bottom-nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <polyline points="4 20 6 15 18 15 20 20"/>
+          </svg>
+        </span>
         <span class="bottom-nav-label">Profile</span>
       </button>
     </nav>
@@ -139,6 +150,6 @@
     <script type="module" src="../loading-bar.js?v=1"></script>
     <script type="module" src="../confirm-modal.js?v=1"></script>
     <script type="module" src="../network-retry.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=73"></script>
+    <script type="module" src="dashboard.js?v=74"></script>
   </body>
 </html>
