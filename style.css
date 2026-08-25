@@ -602,38 +602,6 @@ header {
   text-align: center;
 }
 
-/* The panel now holds a scrollable list (.notification-bell-list) plus a
-   persistent push-notification row pinned below it - overflow moves from
-   the whole panel onto just the list, so a long list scrolls without
-   dragging the push row out of view */
-.notification-bell-panel {
-  display: flex;
-  flex-direction: column;
-  overflow: visible;
-  max-height: none;
-}
-
-.notification-bell-list {
-  max-height: 340px;
-  overflow-y: auto;
-}
-
-.notification-bell-push-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
-  border-top: 1px solid #2a2a4e;
-  font-size: 12px;
-  color: #aaaacc;
-}
-
-.notification-bell-push-row .btn-profile-action {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
 #athleteStatusFilter {
   margin: 4px 0 20px;
 }

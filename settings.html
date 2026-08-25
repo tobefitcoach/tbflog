@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Workout Library — TBFlog</title>
+    <title>Settings — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=18" />
     <link rel="stylesheet" href="athlete.css?v=43" />
   </head>
@@ -22,7 +22,7 @@
         <div class="sidebar-links" id="sidebarLinks">
           <a href="index.html" class="sidebar-link">Athletes</a>
           <div class="sidebar-item-hover">
-            <span class="sidebar-link active">Library</span>
+            <span class="sidebar-link">Library</span>
             <div class="sidebar-submenu">
               <a href="exercises.html">Exercise Library</a>
               <a href="sections.html">Section Library</a>
@@ -31,32 +31,20 @@
             </div>
           </div>
           <a href="stretches.html" class="sidebar-link">Stretch Library</a>
-          <a href="settings.html" class="sidebar-link">⚙ Settings</a>
+          <a href="settings.html" class="sidebar-link active">⚙ Settings</a>
         </div>
       </nav>
 
       <div class="dashboard">
         <div class="dashboard-header">
-          <h2>Workout Library</h2>
-          <button class="btn-add" id="newTrainingBtn">+ New Workout</button>
+          <h2>Settings</h2>
         </div>
-        <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:24px">A workout is a flat list of exercises - build once, then drop it onto any athlete's calendar.</p>
-        <div class="athlete-grid" id="trainingGrid"></div>
-      </div>
-    </div>
-
-    <!-- New Training Modal: just a name - the exercise list gets built on
-         training-builder.html after this redirects there -->
-    <div class="modal-overlay" id="newTrainingModal">
-      <div class="modal">
-        <h2>New Workout</h2>
-        <div class="form-group">
-          <label>Name</label>
-          <input type="text" id="newTrainingName" placeholder="e.g. Leg Day" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelNewTrainingBtn">Cancel</button>
-          <button class="btn-save" id="saveNewTrainingBtn">Create & Edit</button>
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <div class="settings-row-title">🔔 Push Notifications</div>
+            <div class="settings-row-desc" id="pushStatusDesc">Checking...</div>
+          </div>
+          <button type="button" class="btn-profile-action" id="pushToggleBtn" disabled>...</button>
         </div>
       </div>
     </div>
@@ -64,7 +52,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="trainings.js?v=4"></script>
+    <script type="module" src="settings.js?v=1"></script>
     <script type="module" src="bell.js?v=3"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
