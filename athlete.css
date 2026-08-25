@@ -684,12 +684,52 @@
   color: #ff4444;
 }
 
-/* Status/type dots replacing full-name badges in each day cell - see the
-   comment above dots' construction in renderCalendarGrid() for why */
+/* Two renderings of the same "what's on this day" list - dots (compact,
+   phone-width) and full-name badges (desktop, plenty of column width to
+   spare). CSS picks which is visible per viewport - see the .calendar-day-
+   dots/.calendar-day-badges display flip in the max-width:768px block
+   below. Desktop shows badges by default (this rule), dots start hidden. */
 .calendar-day-dots {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   gap: 3px;
+}
+
+.calendar-day-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.calendar-day-badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background-color: #3b82f6;
+  color: white;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.calendar-day-badge-planned {
+  background-color: #3b82f6;
+}
+.calendar-day-badge-in-progress {
+  background-color: #ff9800;
+}
+.calendar-day-badge-done {
+  background-color: #4caf50;
+}
+.calendar-day-badge-tournament {
+  background-color: #d4a017;
+  color: #1a1a2e;
+}
+
+.calendar-day-badge-more {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #aaaacc;
 }
 
 .calendar-day-dot {
@@ -1906,6 +1946,17 @@
 
   .calendar-day-number {
     font-size: 11px;
+  }
+
+  /* Phone-width flip: dots instead of full-name badges - a day column is
+     too narrow here for real names without the height/width blowout dots
+     were built to avoid (see the comment in renderCalendarGrid()) */
+  .calendar-day-dots {
+    display: flex;
+  }
+
+  .calendar-day-badges {
+    display: none;
   }
 
   .calendar-day-dot {

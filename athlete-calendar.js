@@ -246,30 +246,37 @@ function renderCalendarGrid(year, month) {
     if (cell.outside) classes.push('calendar-day-outside')
     if (dateStr === todayStr) classes.push('calendar-day-today')
 
-    // A busy day used to show one full-name badge per item, blowing the
-    // cell's height (wrapped text) or width (unwrapped text, in a 1fr grid
-    // column) out. Small fixed-size status dots avoid both - every cell
-    // stays a uniform size no matter what's scheduled. Clicking the day
-    // still opens the full detail modal with real names.
-    const dots = badges.map(entry => {
+    // One shared list of "what's on this day", rendered two ways: small
+    // fixed-size dots (phone-width screens - a busy day used to blow the
+    // cell's height or width out showing one full-name badge per item, see
+    // git history) and full-name badges (desktop, where a column is wide
+    // enough that showing real names is more useful than a dot). CSS picks
+    // which one is visible per viewport width - see .calendar-day-dots/
+    // .calendar-day-badges in athlete.css. Clicking the day always opens
+    // the full detail modal regardless of which is showing.
+    const items = badges.map(entry => {
       const session = sessionByDayId[entry.day.id]
       const status = session ? (session.ended_at ? 'done' : 'in-progress') : 'planned'
       const glyph = status === 'done' ? '✓' : (status === 'in-progress' ? '▶' : '')
-      return `<span class="calendar-day-dot calendar-day-dot-${status}">${glyph}</span>`
+      const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
+      return { status, glyph, label: selfLogged + trainingDisplayName(entry) }
     })
-    if (mobility) dots.push('<span class="calendar-day-dot calendar-day-dot-done">🧘</span>')
-    if (tournament) dots.push('<span class="calendar-day-dot calendar-day-dot-tournament">🏆</span>')
-    const visibleDots = dots.slice(0, 4)
-    const extraCount = dots.length - visibleDots.length
+    if (mobility) items.push({ status: 'done', glyph: '🧘', label: 'Mobility' })
+    if (tournament) items.push({ status: 'tournament', glyph: '🏆', label: tournament.name })
+
+    const visibleItems = items.slice(0, 4)
+    const extraCount = items.length - visibleItems.length
+    const dotsHtml = visibleItems.map(it => `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`).join('')
+      + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
+    const badgesHtml = visibleItems.map(it => `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`).join('')
+      + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <button type="button" class="calendar-day-add-btn" data-date="${dateStr}">+</button>
         <span class="calendar-day-number">${cell.date.getDate()}</span>
-        <div class="calendar-day-dots">
-          ${visibleDots.join('')}
-          ${extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : ''}
-        </div>
+        <div class="calendar-day-dots">${dotsHtml}</div>
+        <div class="calendar-day-badges">${badgesHtml}</div>
       </div>
     `
   }).join('')
