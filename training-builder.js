@@ -561,6 +561,12 @@ function renderExerciseCard(te) {
         <div class="builder-exercise-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
         <button type="button" class="builder-link-btn ${te.superset_group_id ? 'linked' : ''}" data-action="toggle-link" style="${groupColor ? `border-color:${groupColor}; color:${groupColor}; background-color:${groupColor}22` : ''}" title="${linkTitle}">🔗</button>
+        <div class="kebab-menu builder-kebab-menu">
+          <button type="button" class="builder-kebab-btn" data-action="toggle-kebab" title="More options">⋮</button>
+          <div class="kebab-dropdown">
+            <button type="button" class="kebab-item" data-action="adjust-fields">⚙ Adjust Fields</button>
+          </div>
+        </div>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from workout">🗑</button>
       </div>
       <div class="set-target-rows">
@@ -840,7 +846,87 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
     addExtraFieldRow(`extraFields-${teId}`)
   } else if (btn.dataset.action === 'toggle-link') {
     handleLinkClick(teId, trainingDropZone)
+  } else if (btn.dataset.action === 'toggle-kebab') {
+    const dropdown = btn.parentElement.querySelector('.kebab-dropdown')
+    const wasActive = dropdown.classList.contains('active')
+    document.querySelectorAll('#trainingExercisesList .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+    if (!wasActive) dropdown.classList.add('active')
+  } else if (btn.dataset.action === 'adjust-fields') {
+    btn.closest('.kebab-dropdown').classList.remove('active')
+    openAdjustFieldsModal(te)
   }
+})
+
+// Kebab dropdowns (see toggle-kebab above) close on their own toggle or on
+// picking an item, but not yet on an outside click - add that here so one
+// left open doesn't linger while the coach works on other cards
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.builder-kebab-menu')) return
+  document.querySelectorAll('#trainingExercisesList .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+})
+
+// ==========================================================================
+// ---- ADJUST FIELDS (from an exercise card's ⋮ menu) ----
+// tracks_weight/is_timed/is_unilateral/tracks_distance live on `exercises`
+// itself, not on this training's row - the same fields Exercise Library's
+// own edit modal already exposes, just reachable without leaving the
+// builder. Saves straight to the exercises table (immediate, like every
+// other exercises-table edit in this app), so it applies everywhere this
+// exercise is used, not just this one training - every card on screen that
+// uses the same exercise gets refreshed in place afterward.
+// ==========================================================================
+let adjustFieldsExerciseId = null
+
+function openAdjustFieldsModal(te) {
+  if (!te || !te.exercises) return
+  adjustFieldsExerciseId = te.exercises.id
+  document.getElementById('adjustFieldsExerciseName').textContent = te.exercises.name || ''
+  document.getElementById('adjustFieldsTracksWeight').checked = !!te.exercises.tracks_weight
+  document.getElementById('adjustFieldsIsTimed').checked = !!te.exercises.is_timed
+  document.getElementById('adjustFieldsIsUnilateral').checked = !!te.exercises.is_unilateral
+  document.getElementById('adjustFieldsTracksDistance').checked = !!te.exercises.tracks_distance
+  document.getElementById('adjustFieldsModal').classList.add('active')
+}
+
+document.getElementById('closeAdjustFieldsBtn').addEventListener('click', function() {
+  document.getElementById('adjustFieldsModal').classList.remove('active')
+})
+document.getElementById('cancelAdjustFieldsBtn').addEventListener('click', function() {
+  document.getElementById('adjustFieldsModal').classList.remove('active')
+})
+
+document.getElementById('saveAdjustFieldsBtn').addEventListener('click', async function() {
+  if (!adjustFieldsExerciseId) return
+  const updates = {
+    tracks_weight: document.getElementById('adjustFieldsTracksWeight').checked,
+    is_timed: document.getElementById('adjustFieldsIsTimed').checked,
+    is_unilateral: document.getElementById('adjustFieldsIsUnilateral').checked,
+    tracks_distance: document.getElementById('adjustFieldsTracksDistance').checked
+  }
+  const { error } = await supabase.from('exercises').update(updates).eq('id', adjustFieldsExerciseId)
+  if (error) { console.log(error); customAlert('Something went wrong saving those fields - try again'); return }
+
+  const libExercise = allExercises.find(ex => ex.id === adjustFieldsExerciseId)
+  if (libExercise) Object.assign(libExercise, updates)
+
+  // Every card on this training using this same exercise needs its set-
+  // target rows redrawn (weight/timed/distance inputs, unilateral badge) -
+  // a targeted per-card replace, not the page-level renderExercisesList(),
+  // since that would wipe any unsaved edits on every OTHER card too (this
+  // builder only writes training_exercises to the DB once, from the single
+  // page-level Save button - see saveExerciseCard's own comment)
+  for (const te of exercisesCache) {
+    if (!te.exercises || te.exercises.id !== adjustFieldsExerciseId) continue
+    Object.assign(te.exercises, updates)
+    const card = document.querySelector(`.builder-exercise-card[data-id="${te.id}"]`)
+    if (!card) continue
+    card.outerHTML = renderExerciseCard(te)
+    if (te.extra_fields) {
+      for (const [k, v] of Object.entries(te.extra_fields)) addExtraFieldRow(`extraFields-${te.id}`, k, v)
+    }
+  }
+
+  document.getElementById('adjustFieldsModal').classList.remove('active')
 })
 
 // mm:ss time boxes: strip anything non-digit as it's typed, then pad back

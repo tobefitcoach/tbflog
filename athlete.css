@@ -2057,6 +2057,30 @@
   background-color: rgba(224, 160, 48, 0.15);
 }
 
+/* ⋮ "more options" menu on an exercise card - .kebab-dropdown/.kebab-item
+   come from style.css (same dropdown shape used elsewhere), this is just
+   the button itself sized to match its siblings (🔗/🗑) on the card header */
+.builder-kebab-menu {
+  flex-shrink: 0;
+}
+
+.builder-kebab-btn {
+  background: none;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 15px;
+  color: #aaaacc;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.builder-kebab-btn:hover {
+  opacity: 1;
+  border-color: #4a4a8e;
+  color: white;
+}
+
 /* Dragged via the ⠿ handle to reorder exercises - see the dragstart/
    dragover/dragend listeners in training-builder.js/program-builder.js/
    athlete-calendar.js */

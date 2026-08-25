@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workout Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=16" />
-    <link rel="stylesheet" href="athlete.css?v=40" />
+    <link rel="stylesheet" href="athlete.css?v=41" />
   </head>
   <body>
 
@@ -178,6 +178,41 @@
       </div>
     </div>
 
+    <!-- Adjust Fields Modal: opened from an exercise card's ⋮ menu - edits
+         that exercise's own logging-field flags (tracks_weight/is_timed/
+         is_unilateral/tracks_distance), same fields Exercise Library's own
+         edit modal exposes, just without leaving the builder. Applies
+         everywhere this exercise is used, not just this training. -->
+    <div class="modal-overlay" id="adjustFieldsModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Adjust Fields</h2>
+          <button type="button" class="btn-cancel" id="closeAdjustFieldsBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin:-6px 0 16px" id="adjustFieldsExerciseName"></p>
+        <div class="form-group">
+          <label>Logging Fields</label>
+          <p style="color:#aaaacc; font-size:12px; margin:-2px 0 8px">What to track when this exercise is logged - independent of Type, so any combination works (e.g. a weighted timed hold). Applies everywhere this exercise is used, not just this workout.</p>
+          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Track Weight (kg)</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsTracksWeight"><span class="toggle-slider"></span></span>
+          </label>
+          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Timed</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsIsTimed"><span class="toggle-slider"></span></span>
+          </label>
+          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Log Each Side (unilateral)</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsIsUnilateral"><span class="toggle-slider"></span></span>
+          </label>
+          <label class="bodyweight-toggle"><span>Track Distance (meters)</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsTracksDistance"><span class="toggle-slider"></span></span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelAdjustFieldsBtn">Cancel</button>
+          <button class="btn-save" id="saveAdjustFieldsBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Shown only while linking a superset - see updatePickingModeBar() in
          training-builder.js -->
     <div class="picking-mode-bar" id="pickingModeBar" style="display:none">
@@ -191,7 +226,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="training-builder.js?v=23"></script>
+    <script type="module" src="training-builder.js?v=24"></script>
     <script type="module" src="bell.js?v=1"></script>
     <script type="module" src="sidebar.js?v=1"></script>
   </body>
