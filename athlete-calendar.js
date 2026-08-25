@@ -236,19 +236,27 @@ function renderCalendarGrid(year, month) {
     if (cell.outside) classes.push('calendar-day-outside')
     if (dateStr === todayStr) classes.push('calendar-day-today')
 
+    // A busy day used to stack every badge full-height, blowing up the
+    // whole month row - capped at 2 visible badges + a "+N more" pill
+    // instead (clicking the day already opens the full detail modal)
+    const allBadges = badges.map(entry => {
+      const session = sessionByDayId[entry.day.id]
+      const status = session ? (session.ended_at ? 'done' : 'in-progress') : undefined
+      const statusClass = status === 'in-progress' ? 'calendar-day-badge-in-progress' : status === 'done' ? 'calendar-day-badge-done' : 'calendar-day-badge-planned'
+      const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
+      return `<span class="calendar-day-badge ${statusClass}">${selfLogged}${trainingDisplayName(entry)}</span>`
+    })
+    if (mobility) allBadges.push('<span class="calendar-day-badge calendar-day-badge-done">🧘 Mobility</span>')
+    if (tournament) allBadges.push(`<span class="calendar-day-badge calendar-day-badge-tournament">🏆 ${escapeHtmlCal(tournament.name)}</span>`)
+    const visibleBadges = allBadges.slice(0, 2)
+    const extraCount = allBadges.length - visibleBadges.length
+
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <button type="button" class="calendar-day-add-btn" data-date="${dateStr}">+</button>
         <span class="calendar-day-number">${cell.date.getDate()}</span>
-        ${badges.map(entry => {
-          const session = sessionByDayId[entry.day.id]
-          const status = session ? (session.ended_at ? 'done' : 'in-progress') : undefined
-          const statusClass = status === 'in-progress' ? 'calendar-day-badge-in-progress' : status === 'done' ? 'calendar-day-badge-done' : 'calendar-day-badge-planned'
-          const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
-          return `<span class="calendar-day-badge ${statusClass}">${selfLogged}${trainingDisplayName(entry)}</span>`
-        }).join('')}
-        ${mobility ? '<span class="calendar-day-badge calendar-day-badge-done">🧘 Mobility</span>' : ''}
-        ${tournament ? `<span class="calendar-day-badge calendar-day-badge-tournament">🏆 ${escapeHtmlCal(tournament.name)}</span>` : ''}
+        ${visibleBadges.join('')}
+        ${extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : ''}
       </div>
     `
   }).join('')

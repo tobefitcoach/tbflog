@@ -776,9 +776,16 @@
   color: #ffffff;
   padding: 4px 8px;
   border-radius: 8px;
+  align-self: stretch;
   max-width: 100%;
-  white-space: normal;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-day-badge-more {
+  background-color: #2a2a4e;
+  color: #aaaacc;
 }
 
 .week-day-card.done .week-day-badge {

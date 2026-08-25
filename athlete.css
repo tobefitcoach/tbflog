@@ -710,6 +710,11 @@
   color: #1a1a2e;
 }
 
+.calendar-day-badge-more {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #aaaacc;
+}
+
 .profile-header {
   display: flex;
   justify-content: space-between;

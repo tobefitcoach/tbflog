@@ -851,13 +851,22 @@ function renderWeekView(weekStart) {
     if (done) classes.push('done')
     if (inProgress) classes.push('in-progress')
 
+    // A busy day (several workouts + mobility + a tournament) used to stack
+    // every badge full-height, which blew up the whole week row's height -
+    // capped at 2 visible badges + a "+N more" pill instead (tapping the
+    // card already opens the full day preview, so nothing's actually lost)
+    const allBadges = badgeEntries.map(entry => `<span class="week-day-badge">${done ? '✓ ' : (inProgress ? '▶ ' : '')}${entry.program.created_by_athlete ? '🙋 ' : ''}${trainingDisplayName(entry)}</span>`)
+    if (mobility) allBadges.push('<span class="week-day-badge week-day-badge-mobility">🧘 Mobility</span>')
+    if (tournament) allBadges.push(`<span class="week-day-badge week-day-badge-tournament">🏆 ${escapeHtml(tournament.name)}</span>`)
+    const visibleBadges = allBadges.slice(0, 2)
+    const extraCount = allBadges.length - visibleBadges.length
+
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <span class="week-day-name">${DAY_NAMES[date.getDay() === 0 ? 6 : date.getDay() - 1]}</span>
         <span class="week-day-number">${date.getDate()}</span>
-        ${badgeEntries.map(entry => `<span class="week-day-badge">${done ? '✓ ' : (inProgress ? '▶ ' : '')}${entry.program.created_by_athlete ? '🙋 ' : ''}${trainingDisplayName(entry)}</span>`).join('')}
-        ${mobility ? '<span class="week-day-badge week-day-badge-mobility">🧘 Mobility</span>' : ''}
-        ${tournament ? `<span class="week-day-badge week-day-badge-tournament">🏆 ${escapeHtml(tournament.name)}</span>` : ''}
+        ${visibleBadges.join('')}
+        ${extraCount > 0 ? `<span class="week-day-badge week-day-badge-more">+${extraCount} more</span>` : ''}
       </div>
     `
   }).join('')
