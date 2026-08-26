@@ -680,6 +680,22 @@ header {
     padding: 16px 20px;
   }
 
+  /* The header's right-hand cluster (title/email/bell/Log Out, inline-
+     styled per-page rather than classed) has no room to sit in one row on
+     a phone - without this, the row doesn't wrap as whole items, it
+     shrinks until the text itself wraps mid-word ("Coach"/"Dashboard" on
+     separate lines). Letting the row wrap, and keeping each label as one
+     unbroken unit, fixes that. */
+  header > div {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  header > div p,
+  header > div .header-link {
+    white-space: nowrap;
+  }
+
   .header-logo {
     height: 56px;
   }

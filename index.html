@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=19" />
+    <link rel="stylesheet" href="style.css?v=20" />
     <link rel="stylesheet" href="athlete.css?v=46" />
   </head>
   <body>
@@ -23,14 +23,16 @@
     <div class="app-layout">
 
       <!-- Left sidebar nav. "Athletes" and "Library" both reveal a submenu
-           underneath on click (.sidebar-submenu) - Athletes' stays open by
-           default here since this is that page; its Active/Pending/
-           Offline/Archived links are what used to be the chip row under
-           the search bar. -->
+           underneath on click (.sidebar-submenu), collapsed by default on
+           every page (including this one - starting it open here pushed
+           the whole page down badly on mobile, since the sidebar is always
+           visible there, not collapsible). Athletes' submenu is
+           Active/Pending/Offline/Archived - what used to be the chip row
+           under the search bar. -->
       <nav class="sidebar" id="pageSidebar">
         <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
         <div class="sidebar-links" id="sidebarLinks">
-          <div class="sidebar-item-hover open" id="athletesNavItem">
+          <div class="sidebar-item-hover" id="athletesNavItem">
             <a href="index.html" class="sidebar-link active">Athletes</a>
             <div class="sidebar-submenu" id="athleteStatusFilter">
               <a href="index.html?status=active" data-status="active">Active</a>
