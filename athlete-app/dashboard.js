@@ -4067,6 +4067,11 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   checkBtn.classList.add('checked')
   checkBtn.title = 'Undo'
   if (removedBtn) removedBtn.remove()
+  // Short haptic tap so checking a set is felt, not just seen - much
+  // shorter than the rest timer's own 300ms "time's up" buzz (see
+  // playRestDoneSound) since this fires constantly through a workout and
+  // should read as a light confirmation, not a full alert
+  if (navigator.vibrate) navigator.vibrate(30)
   // Inside a group step-through, checking the set auto-advances (straight
   // to the next member, or a rest then the next round) instead of the
   // plain rest-timer-only behavior a normal single exercise gets
