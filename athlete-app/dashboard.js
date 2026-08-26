@@ -81,6 +81,17 @@ document.getElementById('weeklyRecapCloseBtn').addEventListener('click', functio
 let athlete = null
 let entriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
+// Whatever the athlete has typed into a not-yet-checked set's inputs, keyed
+// by "peId-setNumber" - { reps, weight, distance }. renderSetRow reads from
+// here first, falling back to the coach's target/previously-logged value
+// only when nothing's been typed yet. Every exercise slide fully replaces
+// pageContent's innerHTML on render (swiping, or a group step-through
+// advancing), so without this, typing weights into a couple of sets and
+// then swiping away - or just checking a DIFFERENT set, which re-renders
+// the whole card - silently lost anything not yet checked off. Cleared for
+// a set the instant it's actually checked (see checkSet), since the real
+// saved value takes over as the source of truth at that point.
+let draftSetValues = {}
 let openSessionsByDayId = {} // program_days.id -> in-progress workout_sessions row (ended_at is null)
 let completedSessionsByDayId = {} // program_days.id -> most recently-ended workout_sessions row
 let mobilitySessionsByDate = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
@@ -3856,17 +3867,32 @@ function computeWeekPREvents(weekStart) {
 // ==========================================================================
 function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exerciseLabel) {
   const checked = !!(logged && logged.completed_at)
+  // A not-yet-checked set's draft (see draftSetValues above) wins over the
+  // coach's target/previously-logged value - it's whatever the athlete
+  // most recently typed, which is more current than either of those. A
+  // checked set ignores it entirely - completed_at means the real saved
+  // row is now the source of truth, and its inputs are disabled anyway.
+  const draft = !checked ? draftSetValues[`${pe.id}-${setNumber}`] : null
   // Each set can have its own coach-set target now (a pyramid) - fall back
   // to the old shared prescribed_reps/prescribed_weight for sets beyond
   // what the coach targeted (an athlete-added extra set) or for
   // pre-pyramid data that has no set_targets at all
   const target = pe.set_targets && pe.set_targets[setNumber - 1]
-  const repsVal = logged ? (logged.actual_reps || '') : ((target ? target.reps : pe.prescribed_reps) || '')
+  // draft.<field> is undefined when that field was never typed into (fall
+  // through to logged/target as before) but explicitly null/'' once typed
+  // then fully cleared - !== undefined (not != null) is what keeps a
+  // deliberately-cleared field from reverting to the prescribed value
+  const repsVal = draft && draft.reps !== undefined ? draft.reps : (logged ? (logged.actual_reps || '') : ((target ? target.reps : pe.prescribed_reps) || ''))
   // Each row starts out in the athlete's default unit (data-unit), but can
   // be flipped per-row with the unit toggle button below - actual_weight is
-  // always stored in kg regardless of which unit was used to type it in
+  // always stored in kg regardless of which unit was used to type it in.
+  // The draft is cached in kg too (see wireExerciseCardEvents' input
+  // listener), for the same reason - so it re-displays correctly in
+  // whichever unit is currently active, not whichever unit happened to be
+  // showing at the moment it was typed.
   const unit = athlete.weight_unit || 'kg'
-  const weightKg = logged ? logged.actual_weight : (target ? target.weight : pe.prescribed_weight)
+  const loggedWeightKg = logged ? logged.actual_weight : (target ? target.weight : pe.prescribed_weight)
+  const weightKg = draft && draft.weight !== undefined ? draft.weight : loggedWeightKg
   const weightVal = weightKg != null ? formatWeight(weightKg, unit) : ''
   // Only flag warmup/failure sets - a plain "Main Set" on every row would
   // just be noise, since that's the default for most sets in a workout
@@ -3876,7 +3902,7 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exe
   const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
   const { mm, ss } = parseTimeToParts(repsVal)
   const tracksDistance = pe.exercises && pe.exercises.tracks_distance
-  const distanceVal = logged ? (logged.actual_distance != null ? logged.actual_distance : '') : ((target && target.distance != null) ? target.distance : '')
+  const distanceVal = draft && draft.distance !== undefined ? draft.distance : (logged ? (logged.actual_distance != null ? logged.actual_distance : '') : ((target && target.distance != null) ? target.distance : ''))
 
   return `
     <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
@@ -3962,6 +3988,7 @@ function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) {
         await checkSet(peId, setNumber, dateStr, row)
       }
     } else if (btn.dataset.action === 'remove-set') {
+      delete draftSetValues[`${peId}-${row.dataset.setNumber}`]
       row.remove()
       if (onExerciseEmptied) {
         const remaining = document.getElementById(containerId).querySelectorAll(`.set-row[data-pe-id="${peId}"]`).length
@@ -3994,6 +4021,33 @@ function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) {
       const max = e.target.classList.contains('set-time-ss') ? 59 : 99
       const val = Math.min(parseInt(e.target.value) || 0, max)
       e.target.value = String(val).padStart(2, '0')
+    }
+  })
+
+  // Saves every keystroke into draftSetValues (see its declaration) so a
+  // typed-but-not-yet-checked value survives the next re-render instead of
+  // silently reverting to the coach's target - see renderSetRow, which
+  // reads from this cache first.
+  container.addEventListener('input', function(e) {
+    const row = e.target.closest('.set-row')
+    if (!row) return
+    const key = `${row.dataset.peId}-${row.dataset.setNumber}`
+    if (!draftSetValues[key]) draftSetValues[key] = {}
+
+    if (e.target.matches('.set-reps-input')) {
+      draftSetValues[key].reps = e.target.value
+    } else if (e.target.matches('.set-time-mm, .set-time-ss')) {
+      const mmVal = row.querySelector('.set-time-mm').value
+      const ssVal = row.querySelector('.set-time-ss').value
+      draftSetValues[key].reps = (mmVal === '' && ssVal === '') ? '' : `${mmVal}:${ssVal}`
+    } else if (e.target.matches('.set-weight-input')) {
+      // Cached in kg (not whatever unit the row happens to be showing
+      // right now) so it re-displays correctly if the athlete's default
+      // unit changes later - same reasoning as actual_weight itself
+      const rowUnit = row.dataset.unit || 'kg'
+      draftSetValues[key].weight = e.target.value === '' ? null : weightToKg(parseFloat(e.target.value), rowUnit)
+    } else if (e.target.matches('.set-distance-input')) {
+      draftSetValues[key].distance = e.target.value
     }
   })
 }
@@ -4056,6 +4110,11 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   const actualWeight = weightInput ? (weightInput.value ? weightToKg(parseFloat(weightInput.value), rowUnit) : null) : null
   const actualDistance = distanceInput ? (distanceInput.value ? parseFloat(distanceInput.value) : null) : null
   const removedBtn = rowEl.querySelector('.set-remove-btn')
+
+  // This set is now actually saved - the draft (if any) has served its
+  // purpose and would otherwise linger and shadow the real logged value on
+  // a future re-render
+  delete draftSetValues[`${peId}-${setNumber}`]
 
   rowEl.classList.add('completed')
   rowEl.classList.remove('unsynced')
