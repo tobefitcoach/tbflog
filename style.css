@@ -677,10 +677,21 @@ header {
   /* Athletes' submenu is always shown on index.html (see the comment
      there - unlike Library's, its toggle can't work since "Athletes" is a
      real link that navigates away before any click-driven toggle would be
-     visible). Left as a tall stacked list, that was 4 full-width rows on
-     top of the already-tall mobile nav, pushing the athlete grid far below
-     the fold. A compact wrapping row of pills keeps it fully visible
-     without costing much more than one extra line. */
+     visible). It used to be 4 full-width stacked rows, pushing the athlete
+     grid far below the fold - wrapping the pills horizontally alone wasn't
+     enough, since "Athletes" only had 1/4 of the row's width to wrap
+     within (same as Library/Stretch Library/Settings) - not enough room
+     to fit even two short pills side by side. Giving Athletes its own
+     full-width row (bumping the other 3 links onto a second row) gives
+     the pills the width to actually wrap 2 per line instead of 1. */
+  .sidebar-links {
+    flex-wrap: wrap;
+  }
+
+  #athletesNavItem {
+    flex: 1 1 100%;
+  }
+
   #athleteStatusFilter {
     display: flex;
     flex-wrap: wrap;
