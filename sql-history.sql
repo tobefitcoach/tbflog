@@ -1536,3 +1536,19 @@ create policy "coach manages own chat attachments" on storage.objects for all
 drop policy if exists "public reads chat attachments" on storage.objects;
 create policy "public reads chat attachments" on storage.objects for select
   using (bucket_id = 'chat-attachments');
+
+-- ==========================================================================
+-- exercise_log_sets.weight_unit - remembers which unit (kg/lbs) the athlete
+-- actually typed a set's weight in, since actual_weight is always stored
+-- normalized to kg. Without this, the Exercise History modal in the
+-- athlete app had to guess by re-applying the athlete's CURRENT
+-- athletes.weight_unit preference at render time - so a set logged in kg
+-- would silently redisplay as a converted lbs number (e.g. "220.5lbs"
+-- instead of "100kg") the moment the athlete later switched their default
+-- unit, even though nothing about that historical set actually changed.
+-- Existing rows have no way to know what was typed at the time, so they're
+-- left null and the app falls back to 'kg' (the actual stored unit) rather
+-- than the athlete's current preference, which is the safer of the two
+-- guesses.
+-- ==========================================================================
+alter table exercise_log_sets add column if not exists weight_unit text check (weight_unit in ('kg', 'lbs'));

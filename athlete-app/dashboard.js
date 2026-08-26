@@ -3077,7 +3077,12 @@ async function renderExerciseHistoryBody() {
   body.innerHTML = history.map(function(day) {
     const setsLine = day.sets.map(function(s) {
       const repsText = isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`
-      const weightText = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
+      // Uses the unit THIS set was actually logged in (falls back to kg -
+      // the real stored unit - for older rows saved before weight_unit
+      // existed), not the athlete's current default, so switching your
+      // default unit later doesn't silently reconvert past history
+      const setUnit = s.weight_unit || 'kg'
+      const weightText = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, setUnit) + setUnit : ''
       const distanceText = tracksDistance && s.actual_distance != null ? ` · ${s.actual_distance}m` : ''
       return `<li class="detail-row"><span>Set ${s.set_number}</span><span class="detail-row-value">${repsText}${weightText}${distanceText}</span></li>`
     }).join('')
@@ -4074,6 +4079,7 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
     actual_reps: actualReps,
     actual_weight: actualWeight,
     actual_distance: actualDistance,
+    weight_unit: actualWeight != null ? rowUnit : null,
     completed_at: new Date().toISOString(),
     deleted: false
   }
@@ -4396,6 +4402,7 @@ function performQueuedSave(entry) {
       actual_reps: entry.actual_reps,
       actual_weight: entry.actual_weight,
       actual_distance: entry.actual_distance,
+      weight_unit: entry.weight_unit,
       completed_at: entry.completed_at
     }], { onConflict: 'program_exercise_id,date,set_number' })
     .select()
