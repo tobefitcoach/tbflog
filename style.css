@@ -674,6 +674,28 @@ header {
     flex: 1;
   }
 
+  /* Athletes' submenu is always shown on index.html (see the comment
+     there - unlike Library's, its toggle can't work since "Athletes" is a
+     real link that navigates away before any click-driven toggle would be
+     visible). Left as a tall stacked list, that was 4 full-width rows on
+     top of the already-tall mobile nav, pushing the athlete grid far below
+     the fold. A compact wrapping row of pills keeps it fully visible
+     without costing much more than one extra line. */
+  #athleteStatusFilter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 16px 12px;
+  }
+
+  #athleteStatusFilter a {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 14px;
+    background-color: #0f0f1a;
+    font-size: 11px;
+  }
+
   header {
     flex-wrap: wrap;
     gap: 12px;

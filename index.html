@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=20" />
+    <link rel="stylesheet" href="style.css?v=21" />
     <link rel="stylesheet" href="athlete.css?v=46" />
   </head>
   <body>
@@ -22,17 +22,21 @@
 
     <div class="app-layout">
 
-      <!-- Left sidebar nav. "Athletes" and "Library" both reveal a submenu
-           underneath on click (.sidebar-submenu), collapsed by default on
-           every page (including this one - starting it open here pushed
-           the whole page down badly on mobile, since the sidebar is always
-           visible there, not collapsible). Athletes' submenu is
-           Active/Pending/Offline/Archived - what used to be the chip row
-           under the search bar. -->
+      <!-- Left sidebar nav. "Library" reveals its submenu on click (a
+           non-navigating <span>, so the click has nothing else to do but
+           toggle). "Athletes" is a real link though - clicking it always
+           navigates to index.html, which happens before any click-driven
+           toggle could ever be seen, so its submenu can't work the same
+           way. It's just always shown here instead (this being the one
+           page it's relevant on) - a compact horizontal row on mobile
+           (see the #athleteStatusFilter mobile rule in style.css) rather
+           than the tall stacked list that used to push the whole page
+           down. Active/Pending/Offline/Archived is what used to be the
+           chip row under the search bar. -->
       <nav class="sidebar" id="pageSidebar">
         <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
         <div class="sidebar-links" id="sidebarLinks">
-          <div class="sidebar-item-hover" id="athletesNavItem">
+          <div class="sidebar-item-hover open" id="athletesNavItem">
             <a href="index.html" class="sidebar-link active">Athletes</a>
             <div class="sidebar-submenu" id="athleteStatusFilter">
               <a href="index.html?status=active" data-status="active">Active</a>
