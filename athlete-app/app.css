@@ -930,6 +930,7 @@ header {
 }
 
 .day-preview-thumb {
+  position: relative; /* anchors the play-icon overlay below */
   flex-shrink: 0;
   width: 72px;
   aspect-ratio: 16 / 9;
@@ -954,6 +955,36 @@ header {
 
 .day-preview-thumb-placeholder {
   font-size: 20px;
+}
+
+/* Same play-icon overlay as .active-exercise-thumb, scaled down for this
+   smaller preview size - see that rule's comment for why it's absolutely
+   positioned instead of just centered by the button's own flex layout. */
+.day-preview-thumb:not(:disabled)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.day-preview-thumb:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-40%, -50%);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 0 5px 8px;
+  border-color: transparent transparent transparent #ffffff;
+  pointer-events: none;
 }
 
 .day-preview-info {
@@ -1016,6 +1047,7 @@ header {
 }
 
 .active-exercise-thumb {
+  position: relative; /* anchors the play-icon overlay below */
   width: 100%;
   aspect-ratio: 16 / 9;
   border-radius: 10px;
@@ -1040,6 +1072,44 @@ header {
 
 .active-exercise-thumb-placeholder {
   font-size: 40px;
+}
+
+/* A translucent circle + white triangle overlay, shown only when this
+   thumbnail actually opens a video (the button is disabled entirely
+   otherwise, see the data-video-url/disabled markup in dashboard.js) -
+   without this a YouTube thumbnail just looked like a plain static
+   photo, nothing hinting it was tappable. Positioned absolutely instead
+   of relying on the button's own flex centering, since a pseudo-element
+   with real content would otherwise sit as its own flex item next to the
+   image instead of overlaid on top of it. */
+.active-exercise-thumb:not(:disabled)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.active-exercise-thumb:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Off-center a little (-40% instead of -50%) - a triangle's own visual
+     weight sits left of its point, so centering by its bounding box alone
+     reads as shifted left inside the circle behind it */
+  transform: translate(-40%, -50%);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 9px 0 9px 15px;
+  border-color: transparent transparent transparent #ffffff;
+  pointer-events: none;
 }
 
 .active-exercise-title {
