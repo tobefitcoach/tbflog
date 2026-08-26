@@ -2,7 +2,7 @@
 // NOTIFICATION BELL
 // Self-injecting shared component, same pattern as confirm-modal.js - loaded
 // on every coach page, builds its own markup and appends it into the header
-// (right before #logoutBtn) on load, so no page's HTML needs anything beyond
+// (into #headerActions) on load, so no page's HTML needs anything beyond
 // the <script> tag that loads this file. Shows a small unread-count badge
 // and, on click, an anchored dropdown panel of recent notifications
 // (athlete added/completed a workout, added a tournament - see the
@@ -19,8 +19,8 @@ const { data: { session } } = await supabase.auth.getSession()
 if (session) initBell()
 
 async function initBell() {
-  const logoutBtn = document.getElementById('logoutBtn')
-  if (!logoutBtn) return // page without the usual header - nothing to anchor to
+  const headerActions = document.getElementById('headerActions')
+  if (!headerActions) return // page without the usual header - nothing to anchor to
 
   const bell = document.createElement('div')
   bell.className = 'notification-bell'
@@ -34,7 +34,7 @@ async function initBell() {
     </button>
     <div class="notification-bell-panel" id="notificationBellPanel"></div>
   `
-  logoutBtn.insertAdjacentElement('beforebegin', bell)
+  headerActions.appendChild(bell)
 
   document.getElementById('notificationBellBtn').addEventListener('click', async function(e) {
     e.stopPropagation()

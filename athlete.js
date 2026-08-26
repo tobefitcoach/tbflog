@@ -30,11 +30,6 @@ if (!session) {
 
 initTabs()
 
-document.getElementById('logoutBtn').addEventListener('click', async function() {
-  await supabase.auth.signOut()
-  window.location.href = 'login.html'
-})
-
 // This page otherwise only loads stats once, on open - a coach watching an
 // athlete log a workout live (in another tab, or on their phone) would never
 // see it update without a manual reload. Refresh button covers "check right

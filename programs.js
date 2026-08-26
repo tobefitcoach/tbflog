@@ -15,11 +15,6 @@ if (!session) {
   loadTemplates()
 }
 
-document.getElementById('logoutBtn').addEventListener('click', async function() {
-  await supabase.auth.signOut()
-  window.location.href = 'login.html'
-})
-
 // ==========================================================================
 // ---- LOAD TEMPLATES ----
 // Nested select pulls each template's weeks and days in one round trip, so

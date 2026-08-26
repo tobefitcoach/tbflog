@@ -3887,12 +3887,12 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exe
           <span class="set-time-sep">:</span>
           <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2" ${checked ? 'disabled' : ''}>
         </div>
-      ` : `<input type="text" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>`}
+      ` : `<input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>`}
       ${tracksWeight ? `
-        <input type="number" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
+        <input type="number" inputmode="decimal" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
         <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
       ` : ''}
-      ${tracksDistance ? `<input type="number" class="set-distance-input" value="${distanceVal}" placeholder="meters" step="1" ${checked ? 'disabled' : ''}>` : ''}
+      ${tracksDistance ? `<input type="number" inputmode="numeric" class="set-distance-input" value="${distanceVal}" placeholder="meters" step="1" ${checked ? 'disabled' : ''}>` : ''}
       <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
       ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>
@@ -3920,6 +3920,12 @@ function toggleRowUnit(rowEl) {
   weightInput.placeholder = nextUnit
   unitBtn.textContent = nextUnit
   unitBtn.title = `Switch to ${nextUnit === 'kg' ? 'lbs' : 'kg'}`
+
+  // Tapping the toggle button (not the input itself) steals focus, which
+  // is what was dismissing the on-screen keyboard - refocusing the
+  // weight input right after brings it straight back up instead of
+  // leaving the athlete to tap back into the field themselves
+  weightInput.focus()
 }
 
 // onExerciseEmptied(peId): called when a remove-set tap leaves an exercise

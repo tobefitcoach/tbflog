@@ -21,11 +21,6 @@ if (!session) {
   loadStretches()
 }
 
-document.getElementById('logoutBtn').addEventListener('click', async function() {
-  await supabase.auth.signOut()
-  window.location.href = 'login.html'
-})
-
 // ==========================================================================
 // ---- LOAD + RENDER ----
 // ==========================================================================

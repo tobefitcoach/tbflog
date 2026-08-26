@@ -16,11 +16,6 @@ if (!session) {
   window.location.href = 'login.html'
 }
 
-document.getElementById('logoutBtn').addEventListener('click', async function() {
-  await supabase.auth.signOut()
-  window.location.href = 'login.html'
-})
-
 let allCommsAthletes = []
 let unreadCountByAthlete = {} // athlete_id -> count of unread athlete-sent messages
 let selectedAthlete = null

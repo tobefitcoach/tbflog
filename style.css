@@ -23,26 +23,27 @@ body {
 header {
   background-color: #1a1a2e;
   color: white;
-  padding: 20px 40px;
+  padding: 12px 32px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #2a2a4e;
 }
- 
+
 .header-logo-link {
   display: block;
   line-height: 0;
 }
 
 .header-logo {
-  height: 60px;
+  height: 42px;
   width: auto;
   display: block;
 }
 
-/* Small text link/button in the header (e.g. "Log Out") - shared so both
-   the coach dashboard and athlete profile header can use it */
+/* Small text link/button in the header (e.g. the notification bell's
+   surrounding controls) - shared so both the coach dashboard and athlete
+   profile header can use it */
 .header-link {
   color: #aaaacc;
   text-decoration: none;
@@ -822,11 +823,12 @@ header {
   header {
     flex-wrap: wrap;
     gap: 12px;
-    padding: 16px 20px;
+    padding: 10px 16px;
   }
 
-  /* The header's right-hand cluster (title/email/bell/Log Out, inline-
-     styled per-page rather than classed) has no room to sit in one row on
+  /* The header's right-hand cluster (title/email/bell, inline-styled per-
+     page rather than classed - only index.html actually has text here
+     now that Log Out moved to Settings) has no room to sit in one row on
      a phone - without this, the row doesn't wrap as whole items, it
      shrinks until the text itself wraps mid-word ("Coach"/"Dashboard" on
      separate lines). Letting the row wrap, and keeping each label as one
@@ -836,13 +838,12 @@ header {
     row-gap: 8px;
   }
 
-  header > div p,
-  header > div .header-link {
+  header > div p {
     white-space: nowrap;
   }
 
   .header-logo {
-    height: 56px;
+    height: 36px;
   }
 
   .modal {

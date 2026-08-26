@@ -34,6 +34,22 @@
 }
 
 /* ==========================================================================
+   HEADER OVERRIDE
+   style.css shrank the shared header/logo as part of the coach app's
+   mobile redesign (that app's header no longer needs to fit a Log Out
+   button, moved to Settings) - restored back to this app's own original,
+   larger size here since it wasn't part of that change and already has
+   its own distinct branding (the splash screen, the bottom nav below).
+   ========================================================================== */
+header {
+  padding: 20px 40px;
+}
+
+.header-logo {
+  height: 60px;
+}
+
+/* ==========================================================================
    BOTTOM NAV
    Persistent tab bar - lives outside #pageContent in dashboard.html, so
    swapping pageContent's innerHTML for every screen never wipes it out.
@@ -1623,6 +1639,14 @@
 }
 
 @media (max-width: 768px) {
+  header {
+    padding: 16px 20px;
+  }
+
+  .header-logo {
+    height: 56px;
+  }
+
   .athlete-app-page.wide {
     padding: 16px 12px;
     padding-bottom: 108px; /* clears the floating .bottom-nav - the shorthand above resets it */
