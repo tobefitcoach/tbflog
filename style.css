@@ -133,6 +133,23 @@ header {
   background-color: #0f0f1a;
 }
 
+/* Line-art icon variant (Communication, Settings) - replaces the old
+   emoji-prefixed labels, which rendered as clashing colorful platform
+   emoji instead of matching the app's own minimal style. Stroke uses
+   currentColor so it inherits the same hover/active color change as the
+   text next to it, with no separate icon color rule needed. */
+.sidebar-link-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-link-svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 .sidebar-item-hover {
   position: relative;
 }
