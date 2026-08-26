@@ -689,17 +689,30 @@ header {
     padding: 20px;
   }
 
-  .sidebar {
-    width: 100%;
+  /* Phone nav is a floating bottom pill now, matching the athlete app's
+     .bottom-nav (see athlete-app/app.css) instead of the cramped
+     horizontal strip this used to be under the header. Reuses the exact
+     same .sidebar/.sidebar-links/.sidebar-item-hover/sidebar.js
+     structure/logic as desktop - only position/layout change here, no
+     markup or JS difference between the two. */
+  .sidebar,
+  .sidebar.collapsed {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-width: 420px;
+    margin: 0 auto;
     min-height: 0;
     padding: 0;
-    border-right: none;
-    border-bottom: 1px solid #2a2a4e;
-  }
-
-  .sidebar.collapsed {
-    width: 100%;
-    min-height: 0;
+    border: 1px solid rgba(74, 74, 142, 0.4);
+    border-radius: 22px;
+    background-color: rgba(26, 26, 46, 0.92);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+    z-index: 200;
   }
 
   /* Collapsing exists to reclaim desktop's narrow side column - there's no
@@ -717,28 +730,93 @@ header {
     display: flex !important;
   }
 
-  .sidebar-link {
-    padding: 14px 16px;
-  }
-
-  .sidebar-item-hover {
+  /* All 5 top-level items share the pill equally - Athletes/Library are
+     wrapped in their own .sidebar-item-hover div (since they also carry a
+     submenu), the other 3 are bare links straight inside .sidebar-links,
+     so both need their own flex:1 to end up the same width as each
+     other. */
+  .sidebar-item-hover,
+  .sidebar-links > .sidebar-link-icon {
     flex: 1;
   }
 
-  /* Athletes' pill-row submenu (#athleteStatusFilter, styled below near
-     .sidebar-submenu) needs real width to wrap 2 pills per line - on
-     mobile Athletes only gets 1/4 of the nav row by default (same as
-     Library/Stretch Library/Settings, all flex:1 above), nowhere near
-     enough. Giving it its own full-width row while open (bumping the
-     other 3 links onto a second row just for that moment) fixes that -
-     scoped to .open only, so the collapsed row stays compact the rest of
-     the time. */
-  .sidebar-links {
-    flex-wrap: wrap;
+  /* Icon-above-label, like .bottom-nav-btn - the SVG + trailing text node
+     inside each link are both flex items (a bare text node next to an
+     element, inside a flex container, becomes an anonymous flex item per
+     spec), so switching this one property to column is enough to restack
+     them without touching any page's markup. Every link gets this now
+     (not just Communication/Settings, which already had the icon markup
+     before this change) - Athletes/Library/Stretch Library each gained
+     their own SVG alongside this update so all 5 look consistent. */
+  .sidebar-link-icon {
+    flex-direction: column;
+    gap: 3px;
+    padding: 11px 4px 9px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    text-align: center;
   }
 
-  #athletesNavItem.open {
-    flex: 1 1 100%;
+  .sidebar-link-svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* A background pill for the active tab would fight visually with the
+     nav's own pill shape, so active state here is just brighter
+     text/icon color (plus a slight lift, same touch the athlete app's
+     .bottom-nav-btn.active uses) instead of the desktop underline-style
+     background highlight. */
+  .sidebar-link-icon.active {
+    background-color: transparent;
+    color: #ffffff;
+  }
+
+  .sidebar-link-icon.active .sidebar-link-svg {
+    transform: translateY(-1px);
+  }
+
+  /* Athletes'/Library's submenu used to just unfold inline, in-page, below
+     the link - there's no "below" to unfold into anymore now that the nav
+     itself is a small floating pill flush with the screen edge, so this
+     instead floats the whole panel as its own pill directly above the
+     nav, spanning its full width regardless of which of the 5 narrow
+     icon slots was actually tapped (anchoring it to just that one slot,
+     the way the desktop dropdown-below-the-link works, would routinely
+     run off one side of the screen depending on whether Athletes/Library
+     ends up on the left or right of the row). 84px of clearance matches
+     the athlete app's own .bottom-nav height + gap (see its
+     .rest-timer-bar comment for the same number, already proven correct
+     for a same-sized floating pill). */
+  .sidebar-item-hover.open .sidebar-submenu,
+  .sidebar-item-hover.open #athleteStatusFilter {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    top: auto;
+    width: auto;
+    max-width: 420px;
+    margin: 0 auto;
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid rgba(74, 74, 142, 0.4);
+    border-radius: 16px;
+    background-color: rgba(26, 26, 46, 0.97);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+    z-index: 200;
+  }
+
+  /* Clears the floating bottom pill so it never sits over the last card/
+     button on a short page - same reasoning as the athlete app's
+     .athlete-app-page padding-bottom, just applied to body since the
+     coach app has several different per-page content wrapper classes
+     instead of one shared one. */
+  body {
+    padding-bottom: 88px;
   }
 
   header {

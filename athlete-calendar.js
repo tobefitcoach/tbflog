@@ -297,7 +297,30 @@ function renderCalendarGrid(year, month) {
 
     const visibleItems = items.slice(0, 4)
     const extraCount = items.length - visibleItems.length
-    const dotsHtml = visibleItems.map(it => `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`).join('')
+    // Real workouts (dayId set) get the same kebab (copy/delete) as the
+    // desktop badges below, just triggered by tapping the dot itself since
+    // there's no room for a separate ⋮ button at this size - see
+    // wireCalendarBadgeKebabs, which already handles any [data-action]
+    // element generically so this needed no JS changes beyond the markup.
+    // Mobility/tournament/"+N more" dots stay plain, same as their badge
+    // equivalents.
+    const dotsHtml = visibleItems.map(it => {
+      if (!it.dayId) {
+        return `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`
+      }
+      const deleteAttrs = it.isAdhoc
+        ? `data-mode="adhoc" data-program-id="${it.programId}"`
+        : `data-mode="day" data-program-day-id="${it.dayId}"`
+      return `
+        <div class="kebab-menu calendar-dot-kebab">
+          <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
+          <div class="kebab-dropdown">
+            <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">📋 Copy to another day</button>
+            <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>🗑 Delete Workout</button>
+          </div>
+        </div>
+      `
+    }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
     // Real workouts (dayId set) get their own kebab (copy/delete) right on
     // the badge - see wireCalendarBadgeKebabs. Mobility/tournament/"+N
@@ -402,11 +425,12 @@ async function moveWorkoutToDate(dayId, newDateStr) {
 }
 
 // ==========================================================================
-// ---- PER-BADGE KEBAB (COPY / DELETE) ON THE CALENDAR GRID ----
-// Copy/Delete for a workout live right on its badge in the month view now,
-// not buried inside the day-detail popup - a coach scanning the calendar
-// can act on a workout without opening anything first. Wired once on the
-// persistent #calendarGrid node, same reasoning as wireCalendarDragToMove.
+// ---- PER-BADGE/DOT KEBAB (COPY / DELETE) ON THE CALENDAR GRID ----
+// Copy/Delete for a workout live right on its badge (desktop) or dot
+// (mobile) in the month view now, not buried inside the day-detail popup -
+// a coach scanning the calendar can act on a workout without opening
+// anything first, on either layout. Wired once on the persistent
+// #calendarGrid node, same reasoning as wireCalendarDragToMove.
 //
 // Registered on the CAPTURE phase (the trailing `true`), not the usual
 // bubble phase - each day cell has its own click listener straight on

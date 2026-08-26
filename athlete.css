@@ -774,6 +774,38 @@
   color: white;
 }
 
+/* Mobile's dot version of the same kebab - the dot itself is the tap
+   target (data-action="toggle-kebab" straight on the span, see
+   renderCalendarGrid's dotsHtml), since there's no room next to a 12px dot
+   for a separate ⋮ button. The padding/negative-margin trick below grows
+   the actual tappable area well past the dot's tiny visual size without
+   shifting any surrounding layout. */
+.calendar-dot-kebab {
+  display: inline-flex;
+  padding: 6px;
+  margin: -6px;
+  cursor: pointer;
+}
+
+/* A day cell's own horizontal position in the 7-column grid varies
+   unpredictably (Sunday vs. Saturday), so anchoring this dropdown to the
+   dot itself (like the desktop badge version does) would routinely clip
+   off one edge of the screen. Centering it as a fixed popup instead sidesteps
+   that entirely - it always ends up somewhere sane regardless of which
+   column got tapped. */
+.calendar-dot-kebab .kebab-dropdown {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+  min-width: 220px;
+  /* Higher than the floating bottom nav pill's 200 (see style.css) - an
+     actively-opened menu should never render underneath the persistent
+     nav on a short viewport where the two might overlap */
+  z-index: 250;
+}
+
 .calendar-day-dot {
   width: 16px;
   height: 16px;
