@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workout Builder — TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=18" />
-    <link rel="stylesheet" href="athlete.css?v=44" />
+    <link rel="stylesheet" href="style.css?v=19" />
+    <link rel="stylesheet" href="athlete.css?v=45" />
   </head>
   <body>
 
@@ -20,7 +20,15 @@
       <nav class="sidebar" id="pageSidebar">
         <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
         <div class="sidebar-links" id="sidebarLinks">
-          <a href="index.html" class="sidebar-link">Athletes</a>
+          <div class="sidebar-item-hover" id="athletesNavItem">
+            <a href="index.html" class="sidebar-link">Athletes</a>
+            <div class="sidebar-submenu">
+              <a href="index.html?status=active">Active</a>
+              <a href="index.html?status=pending">Pending</a>
+              <a href="index.html?status=offline">Offline</a>
+              <a href="index.html?status=archived">Archived</a>
+            </div>
+          </div>
           <div class="sidebar-item-hover">
             <span class="sidebar-link active">Library</span>
             <div class="sidebar-submenu">

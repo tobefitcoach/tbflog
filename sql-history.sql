@@ -1458,3 +1458,33 @@ create index if not exists idx_push_subscriptions_user_id on push_subscriptions(
 alter table coach_messages drop constraint if exists coach_messages_timing_check;
 alter table coach_messages add constraint coach_messages_timing_check
   check (timing in ('on_open', 'before_workout', 'push'));
+
+-- ==========================================================================
+-- Custom athlete labels (e.g. "Monthly Plan", "12 Week Plan") - the coach
+-- creates their own label names, then tags any number of them onto any
+-- athlete. Filtered from a checklist dropdown on the dashboard (index.html),
+-- separate from the always-visible status filter since there can be many.
+-- ==========================================================================
+create table if not exists athlete_labels (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+alter table athlete_labels enable row level security;
+
+drop policy if exists "coach manages own athlete labels" on athlete_labels;
+create policy "coach manages own athlete labels" on athlete_labels for all
+  using (coach_id = auth.uid()) with check (coach_id = auth.uid());
+
+create table if not exists athlete_label_links (
+  athlete_id uuid not null references athletes(id) on delete cascade,
+  label_id uuid not null references athlete_labels(id) on delete cascade,
+  primary key (athlete_id, label_id)
+);
+alter table athlete_label_links enable row level security;
+
+drop policy if exists "coach manages own athlete label links" on athlete_label_links;
+create policy "coach manages own athlete label links" on athlete_label_links for all
+  using (exists (select 1 from athletes a where a.id = athlete_label_links.athlete_id and a.coach_id = auth.uid()))
+  with check (exists (select 1 from athletes a where a.id = athlete_label_links.athlete_id and a.coach_id = auth.uid()));

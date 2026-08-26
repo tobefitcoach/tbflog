@@ -18,8 +18,16 @@ const athleteGrid = document.querySelector('.athlete-grid');
 let allAthletes = []
 let flaggedCountByAthlete = {}
 let athleteStatsById = {} // athlete_id -> { acwr, acwrBuilding, furthestDate, completionRate30 } - see loadAthleteCardStats()
-let currentStatusFilter = 'active'
+// Status now lives in the sidebar submenu (index.html?status=X) instead of
+// in-page chips, so the initial filter comes from the URL, not a hardcoded default
+let currentStatusFilter = new URLSearchParams(window.location.search).get('status') || 'active'
 let currentSearchQuery = ''
+
+// Coach-created labels (e.g. "Monthly Plan") + which athletes have which -
+// see the "Filter by Label" dropdown and each card's "Manage Labels" kebab item
+let allLabels = []
+let labelLinksByAthlete = {} // athlete_id -> Set of label_id
+let selectedLabelFilterIds = new Set()
 
 // Require a logged-in coach before loading anything. RLS is on, so the
 // database itself only ever returns this coach's own athletes - this is
@@ -176,7 +184,9 @@ async function loadAthleteExtras() {
     { data: flaggedData },
     { data: programs, error: programsError },
     { data: logSets, error: logError },
-    { data: sessions, error: sessionsError }
+    { data: sessions, error: sessionsError },
+    { data: labelsData },
+    { data: labelLinksData }
   ] = await Promise.all([
     // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
     // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
@@ -211,8 +221,17 @@ async function loadAthleteExtras() {
       .not('ended_at', 'is', null)
       .gte('started_at', ninetyDaysAgoISO)
       .abortSignal(signal), 1
-    )
+    ),
+    fetchWithRetry((signal) => supabase.from('athlete_labels').select('*').order('name').abortSignal(signal), 1),
+    fetchWithRetry((signal) => supabase.from('athlete_label_links').select('*').abortSignal(signal), 1)
   ])
+
+  allLabels = labelsData || []
+  labelLinksByAthlete = {}
+  for (const row of (labelLinksData || [])) {
+    (labelLinksByAthlete[row.athlete_id] ||= new Set()).add(row.label_id)
+  }
+  renderLabelFilterList()
 
   flaggedCountByAthlete = {}
   if (flaggedData) {
@@ -368,52 +387,42 @@ function athleteStatus(athlete) {
   return 'offline'
 }
 
-// Chip labels get a live count appended, e.g. "Active (3)" - STATUS_LABELS
-// is declared further down this file, but this only ever runs from
-// loadAthletes() (after an await), by which point the whole module has
-// already finished its initial top-to-bottom pass, so it's defined in time.
+// Sidebar submenu links get a live count appended, e.g. "Active (3)" and the
+// current one highlighted - STATUS_LABELS is declared further down this
+// file, but this only ever runs from loadAthletes() (after an await), by
+// which point the whole module has already finished its initial
+// top-to-bottom pass, so it's defined in time.
 function updateFilterCounts() {
   const counts = { active: 0, pending: 0, offline: 0, archived: 0 }
   allAthletes.forEach(a => { counts[athleteStatus(a)]++ })
-  document.querySelectorAll('#athleteStatusFilter .chip-btn').forEach(btn => {
-    const status = btn.dataset.status
-    btn.textContent = `${STATUS_LABELS[status]} (${counts[status]})`
+  document.querySelectorAll('#athleteStatusFilter a').forEach(link => {
+    const status = link.dataset.status
+    link.textContent = `${STATUS_LABELS[status]} (${counts[status]})`
+    link.classList.toggle('active', status === currentStatusFilter)
   })
 }
 
-function applyStatusFilter(status) {
-  currentStatusFilter = status
-  applyFilters()
-}
-
-// Re-renders the grid from the cached athlete list using both the status
-// chip and the search box together (AND, not either/or) - no re-query for
-// either one, matching how the status filter already worked before search
-// was added.
+// Re-renders the grid from the cached athlete list using the status
+// (set from the sidebar submenu's ?status= link, see currentStatusFilter
+// above), the search box, and the label filter together (AND across all
+// three) - no re-query for any of them.
 function applyFilters() {
-  document.querySelectorAll('#athleteStatusFilter .chip-btn').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.status === currentStatusFilter)
-  })
-
   const query = currentSearchQuery.trim().toLowerCase()
   const filtered = allAthletes.filter(a =>
-    athleteStatus(a) === currentStatusFilter && (!query || a.name.toLowerCase().includes(query))
+    athleteStatus(a) === currentStatusFilter &&
+    (!query || a.name.toLowerCase().includes(query)) &&
+    (selectedLabelFilterIds.size === 0 || [...selectedLabelFilterIds].some(id => labelLinksByAthlete[a.id]?.has(id)))
   )
 
   athleteGrid.innerHTML = ''
   if (filtered.length === 0) {
-    athleteGrid.innerHTML = query ? '<p>No athletes match your search.</p>' : '<p>No athletes here yet.</p>'
+    athleteGrid.innerHTML = (query || selectedLabelFilterIds.size > 0) ? '<p>No athletes match your search.</p>' : '<p>No athletes here yet.</p>'
     return
   }
   filtered.forEach(athlete => {
     createAthleteCard(athlete, flaggedCountByAthlete[athlete.id])
   })
 }
-
-document.getElementById('athleteStatusFilter').addEventListener('click', function(e) {
-  const btn = e.target.closest('.chip-btn')
-  if (btn) applyStatusFilter(btn.dataset.status)
-})
 
 document.getElementById('athleteSearchInput').addEventListener('input', function(e) {
   currentSearchQuery = e.target.value
@@ -428,6 +437,13 @@ document.getElementById('athleteSearchInput').addEventListener('input', function
 //  - "Delete athlete" in that dropdown → confirm, then delete from DB
 // ==========================================================================
 const STATUS_LABELS = { active: 'Active', pending: 'Pending', offline: 'Offline', archived: 'Archived' }
+
+function escapeHtmlIdx(str) {
+  if (!str) return ''
+  const div = document.createElement('div')
+  div.textContent = str
+  return div.innerHTML
+}
 
 function createAthleteCard(athlete, flaggedCount) {
   const initials = athlete.name.split(' ').map(word => word[0]).join('').toUpperCase()
@@ -449,6 +465,9 @@ function createAthleteCard(athlete, flaggedCount) {
 
   const completionText = stats.completionRate30 == null ? '—' : `${stats.completionRate30}%`
 
+  const athleteLabelIds = labelLinksByAthlete[athlete.id] || new Set()
+  const labelTagsHtml = allLabels.filter(l => athleteLabelIds.has(l.id)).map(l => `<span class="label-tag">${escapeHtmlIdx(l.name)}</span>`).join('')
+
   const card = document.createElement('div')
   card.classList.add('athlete-card')
 card.innerHTML = `
@@ -457,6 +476,7 @@ card.innerHTML = `
         <div class="athlete-initials">${initials}</div>
         <span class="athlete-status-badge status-${status}">${STATUS_LABELS[status]}</span>
         ${flaggedCount ? `<span class="pain-flag-badge">🚩 ${flaggedCount > 1 ? flaggedCount + ' pain reports' : 'Pain reported'}</span>` : ''}
+        ${labelTagsHtml}
       </div>
       <div class="kebab-menu">
         <button class="kebab-btn" data-athlete-id="${athlete.id}">⋮</button>
@@ -465,6 +485,7 @@ card.innerHTML = `
             <button class="kebab-item kebab-resend" data-athlete-id="${athlete.id}">✉️ Resend Invite</button>
             <button class="kebab-item kebab-copy-link" data-athlete-id="${athlete.id}">🔗 Copy Invite Link</button>
           ` : ''}
+          <button class="kebab-item kebab-manage-labels" data-athlete-id="${athlete.id}">🏷 Manage Labels</button>
           <button class="kebab-item kebab-archive" data-athlete-id="${athlete.id}">${athlete.archived ? '♻️ Unarchive athlete' : '📦 Archive athlete'}</button>
           <button class="kebab-delete" data-athlete-id="${athlete.id}">🗑 Delete athlete</button>
         </div>
@@ -519,6 +540,11 @@ card.innerHTML = `
     e.stopPropagation()
     await navigator.clipboard.writeText(buildInviteLink(athlete.email, athlete.name))
     customAlert('Invite link copied - paste it anywhere you like.')
+  })
+
+  card.querySelector('.kebab-manage-labels').addEventListener('click', function(e) {
+    e.stopPropagation()
+    openManageLabelsModal(athlete.id, athlete.name)
   })
 
   // "Archive athlete" / "Unarchive athlete" - reversible, no confirm needed
@@ -653,3 +679,163 @@ saveBtn.addEventListener('click', async function() {
 
   await loadAthletes()
 });
+
+// ==========================================================================
+// ---- LABELS ----
+// Coach-created tags (e.g. "Monthly Plan", "12 Week Plan") - the "Filter by
+// Label" dropdown (next to the search bar) filters the grid to athletes
+// with ANY of the checked labels; each card's kebab menu has its own
+// "Manage Labels" modal for tagging/untagging that one athlete. Both share
+// the same allLabels/labelLinksByAthlete state loaded in loadAthleteExtras().
+// ==========================================================================
+const labelFilterBtn = document.getElementById('labelFilterBtn')
+const labelFilterDropdown = document.getElementById('labelFilterDropdown')
+const manageLabelsModal = document.getElementById('manageLabelsModal')
+let manageLabelsAthleteId = null
+
+function renderLabelFilterList() {
+  const list = document.getElementById('labelFilterList')
+  if (allLabels.length === 0) {
+    list.innerHTML = '<p class="label-filter-empty">No labels yet - add one below.</p>'
+    return
+  }
+  list.innerHTML = allLabels.map(label => {
+    const count = allAthletes.filter(a => labelLinksByAthlete[a.id]?.has(label.id)).length
+    const checked = selectedLabelFilterIds.has(label.id) ? 'checked' : ''
+    return `
+      <div class="label-filter-row">
+        <label>
+          <input type="checkbox" data-label-id="${label.id}" ${checked}>
+          <span>${escapeHtmlIdx(label.name)} (${count})</span>
+        </label>
+        <button type="button" class="label-row-delete" data-label-id="${label.id}" title="Delete label">✕</button>
+      </div>
+    `
+  }).join('')
+
+  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      if (cb.checked) selectedLabelFilterIds.add(cb.dataset.labelId)
+      else selectedLabelFilterIds.delete(cb.dataset.labelId)
+      applyFilters()
+    })
+  })
+
+  list.querySelectorAll('.label-row-delete').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      if (!(await customConfirm('Delete this label? It will be removed from every athlete.'))) return
+      const { error } = await supabase.from('athlete_labels').delete().eq('id', btn.dataset.labelId)
+      if (error) {
+        console.log('Error deleting label:', error)
+        customAlert('Something went wrong')
+        return
+      }
+      selectedLabelFilterIds.delete(btn.dataset.labelId)
+      loadAthletes()
+    })
+  })
+}
+
+// Creates a label, optionally linking it straight to one athlete (used by
+// the Manage Labels modal, so creating a new label there tags it onto that
+// athlete immediately instead of leaving it unassigned)
+async function addLabel(name, linkToAthleteId) {
+  name = name.trim()
+  if (!name) return
+  const { data, error } = await supabase.from('athlete_labels').insert([{ name, coach_id: session.user.id }]).select().single()
+  if (error) {
+    console.log('Error adding label:', error)
+    customAlert('Something went wrong adding that label')
+    return
+  }
+  if (linkToAthleteId) {
+    await supabase.from('athlete_label_links').insert([{ athlete_id: linkToAthleteId, label_id: data.id }])
+  }
+  await loadAthleteExtras()
+  if (linkToAthleteId) renderManageLabelsList()
+}
+
+labelFilterBtn.addEventListener('click', function(e) {
+  e.stopPropagation()
+  labelFilterDropdown.classList.toggle('active')
+})
+
+document.getElementById('addLabelBtn').addEventListener('click', function() {
+  const input = document.getElementById('newLabelInput')
+  addLabel(input.value)
+  input.value = ''
+})
+
+document.getElementById('newLabelInput').addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return
+  addLabel(this.value)
+  this.value = ''
+})
+
+// Outside click closes the label filter dropdown (same pattern as the kebab dropdowns)
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#labelFilter')) labelFilterDropdown.classList.remove('active')
+})
+
+// ---- Manage Labels modal (per-athlete tagging) ----
+function openManageLabelsModal(athleteId, athleteName) {
+  manageLabelsAthleteId = athleteId
+  document.getElementById('manageLabelsAthleteName').textContent = athleteName
+  renderManageLabelsList()
+  manageLabelsModal.classList.add('active')
+}
+
+function renderManageLabelsList() {
+  const list = document.getElementById('manageLabelsList')
+  const athleteLabelIds = labelLinksByAthlete[manageLabelsAthleteId] || new Set()
+
+  if (allLabels.length === 0) {
+    list.innerHTML = '<p class="label-filter-empty">No labels yet - add one below.</p>'
+    return
+  }
+
+  list.innerHTML = allLabels.map(label => `
+    <label class="message-recipient-row">
+      <input type="checkbox" data-label-id="${label.id}" ${athleteLabelIds.has(label.id) ? 'checked' : ''}>
+      <span>${escapeHtmlIdx(label.name)}</span>
+    </label>
+  `).join('')
+
+  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      toggleAthleteLabel(manageLabelsAthleteId, cb.dataset.labelId, cb.checked)
+    })
+  })
+}
+
+async function toggleAthleteLabel(athleteId, labelId, checked) {
+  const { error } = checked
+    ? await supabase.from('athlete_label_links').insert([{ athlete_id: athleteId, label_id: labelId }])
+    : await supabase.from('athlete_label_links').delete().eq('athlete_id', athleteId).eq('label_id', labelId)
+
+  if (error) {
+    console.log('Error updating athlete label:', error)
+    customAlert('Something went wrong')
+    return
+  }
+
+  (labelLinksByAthlete[athleteId] ||= new Set())[checked ? 'add' : 'delete'](labelId)
+  renderLabelFilterList()
+  applyFilters()
+}
+
+document.getElementById('manageLabelsAddBtn').addEventListener('click', function() {
+  const input = document.getElementById('manageLabelsNewInput')
+  addLabel(input.value, manageLabelsAthleteId)
+  input.value = ''
+})
+
+document.getElementById('manageLabelsNewInput').addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return
+  addLabel(this.value, manageLabelsAthleteId)
+  this.value = ''
+})
+
+document.getElementById('closeManageLabelsBtn').addEventListener('click', function() {
+  manageLabelsModal.classList.remove('active')
+})

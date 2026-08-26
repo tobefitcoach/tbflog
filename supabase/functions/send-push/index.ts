@@ -18,6 +18,10 @@
 // it "send-push", then set the one secret it needs (VAPID_PRIVATE_KEY) in
 // that function's Secrets panel before deploying.
 // ==========================================================================
+// @ts-nocheck - this runs on Deno (Supabase Edge Functions), not Node, so
+// VS Code's normal TypeScript checker doesn't understand it (Deno global,
+// npm: imports) and flags false errors. Real syntax checking happens when
+// Supabase deploys it.
 import webpush from 'npm:web-push@3.6.7'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 

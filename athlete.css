@@ -1098,6 +1098,120 @@
 }
 
 /* ==========================================================================
+   ATHLETE LABELS - coach-created tags (e.g. "Monthly Plan"), shown on each
+   card and filterable from the dropdown next to the search bar (index.html)
+   ========================================================================== */
+.label-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: rgba(74, 74, 142, 0.25);
+  color: #b8b8ff;
+}
+
+.label-filter {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.label-filter-dropdown {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 40px;
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  padding: 12px;
+  z-index: 100;
+  width: 280px;
+  max-width: 90vw;
+}
+
+.label-filter-dropdown.active {
+  display: block;
+}
+
+.label-filter-dropdown .entries-modal-body {
+  max-height: 240px;
+}
+
+.label-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.label-filter-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.label-filter-row label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  cursor: pointer;
+}
+
+.label-row-delete {
+  background: transparent;
+  border: none;
+  color: #7a7a9e;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+}
+
+.label-row-delete:hover {
+  color: #ff6b6b;
+}
+
+.label-filter-empty {
+  color: #7a7a9e;
+  font-size: 13px;
+  padding: 8px 4px;
+}
+
+.label-filter-new {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #2a2a4e;
+}
+
+.label-filter-new input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #2a2a4e;
+  background-color: #0f0f1a;
+  color: white;
+  font-size: 13px;
+}
+
+.label-filter-new button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background-color: #4a4a8e;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.label-filter-new button:hover {
+  background-color: #5a5aae;
+}
+
+/* ==========================================================================
    PAIN/INJURY FLAG - shown when an athlete answers a high RPE with "pain
    or injury" (see wireRpeFlagFollowup, athlete-app/dashboard.js). Badge on
    the dashboard card + Overview tab's report list (script.js/athlete.js);

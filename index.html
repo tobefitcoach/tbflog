@@ -5,8 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=18" />
-    <link rel="stylesheet" href="athlete.css?v=44" />
+    <link rel="stylesheet" href="style.css?v=19" />
+    <link rel="stylesheet" href="athlete.css?v=45" />
   </head>
   <body>
 
@@ -22,12 +22,23 @@
 
     <div class="app-layout">
 
-      <!-- Left sidebar nav. "Library" reveals Exercise/Program Library on
-           click, expanding underneath it (.sidebar-submenu) -->
+      <!-- Left sidebar nav. "Athletes" and "Library" both reveal a submenu
+           underneath on click (.sidebar-submenu) - Athletes' stays open by
+           default here since this is that page; its Active/Pending/
+           Offline/Archived links are what used to be the chip row under
+           the search bar. -->
       <nav class="sidebar" id="pageSidebar">
         <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
         <div class="sidebar-links" id="sidebarLinks">
-          <a href="index.html" class="sidebar-link active">Athletes</a>
+          <div class="sidebar-item-hover open" id="athletesNavItem">
+            <a href="index.html" class="sidebar-link active">Athletes</a>
+            <div class="sidebar-submenu" id="athleteStatusFilter">
+              <a href="index.html?status=active" data-status="active">Active</a>
+              <a href="index.html?status=pending" data-status="pending">Pending</a>
+              <a href="index.html?status=offline" data-status="offline">Offline</a>
+              <a href="index.html?status=archived" data-status="archived">Archived</a>
+            </div>
+          </div>
           <div class="sidebar-item-hover">
             <span class="sidebar-link">Library</span>
             <div class="sidebar-submenu">
@@ -44,9 +55,10 @@
 
       <!-- ====================================================================
            DASHBOARD — Athlete grid
-           script.js renders one card per athlete into .athlete-grid, and the
-           status chip row above it filters that render client-side (no
-           re-query) - see applyStatusFilter() in script.js.
+           script.js renders one card per athlete into .athlete-grid. Status
+           filtering now lives in the sidebar submenu above (?status= links);
+           the label filter dropdown below filters client-side on top of
+           that - see applyFilters() in script.js.
            ==================================================================== -->
       <div class="dashboard">
     <div class="dashboard-header">
@@ -57,11 +69,15 @@
       </div>
     </div>
         <input type="text" id="athleteSearchInput" class="exercise-search-input" placeholder="Search athletes by name..." />
-        <div class="chip-row" id="athleteStatusFilter">
-          <button type="button" class="chip-btn selected" data-status="active">Active</button>
-          <button type="button" class="chip-btn" data-status="pending">Pending</button>
-          <button type="button" class="chip-btn" data-status="offline">Offline</button>
-          <button type="button" class="chip-btn" data-status="archived">Archived</button>
+        <div class="label-filter" id="labelFilter">
+          <button type="button" class="btn-profile-action" id="labelFilterBtn">🏷 Filter by Label</button>
+          <div class="label-filter-dropdown" id="labelFilterDropdown">
+            <div class="entries-modal-body" id="labelFilterList"></div>
+            <div class="label-filter-new">
+              <input type="text" id="newLabelInput" placeholder="New label name..." maxlength="40" />
+              <button type="button" id="addLabelBtn">+ Add</button>
+            </div>
+          </div>
         </div>
         <div class="athlete-grid"></div>
       </div>
@@ -110,6 +126,25 @@
   </div>
 </div>
 
+<!-- Manage Labels Modal: tag/untag one athlete with any of the coach's
+     labels - opened from that athlete's kebab menu. Checking a box saves
+     immediately (same optimistic pattern as Archive), no separate Save
+     button needed. -->
+<div class="modal-overlay" id="manageLabelsModal">
+  <div class="modal">
+    <h2>Manage Labels</h2>
+    <p style="color:#aaaacc; font-size:13px; margin-top:-8px" id="manageLabelsAthleteName"></p>
+    <div class="entries-modal-body" id="manageLabelsList"></div>
+    <div class="label-filter-new">
+      <input type="text" id="manageLabelsNewInput" placeholder="New label name..." maxlength="40" />
+      <button type="button" id="manageLabelsAddBtn">+ Add</button>
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" id="closeManageLabelsBtn">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Message Athletes Modal: compose + send, to all athletes or specific
      ones, shown either the next time they open the app, right before they
      start their next workout, or immediately as a real push notification -
@@ -150,7 +185,7 @@
 <script type="module" src="loading-bar.js?v=1"></script>
 <script type="module" src="confirm-modal.js?v=1"></script>
 <script type="module" src="network-retry.js?v=1"></script>
-<script type="module" src="script.js?v=15"></script>
+<script type="module" src="script.js?v=16"></script>
 <script type="module" src="bell.js?v=3"></script>
 <script type="module" src="sidebar.js?v=1"></script>
   </body>

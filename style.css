@@ -162,6 +162,12 @@ header {
   background-color: #1a1a2e;
 }
 
+.sidebar-submenu a.active {
+  color: white;
+  background-color: #1a1a2e;
+  font-weight: 600;
+}
+
 
 /* ==========================================================================
    DASHBOARD / ATHLETE GRID
