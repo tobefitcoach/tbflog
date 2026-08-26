@@ -4501,6 +4501,7 @@ function startRestTimer(totalSeconds, onDone) {
   })
 
   restTimerInterval = setInterval(tickRestTimer, 1000)
+  scheduleRestTimerPush(totalSeconds) // backup notification in case the athlete isn't looking when this ends - see the comment above these two functions, below
 }
 
 function tickRestTimer() {
@@ -4522,8 +4523,65 @@ function clearRestTimer() {
   restTimerInterval = null
   restTimerOnDone = null
   restTimerEndAt = null
+  cancelRestTimerPush()
   const bar = document.getElementById('restTimerBar')
   if (bar) { bar.style.display = 'none'; bar.innerHTML = '' }
+}
+
+// ==========================================================================
+// ---- REST TIMER PUSH NOTIFICATION (backup for when the athlete isn't
+// looking at the app) ----
+// The countdown above only works while this tab is actually running -
+// playRestDoneSound() can't fire if the athlete has switched to another
+// app (e.g. checking Instagram) and this tab got backgrounded/suspended.
+// So every time a rest timer starts, a row is also written to
+// scheduled_notifications for "now + rest length" - a separate process on
+// Supabase's side (not this browser tab) checks that table roughly once a
+// minute and sends a real push for anything due, completely independent
+// of whether this tab is even still running. If clearRestTimer() runs
+// before that push goes out (Skip pressed, the countdown finished
+// naturally while the athlete WAS looking, or they navigated away), the
+// row is deleted again so they don't get a redundant push for a rest
+// period that's already over as far as they're concerned.
+// ==========================================================================
+// Bumped every time a timer starts or gets cleared - lets a still-in-flight
+// insert recognize a newer/cleared timer has since taken over, so it can
+// delete the row it just created instead of leaving a stray push scheduled
+// for a rest period that's no longer active.
+let restTimerNotifyToken = 0
+let restTimerNotificationId = null
+
+async function scheduleRestTimerPush(totalSeconds) {
+  const token = ++restTimerNotifyToken
+  restTimerNotificationId = null
+
+  const fireAt = new Date(Date.now() + totalSeconds * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('scheduled_notifications')
+    .insert([{ user_id: session.user.id, fire_at: fireAt, title: 'Rest is over', body: 'Time to start your next set', url: window.location.href }])
+    .select()
+    .single()
+
+  // Best-effort only - a failed insert just means no backup push goes out;
+  // the in-app countdown and sound still work exactly as before
+  if (error) { console.log(error); return }
+
+  if (token !== restTimerNotifyToken) {
+    // The timer this was for already ended/got cleared while this insert
+    // was still in flight - this row is now stale, remove it
+    supabase.from('scheduled_notifications').delete().eq('id', data.id)
+    return
+  }
+
+  restTimerNotificationId = data.id
+}
+
+function cancelRestTimerPush() {
+  restTimerNotifyToken++ // invalidates any insert from the timer just cleared, still in flight
+  if (restTimerNotificationId) {
+    supabase.from('scheduled_notifications').delete().eq('id', restTimerNotificationId) // not awaited - best effort, harmless even if it fails
+    restTimerNotificationId = null
+  }
 }
 
 function formatTimer(seconds) {

@@ -1552,3 +1552,42 @@ create policy "public reads chat attachments" on storage.objects for select
 -- guesses.
 -- ==========================================================================
 alter table exercise_log_sets add column if not exists weight_unit text check (weight_unit in ('kg', 'lbs'));
+
+-- ==========================================================================
+-- scheduled_notifications - a short-lived queue for "push this to the
+-- athlete/coach at a specific future time" (first use: the rest timer,
+-- see scheduleRestTimerPush/cancelRestTimerPush in athlete-app/dashboard.js
+-- and supabase/functions/send-due-notifications). Every OTHER push in this
+-- app is sent immediately (sendPush() in push.js, called the moment
+-- something happens) - this table exists because a rest timer needs to
+-- notify LATER, at a moment the app has no code running at all if the
+-- athlete has switched to another app. A separate cron job (set up in the
+-- Supabase dashboard, not from this file - see this table's Edge Function
+-- for the exact steps) checks this table roughly once a minute and sends +
+-- deletes anything due, so it works even if the athlete's browser tab is
+-- fully backgrounded when the timer ends. Rows are always deleted once
+-- handled (sent, or cancelled by the app, or too stale to bother sending)
+-- - this is a queue, not a history log, so nothing here is meant to
+-- persist.
+-- ==========================================================================
+create table if not exists scheduled_notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  fire_at timestamptz not null,
+  title text not null,
+  body text not null,
+  url text,
+  created_at timestamptz not null default now()
+);
+alter table scheduled_notifications enable row level security;
+
+-- Same shape as push_subscriptions' policy - a user can schedule/cancel
+-- their own pending notifications (the app does this when a rest timer
+-- starts/stops), but the actual SENDING happens from the cron job's Edge
+-- Function using the service role key, which bypasses RLS entirely since
+-- it has to process every user's due rows, not just one.
+drop policy if exists "user manages own scheduled notifications" on scheduled_notifications;
+create policy "user manages own scheduled notifications" on scheduled_notifications for all
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+create index if not exists idx_scheduled_notifications_fire_at on scheduled_notifications(fire_at);
