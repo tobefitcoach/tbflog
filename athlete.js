@@ -2,6 +2,7 @@
 // SETUP — Supabase client + page state
 // ==========================================================================
 import { supabase } from './coachClient.js'
+import { sendPush } from './push.js'
 
 // Get athlete ID from URL
 const params = new URLSearchParams(window.location.search)
@@ -232,6 +233,10 @@ function initTabs() {
 
       if (btn.dataset.tab === 'calendar') {
         window.dispatchEvent(new CustomEvent('calendar-tab-activated'))
+      }
+
+      if (btn.dataset.tab === 'communication') {
+        loadChatMessages()
       }
     })
   })
@@ -3542,6 +3547,10 @@ async function generateReportPDF() {
     const blobUrl = doc.output('bloburl')
     window.open(blobUrl, '_blank')
     document.getElementById('reportBuilderModal').classList.remove('active')
+
+    if (await customConfirm(`Send this report to ${currentAthlete.name} in your chat too?`)) {
+      await shareReportWithAthlete(doc, periodLabel)
+    }
   } catch (err) {
     console.log('Error generating report PDF:', err)
     customAlert('Something went wrong generating the PDF - please try again')
@@ -3549,4 +3558,129 @@ async function generateReportPDF() {
     btn.disabled = false
     btn.textContent = '📄 Generate PDF'
   }
+}
+
+// Uploads the just-generated PDF to the chat-attachments bucket (same
+// {coach_id}/{uuid}.ext convention as the stretch-videos bucket) and drops
+// it into this athlete's chat as a message with a pdf_url - see
+// renderChatMessages() for how that's displayed.
+async function shareReportWithAthlete(doc, periodLabel) {
+  try {
+    const blob = doc.output('blob')
+    const path = `${session.user.id}/${crypto.randomUUID()}.pdf`
+    const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(path, blob, { contentType: 'application/pdf' })
+    if (uploadError) {
+      console.log('Error uploading report:', uploadError)
+      customAlert('Something went wrong sharing the report')
+      return
+    }
+    const pdfUrl = supabase.storage.from('chat-attachments').getPublicUrl(path).data.publicUrl
+
+    const { error } = await supabase.from('chat_messages').insert([{
+      coach_id: session.user.id,
+      athlete_id: athleteId,
+      sender: 'coach',
+      message: `📄 Progress Report (${periodLabel})`,
+      pdf_url: pdfUrl
+    }])
+    if (error) {
+      console.log('Error sharing report:', error)
+      customAlert('Something went wrong sharing the report')
+      return
+    }
+
+    if (currentAthlete.user_id) {
+      const url = new URL('athlete-app/dashboard.html', window.location.href).href
+      sendPush(supabase, currentAthlete.user_id, 'TBFlog', 'Your coach shared a progress report', url) // not awaited
+    }
+
+    if (document.getElementById('tab-communication').classList.contains('active')) loadChatMessages()
+  } catch (err) {
+    console.log('Error sharing report:', err)
+    customAlert('Something went wrong sharing the report')
+  }
+}
+
+// ==========================================================================
+// ---- COMMUNICATION (chat with this one athlete) ----
+// Real persistent two-way history (chat_messages), separate from the
+// one-shot coach_messages popup queue used for broadcast messages on
+// index.html. Loaded fresh every time this tab is opened (no live
+// subscription - matches this app's existing poll-on-open convention).
+// ==========================================================================
+document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage)
+document.getElementById('chatInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') sendChatMessage()
+})
+
+async function loadChatMessages() {
+  const container = document.getElementById('chatMessages')
+  container.innerHTML = '<p class="no-metrics">Loading...</p>'
+
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.log('Error loading chat:', error)
+    container.innerHTML = '<p class="no-metrics">Something went wrong loading this chat - try again</p>'
+    return
+  }
+
+  renderChatMessages(data)
+
+  const unreadIds = data.filter(m => m.sender === 'athlete' && !m.read_at).map(m => m.id)
+  if (unreadIds.length > 0) {
+    await supabase.from('chat_messages').update({ read_at: new Date().toISOString() }).in('id', unreadIds)
+  }
+}
+
+function renderChatMessages(messages) {
+  const container = document.getElementById('chatMessages')
+  if (messages.length === 0) {
+    container.innerHTML = '<p class="no-metrics">No messages yet - say hi!</p>'
+    return
+  }
+  container.innerHTML = messages.map(m => `
+    <div class="chat-bubble chat-bubble-${m.sender === 'coach' ? 'mine' : 'theirs'}">
+      ${m.message ? `<p>${escapeHtml(m.message)}</p>` : ''}
+      ${m.pdf_url ? `<a href="${m.pdf_url}" target="_blank" rel="noopener" class="chat-pdf-link">📄 View Report</a>` : ''}
+      <span class="chat-bubble-time">${new Date(m.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+    </div>
+  `).join('')
+  container.scrollTop = container.scrollHeight
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chatInput')
+  const message = input.value.trim()
+  if (!message) return
+
+  input.value = ''
+  input.disabled = true
+
+  const { error } = await supabase.from('chat_messages').insert([{
+    coach_id: session.user.id,
+    athlete_id: athleteId,
+    sender: 'coach',
+    message
+  }])
+
+  input.disabled = false
+
+  if (error) {
+    console.log('Error sending message:', error)
+    customAlert('Something went wrong sending that - try again')
+    input.value = message
+    return
+  }
+
+  if (currentAthlete.user_id) {
+    const url = new URL('athlete-app/dashboard.html', window.location.href).href
+    sendPush(supabase, currentAthlete.user_id, 'TBFlog', message, url) // not awaited
+  }
+
+  loadChatMessages()
 }

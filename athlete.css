@@ -2553,3 +2553,81 @@
     min-width: 70px;
   }
 }
+
+/* ==========================================================================
+   COMMUNICATION - coach<->athlete chat (chat_messages table), shared markup
+   between athlete.html's Communication tab (coach side, athlete.js) and
+   athlete-app/dashboard.js's renderCommunication() (athlete side)
+   ========================================================================== */
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.chat-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.chat-bubble p {
+  margin: 0 0 4px 0;
+  color: inherit;
+}
+
+.chat-bubble-mine {
+  align-self: flex-end;
+  background-color: #4a4a8e;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble-theirs {
+  align-self: flex-start;
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  color: #ffffff;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-bubble-time {
+  display: block;
+  font-size: 10px;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+
+.chat-pdf-link {
+  display: inline-block;
+  margin-top: 2px;
+  color: inherit;
+  text-decoration: underline;
+  font-size: 13px;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid #2a2a4e;
+  background-color: #0f0f1a;
+  color: white;
+  font-size: 14px;
+}
+
+.chat-input-row .btn-save {
+  border-radius: 20px;
+  padding: 10px 20px;
+}

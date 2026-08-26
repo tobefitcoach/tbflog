@@ -1488,3 +1488,51 @@ drop policy if exists "coach manages own athlete label links" on athlete_label_l
 create policy "coach manages own athlete label links" on athlete_label_links for all
   using (exists (select 1 from athletes a where a.id = athlete_label_links.athlete_id and a.coach_id = auth.uid()))
   with check (exists (select 1 from athletes a where a.id = athlete_label_links.athlete_id and a.coach_id = auth.uid()));
+
+-- ==========================================================================
+-- Real two-way chat between a coach and one of their athletes - a genuine
+-- persistent history, unlike coach_messages (that table is a one-shot
+-- popup queue: fetched once with seen_at is null, marked seen immediately,
+-- never fetchable again - not usable for a chat log). A message is either
+-- text, a shared PDF report (pdf_url), or both.
+-- ==========================================================================
+create table if not exists chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  athlete_id bigint not null references athletes(id) on delete cascade,
+  sender text not null check (sender in ('coach', 'athlete')),
+  message text not null default '',
+  pdf_url text,
+  created_at timestamptz not null default now(),
+  read_at timestamptz,
+  check (message <> '' or pdf_url is not null)
+);
+alter table chat_messages enable row level security;
+
+drop policy if exists "coach manages own chats" on chat_messages;
+create policy "coach manages own chats" on chat_messages for all
+  using (coach_id = auth.uid()) with check (coach_id = auth.uid());
+
+drop policy if exists "athlete manages own chat" on chat_messages;
+create policy "athlete manages own chat" on chat_messages for all
+  using (exists (select 1 from athletes a where a.id = chat_messages.athlete_id and a.user_id = auth.uid()))
+  with check (exists (select 1 from athletes a where a.id = chat_messages.athlete_id and a.user_id = auth.uid()));
+
+create index if not exists idx_chat_messages_athlete on chat_messages(athlete_id, created_at);
+
+-- Storage: public bucket for coach-shared PDF progress reports, same
+-- {coach_id}/{uuid}.ext path convention (and same reasoning) as the
+-- stretch-videos bucket above - only the coach ever uploads here (athletes
+-- never generate reports), so no separate athlete-write policy is needed.
+insert into storage.buckets (id, name, public)
+values ('chat-attachments', 'chat-attachments', true)
+on conflict (id) do nothing;
+
+drop policy if exists "coach manages own chat attachments" on storage.objects;
+create policy "coach manages own chat attachments" on storage.objects for all
+  using (bucket_id = 'chat-attachments' and (select auth.uid())::text = (storage.foldername(name))[1])
+  with check (bucket_id = 'chat-attachments' and (select auth.uid())::text = (storage.foldername(name))[1] and is_coach());
+
+drop policy if exists "public reads chat attachments" on storage.objects;
+create policy "public reads chat attachments" on storage.objects for select
+  using (bucket_id = 'chat-attachments');
