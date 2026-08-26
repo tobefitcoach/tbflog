@@ -56,6 +56,7 @@ window.addEventListener('calendar-tab-activated', function() {
   // once, rather than inside renderCalendarGrid (which reruns on every
   // month load and would otherwise stack a new set of listeners each time)
   wireCalendarDragToMove(document.getElementById('calendarGrid'))
+  wireCalendarBadgeKebabs(document.getElementById('calendarGrid'))
 })
 
 document.getElementById('calPrevBtn').addEventListener('click', function() {
@@ -285,9 +286,11 @@ function renderCalendarGrid(year, month) {
       const status = session ? (session.ended_at ? 'done' : 'in-progress') : 'planned'
       const glyph = status === 'done' ? '✓' : (status === 'in-progress' ? '▶' : '')
       const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
-      // dayId marks this as a real, draggable workout - mobility/tournament
-      // items below never get one, so they're never draggable
-      return { status, glyph, label: selfLogged + trainingDisplayName(entry), dayId: entry.day.id }
+      // dayId marks this as a real, draggable workout with its own kebab
+      // menu (copy/delete, see the badgesHtml build below) - mobility/
+      // tournament items below never get one, so they're never draggable
+      // and never get a kebab
+      return { status, glyph, label: selfLogged + trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
     })
     if (mobility) items.push({ status: 'done', glyph: '🧘', label: 'Mobility' })
     if (tournament) items.push({ status: 'tournament', glyph: '🏆', label: tournament.name })
@@ -296,7 +299,29 @@ function renderCalendarGrid(year, month) {
     const extraCount = items.length - visibleItems.length
     const dotsHtml = visibleItems.map(it => `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`).join('')
       + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
-    const badgesHtml = visibleItems.map(it => `<span class="calendar-day-badge calendar-day-badge-${it.status}" ${it.dayId ? `draggable="true" data-day-id="${it.dayId}"` : ''}>${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`).join('')
+    // Real workouts (dayId set) get their own kebab (copy/delete) right on
+    // the badge - see wireCalendarBadgeKebabs. Mobility/tournament/"+N
+    // more" items stay plain badges with no menu.
+    const badgesHtml = visibleItems.map(it => {
+      if (!it.dayId) {
+        return `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
+      }
+      const deleteAttrs = it.isAdhoc
+        ? `data-mode="adhoc" data-program-id="${it.programId}"`
+        : `data-mode="day" data-program-day-id="${it.dayId}"`
+      return `
+        <div class="calendar-day-badge-row">
+          <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
+          <div class="kebab-menu calendar-badge-kebab">
+            <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
+            <div class="kebab-dropdown">
+              <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">📋 Copy to another day</button>
+              <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>🗑 Delete Workout</button>
+            </div>
+          </div>
+        </div>
+      `
+    }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
     return `
@@ -377,6 +402,51 @@ async function moveWorkoutToDate(dayId, newDateStr) {
 }
 
 // ==========================================================================
+// ---- PER-BADGE KEBAB (COPY / DELETE) ON THE CALENDAR GRID ----
+// Copy/Delete for a workout live right on its badge in the month view now,
+// not buried inside the day-detail popup - a coach scanning the calendar
+// can act on a workout without opening anything first. Wired once on the
+// persistent #calendarGrid node, same reasoning as wireCalendarDragToMove.
+//
+// Registered on the CAPTURE phase (the trailing `true`), not the usual
+// bubble phase - each day cell has its own click listener straight on
+// itself (opens the day-detail modal, see renderCalendarGrid), which is
+// closer to the click target than this grid-level listener and would
+// therefore always fire FIRST during the normal bubble phase, no matter
+// what stopPropagation() does here afterwards. Capture runs top-down,
+// before that, so stopPropagation() here actually stops it from ever
+// reaching the cell's own listener.
+// ==========================================================================
+function wireCalendarBadgeKebabs(grid) {
+  grid.addEventListener('click', function(e) {
+    const btn = e.target.closest('[data-action]')
+    if (!btn) return
+
+    if (btn.dataset.action === 'toggle-kebab') {
+      e.stopPropagation()
+      const dropdown = btn.parentElement.querySelector('.kebab-dropdown')
+      const wasActive = dropdown.classList.contains('active')
+      document.querySelectorAll('#calendarGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+      if (!wasActive) dropdown.classList.add('active')
+      return
+    }
+
+    if (btn.dataset.action === 'copy-training') {
+      e.stopPropagation()
+      btn.closest('.kebab-dropdown').classList.remove('active')
+      openCopyWorkoutModal(btn.dataset.programDayId, btn.dataset.name)
+      return
+    }
+
+    if (btn.dataset.action === 'delete-training') {
+      e.stopPropagation()
+      deleteTraining(btn.dataset.mode, btn.dataset.programId, btn.dataset.programDayId)
+      return
+    }
+  }, true)
+}
+
+// ==========================================================================
 // ---- DAY DETAIL MODAL ----
 // Reads straight from the in-memory calendarEntriesByDate map - no query.
 // ==========================================================================
@@ -420,12 +490,6 @@ function openDayModal(dateStr) {
         ? entry.program.name
         : `${entry.program.name} — Week ${entry.week.week_number}, ${entry.day.label || ('Day ' + entry.day.day_number)}`
       const exercises = entry.day.program_exercises
-      // Ad-hoc: delete the whole programs row (it only ever covers this one
-      // day). Assigned template: delete just this program_days row, so the
-      // rest of the multi-week program stays intact.
-      const deleteAction = entry.program.is_adhoc
-        ? `data-action="delete-training" data-mode="adhoc" data-program-id="${entry.program.id}"`
-        : `data-action="delete-training" data-mode="day" data-program-day-id="${entry.day.id}"`
 
       // Once the athlete has started (or finished) this day, show what they
       // actually logged instead of the editable plan - that's what a coach
@@ -438,16 +502,7 @@ function openDayModal(dateStr) {
         <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
           <div style="display:flex; justify-content:space-between; align-items:center">
             <h4 class="detail-group-title">${label}</h4>
-            <div style="display:flex; align-items:center; gap:8px">
-              ${entry.day.date_override ? '<span class="athlete-modified-badge">📅 Moved by athlete</span>' : ''}
-              <div class="kebab-menu">
-                <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
-                <div class="kebab-dropdown">
-                  <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${entry.day.id}" data-name="${escapeHtmlCal(trainingDisplayName(entry))}">📋 Copy to another day</button>
-                  <button class="kebab-item" ${deleteAction}>🗑 Delete Workout</button>
-                </div>
-              </div>
-            </div>
+            ${entry.day.date_override ? '<span class="athlete-modified-badge">📅 Moved by athlete</span>' : ''}
           </div>
           ${showReview ? renderSessionSummaryCal(session) : ''}
           ${exercises.length === 0
@@ -627,25 +682,6 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
   const btn = e.target.closest('[data-action]')
   if (!btn) return
 
-  if (btn.dataset.action === 'delete-training') {
-    deleteTraining(btn.dataset.mode, btn.dataset.programId, btn.dataset.programDayId)
-    return
-  }
-
-  if (btn.dataset.action === 'toggle-kebab') {
-    const dropdown = btn.parentElement.querySelector('.kebab-dropdown')
-    const wasActive = dropdown.classList.contains('active')
-    document.querySelectorAll('#dayDetailContent .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-    if (!wasActive) dropdown.classList.add('active')
-    return
-  }
-
-  if (btn.dataset.action === 'copy-training') {
-    btn.closest('.kebab-dropdown').classList.remove('active')
-    openCopyWorkoutModal(btn.dataset.programDayId, btn.dataset.name)
-    return
-  }
-
   if (btn.dataset.action === 'save-scheduled-day') {
     await saveScheduledDay(btn.closest('.detail-group'))
     return
@@ -679,12 +715,13 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
   }
 })
 
-// Kebab dropdowns (see toggle-kebab above) close on their own toggle or on
-// picking an item, but not yet on an outside click - add that here so one
-// left open doesn't linger while the coach works on other cards
+// Per-badge kebab dropdowns on the calendar grid (see
+// wireCalendarBadgeKebabs) close on their own toggle or on picking an
+// item, but not yet on an outside click - add that here so one left open
+// doesn't linger while the coach clicks around the calendar
 document.addEventListener('click', function(e) {
   if (e.target.closest('.kebab-menu')) return
-  document.querySelectorAll('#dayDetailContent .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+  document.querySelectorAll('#calendarGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
 })
 
 // mm:ss time boxes: strip anything non-digit as it's typed, then pad back

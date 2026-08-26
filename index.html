@@ -5,8 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TBFlog</title>
-    <link rel="stylesheet" href="style.css?v=22" />
-    <link rel="stylesheet" href="athlete.css?v=46" />
+    <link rel="stylesheet" href="style.css?v=23" />
+    <link rel="stylesheet" href="athlete.css?v=47" />
   </head>
   <body>
 
@@ -22,21 +22,19 @@
 
     <div class="app-layout">
 
-      <!-- Left sidebar nav. "Library" reveals its submenu on click (a
-           non-navigating <span>, so the click has nothing else to do but
-           toggle). "Athletes" is a real link though - clicking it always
-           navigates to index.html, which happens before any click-driven
-           toggle could ever be seen, so its submenu can't work the same
-           way. It's just always shown here instead (this being the one
-           page it's relevant on) - a compact horizontal row on mobile
-           (see the #athleteStatusFilter mobile rule in style.css) rather
-           than the tall stacked list that used to push the whole page
-           down. Active/Pending/Offline/Archived is what used to be the
-           chip row under the search bar. -->
+      <!-- Left sidebar nav. "Athletes" and "Library" both expand a submenu
+           on click, mutually exclusive (see sidebar.js) - "Athletes" is a
+           real link to index.html on every OTHER page, but sidebar.js
+           intercepts the click here (where navigating there would just be
+           a pointless reload) and toggles the submenu instead, same as
+           "Library"'s non-navigating span. Active/Pending/Offline/Archived
+           is what used to be the chip row under the search bar - shown as
+           a wrapping row of pills (see #athleteStatusFilter in style.css),
+           not the stacked list it started as. -->
       <nav class="sidebar" id="pageSidebar">
         <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
         <div class="sidebar-links" id="sidebarLinks">
-          <div class="sidebar-item-hover open" id="athletesNavItem">
+          <div class="sidebar-item-hover" id="athletesNavItem">
             <a href="index.html" class="sidebar-link active">Athletes</a>
             <div class="sidebar-submenu" id="athleteStatusFilter">
               <a href="index.html?status=active" data-status="active">Active</a>
@@ -193,6 +191,6 @@
 <script type="module" src="network-retry.js?v=1"></script>
 <script type="module" src="script.js?v=16"></script>
 <script type="module" src="bell.js?v=3"></script>
-<script type="module" src="sidebar.js?v=1"></script>
+<script type="module" src="sidebar.js?v=2"></script>
   </body>
 </html>
