@@ -3792,16 +3792,21 @@ async function loadAndRenderPRBadges(session, entry) {
     // Nothing to beat yet - a first-time exercise isn't a PR
     if (!hasHistory) continue
 
+    // before/after/isWeight let the badge show the actual numbers, not just
+    // that a PR happened - same shape + formatPRBadgeValue() the Weekly
+    // Stats view's own PR list already uses (see computeWeekPREvents)
     const badges = []
-    if (todayStats.volume > bestVolume) badges.push({ type: 'volume', label: 'Volume PR' })
-    if (todayStats.maxWeight > bestWeight) badges.push({ type: 'weight', label: 'Weight PR' })
-    if (todayStats.totalReps > bestReps) badges.push({ type: 'reps', label: 'Reps PR' })
-    if (todayStats.setCount > bestSets) badges.push({ type: 'sets', label: 'Sets PR' })
-    if (todayStats.maxOneRM > bestOneRM) badges.push({ type: 'onerm', label: 'Est. 1RM PR' })
+    if (todayStats.volume > bestVolume) badges.push({ type: 'volume', label: 'Volume PR', before: bestVolume, after: todayStats.volume, isWeight: true })
+    if (todayStats.maxWeight > bestWeight) badges.push({ type: 'weight', label: 'Weight PR', before: bestWeight, after: todayStats.maxWeight, isWeight: true })
+    if (todayStats.totalReps > bestReps) badges.push({ type: 'reps', label: 'Reps PR', before: bestReps, after: todayStats.totalReps, isWeight: false })
+    if (todayStats.setCount > bestSets) badges.push({ type: 'sets', label: 'Sets PR', before: bestSets, after: todayStats.setCount, isWeight: false })
+    if (todayStats.maxOneRM > bestOneRM) badges.push({ type: 'onerm', label: 'Est. 1RM PR', before: bestOneRM, after: todayStats.maxOneRM, isWeight: true })
     if (badges.length === 0) continue
 
     const container = document.getElementById(`prBadges-${pe.id}`)
-    if (container) container.innerHTML = badges.map(b => `<span class="pr-badge pr-badge-${b.type}">🏆 ${b.label}</span>`).join('')
+    if (container) container.innerHTML = badges.map(b => `
+      <span class="pr-badge pr-badge-${b.type}">🏆 ${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</span>
+    `).join('')
   }
 }
 
