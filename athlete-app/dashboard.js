@@ -536,7 +536,11 @@ async function notifyCoach(type, message) {
     .insert([{ coach_id: athlete.coach_id, athlete_id: athlete.id, type, message }])
   if (error) console.log(error)
 
-  const url = new URL(`../athlete.html?id=${athlete.id}`, window.location.href).href
+  // A new chat message opens straight into that conversation in the
+  // Communication inbox; every other notification type still lands on
+  // this athlete's profile page, same as before
+  const targetPage = type === 'chat_message' ? 'communication.html' : 'athlete.html'
+  const url = new URL(`../${targetPage}?id=${athlete.id}`, window.location.href).href
   sendPush(supabase, athlete.coach_id, 'TBFlog', message, url) // not awaited, same as the insert above
 }
 

@@ -91,7 +91,7 @@ async function openPanel() {
   panel.innerHTML = data.length === 0
     ? '<p class="notification-bell-empty">No notifications yet</p>'
     : data.map(n => `
-      <a class="notification-bell-item ${n.read_at ? '' : 'unread'}" href="athlete.html?id=${n.athlete_id}">
+      <a class="notification-bell-item ${n.read_at ? '' : 'unread'}" href="${n.type === 'chat_message' ? 'communication.html' : 'athlete.html'}?id=${n.athlete_id}">
         <span class="notification-bell-message">${escapeHtml(n.message)}</span>
         <span class="notification-bell-time">${formatRelativeTime(n.created_at)}</span>
       </a>

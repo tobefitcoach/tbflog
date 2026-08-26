@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Program Library — TBFlog</title>
+    <title>Communication — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=23" />
     <link rel="stylesheet" href="athlete.css?v=48" />
   </head>
@@ -29,9 +29,9 @@
               <a href="index.html?status=archived">Archived</a>
             </div>
           </div>
-          <a href="communication.html" class="sidebar-link">💬 Communication</a>
+          <a href="communication.html" class="sidebar-link active">💬 Communication</a>
           <div class="sidebar-item-hover">
-            <span class="sidebar-link active">Library</span>
+            <span class="sidebar-link">Library</span>
             <div class="sidebar-submenu">
               <a href="exercises.html">Exercise Library</a>
               <a href="sections.html">Section Library</a>
@@ -44,27 +44,31 @@
         </div>
       </nav>
 
-      <div class="dashboard">
+      <!-- Two-pane inbox: athlete list on the left (loaded from
+           loadCommsAthletes() in communication.js), the selected athlete's
+           full chat_messages history + a send box on the right - see
+           selectCommsAthlete(). Supports ?id= to deep-link straight into
+           one athlete's conversation (used by the notification bell and
+           push notifications for a new chat message). -->
+      <div class="dashboard comms-page">
         <div class="dashboard-header">
-          <h2>Program Library</h2>
-          <button class="btn-add" id="newTemplateBtn">+ New Template</button>
+          <h2>Communication</h2>
         </div>
-        <div class="athlete-grid" id="programGrid"></div>
-      </div>
-    </div>
-
-    <!-- New Template Modal: just a name - the actual weeks/days/exercises
-         get built on program-builder.html after this redirects there -->
-    <div class="modal-overlay" id="newTemplateModal">
-      <div class="modal">
-        <h2>New Program Template</h2>
-        <div class="form-group">
-          <label>Name</label>
-          <input type="text" id="newTemplateName" placeholder="e.g. Push Pull Legs - Hypertrophy" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelNewTemplateBtn">Cancel</button>
-          <button class="btn-save" id="saveNewTemplateBtn">Create & Edit</button>
+        <div class="comms-layout">
+          <div class="comms-athlete-list" id="commsAthleteList">
+            <p class="no-metrics">Loading...</p>
+          </div>
+          <div class="comms-chat-pane">
+            <p class="no-metrics" id="commsEmptyState">Select an athlete on the left to see your conversation.</p>
+            <div id="commsActiveChat" style="display:none">
+              <div class="comms-chat-header" id="commsChatHeader"></div>
+              <div class="chat-messages" id="chatMessages"></div>
+              <div class="chat-input-row">
+                <input type="text" id="chatInput" placeholder="Type a message..." maxlength="2000" />
+                <button type="button" class="btn-save" id="chatSendBtn">Send</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -72,7 +76,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="programs.js?v=3"></script>
+    <script type="module" src="communication.js?v=1"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>
