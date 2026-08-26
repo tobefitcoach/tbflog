@@ -2,10 +2,10 @@
 // send-due-notifications (Supabase Edge Function)
 // Unlike send-push (which fires the moment something happens, e.g. a chat
 // message), this one is never called directly by the app. It runs on a
-// SCHEDULE - every minute, via Supabase's Cron Jobs feature - and each
-// time it runs, it checks the scheduled_notifications table for any row
-// whose fire_at time has already passed, sends each of those as a real
-// push (same webpush call send-push uses), then deletes the row.
+// SCHEDULE - every ~15 seconds, via pg_cron - and each time it runs, it
+// checks the scheduled_notifications table for any row whose fire_at time
+// has already passed, sends each of those as a real push (same webpush
+// call send-push uses), then deletes the row.
 //
 // Built for the rest timer: when an athlete starts resting between sets,
 // the app writes a row here for "now + rest length". If they're still on
@@ -15,21 +15,28 @@
 // cron job is what actually sends the push - it doesn't depend on their
 // browser tab still running at all.
 //
-// SETUP (do this once, after deploying this function - see the numbered
-// steps at the bottom of this comment):
+// SETUP (do this once, after deploying this function):
 // 1. Deploy this file the same manual way as send-push (paste into
 //    Supabase Dashboard -> Edge Functions -> Deploy a new function -> Via
 //    Editor, name it "send-due-notifications"). No new secret needed - it
 //    reuses the VAPID_PRIVATE_KEY already set for send-push.
-// 2. In the Supabase Dashboard, go to Database -> Cron Jobs (enable the
-//    pg_cron/pg_net extensions first if that section isn't visible yet -
-//    Database -> Extensions).
-// 3. Create a new job: any name, schedule "* * * * *" (every minute - the
-//    finest interval a normal cron schedule supports, so a rest timer's
-//    push can arrive up to ~1 minute after it actually ends, not
-//    instantly), type "Supabase Edge Function", pointing at
-//    send-due-notifications. The dashboard handles authenticating the
-//    call for you - no separate secret to copy in.
+// 2. Enable the pg_cron and pg_net extensions (Database -> Extensions).
+// 3. In the SQL Editor, run:
+//      select cron.schedule(
+//        'send-due-notifications',
+//        '15 seconds',
+//        $$
+//        select net.http_post(
+//          url := 'https://<project-ref>.supabase.co/functions/v1/send-due-notifications',
+//          headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer <service_role key, from Project Settings -> API Keys>'),
+//          body := '{}'::jsonb
+//        );
+//        $$
+//      );
+//    pg_cron supports schedules finer than a minute (e.g. '15 seconds')
+//    as of pg_cron 1.4+, not just standard 5-field cron syntax - that's
+//    what keeps a rest timer's backup push feeling close to instant
+//    instead of arriving up to a full minute late.
 // ==========================================================================
 // @ts-nocheck - this runs on Deno (Supabase Edge Functions), not Node, so
 // VS Code's normal TypeScript checker doesn't understand it (Deno global,

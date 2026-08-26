@@ -4536,8 +4536,8 @@ function clearRestTimer() {
 // app (e.g. checking Instagram) and this tab got backgrounded/suspended.
 // So every time a rest timer starts, a row is also written to
 // scheduled_notifications for "now + rest length" - a separate process on
-// Supabase's side (not this browser tab) checks that table roughly once a
-// minute and sends a real push for anything due, completely independent
+// Supabase's side (not this browser tab) checks that table every ~15
+// seconds and sends a real push for anything due, completely independent
 // of whether this tab is even still running. If clearRestTimer() runs
 // before that push goes out (Skip pressed, the countdown finished
 // naturally while the athlete WAS looking, or they navigated away), the

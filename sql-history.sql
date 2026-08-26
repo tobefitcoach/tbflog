@@ -1563,7 +1563,7 @@ alter table exercise_log_sets add column if not exists weight_unit text check (w
 -- notify LATER, at a moment the app has no code running at all if the
 -- athlete has switched to another app. A separate cron job (set up in the
 -- Supabase dashboard, not from this file - see this table's Edge Function
--- for the exact steps) checks this table roughly once a minute and sends +
+-- for the exact steps) checks this table every ~15 seconds and sends +
 -- deletes anything due, so it works even if the athlete's browser tab is
 -- fully backgrounded when the timer ends. Rows are always deleted once
 -- handled (sent, or cancelled by the app, or too stale to bother sending)
