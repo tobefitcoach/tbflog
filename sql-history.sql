@@ -1478,7 +1478,7 @@ create policy "coach manages own athlete labels" on athlete_labels for all
   using (coach_id = auth.uid()) with check (coach_id = auth.uid());
 
 create table if not exists athlete_label_links (
-  athlete_id uuid not null references athletes(id) on delete cascade,
+  athlete_id bigint not null references athletes(id) on delete cascade,
   label_id uuid not null references athlete_labels(id) on delete cascade,
   primary key (athlete_id, label_id)
 );
