@@ -1916,21 +1916,34 @@
   background-color: #5a5aae;
 }
 
-/* Most recent note shown directly in the header */
+/* Most recent note shown directly in the header - same left-border-card
+   look as a .note-entry so it visibly reads as "the latest entry in the
+   log", not a one-off text block */
 .latest-note-preview {
   min-height: 80px;
+  background-color: #14142a;
+  border: 1px solid #2a2a4e;
+  border-left: 3px solid #4a4a8e;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.latest-note-preview.no-notes {
+  background-color: transparent;
+  border: none;
+  padding: 0;
 }
 
 .latest-note-date {
   font-size: 12px;
-  color: #aaaacc;
-  font-weight: 600;
+  color: white;
+  font-weight: 700;
   margin-bottom: 4px;
 }
 
 .latest-note-text {
   font-size: 13px;
-  color: #ffffff;
+  color: #ddddee;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -1938,32 +1951,40 @@
   -webkit-box-orient: vertical;
 }
 
-/* One entry in the "All Notes" list modal */
+/* One entry in the "All Notes" list modal - styled as its own card with a
+   left timeline bar, so a run of dated entries reads as a log instead of
+   blending into one block of text (each just used to be a thin
+   border-bottom divider - hard to tell entries apart at a glance) */
 .note-entry {
-  padding: 12px 0;
-  border-bottom: 1px solid #2a2a4e;
+  background-color: #14142a;
+  border: 1px solid #2a2a4e;
+  border-left: 3px solid #4a4a8e;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
 }
 
 .note-entry:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .note-entry-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .note-entry-date {
-  font-size: 12px;
-  color: #aaaacc;
-  font-weight: 600;
+  font-size: 13px;
+  color: white;
+  font-weight: 700;
 }
 
 .note-entry-text {
   font-size: 14px;
-  color: #ffffff;
+  line-height: 1.5;
+  color: #ddddee;
   white-space: pre-wrap;
 }
 

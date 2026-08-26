@@ -865,11 +865,13 @@ async function loadLatestNote() {
   const preview = document.getElementById('latestNotePreview')
 
   if (!data || data.length === 0) {
+    preview.classList.add('no-notes')
     preview.innerHTML = '<p class="no-bodyweight-data">No notes yet</p>'
     return
   }
 
   const latest = data[0]
+  preview.classList.remove('no-notes')
   preview.innerHTML = `
     <p class="latest-note-date">${formatDisplayDate(latest.date)}</p>
     <p class="latest-note-text">${latest.note}</p>

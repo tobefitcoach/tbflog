@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=24" />
-  <link rel="stylesheet" href="athlete.css?v=48" />
+  <link rel="stylesheet" href="athlete.css?v=49" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -94,7 +94,7 @@
               <button class="btn-save-notes" id="addNoteBtn">+ Add</button>
             </div>
           </div>
-          <div class="latest-note-preview" id="latestNotePreview">
+          <div class="latest-note-preview no-notes" id="latestNotePreview">
             <p class="no-bodyweight-data">No notes yet</p>
           </div>
         </div>
@@ -918,7 +918,7 @@
 
     <!-- Notes List Modal: full dated history of notes, with edit/delete per entry -->
     <div class="modal-overlay" id="notesListModal">
-      <div class="modal">
+      <div class="modal modal-wide">
         <div class="graph-modal-header">
           <h2>All Notes</h2>
           <button class="btn-cancel" id="closeNotesListBtn">✕</button>
@@ -1151,7 +1151,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=33"></script>
+    <script type="module" src="athlete.js?v=34"></script>
     <script type="module" src="athlete-calendar.js?v=50"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
