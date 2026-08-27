@@ -1763,3 +1763,16 @@ create policy "athlete manages own avatar" on storage.objects for all
 drop policy if exists "public reads athlete avatars" on storage.objects;
 create policy "public reads athlete avatars" on storage.objects for select
   using (bucket_id = 'athlete-avatars');
+
+-- ==========================================================================
+-- First-time app intro (see enterAppMaybeIntro()/renderIntroStep() in
+-- athlete-app/dashboard.js) - a few short screens shown once, right after
+-- an athlete finishes their profile/password setup, explaining the basics
+-- before they land on their real Week view. Backfilling every EXISTING
+-- athlete to true (not the column's own false default) so nobody already
+-- using the app gets surprised with an unexpected walkthrough on their next
+-- login - only athletes created from here on start at false and actually
+-- see it. No RLS change needed - not column-scoped.
+-- ==========================================================================
+alter table athletes add column if not exists intro_seen boolean not null default false;
+update athletes set intro_seen = true where intro_seen = false;

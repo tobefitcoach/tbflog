@@ -1828,3 +1828,62 @@ header {
 .unit-toggle-switch span.active {
   color: #ffffff;
 }
+
+/* First-time app intro (see enterAppMaybeIntro()/renderIntroStep() in
+   dashboard.js) - a handful of short full-screen steps shown once, right
+   after an athlete finishes their profile/password setup. */
+.intro-screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 60px 24px 24px;
+  min-height: 60vh;
+  justify-content: center;
+}
+
+.intro-skip-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.intro-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.intro-title {
+  margin-bottom: 12px;
+}
+
+.intro-body {
+  color: #aaaacc;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 340px;
+  margin-bottom: 28px;
+}
+
+.intro-dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 28px;
+}
+
+.intro-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #2a2a4e;
+}
+
+.intro-dot.active {
+  background-color: #4a4a8e;
+}
+
+.intro-actions {
+  display: flex;
+  gap: 12px;
+}

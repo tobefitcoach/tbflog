@@ -154,7 +154,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, date_of_birth, gender, height, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id')
+    .select('id, name, date_of_birth, gender, height, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id, intro_seen')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -170,7 +170,7 @@ async function checkAccountState() {
     // settings, which turned out not to match a hash-based `type=magiclink`
     // assumption in practice).
     if (session.user.user_metadata?.needs_password) { renderCompleteProfilePrompt(); return }
-    await enterWeekView()
+    await enterAppMaybeIntro()
     return
   }
 
@@ -285,8 +285,92 @@ function renderCompleteProfilePrompt() {
     athlete.date_of_birth = dob
     athlete.gender = gender
     athlete.height = heightRaw
-    enterWeekView()
+    enterAppMaybeIntro()
   })
+}
+
+// ==========================================================================
+// ---- FIRST-TIME APP INTRO ----
+// Shown exactly once, right after an athlete finishes the profile/password
+// step above (or, for anyone who reached that step before this feature
+// existed, the next time they open the app) - a few short screens
+// explaining the basics before they land on their real Week view for the
+// first time. athletes.intro_seen gates it so it never shows again once
+// they've clicked through or skipped it.
+// ==========================================================================
+const introSteps = [
+  {
+    icon: '👋',
+    title: null, // filled in with the athlete's name at render time, see renderIntroStep()
+    body: "This is where you'll follow the training program your coach builds for you. Let's take a quick look around."
+  },
+  {
+    icon: '📅',
+    title: 'Your Week',
+    body: 'The Home tab shows your week at a glance. Tap any day to preview what\'s on it, and tap "Start Workout" on today\'s to begin logging your session.'
+  },
+  {
+    icon: '✅',
+    title: 'Log As You Go',
+    body: "Check off each set as you finish it - your weights, reps, and times save automatically, so there's nothing to remember for later."
+  },
+  {
+    icon: '💬',
+    title: 'Stay Connected',
+    body: 'Message your coach anytime from the Communication tab, and use Settings to set your units, notifications, and profile photo.'
+  }
+]
+let introStepIndex = 0
+
+async function enterAppMaybeIntro() {
+  if (athlete.intro_seen) { await enterWeekView(); return }
+  introStepIndex = 0
+  renderIntroStep()
+}
+
+function renderIntroStep() {
+  const step = introSteps[introStepIndex]
+  const isFirst = introStepIndex === 0
+  const isLast = introStepIndex === introSteps.length - 1
+
+  pageContent.innerHTML = `
+    <div class="intro-screen">
+      ${!isLast ? '<button type="button" class="unit-btn intro-skip-btn" id="introSkipBtn">Skip</button>' : ''}
+      <div class="intro-icon">${step.icon}</div>
+      <h2 class="intro-title">${step.title || `Welcome, ${athlete.name}!`}</h2>
+      <p class="intro-body">${step.body}</p>
+      <div class="intro-dots">
+        ${introSteps.map((_, i) => `<span class="intro-dot ${i === introStepIndex ? 'active' : ''}"></span>`).join('')}
+      </div>
+      <div class="intro-actions">
+        ${!isFirst ? '<button type="button" class="btn-cancel" id="introBackBtn">Back</button>' : ''}
+        <button type="button" class="btn-save" id="introNextBtn">${isLast ? 'Get Started' : 'Next'}</button>
+      </div>
+    </div>
+  `
+
+  const skipBtn = document.getElementById('introSkipBtn')
+  if (skipBtn) skipBtn.addEventListener('click', finishIntro)
+
+  const backBtn = document.getElementById('introBackBtn')
+  if (backBtn) backBtn.addEventListener('click', function() { introStepIndex--; renderIntroStep() })
+
+  document.getElementById('introNextBtn').addEventListener('click', function() {
+    if (isLast) { finishIntro(); return }
+    introStepIndex++
+    renderIntroStep()
+  })
+}
+
+async function finishIntro() {
+  athlete.intro_seen = true
+  await saveWithRetry((signal) => supabase
+    .from('athletes')
+    .update({ intro_seen: true })
+    .eq('id', athlete.id)
+    .abortSignal(signal)
+  )
+  await enterWeekView()
 }
 
 async function enterWeekView() {
