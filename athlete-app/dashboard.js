@@ -424,7 +424,21 @@ async function sendChatMessageToCoach() {
 async function renderSettings() {
   setActiveBottomTab('settings')
   const status = await pushStatus() // local browser check only, no network - fast enough to await before the first render
+  const initials = athlete.name.split(' ').map(w => w[0]).join('').toUpperCase()
   pageContent.innerHTML = `
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">Profile Photo</div>
+        <div class="settings-row-desc">Your coach sees this instead of your initials</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px">
+        ${athlete.avatar_url
+          ? `<img src="${athlete.avatar_url}" class="settings-avatar-preview" alt="">`
+          : `<div class="settings-avatar-placeholder">${initials}</div>`}
+        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" />
+        <button type="button" class="btn-profile-action" id="avatarUploadBtn">Change</button>
+      </div>
+    </div>
     <div class="settings-row">
       <div class="settings-row-info">
         <div class="settings-row-title">Weight units</div>
@@ -460,6 +474,52 @@ async function renderSettings() {
 
   document.getElementById('backFromSettingsBtn').addEventListener('click', function() {
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  document.getElementById('avatarUploadBtn').addEventListener('click', function() {
+    document.getElementById('avatarFileInput').click()
+  })
+
+  document.getElementById('avatarFileInput').addEventListener('change', async function(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const btn = document.getElementById('avatarUploadBtn')
+    btn.disabled = true
+    btn.textContent = 'Uploading...'
+
+    try {
+      const resized = await resizeImageFile(file, 512)
+      // Fixed filename per athlete (not a fresh uuid each time, unlike the
+      // coach's stretch-video uploads) - upsert:true so a re-upload just
+      // overwrites the same object instead of leaving old photos orphaned
+      // in storage forever
+      const path = `${session.user.id}/avatar.jpg`
+      const { error: uploadError } = await supabase.storage.from('athlete-avatars').upload(path, resized, { contentType: 'image/jpeg', upsert: true })
+      if (uploadError) throw uploadError
+
+      // ?t= cache-busts the public URL itself (stored in the DB, not just a
+      // page-local query string) so every place this shows - the coach's
+      // athlete grid, profile header, communication list - picks up the new
+      // photo immediately instead of serving a stale cached image forever
+      const avatarUrl = `${supabase.storage.from('athlete-avatars').getPublicUrl(path).data.publicUrl}?t=${Date.now()}`
+
+      const { error } = await saveWithRetry((signal) => supabase
+        .from('athletes')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', athlete.id)
+        .abortSignal(signal)
+      )
+      if (error) throw error
+
+      athlete.avatar_url = avatarUrl
+      renderSettings()
+    } catch (err) {
+      console.log('Error uploading avatar:', err)
+      customAlert('Something went wrong uploading your photo - check your connection and try again')
+      btn.disabled = false
+      btn.textContent = 'Change'
+    }
   })
 
   // Turning ON needs a real user tap (browsers require a user gesture to
@@ -517,6 +577,29 @@ async function renderSettings() {
       e.target.checked = previousValue
       customAlert('Something went wrong saving that - try again')
     }
+  })
+}
+
+// Downscales + re-encodes as JPEG client-side before upload, regardless of
+// how big the original photo was (a phone camera photo can be several MB) -
+// a profile picture is only ever shown at avatar size, so there's no reason
+// to store or transfer more than maxSize px on the longest side. Avoids
+// needing any upload-size-limit handling entirely, the same problem the PDF
+// report's chart images ran into.
+function resizeImageFile(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(img.src)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
+    }
+    img.onerror = reject
+    img.src = URL.createObjectURL(file)
   })
 }
 

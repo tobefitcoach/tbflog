@@ -1975,6 +1975,30 @@
   font-size: 13px;
 }
 
+/* Profile Photo row on the athlete app's own Settings tab - see
+   renderSettings()/resizeImageFile() in athlete-app/dashboard.js */
+.settings-avatar-preview,
+.settings-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.settings-avatar-preview {
+  object-fit: cover;
+}
+
+.settings-avatar-placeholder {
+  background-color: #4a4a8e;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 16px;
+}
+
 .detail-list {
   list-style: none;
   padding-left: 4px;

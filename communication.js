@@ -77,10 +77,11 @@ function renderCommsAthleteList() {
   }
   list.innerHTML = allCommsAthletes.map(a => {
     const initials = a.name.split(' ').map(word => word[0]).join('').toUpperCase()
+    const avatarHtml = a.avatar_url ? `<img src="${a.avatar_url}" class="avatar-img" alt="">` : initials
     const unread = unreadCountByAthlete[a.id] || 0
     return `
       <button type="button" class="comms-athlete-row ${selectedAthlete && selectedAthlete.id === a.id ? 'active' : ''}" data-athlete-id="${a.id}">
-        <div class="athlete-initials">${initials}</div>
+        <div class="athlete-initials">${avatarHtml}</div>
         <span class="comms-athlete-name">${escapeHtml(a.name)}</span>
         ${unread > 0 ? `<span class="comms-unread-badge">${unread > 9 ? '9+' : unread}</span>` : ''}
       </button>

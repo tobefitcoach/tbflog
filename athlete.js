@@ -261,7 +261,9 @@ async function loadAthlete() {
 
   // Fill in profile header
   const initials = data.name.split(' ').map(w => w[0]).join('').toUpperCase()
-  document.getElementById('profileInitials').textContent = initials
+  document.getElementById('profileInitials').innerHTML = data.avatar_url
+    ? `<img src="${data.avatar_url}" class="avatar-img" alt="">`
+    : initials
   document.getElementById('profileName').textContent = data.name
 document.getElementById('profileDetails').textContent =
     `${data.gender} · ${age} years old · ${data.height}cm`

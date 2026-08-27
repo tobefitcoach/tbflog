@@ -368,6 +368,17 @@ header {
   font-size: 16px;
   margin-bottom: 16px;
 }
+
+/* Fills whichever initials circle it's dropped into (.athlete-initials here,
+   .profile-initials in athlete.css) once the athlete has uploaded a photo -
+   see athlete-app/dashboard.js's renderSettings() for the upload itself */
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
  
 /* Row above the grid: "Athletes" title + "+ Add Athlete" button */
 .dashboard-header {
