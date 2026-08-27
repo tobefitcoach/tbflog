@@ -154,7 +154,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, date_of_birth, gender, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id')
+    .select('id, name, date_of_birth, gender, height, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -237,6 +237,10 @@ function renderCompleteProfilePrompt() {
       </select>
     </div>
     <div class="form-group">
+      <label>Height (cm)</label>
+      <input type="number" id="onboardHeightInput" placeholder="e.g. 180" value="${athlete.height || ''}" />
+    </div>
+    <div class="form-group">
       <label>New Password</label>
       <input type="password" id="newPasswordInput" placeholder="At least 6 characters" />
     </div>
@@ -247,10 +251,12 @@ function renderCompleteProfilePrompt() {
     const name = document.getElementById('onboardNameInput').value.trim()
     const dob = document.getElementById('onboardDOBInput').value
     const gender = document.getElementById('onboardGenderInput').value
+    const heightRaw = parseInt(document.getElementById('onboardHeightInput').value)
     const password = document.getElementById('newPasswordInput').value
 
     if (!name) { customAlert('Please enter your full name'); return }
     if (!dob) { customAlert('Please enter your date of birth'); return }
+    if (Number.isNaN(heightRaw)) { customAlert('Please enter your height'); return }
     if (!password || password.length < 6) { customAlert('Please enter a password of at least 6 characters'); return }
 
     const { error: authError } = await supabase.auth.updateUser({
@@ -265,7 +271,7 @@ function renderCompleteProfilePrompt() {
 
     const { error: profileError } = await saveWithRetry((signal) => supabase
       .from('athletes')
-      .update({ name, date_of_birth: dob, gender })
+      .update({ name, date_of_birth: dob, gender, height: heightRaw })
       .eq('id', athlete.id)
       .abortSignal(signal)
     )
@@ -278,6 +284,7 @@ function renderCompleteProfilePrompt() {
     athlete.name = name
     athlete.date_of_birth = dob
     athlete.gender = gender
+    athlete.height = heightRaw
     enterWeekView()
   })
 }
