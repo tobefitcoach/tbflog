@@ -887,8 +887,22 @@ header {
   cursor: not-allowed;
 }
 
-.home-tile-icon {
-  font-size: 28px;
+/* Icon-in-a-chip treatment: the accent color becomes part of the icon
+   itself (a small tinted rounded square behind it) instead of a bare white
+   line floating on the card - reads as more designed/premium than a plain
+   line icon at the same visual weight as body text. */
+.home-tile-icon-chip {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: #4a4a8e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+.home-tile-icon-chip svg {
+  color: #ffffff;
 }
 
 .home-tile-label {

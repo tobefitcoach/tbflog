@@ -1155,19 +1155,19 @@ function renderWeekView(weekStart) {
     <div class="week-strip">${cardsHtml}</div>
     <div class="home-tile-row ${coachMobilityEnabled ? '' : 'home-tile-row-single'}">
       <button type="button" class="home-tile ${athlete.can_self_log_workouts ? '' : 'disabled'}" id="addOwnWorkoutTile">
-        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>
+        <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
         <span class="home-tile-label">Add Own Workout</span>
         ${athlete.can_self_log_workouts ? '' : '<span class="home-tile-sublabel">Ask your coach to enable this</span>'}
       </button>
       ${coachMobilityEnabled ? `
       <button type="button" class="home-tile" id="mobilityTile">
-        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>
+        <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v5"></path><path d="M12 8l-5 5"></path><path d="M12 8l5 5"></path><path d="M12 11l-3 9"></path><path d="M12 11l3 9"></path></svg></span>
         <span class="home-tile-label">Daily Mobility/Stretching</span>
       </button>` : ''}
     </div>
     <div class="home-tile-row home-tile-row-single">
       <button type="button" class="home-tile" id="tournamentsTile">
-        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>
+        <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>
         <span class="home-tile-label">Tournaments</span>
       </button>
     </div>
@@ -1742,11 +1742,11 @@ function renderAddWorkoutChoice() {
     <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">What kind of workout did you do today?</p>
     <div class="home-tile-row">
       <button type="button" class="home-tile" id="addWorkoutStrengthChoice">
-        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>
+        <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"></rect><rect x="20" y="9" width="3" height="6" rx="1"></rect><line x1="4" y1="12" x2="20" y2="12"></line><rect x="6" y="7" width="2" height="10" rx="1"></rect><rect x="16" y="7" width="2" height="10" rx="1"></rect></svg></span>
         <span class="home-tile-label">Strength (Gym)</span>
       </button>
       <button type="button" class="home-tile" id="addWorkoutFieldChoice">
-        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></span>
+        <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l3 2"></path><path d="M9 2h6"></path><path d="M12 2v3"></path></svg></span>
         <span class="home-tile-label">Field / Training</span>
       </button>
     </div>
