@@ -1736,3 +1736,30 @@ alter table section_exercises add column if not exists alternative_exercise_id u
 -- as being deleted. No RLS change needed - not column-scoped.
 -- ==========================================================================
 alter table exercises add column if not exists archived boolean not null default false;
+
+-- ==========================================================================
+-- Athlete profile photo - uploaded by the athlete themselves from their
+-- app's Settings tab (see renderSettings()/resizeImageFile() in
+-- athlete-app/dashboard.js), shown to the coach wherever initials used to
+-- be (athlete grid, profile header, communication list). Storage policy is
+-- the mirror image of chat-attachments/stretch-videos above: there the
+-- COACH uploads under their own auth.uid() folder; here the ATHLETE
+-- uploads under their own, so the check is against auth.uid() with no
+-- is_coach() requirement. Fixed filename per athlete (not a fresh uuid per
+-- upload) - the app always uploads with upsert:true, so a re-upload just
+-- overwrites the same object instead of orphaning old photos in storage.
+-- ==========================================================================
+alter table athletes add column if not exists avatar_url text;
+
+insert into storage.buckets (id, name, public)
+values ('athlete-avatars', 'athlete-avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "athlete manages own avatar" on storage.objects;
+create policy "athlete manages own avatar" on storage.objects for all
+  using (bucket_id = 'athlete-avatars' and (select auth.uid())::text = (storage.foldername(name))[1])
+  with check (bucket_id = 'athlete-avatars' and (select auth.uid())::text = (storage.foldername(name))[1]);
+
+drop policy if exists "public reads athlete avatars" on storage.objects;
+create policy "public reads athlete avatars" on storage.objects for select
+  using (bucket_id = 'athlete-avatars');
