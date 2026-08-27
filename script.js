@@ -44,6 +44,7 @@ if (!session) {
   // either way. Comparing this text between devices is the fastest way to
   // check if that's what's happening.
   document.getElementById('loggedInAs').textContent = session.user.email
+  renderAthleteGridSkeleton()
   loadAthletes();
 }
 
@@ -134,6 +135,25 @@ document.getElementById('sendMessageAthletesBtn').addEventListener('click', asyn
   document.getElementById('messageAthletesModal').classList.remove('active')
   customAlert(`Sent to ${recipientIds.length} athlete${recipientIds.length === 1 ? '' : 's'}.`)
 })
+
+// Shown immediately on page load, before the athletes query below has even
+// started - a blank grid for however long the fetch takes reads as broken,
+// not loading. applyFilters() replaces this outright (athleteGrid.innerHTML
+// = '') the moment real data arrives, same as it already does on every
+// subsequent filter/search change.
+function renderAthleteGridSkeleton() {
+  athleteGrid.innerHTML = Array.from({ length: 6 }, () => `
+    <div class="athlete-card-skeleton">
+      <div class="skeleton-row">
+        <div class="skeleton-bar skeleton-avatar"></div>
+        <div class="skeleton-bar" style="width:90px; height:14px"></div>
+      </div>
+      <div class="skeleton-bar" style="width:70%; height:11px"></div>
+      <div class="skeleton-bar" style="width:50%; height:11px"></div>
+      <div class="skeleton-bar" style="width:60%; height:11px"></div>
+    </div>
+  `).join('')
+}
 
 // ==========================================================================
 // ---- LOAD ATHLETES ----

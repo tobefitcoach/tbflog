@@ -6,7 +6,7 @@
     <title>Dashboard — TBFlog</title>
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0d0d1a" />
-    <link rel="stylesheet" href="../style.css?v=27" />
+    <link rel="stylesheet" href="../style.css?v=28" />
     <link rel="stylesheet" href="../athlete.css?v=51" />
     <link rel="stylesheet" href="app.css?v=46" />
   </head>
@@ -29,7 +29,16 @@
          the training-program feature exists) the real dashboard -->
     <div class="athlete-app-page">
       <div class="athlete-app-card" id="pageContent">
-        <p>Loading...</p>
+        <div class="skeleton-bar" style="width:60%; height:22px; margin-bottom:20px"></div>
+        <div style="display:flex; gap:8px; margin-bottom:20px">
+          <div class="skeleton-bar" style="flex:1; height:64px"></div>
+          <div class="skeleton-bar" style="flex:1; height:64px"></div>
+          <div class="skeleton-bar" style="flex:1; height:64px"></div>
+          <div class="skeleton-bar" style="flex:1; height:64px"></div>
+          <div class="skeleton-bar" style="flex:1; height:64px"></div>
+        </div>
+        <div class="skeleton-bar" style="height:72px; margin-bottom:12px"></div>
+        <div class="skeleton-bar" style="height:72px"></div>
       </div>
     </div>
 

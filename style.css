@@ -243,7 +243,49 @@ header {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 20px;
 }
- 
+
+/* Generic shimmer building block, reused by any skeleton-loading-state -
+   a plain rounded bar that pulses between two shades so the page reads as
+   "loading" instead of momentarily blank/broken while data is fetched. */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.skeleton-bar {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #22223a 25%, #2c2c48 37%, #22223a 63%);
+  background-size: 400px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar { animation: none; }
+}
+
+/* Skeleton version of .athlete-card, shown the instant the page loads
+   (before the athletes query resolves) instead of a blank grid - same
+   padding/shape as a real card so nothing visibly jumps when real cards
+   replace it. */
+.athlete-card-skeleton {
+  background-color: #1a1a2e;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #2a2a4e;
+}
+.athlete-card-skeleton .skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+.athlete-card-skeleton .skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.athlete-card-skeleton .skeleton-bar + .skeleton-bar {
+  margin-top: 10px;
+}
+
 .athlete-card {
   background-color: #1a1a2e;
   border-radius: 12px;
