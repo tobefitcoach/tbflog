@@ -328,8 +328,7 @@ function pushStatusDesc(status) {
 // (loadCoachMessages() above) which deletes itself from view the moment
 // it's seen and can't hold a log. Loaded fresh every time this tab opens,
 // same poll-on-open convention as the rest of this file (no live
-// subscription). A shared PDF report (see shareReportWithAthlete() in
-// athlete.js) shows up here as a message with pdf_url set.
+// subscription). Renders any message with pdf_url set as an attachment link.
 async function renderCommunication() {
   setActiveBottomTab('communication')
   pageContent.innerHTML = `
