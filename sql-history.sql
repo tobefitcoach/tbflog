@@ -1630,3 +1630,34 @@ drop policy if exists "coach manages own extra field names" on extra_field_names
 create policy "coach manages own extra field names" on extra_field_names for all
   using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
 create index if not exists idx_extra_field_names_coach_id on extra_field_names(coach_id);
+
+-- ==========================================================================
+-- Workout Library labels - same shape as athlete_labels/athlete_label_links
+-- (line 1468 above), just linking to trainings instead of athletes, so a
+-- coach can tag workouts (e.g. "Inseason 2026") and filter the Workout
+-- Library down to just that tag.
+-- ==========================================================================
+create table if not exists training_labels (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+alter table training_labels enable row level security;
+drop policy if exists "coach manages own training labels" on training_labels;
+create policy "coach manages own training labels" on training_labels for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+
+create table if not exists training_label_links (
+  training_id uuid not null references trainings(id) on delete cascade,
+  label_id uuid not null references training_labels(id) on delete cascade,
+  primary key (training_id, label_id)
+);
+alter table training_label_links enable row level security;
+drop policy if exists "coach manages own training label links" on training_label_links;
+create policy "coach manages own training label links" on training_label_links for all
+  using (exists (select 1 from trainings t where t.id = training_label_links.training_id and t.coach_id = (select auth.uid())))
+  with check (exists (select 1 from trainings t where t.id = training_label_links.training_id and t.coach_id = (select auth.uid())));
+
+create index if not exists idx_training_labels_coach_id on training_labels(coach_id);
+create index if not exists idx_training_label_links_training_id on training_label_links(training_id);
