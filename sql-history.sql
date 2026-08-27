@@ -1704,3 +1704,18 @@ alter table exercises add column if not exists tracks_reps boolean not null defa
 update exercises set tracks_reps = false where is_timed = true;
 
 alter table exercise_log_sets add column if not exists actual_duration text;
+
+-- ==========================================================================
+-- Section Builder's exercise cards get the same kebab menu (Adjust Fields,
+-- Adjust Exercise, Set Alternative Exercise) that Workout Builder already
+-- has - section_exercises never got the columns those features need, since
+-- they were only ever built against training_exercises/program_exercises.
+-- Same column shapes, same "no RLS change needed" reasoning (see the
+-- alternative_exercise_id block above) - "coach manages own section
+-- exercises" isn't column-scoped either.
+-- ==========================================================================
+alter table section_exercises add column if not exists tracks_weight_override boolean;
+alter table section_exercises add column if not exists is_timed_override boolean;
+alter table section_exercises add column if not exists is_unilateral_override boolean;
+alter table section_exercises add column if not exists tracks_distance_override boolean;
+alter table section_exercises add column if not exists alternative_exercise_id uuid references exercises(id);

@@ -96,7 +96,7 @@
          "+ Create New Exercise" button, adds straight to the section too -->
     <div class="modal-overlay" id="sCreateExerciseModal">
       <div class="modal">
-        <h2>Create New Exercise</h2>
+        <h2 id="sCreateExerciseModalTitle">Create New Exercise</h2>
         <div class="form-group">
           <label>Name</label>
           <input type="text" id="sCreateExerciseName" placeholder="e.g. Romanian Deadlift" />
@@ -154,7 +154,60 @@
         <div class="form-actions">
           <button class="btn-cancel" id="cancelSCreateExerciseBtn">Cancel</button>
           <button class="btn-save" id="saveSCreateExerciseBtn">Create & Select</button>
+          <button class="btn-save" id="saveSEditExerciseBtn" style="display:none">Save Changes</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Adjust Fields Modal: opened from an exercise card's ⋮ menu - sets a
+         per-instance override (tracks_weight_override/is_timed_override/
+         is_unilateral_override/tracks_distance_override) on THIS section's
+         row, scoped to just this one section. The exercise's own default in
+         Exercise Library is never touched. -->
+    <div class="modal-overlay" id="adjustFieldsModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Adjust Fields</h2>
+          <button type="button" class="btn-cancel" id="closeAdjustFieldsBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin:-6px 0 16px" id="adjustFieldsExerciseName"></p>
+        <div class="form-group">
+          <label>Logging Fields</label>
+          <p style="color:#aaaacc; font-size:12px; margin:-2px 0 8px">What to track when this exercise is logged - independent of Type, so any combination works (e.g. a weighted timed hold). Applies only to this section - the exercise's own default in Exercise Library stays unchanged.</p>
+          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Track Weight (kg)</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsTracksWeight"><span class="toggle-slider"></span></span>
+          </label>
+          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Timed</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsIsTimed"><span class="toggle-slider"></span></span>
+          </label>
+          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Log Each Side (unilateral)</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsIsUnilateral"><span class="toggle-slider"></span></span>
+          </label>
+          <label class="bodyweight-toggle"><span>Track Distance (meters)</span>
+            <span class="toggle-switch"><input type="checkbox" id="adjustFieldsTracksDistance"><span class="toggle-slider"></span></span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelAdjustFieldsBtn">Cancel</button>
+          <button class="btn-save" id="saveAdjustFieldsBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Set Alternative Exercise: opened from a card's kebab menu - picks a
+         single coach-curated fallback the athlete can one-tap switch to if
+         they can't do the prescribed exercise. See openSetAlternativeModal
+         in section-builder.js. -->
+    <div class="modal-overlay" id="setAlternativeModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Alternative Exercise</h2>
+          <button type="button" class="btn-cancel" id="closeSetAlternativeBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px" id="setAlternativeExerciseName"></p>
+        <input type="text" id="setAlternativeSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
+        <div class="exercise-library-list" id="setAlternativeList" style="max-height:320px; overflow-y:auto; margin-top:10px"></div>
+        <button type="button" class="btn-cancel" id="removeAlternativeBtn" style="margin-top:12px; width:100%">Remove Alternative</button>
       </div>
     </div>
 
@@ -191,7 +244,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="section-builder.js?v=14"></script>
+    <script type="module" src="section-builder.js?v=15"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

@@ -291,7 +291,7 @@ async function addExerciseToSection(exerciseId) {
     section_id: sectionId,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }]).select('*, exercises(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  }]).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -537,10 +537,25 @@ function removeSetTargetRow(row) {
 // ==========================================================================
 // ---- LOAD + RENDER EXERCISE LIST ----
 // ==========================================================================
+// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
+// straight from the exercise's own row (se.exercises) - an explicit
+// *_override on THIS section_exercises row (set via a card's "Adjust
+// Fields" menu, scoped to just this one section) takes precedence instead.
+// Merging the override into se.exercises here, once per fetch, means every
+// existing read of se.exercises.* downstream (set-target rows, badges,
+// etc.) sees the right effective value with no other changes needed.
+function applyFieldOverrides(se) {
+  if (!se.exercises) return
+  if (se.tracks_weight_override != null) se.exercises.tracks_weight = se.tracks_weight_override
+  if (se.is_timed_override != null) se.exercises.is_timed = se.is_timed_override
+  if (se.is_unilateral_override != null) se.exercises.is_unilateral = se.is_unilateral_override
+  if (se.tracks_distance_override != null) se.exercises.tracks_distance = se.tracks_distance_override
+}
+
 async function loadExercisesList() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('section_exercises')
-    .select('*, exercises(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+    .select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .eq('section_id', sectionId)
     .abortSignal(signal)
   )
@@ -548,6 +563,7 @@ async function loadExercisesList() {
   if (error) { console.log('Error loading section exercises:', error); customAlert('Something went wrong loading this section\'s exercises - check your connection and try again'); return }
 
   data.sort((a, b) => a.order_index - b.order_index)
+  data.forEach(applyFieldOverrides)
   exercisesCache = data
   renderExercisesList()
 }
@@ -588,6 +604,7 @@ function renderExerciseCard(se) {
   const linkTitle = groupMembers.length
     ? `Linked with ${groupMembers.map(m => m.exercises ? m.exercises.name : 'exercise').join(', ')} - tap to remove`
     : 'Link with other exercises (superset)'
+  const altExercise = se.alternative_exercise_id ? allExercises.find(ex => ex.id === se.alternative_exercise_id) : null
 
   return `
     <div class="builder-exercise-card" data-id="${se.id}" data-superset-group-id="${se.superset_group_id || ''}">
@@ -598,11 +615,15 @@ function renderExerciseCard(se) {
         </button>
         <div class="builder-exercise-name">${se.exercises ? se.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
+        ${altExercise ? `<span class="builder-unilateral-badge" title="Athletes can switch to this if they can't do the main exercise">Alt: ${altExercise.name}</span>` : ''}
         <button type="button" class="builder-link-btn ${se.superset_group_id ? 'linked' : ''}" data-action="toggle-link" style="${groupColor ? `border-color:${groupColor}; color:${groupColor}; background-color:${groupColor}22` : ''}" title="${linkTitle}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
         <div class="kebab-menu builder-kebab-menu">
           <button type="button" class="builder-kebab-btn" data-action="toggle-kebab" title="More options">⋮</button>
           <div class="kebab-dropdown">
+            <button type="button" class="kebab-item" data-action="adjust-fields">Adjust Fields</button>
             <button type="button" class="kebab-item" data-action="add-extra-field">+ Add Field</button>
+            <button type="button" class="kebab-item" data-action="edit-exercise">Adjust Exercise</button>
+            <button type="button" class="kebab-item" data-action="set-alternative">${altExercise ? 'Change' : 'Set'} Alternative Exercise</button>
           </div>
         </div>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
@@ -890,6 +911,15 @@ document.getElementById('sectionExercisesList').addEventListener('click', async 
     const wasActive = dropdown.classList.contains('active')
     document.querySelectorAll('#sectionExercisesList .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
     if (!wasActive) dropdown.classList.add('active')
+  } else if (btn.dataset.action === 'adjust-fields') {
+    btn.closest('.kebab-dropdown').classList.remove('active')
+    openAdjustFieldsModal(se)
+  } else if (btn.dataset.action === 'set-alternative') {
+    btn.closest('.kebab-dropdown').classList.remove('active')
+    openSetAlternativeModal(se)
+  } else if (btn.dataset.action === 'edit-exercise') {
+    btn.closest('.kebab-dropdown').classList.remove('active')
+    if (se && se.exercises) openExerciseModal(se.exercises)
   }
 })
 
@@ -900,6 +930,137 @@ document.addEventListener('click', function(e) {
   if (e.target.closest('.builder-kebab-menu')) return
   document.querySelectorAll('#sectionExercisesList .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
 })
+
+// ==========================================================================
+// ---- ADJUST FIELDS (per-instance override) ----
+// ==========================================================================
+let adjustFieldsSeId = null
+
+function openAdjustFieldsModal(se) {
+  if (!se) return
+  adjustFieldsSeId = se.id
+  document.getElementById('adjustFieldsExerciseName').textContent = se.exercises ? se.exercises.name : ''
+  document.getElementById('adjustFieldsTracksWeight').checked = !se.exercises || !!se.exercises.tracks_weight
+  document.getElementById('adjustFieldsIsTimed').checked = !!(se.exercises && se.exercises.is_timed)
+  document.getElementById('adjustFieldsIsUnilateral').checked = !!(se.exercises && se.exercises.is_unilateral)
+  document.getElementById('adjustFieldsTracksDistance').checked = !!(se.exercises && se.exercises.tracks_distance)
+  document.getElementById('adjustFieldsModal').classList.add('active')
+}
+
+document.getElementById('closeAdjustFieldsBtn').addEventListener('click', function() {
+  document.getElementById('adjustFieldsModal').classList.remove('active')
+})
+document.getElementById('cancelAdjustFieldsBtn').addEventListener('click', function() {
+  document.getElementById('adjustFieldsModal').classList.remove('active')
+})
+
+document.getElementById('saveAdjustFieldsBtn').addEventListener('click', async function() {
+  if (!adjustFieldsSeId) return
+  const updates = {
+    tracks_weight_override: document.getElementById('adjustFieldsTracksWeight').checked,
+    is_timed_override: document.getElementById('adjustFieldsIsTimed').checked,
+    is_unilateral_override: document.getElementById('adjustFieldsIsUnilateral').checked,
+    tracks_distance_override: document.getElementById('adjustFieldsTracksDistance').checked
+  }
+  const { error } = await supabase.from('section_exercises').update(updates).eq('id', adjustFieldsSeId)
+  if (error) { console.log(error); customAlert('Something went wrong saving those fields - try again'); return }
+
+  const se = exercisesCache.find(s => s.id === adjustFieldsSeId)
+  if (se) {
+    Object.assign(se, updates)
+    applyFieldOverrides(se)
+    const card = document.querySelector(`.builder-exercise-card[data-id="${se.id}"]`)
+    if (card) {
+      card.outerHTML = renderExerciseCard(se)
+      if (se.extra_fields) {
+        for (const [k, v] of Object.entries(se.extra_fields)) addExtraFieldRow(`extraFields-${se.id}`, k, v)
+      }
+    }
+  }
+
+  document.getElementById('adjustFieldsModal').classList.remove('active')
+})
+
+// ==========================================================================
+// ---- SET ALTERNATIVE EXERCISE ----
+// A coach-curated single fallback exercise for when an athlete can't do the
+// prescribed one (no equipment, an injury) - shown to the athlete as a
+// quick one-tap icon during the guided workout instead of the free-search
+// Swap button. Search reuses allExercises, the same library cache already
+// loaded for the drag-in panel on the left - no separate query needed.
+// ==========================================================================
+let setAlternativeSeId = null
+
+function openSetAlternativeModal(se) {
+  if (!se) return
+  setAlternativeSeId = se.id
+  document.getElementById('setAlternativeExerciseName').textContent = se.exercises ? `For: ${se.exercises.name}` : ''
+  document.getElementById('setAlternativeSearchInput').value = ''
+  const removeBtn = document.getElementById('removeAlternativeBtn')
+  removeBtn.style.display = se.alternative_exercise_id ? '' : 'none'
+  renderSetAlternativeList()
+  document.getElementById('setAlternativeModal').classList.add('active')
+}
+
+function renderSetAlternativeList() {
+  const filter = document.getElementById('setAlternativeSearchInput').value.trim().toLowerCase()
+  const se = exercisesCache.find(s => s.id === setAlternativeSeId)
+  const ownExerciseId = se ? se.exercise_id : null
+  const filtered = (filter ? allExercises.filter(ex => ex.name.toLowerCase().includes(filter)) : allExercises)
+    .filter(ex => ex.id !== ownExerciseId)
+
+  const list = document.getElementById('setAlternativeList')
+  if (filtered.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No exercises found</p>'
+    return
+  }
+  list.innerHTML = filtered.map(ex => {
+    const thumb = getYouTubeThumbnail(ex.video_url)
+    return `
+      <div class="exercise-lib-card" data-id="${ex.id}">
+        <div class="exercise-lib-thumb">
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
+        </div>
+        <span class="exercise-lib-name">${ex.name}</span>
+      </div>
+    `
+  }).join('')
+}
+
+document.getElementById('setAlternativeSearchInput').addEventListener('input', renderSetAlternativeList)
+
+document.getElementById('setAlternativeList').addEventListener('click', async function(e) {
+  const item = e.target.closest('.exercise-lib-card')
+  if (item) await saveAlternativeExercise(setAlternativeSeId, item.dataset.id)
+})
+
+document.getElementById('removeAlternativeBtn').addEventListener('click', async function() {
+  await saveAlternativeExercise(setAlternativeSeId, null)
+})
+
+document.getElementById('closeSetAlternativeBtn').addEventListener('click', function() {
+  document.getElementById('setAlternativeModal').classList.remove('active')
+})
+
+async function saveAlternativeExercise(seId, altExerciseId) {
+  if (!seId) return
+  const { error } = await supabase.from('section_exercises').update({ alternative_exercise_id: altExerciseId }).eq('id', seId)
+  if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
+
+  const se = exercisesCache.find(s => s.id === seId)
+  if (se) {
+    se.alternative_exercise_id = altExerciseId
+    const card = document.querySelector(`.builder-exercise-card[data-id="${se.id}"]`)
+    if (card) {
+      card.outerHTML = renderExerciseCard(se)
+      if (se.extra_fields) {
+        for (const [k, v] of Object.entries(se.extra_fields)) addExtraFieldRow(`extraFields-${se.id}`, k, v)
+      }
+    }
+  }
+
+  document.getElementById('setAlternativeModal').classList.remove('active')
+}
 
 // mm:ss rest boxes: strip anything non-digit as it's typed, then pad back
 // to 2 digits (and clamp seconds to 59) once the coach taps away. Selects
@@ -983,7 +1144,17 @@ document.getElementById('sCreateExerciseType').addEventListener('change', functi
   applyTypeLoggingDefaults(this.value)
 })
 
+// "Adjust Exercise" (a section card's kebab menu) is editing an existing
+// one in place - both share this one modal, just with different
+// title/button and a different save handler (see openExerciseModal below
+// and the two save button handlers)
+let editingExerciseId = null
+
 document.getElementById('openCreateExerciseBtn').addEventListener('click', function() {
+  editingExerciseId = null
+  document.getElementById('sCreateExerciseModalTitle').textContent = 'Create New Exercise'
+  document.getElementById('saveSCreateExerciseBtn').style.display = ''
+  document.getElementById('saveSEditExerciseBtn').style.display = 'none'
   document.getElementById('sCreateExerciseName').value = ''
   document.getElementById('sCreateExerciseNewCategory').value = ''
   populateCreateCategorySelect()
@@ -998,6 +1169,34 @@ document.getElementById('openCreateExerciseBtn').addEventListener('click', funct
   document.getElementById('sCreateExerciseInstructions').value = ''
   document.getElementById('sCreateExerciseModal').classList.add('active')
 })
+
+// Opened from a section card's kebab "Adjust Exercise" - same modal as
+// creating one, prefilled with the exercise's current real values (this
+// edits the actual Exercise Library row, not just this one section's
+// instance of it - see openAdjustFieldsModal for the per-instance version).
+function openExerciseModal(exercise) {
+  editingExerciseId = exercise.id
+  document.getElementById('sCreateExerciseModalTitle').textContent = 'Adjust Exercise'
+  document.getElementById('saveSCreateExerciseBtn').style.display = 'none'
+  document.getElementById('saveSEditExerciseBtn').style.display = ''
+  document.getElementById('sCreateExerciseName').value = exercise.name || ''
+  document.getElementById('sCreateExerciseNewCategory').value = ''
+  populateCreateCategorySelect()
+  document.getElementById('sCreateExerciseCategory').value = exercise.category || ''
+  document.getElementById('sCreateExerciseNewType').value = ''
+  populateCreateTypeSelect()
+  document.getElementById('sCreateExerciseType').value = exercise.type || 'weights'
+  toggleCreateNewCategoryField()
+  toggleCreateNewTypeField()
+  document.getElementById('sCreateExerciseTracksReps').checked = exercise.tracks_reps !== false
+  document.getElementById('sCreateExerciseTracksWeight').checked = !!exercise.tracks_weight
+  document.getElementById('sCreateExerciseIsTimed').checked = !!exercise.is_timed
+  document.getElementById('sCreateExerciseIsUnilateral').checked = !!exercise.is_unilateral
+  document.getElementById('sCreateExerciseTracksDistance').checked = !!exercise.tracks_distance
+  document.getElementById('sCreateExerciseVideoUrl').value = exercise.video_url || ''
+  document.getElementById('sCreateExerciseInstructions').value = exercise.instructions || ''
+  document.getElementById('sCreateExerciseModal').classList.add('active')
+}
 
 document.getElementById('cancelSCreateExerciseBtn').addEventListener('click', function() {
   document.getElementById('sCreateExerciseModal').classList.remove('active')
@@ -1036,6 +1235,50 @@ document.getElementById('saveSCreateExerciseBtn').addEventListener('click', asyn
   renderLibraryPanel()
   document.getElementById('sCreateExerciseModal').classList.remove('active')
   await addExerciseToSection(data[0].id)
+})
+
+// Edits the real Exercise Library row in place (name/category/type/logging
+// fields/video/instructions) - every card using this exercise, in this
+// section and anywhere else, sees the change immediately since they all
+// just reference the same exercises.id. foot_contacts/intensity_tier
+// (Plyometric-only fields, no UI in this modal) are deliberately left out
+// of the update payload so this never silently clears them.
+document.getElementById('saveSEditExerciseBtn').addEventListener('click', async function() {
+  if (!editingExerciseId) return
+  const name = document.getElementById('sCreateExerciseName').value.trim()
+  const categorySelect = document.getElementById('sCreateExerciseCategory').value
+  const category = categorySelect === '__new__'
+    ? document.getElementById('sCreateExerciseNewCategory').value.trim()
+    : categorySelect
+  const typeSelect = document.getElementById('sCreateExerciseType').value
+  const type = typeSelect === '__new__'
+    ? document.getElementById('sCreateExerciseNewType').value.trim() || 'weights'
+    : typeSelect
+  const videoUrl = document.getElementById('sCreateExerciseVideoUrl').value.trim()
+  const instructions = document.getElementById('sCreateExerciseInstructions').value.trim()
+  const tracksReps = document.getElementById('sCreateExerciseTracksReps').checked
+  const tracksWeight = document.getElementById('sCreateExerciseTracksWeight').checked
+  const isTimed = document.getElementById('sCreateExerciseIsTimed').checked
+  const isUnilateral = document.getElementById('sCreateExerciseIsUnilateral').checked
+  const tracksDistance = document.getElementById('sCreateExerciseTracksDistance').checked
+
+  if (!name) { customAlert('Please enter a name'); return }
+
+  const updates = { name, category, type, video_url: videoUrl, instructions, tracks_reps: tracksReps, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }
+  const { error } = await supabase.from('exercises').update(updates).eq('id', editingExerciseId)
+  if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
+
+  const cachedEx = allExercises.find(ex => ex.id === editingExerciseId)
+  if (cachedEx) Object.assign(cachedEx, updates)
+  allExercises.sort((a, b) => a.name.localeCompare(b.name))
+  for (const se of exercisesCache) {
+    if (se.exercises && se.exercises.id === editingExerciseId) Object.assign(se.exercises, updates)
+  }
+
+  renderCategoryChips()
+  renderLibraryPanel()
+  renderExercisesList()
+  document.getElementById('sCreateExerciseModal').classList.remove('active')
 })
 
 // ==========================================================================

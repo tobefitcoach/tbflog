@@ -1464,7 +1464,7 @@ async function previewSection(sectionId, name) {
 
   const { data, error } = await supabase
     .from('section_exercises')
-    .select('*, exercises(id, name, video_url)')
+    .select('*, exercises!exercise_id(id, name, video_url)')
     .eq('section_id', sectionId)
 
   if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this section</p>'; return }

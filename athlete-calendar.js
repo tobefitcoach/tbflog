@@ -1920,7 +1920,7 @@ async function previewSectionCal(sectionId, sectionName) {
   if (!exercises) {
     const { data, error } = await supabase
       .from('section_exercises')
-      .select('*, exercises(name, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+      .select('*, exercises!exercise_id(name, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
       .eq('section_id', sectionId)
       .order('order_index')
     if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
