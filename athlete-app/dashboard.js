@@ -153,7 +153,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id')
+    .select('id, name, date_of_birth, gender, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -168,7 +168,7 @@ async function checkAccountState() {
     // (Supabase's exact redirect shape depends on internal auth flow
     // settings, which turned out not to match a hash-based `type=magiclink`
     // assumption in practice).
-    if (session.user.user_metadata?.needs_password) { renderSetPasswordPrompt(); return }
+    if (session.user.user_metadata?.needs_password) { renderCompleteProfilePrompt(); return }
     await enterWeekView()
     return
   }
@@ -209,40 +209,74 @@ function renderWaitingToBeLinked() {
 // Shown exactly once, right after an athlete arrives via their coach's
 // invite email - that link signs them in passwordlessly (a magic link),
 // which is fine for this first tap but annoying for daily use (leaving the
-// app to check email every time). Setting a password here means every
-// login after this one is the normal email+password flow.
-function renderSetPasswordPrompt() {
+// app to check email every time). Also doubles as a data-correction step:
+// the coach may have typo'd the athlete's name/DOB/gender when creating
+// the profile, so the athlete confirms/fixes those here rather than the
+// coach having to get it right blind - whatever they submit overwrites the
+// athletes row directly. No skip option: this is the one moment the
+// athlete's own answer is authoritative, so it isn't optional.
+function renderCompleteProfilePrompt() {
   pageContent.innerHTML = `
     <h2>Welcome, ${athlete.name}!</h2>
-    <p>You're signed in. Set a password now so you can log back in directly next time, without needing another email link.</p>
+    <p>Let's finish setting up your account. Confirm your details below (fix anything your coach got wrong) and set a password so you can log back in directly next time, without needing another email link.</p>
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="onboardNameInput" value="${(athlete.name || '').replace(/"/g, '&quot;')}" />
+    </div>
+    <div class="form-group">
+      <label>Date of Birth</label>
+      <input type="date" id="onboardDOBInput" value="${athlete.date_of_birth || ''}" />
+    </div>
+    <div class="form-group">
+      <label>Gender</label>
+      <select id="onboardGenderInput">
+        <option value="Male" ${athlete.gender === 'Male' ? 'selected' : ''}>Male</option>
+        <option value="Female" ${athlete.gender === 'Female' ? 'selected' : ''}>Female</option>
+        <option value="Other" ${athlete.gender === 'Other' ? 'selected' : ''}>Other</option>
+      </select>
+    </div>
     <div class="form-group">
       <label>New Password</label>
       <input type="password" id="newPasswordInput" placeholder="At least 6 characters" />
     </div>
-    <button class="btn-save" id="savePasswordBtn">Save Password</button>
-    <p style="margin-top:12px"><a href="#" id="skipPasswordBtn" style="color:#aaaacc">Skip for now</a></p>
+    <button class="btn-save" id="saveProfileBtn">Save & Continue</button>
   `
 
-  document.getElementById('savePasswordBtn').addEventListener('click', async function() {
+  document.getElementById('saveProfileBtn').addEventListener('click', async function() {
+    const name = document.getElementById('onboardNameInput').value.trim()
+    const dob = document.getElementById('onboardDOBInput').value
+    const gender = document.getElementById('onboardGenderInput').value
     const password = document.getElementById('newPasswordInput').value
-    if (!password || password.length < 6) {
-      customAlert('Please enter at least 6 characters')
-      return
-    }
-    const { error } = await supabase.auth.updateUser({
+
+    if (!name) { customAlert('Please enter your full name'); return }
+    if (!dob) { customAlert('Please enter your date of birth'); return }
+    if (!password || password.length < 6) { customAlert('Please enter a password of at least 6 characters'); return }
+
+    const { error: authError } = await supabase.auth.updateUser({
       password,
       data: { ...session.user.user_metadata, needs_password: false }
     })
-    if (error) {
-      console.log(error)
-      customAlert('Something went wrong saving your password - you can try again from Settings later.')
+    if (authError) {
+      console.log(authError)
+      customAlert('Something went wrong saving your password - please try again.')
       return
     }
-    enterWeekView()
-  })
 
-  document.getElementById('skipPasswordBtn').addEventListener('click', function(e) {
-    e.preventDefault()
+    const { error: profileError } = await saveWithRetry((signal) => supabase
+      .from('athletes')
+      .update({ name, date_of_birth: dob, gender })
+      .eq('id', athlete.id)
+      .abortSignal(signal)
+    )
+    if (profileError) {
+      console.log(profileError)
+      customAlert('Password saved, but something went wrong saving your details - please try again.')
+      return
+    }
+
+    athlete.name = name
+    athlete.date_of_birth = dob
+    athlete.gender = gender
     enterWeekView()
   })
 }
