@@ -988,9 +988,11 @@ function toggleCreateNewTypeField() {
 // afterward for a less common combination (e.g. a weighted timed hold)
 function applyTypeLoggingDefaults(type) {
   if (type === 'timed') {
+    document.getElementById('createExerciseTracksReps').checked = false
     document.getElementById('createExerciseIsTimed').checked = true
     document.getElementById('createExerciseTracksWeight').checked = false
   } else if (type === 'weights') {
+    document.getElementById('createExerciseTracksReps').checked = true
     document.getElementById('createExerciseIsTimed').checked = false
     document.getElementById('createExerciseTracksWeight').checked = true
   }
@@ -1007,6 +1009,7 @@ document.getElementById('createNewExerciseBtn').addEventListener('click', functi
   populateCreateCategorySelect()
   document.getElementById('createExerciseNewType').value = ''
   populateCreateTypeSelect()
+  document.getElementById('createExerciseTracksReps').checked = true
   document.getElementById('createExerciseTracksWeight').checked = true
   document.getElementById('createExerciseIsTimed').checked = false
   document.getElementById('createExerciseIsUnilateral').checked = false
@@ -1032,6 +1035,7 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
     : typeSelect
   const videoUrl = document.getElementById('createExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('createExerciseInstructions').value.trim()
+  const tracksReps = document.getElementById('createExerciseTracksReps').checked
   const tracksWeight = document.getElementById('createExerciseTracksWeight').checked
   const isTimed = document.getElementById('createExerciseIsTimed').checked
   const isUnilateral = document.getElementById('createExerciseIsUnilateral').checked
@@ -1041,7 +1045,7 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
 
   const { data, error } = await supabase
     .from('exercises')
-    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }])
+    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, tracks_reps: tracksReps, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }])
     .select()
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
