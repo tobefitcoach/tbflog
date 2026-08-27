@@ -191,6 +191,15 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
   `
 }
 
+// A superset is performed as one shared round, so its exercises can't
+// drift to different set counts - every other card linked to this one
+// (same superset_group_id, same day), if any.
+function linkedCardsFor(card, dayScopeEl) {
+  const groupId = card.dataset.supersetGroupId
+  if (!groupId) return []
+  return [...dayScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
+}
+
 function addSetTargetRow(rowsEl, isTimed, tracksWeight, isUnilateral, tracksDistance) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
@@ -629,8 +638,29 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
     const isUnilateral = !!(pe && pe.exercises && pe.exercises.is_unilateral)
     const tracksDistance = !!(pe && pe.exercises && pe.exercises.tracks_distance)
 
-    if (action === 'add-set') addSetTargetRow(card.querySelector('.set-target-rows'), isTimed, tracksWeight, isUnilateral, tracksDistance)
-    else if (action === 'remove-set') removeSetTargetRow(btn.closest('.set-target-row'))
+    if (action === 'add-set') {
+      addSetTargetRow(card.querySelector('.set-target-rows'), isTimed, tracksWeight, isUnilateral, tracksDistance)
+      const dayScopeEl = card.closest('.exercise-item')
+      for (const other of linkedCardsFor(card, dayScopeEl)) {
+        const oPe = findPE(other.dataset.id)
+        addSetTargetRow(
+          other.querySelector('.set-target-rows'),
+          !!(oPe && oPe.exercises && oPe.exercises.is_timed),
+          !!(oPe && (!oPe.exercises || oPe.exercises.tracks_weight)),
+          !!(oPe && oPe.exercises && oPe.exercises.is_unilateral),
+          !!(oPe && oPe.exercises && oPe.exercises.tracks_distance)
+        )
+      }
+    } else if (action === 'remove-set') {
+      const row = btn.closest('.set-target-row')
+      const setNumber = row.dataset.setNumber
+      removeSetTargetRow(row)
+      const dayScopeEl = card.closest('.exercise-item')
+      for (const other of linkedCardsFor(card, dayScopeEl)) {
+        const otherRow = other.querySelector(`.set-target-row[data-set-number="${setNumber}"]`)
+        if (otherRow && other.querySelectorAll('.set-target-row').length > 1) removeSetTargetRow(otherRow)
+      }
+    }
     else if (action === 'add-extra-field') addExtraFieldRow(`extraFields-${peId}`)
   } else if (action === 'toggle-link') {
     handleLinkClick(btn.closest('.builder-exercise-card').dataset.id, btn.closest('.exercise-item'))

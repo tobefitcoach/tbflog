@@ -394,6 +394,15 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
   `
 }
 
+// A superset is performed as one shared round, so its exercises can't
+// drift to different set counts - every other card linked to this one
+// (same superset_group_id), if any.
+function linkedCardsFor(card) {
+  const groupId = card.dataset.supersetGroupId
+  if (!groupId) return []
+  return [...sectionDropZone.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
+}
+
 function addSetTargetRow(rowsEl, isTimed, tracksWeight, isUnilateral) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
@@ -725,8 +734,23 @@ document.getElementById('sectionExercisesList').addEventListener('click', async 
 
   if (btn.dataset.action === 'add-set') {
     addSetTargetRow(card.querySelector('.set-target-rows'), isTimed, tracksWeight, isUnilateral)
+    for (const other of linkedCardsFor(card)) {
+      const oSe = exercisesCache.find(s => s.id === other.dataset.id)
+      addSetTargetRow(
+        other.querySelector('.set-target-rows'),
+        !!(oSe && oSe.exercises && oSe.exercises.is_timed),
+        !!(oSe && (!oSe.exercises || oSe.exercises.tracks_weight)),
+        !!(oSe && oSe.exercises && oSe.exercises.is_unilateral)
+      )
+    }
   } else if (btn.dataset.action === 'remove-set') {
-    removeSetTargetRow(btn.closest('.set-target-row'))
+    const row = btn.closest('.set-target-row')
+    const setNumber = row.dataset.setNumber
+    removeSetTargetRow(row)
+    for (const other of linkedCardsFor(card)) {
+      const otherRow = other.querySelector(`.set-target-row[data-set-number="${setNumber}"]`)
+      if (otherRow && other.querySelectorAll('.set-target-row').length > 1) removeSetTargetRow(otherRow)
+    }
   } else if (btn.dataset.action === 'delete-exercise') {
     await deleteExerciseRow(seId)
   } else if (btn.dataset.action === 'add-extra-field') {

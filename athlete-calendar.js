@@ -729,8 +729,26 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
       !!(pe && pe.exercises && pe.exercises.is_unilateral),
       !!(pe && pe.exercises && pe.exercises.tracks_distance)
     )
+    const dayScopeEl = card.closest('.detail-group')
+    for (const other of linkedCardsForCal(card, dayScopeEl)) {
+      const oPe = findScheduledPE(other.dataset.id)
+      addSetTargetRowCal(
+        other.querySelector('.set-target-rows'),
+        !!(oPe && oPe.exercises && oPe.exercises.is_timed),
+        !!(oPe && (!oPe.exercises || oPe.exercises.tracks_weight)),
+        !!(oPe && oPe.exercises && oPe.exercises.is_unilateral),
+        !!(oPe && oPe.exercises && oPe.exercises.tracks_distance)
+      )
+    }
   } else if (btn.dataset.action === 'remove-set') {
-    removeSetTargetRowCal(btn.closest('.set-target-row'))
+    const row = btn.closest('.set-target-row')
+    const setNumber = row.dataset.setNumber
+    removeSetTargetRowCal(row)
+    const dayScopeEl = card.closest('.detail-group')
+    for (const other of linkedCardsForCal(card, dayScopeEl)) {
+      const otherRow = other.querySelector(`.set-target-row[data-set-number="${setNumber}"]`)
+      if (otherRow && other.querySelectorAll('.set-target-row').length > 1) removeSetTargetRowCal(otherRow)
+    }
   } else if (btn.dataset.action === 'add-extra-field') {
     addExtraFieldRowCal(`extraFieldsSched-${peId}`)
   } else if (btn.dataset.action === 'toggle-link') {
@@ -2091,6 +2109,15 @@ function renderSetTargetRowCal(setNumber, target, isTimed, tracksWeight, isUnila
       <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
     </div>
   `
+}
+
+// A superset is performed as one shared round, so its exercises can't
+// drift to different set counts - every other card linked to this one
+// (same superset_group_id, same day), if any.
+function linkedCardsForCal(card, dayScopeEl) {
+  const groupId = card.dataset.supersetGroupId
+  if (!groupId || !dayScopeEl) return []
+  return [...dayScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
 }
 
 function addSetTargetRowCal(rowsEl, isTimed, tracksWeight, isUnilateral, tracksDistance) {
