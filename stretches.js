@@ -56,14 +56,14 @@ function renderStretches(stretches) {
       ${stretches.map(s => `
         <div class="exercise-item">
           <div class="exercise-item-thumb">
-            ${s.video_url ? `<video src="${s.video_url}" preload="metadata" muted playsinline></video>` : '<span class="exercise-item-thumb-placeholder">🧘</span>'}
+            ${s.video_url ? `<video src="${s.video_url}" preload="metadata" muted playsinline></video>` : '<span class="exercise-item-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>'}
           </div>
           <div class="card-top">
             <h4 class="exercise-item-title" data-id="${s.id}">${s.name}</h4>
             <div class="kebab-menu">
               <button class="kebab-btn" data-id="${s.id}">⋮</button>
               <div class="kebab-dropdown" id="stretch-dropdown-${s.id}">
-                <button class="kebab-delete" data-id="${s.id}">🗑 Delete stretch</button>
+                <button class="kebab-delete" data-id="${s.id}">Delete stretch</button>
               </div>
             </div>
           </div>

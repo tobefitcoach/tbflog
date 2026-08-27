@@ -54,11 +54,11 @@ function createTemplateCard(template) {
   card.classList.add('athlete-card')
   card.innerHTML = `
     <div class="card-top">
-      <div class="athlete-initials">📋</div>
+      <div class="athlete-initials"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></div>
       <div class="kebab-menu">
         <button class="kebab-btn" data-id="${template.id}">⋮</button>
         <div class="kebab-dropdown" id="dropdown-${template.id}">
-          <button class="kebab-delete" data-id="${template.id}">🗑 Delete template</button>
+          <button class="kebab-delete" data-id="${template.id}">Delete template</button>
         </div>
       </div>
     </div>

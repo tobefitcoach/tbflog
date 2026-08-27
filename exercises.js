@@ -190,7 +190,7 @@ function renderExercises(exercises) {
           <div class="kebab-menu">
             <button class="kebab-btn" data-index="${i}">⋮</button>
             <div class="kebab-dropdown" id="category-dropdown-${i}">
-              <button class="kebab-delete btn-delete-category" data-category="${cat}">🗑 Delete Category</button>
+              <button class="kebab-delete btn-delete-category" data-category="${cat}">Delete Category</button>
             </div>
           </div>
         `}
@@ -200,7 +200,7 @@ function renderExercises(exercises) {
           const thumb = getYouTubeThumbnail(ex.video_url)
           const thumbInner = thumb
             ? `<img src="${thumb}" alt="" loading="lazy">`
-            : '<span class="exercise-item-thumb-placeholder">🏋</span>'
+            : '<span class="exercise-item-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'
 
           return `
           <div class="exercise-item">
@@ -212,7 +212,7 @@ function renderExercises(exercises) {
               <div class="kebab-menu">
                 <button class="kebab-btn" data-id="${ex.id}">⋮</button>
                 <div class="kebab-dropdown" id="exercise-dropdown-${ex.id}">
-                  <button class="kebab-delete" data-id="${ex.id}">🗑 Delete exercise</button>
+                  <button class="kebab-delete" data-id="${ex.id}">Delete exercise</button>
                 </div>
               </div>
             </div>

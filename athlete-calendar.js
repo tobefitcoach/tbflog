@@ -285,15 +285,14 @@ function renderCalendarGrid(year, month) {
       const session = sessionByDayId[entry.day.id]
       const status = session ? (session.ended_at ? 'done' : 'in-progress') : 'planned'
       const glyph = status === 'done' ? '✓' : (status === 'in-progress' ? '▶' : '')
-      const selfLogged = entry.program.created_by_athlete ? '🙋 ' : ''
       // dayId marks this as a real, draggable workout with its own kebab
       // menu (copy/delete, see the badgesHtml build below) - mobility/
       // tournament items below never get one, so they're never draggable
       // and never get a kebab
-      return { status, glyph, label: selfLogged + trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
+      return { status, glyph, label: trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
     })
-    if (mobility) items.push({ status: 'done', glyph: '🧘', label: 'Mobility' })
-    if (tournament) items.push({ status: 'tournament', glyph: '🏆', label: tournament.name })
+    if (mobility) items.push({ status: 'mobility', glyph: '', label: 'Mobility' })
+    if (tournament) items.push({ status: 'tournament', glyph: '', label: tournament.name })
 
     const visibleItems = items.slice(0, 4)
     const extraCount = items.length - visibleItems.length
@@ -315,8 +314,8 @@ function renderCalendarGrid(year, month) {
         <div class="kebab-menu calendar-dot-kebab">
           <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
           <div class="kebab-dropdown">
-            <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">📋 Copy to another day</button>
-            <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>🗑 Delete Workout</button>
+            <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
+            <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
           </div>
         </div>
       `
@@ -338,8 +337,8 @@ function renderCalendarGrid(year, month) {
           <div class="kebab-menu calendar-badge-kebab">
             <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
             <div class="kebab-dropdown">
-              <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">📋 Copy to another day</button>
-              <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>🗑 Delete Workout</button>
+              <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
+              <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
             </div>
           </div>
         </div>
@@ -487,7 +486,7 @@ function openDayModal(dateStr) {
   const mobility = mobilityEntriesByDateCal[dateStr]
   const mobilityHtml = mobility ? `
     <div class="detail-group">
-      <h4 class="detail-group-title">🧘 Mobility / Stretching</h4>
+      <h4 class="detail-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg> Mobility / Stretching</h4>
       <p class="workout-preview-target">${Math.round((new Date(mobility.ended_at) - new Date(mobility.started_at)) / 60000)} min</p>
     </div>
   ` : ''
@@ -500,7 +499,7 @@ function openDayModal(dateStr) {
     : null
   const tournamentHtml = tournament ? `
     <div class="detail-group">
-      <h4 class="detail-group-title">🏆 ${escapeHtmlCal(tournament.name)}</h4>
+      <h4 class="detail-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${escapeHtmlCal(tournament.name)}</h4>
       ${tournamentDateRange ? `<p class="workout-preview-target">${tournamentDateRange}</p>` : ''}
       <p class="workout-preview-target">Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}</p>
     </div>
@@ -526,16 +525,16 @@ function openDayModal(dateStr) {
         <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
           <div style="display:flex; justify-content:space-between; align-items:center">
             <h4 class="detail-group-title">${label}</h4>
-            ${entry.day.date_override ? '<span class="athlete-modified-badge">📅 Moved by athlete</span>' : ''}
+            ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
           </div>
           ${showReview ? renderSessionSummaryCal(session) : ''}
           ${exercises.length === 0
             ? '<p class="no-metrics">No exercises</p>'
             : showReview
               ? `${exercises.map(pe => renderLoggedExerciseCardCal(pe)).join('')}
-                 <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px">✏ Edit Plan Instead</button>`
+                 <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Edit Plan Instead</button>`
               : `${renderExerciseListHtmlCal(exercises)}
-                 <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">💾 Save</button>`}
+                 <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">Save</button>`}
         </div>
       `
     }).join('')
@@ -599,12 +598,12 @@ function renderScheduledExerciseCard(pe, siblingExercises) {
       <div class="builder-exercise-card-header">
         <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
-          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
         </button>
         <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
-        <button type="button" class="builder-link-btn ${pe.superset_group_id ? 'linked' : ''}" data-action="toggle-link" style="${groupColor ? `border-color:${groupColor}; color:${groupColor}; background-color:${groupColor}22` : ''}" title="${linkTitle}">🔗</button>
-        <button type="button" class="btn-delete-measurement" data-action="delete-scheduled" title="Remove exercise">🗑</button>
+        <button type="button" class="builder-link-btn ${pe.superset_group_id ? 'linked' : ''}" data-action="toggle-link" style="${groupColor ? `border-color:${groupColor}; color:${groupColor}; background-color:${groupColor}22` : ''}" title="${linkTitle}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+        <button type="button" class="btn-delete-measurement" data-action="delete-scheduled" title="Remove exercise"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
       </div>
       <div class="set-target-rows">
         ${rowsHtml}
@@ -629,17 +628,17 @@ function renderScheduledExerciseCard(pe, siblingExercises) {
 function renderSessionSummaryCal(session) {
   if (!session.ended_at) {
     const startedTime = new Date(session.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    return `<p class="workout-preview-target" style="margin-bottom:12px">🟠 In progress — started ${startedTime}</p>`
+    return `<p class="workout-preview-target" style="margin-bottom:12px"><span class="status-dot-progress"></span> In progress — started ${startedTime}</p>`
   }
   const durationMin = Math.round((new Date(session.ended_at) - new Date(session.started_at)) / 60000)
   const parts = [`⏱ ${durationMin} min`]
-  if (session.session_rpe != null) parts.push(`💪 RPE ${session.session_rpe}/10`)
+  if (session.session_rpe != null) parts.push(`RPE ${session.session_rpe}/10`)
 
   // Read-only here - "Mark Reviewed" lives on the Overview tab's report
   // inbox (athlete.js), so this stays a single source of truth for that
   // write and Calendar is purely context when browsing history
   const flagHtml = session.rpe_flag_reason === 'pain_injury'
-    ? `<p class="pain-flag-note ${session.rpe_flag_reviewed_at ? 'reviewed' : ''}">🚩 Reported pain/injury${session.rpe_flag_reviewed_at ? ' (reviewed)' : ''}: ${escapeHtmlCal(session.rpe_flag_note) || '<em>No description given</em>'}</p>`
+    ? `<p class="pain-flag-note ${session.rpe_flag_reviewed_at ? 'reviewed' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> Reported pain/injury${session.rpe_flag_reviewed_at ? ' (reviewed)' : ''}: ${escapeHtmlCal(session.rpe_flag_note) || '<em>No description given</em>'}</p>`
     : ''
 
   return `<p class="workout-preview-target" style="margin-bottom:${flagHtml ? '4px' : '12px'}">${parts.join(' · ')}</p>${flagHtml}`
@@ -674,12 +673,12 @@ function renderLoggedExerciseCardCal(pe) {
     <div class="builder-exercise-card">
       <div class="builder-exercise-card-header">
         <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
-          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder">🏋</span>'}
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
         </button>
         <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
-        ${pe.added_by_athlete ? '<span class="athlete-modified-badge">🙋 Added by athlete</span>' : ''}
-        ${pe.swapped_by_athlete ? '<span class="athlete-modified-badge">🔁 Swapped by athlete</span>' : ''}
+        ${pe.added_by_athlete ? '<span class="athlete-modified-badge">Added by athlete</span>' : ''}
+        ${pe.swapped_by_athlete ? '<span class="athlete-modified-badge">Swapped by athlete</span>' : ''}
       </div>
       ${rowsHtml}
     </div>
@@ -1054,7 +1053,7 @@ async function saveScheduledDay(groupEl) {
 
   if (results.some(ok => !ok)) {
     customAlert('Something went wrong saving one or more exercises - please try again')
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save' }
     return
   }
 
@@ -1080,7 +1079,7 @@ function switchGroupToEditCal(groupEl) {
   headerEl.insertAdjacentHTML('afterend', exercises.length === 0
     ? '<p class="no-metrics">No exercises</p>'
     : `${renderExerciseListHtmlCal(exercises)}
-       <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">💾 Save</button>`)
+       <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">Save</button>`)
 
   for (const pe of exercises) {
     if (pe.extra_fields) {
@@ -1261,7 +1260,7 @@ function renderWorkoutPreviewExercise(te) {
 
   return `
     <div class="workout-preview-exercise">
-      <div class="workout-preview-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '🏋'}</div>
+      <div class="workout-preview-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg>'}</div>
       <div class="workout-preview-info">
         <div class="workout-preview-name">${te.exercises ? te.exercises.name : 'Unknown exercise'}</div>
         ${target ? `<div class="workout-preview-target">${target}</div>` : ''}

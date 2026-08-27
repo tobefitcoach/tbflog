@@ -48,11 +48,11 @@ function createTrainingCard(training) {
   card.classList.add('athlete-card')
   card.innerHTML = `
     <div class="card-top">
-      <div class="athlete-initials">🏋</div>
+      <div class="athlete-initials"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></div>
       <div class="kebab-menu">
         <button class="kebab-btn" data-id="${training.id}">⋮</button>
         <div class="kebab-dropdown" id="dropdown-${training.id}">
-          <button class="kebab-delete" data-id="${training.id}">🗑 Delete workout</button>
+          <button class="kebab-delete" data-id="${training.id}">Delete workout</button>
         </div>
       </div>
     </div>

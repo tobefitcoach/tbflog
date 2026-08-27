@@ -54,9 +54,9 @@ if (!session) {
 // uses, so "seen" tracking is just a per-row timestamp with no separate
 // join table. timing decides which of the two in-app moments the athlete
 // app shows it at (see loadCoachMessages()/startWorkout() in
-// athlete-app/dashboard.js) - real push notifications aren't built yet,
-// deliberately deferred (needs a service worker + a way to send from a
-// server, which this app doesn't have).
+// athlete-app/dashboard.js). 'push' additionally sends a real push
+// notification via sendPush() below, same send-push Edge Function as
+// every other push in this app.
 // ==========================================================================
 document.getElementById('messageAthletesBtn').addEventListener('click', function() {
   document.getElementById('coachMessageText').value = ''
@@ -470,19 +470,19 @@ card.innerHTML = `
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
         <div class="athlete-initials">${initials}</div>
         <span class="athlete-status-badge status-${status}">${STATUS_LABELS[status]}</span>
-        ${flaggedCount ? `<span class="pain-flag-badge">🚩 ${flaggedCount > 1 ? flaggedCount + ' pain reports' : 'Pain reported'}</span>` : ''}
+        ${flaggedCount ? `<span class="pain-flag-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> ${flaggedCount > 1 ? flaggedCount + ' pain reports' : 'Pain reported'}</span>` : ''}
         ${labelTagsHtml}
       </div>
       <div class="kebab-menu">
         <button class="kebab-btn" data-athlete-id="${athlete.id}">⋮</button>
         <div class="kebab-dropdown" id="dropdown-${athlete.id}">
           ${status === 'pending' ? `
-            <button class="kebab-item kebab-resend" data-athlete-id="${athlete.id}">✉️ Resend Invite</button>
-            <button class="kebab-item kebab-copy-link" data-athlete-id="${athlete.id}">🔗 Copy Invite Link</button>
+            <button class="kebab-item kebab-resend" data-athlete-id="${athlete.id}">Resend Invite</button>
+            <button class="kebab-item kebab-copy-link" data-athlete-id="${athlete.id}">Copy Invite Link</button>
           ` : ''}
-          <button class="kebab-item kebab-manage-labels" data-athlete-id="${athlete.id}">🏷 Manage Labels</button>
-          <button class="kebab-item kebab-archive" data-athlete-id="${athlete.id}">${athlete.archived ? '♻️ Unarchive athlete' : '📦 Archive athlete'}</button>
-          <button class="kebab-delete" data-athlete-id="${athlete.id}">🗑 Delete athlete</button>
+          <button class="kebab-item kebab-manage-labels" data-athlete-id="${athlete.id}">Manage Labels</button>
+          <button class="kebab-item kebab-archive" data-athlete-id="${athlete.id}">${athlete.archived ? 'Unarchive athlete' : 'Archive athlete'}</button>
+          <button class="kebab-delete" data-athlete-id="${athlete.id}">Delete athlete</button>
         </div>
       </div>
     </div>

@@ -530,6 +530,15 @@
   margin-top: 2px;
 }
 
+.status-dot-progress {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ff9800;
+  vertical-align: 1px;
+}
+
 /* One row of the Program preview - just a day number + label/exercise
    count (no thumbnails), since a full program can be 100+ days long */
 .program-preview-day-row {
@@ -726,6 +735,9 @@
   background-color: #d4a017;
   color: #1a1a2e;
 }
+.calendar-day-badge-mobility {
+  background-color: #9c6ade;
+}
 
 /* Drag-to-move a workout badge to a different day - see
    wireCalendarDragToMove in athlete-calendar.js. Only badges carrying
@@ -833,6 +845,9 @@
 }
 .calendar-day-dot-tournament {
   background-color: #d4a017;
+}
+.calendar-day-dot-mobility {
+  background-color: #9c6ade;
 }
 
 .calendar-day-dot-more {

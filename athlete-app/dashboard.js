@@ -451,7 +451,7 @@ async function renderSettings() {
     </div>
     <div class="settings-row">
       <div class="settings-row-info">
-        <div class="settings-row-title">🔔 Push Notifications</div>
+        <div class="settings-row-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:5px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>Push Notifications</div>
         <div class="settings-row-desc" id="pushStatusDesc">${pushStatusDesc(status)}</div>
       </div>
       <button type="button" class="btn-profile-action" id="pushToggleBtn">${status === 'on' ? 'Disable' : 'Enable'}</button>
@@ -676,7 +676,7 @@ function renderTournaments() {
               <span class="tournament-list-date">${formatTournamentDateRange(t)}</span>
             </div>
             <span class="tournament-list-badge">⭐ ${t.importance}/5</span>
-            <button type="button" class="tournament-list-delete-btn" data-id="${t.id}" title="Delete">🗑</button>
+            <button type="button" class="tournament-list-delete-btn" data-id="${t.id}" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
           </div>
         `).join('')}
       </div>
@@ -733,7 +733,7 @@ function renderAddTournamentForm() {
       </div>
       <p class="importance-picker-hint" id="tournamentImportanceHint">Tap a number to see what it means</p>
     </div>
-    <button type="button" class="btn-save start-workout-btn" id="saveTournamentBtn" style="margin-top:20px">💾 Save Tournament</button>
+    <button type="button" class="btn-save start-workout-btn" id="saveTournamentBtn" style="margin-top:20px">Save Tournament</button>
   `
 
   document.getElementById('cancelAddTournamentBtn').addEventListener('click', renderTournaments)
@@ -1122,8 +1122,8 @@ function renderWeekView(weekStart) {
     // day preview with real names.
     const dayStatus = done ? 'done' : (inProgress ? 'in-progress' : 'planned')
     const dots = badgeEntries.map(() => `<span class="week-day-dot week-day-dot-${dayStatus}">${done ? '✓' : (inProgress ? '▶' : '')}</span>`)
-    if (mobility) dots.push('<span class="week-day-dot week-day-dot-mobility">🧘</span>')
-    if (tournament) dots.push('<span class="week-day-dot week-day-dot-tournament">🏆</span>')
+    if (mobility) dots.push('<span class="week-day-dot week-day-dot-mobility"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>')
+    if (tournament) dots.push('<span class="week-day-dot week-day-dot-tournament"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>')
     const visibleDots = dots.slice(0, 4)
     const extraCount = dots.length - visibleDots.length
 
@@ -1155,19 +1155,19 @@ function renderWeekView(weekStart) {
     <div class="week-strip">${cardsHtml}</div>
     <div class="home-tile-row ${coachMobilityEnabled ? '' : 'home-tile-row-single'}">
       <button type="button" class="home-tile ${athlete.can_self_log_workouts ? '' : 'disabled'}" id="addOwnWorkoutTile">
-        <span class="home-tile-icon">🏋</span>
+        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>
         <span class="home-tile-label">Add Own Workout</span>
         ${athlete.can_self_log_workouts ? '' : '<span class="home-tile-sublabel">Ask your coach to enable this</span>'}
       </button>
       ${coachMobilityEnabled ? `
       <button type="button" class="home-tile" id="mobilityTile">
-        <span class="home-tile-icon">🧘</span>
+        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>
         <span class="home-tile-label">Daily Mobility/Stretching</span>
       </button>` : ''}
     </div>
     <div class="home-tile-row home-tile-row-single">
       <button type="button" class="home-tile" id="tournamentsTile">
-        <span class="home-tile-icon">🏆</span>
+        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>
         <span class="home-tile-label">Tournaments</span>
       </button>
     </div>
@@ -1377,7 +1377,7 @@ function renderMobilityTimer(totalSeconds) {
 
   pageContent.innerHTML = `
     <div class="mobility-timer-screen">
-      <p class="mobility-timer-label">🧘 Mobility / Stretching</p>
+      <p class="mobility-timer-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg> Mobility / Stretching</p>
       <p class="mobility-timer-time" id="mobilityTimerTime">${formatTimer(remaining)}</p>
       <div style="display:flex; gap:12px; margin-top:24px">
         <button type="button" class="btn-cancel" id="mobilityCancelBtn">Cancel</button>
@@ -1562,9 +1562,9 @@ function renderMobilityFlow(queue, totalSeconds) {
           <button type="button" class="mobility-flow-icon-btn" id="mobilityFlowPauseBtn">⏸</button>
         </div>
         <div class="mobility-flow-bottom">
-          <button type="button" class="mobility-flow-pref-btn" id="mobilityFlowDislikeBtn">👎</button>
+          <button type="button" class="mobility-flow-pref-btn" id="mobilityFlowDislikeBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path></svg></button>
           <span class="mobility-flow-time" id="mobilityFlowTime"></span>
-          <button type="button" class="mobility-flow-pref-btn" id="mobilityFlowLikeBtn">👍</button>
+          <button type="button" class="mobility-flow-pref-btn" id="mobilityFlowLikeBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg></button>
           <button type="button" class="mobility-flow-skip-btn" id="mobilityFlowSkipBtn">Skip ⏭</button>
         </div>
       </div>
@@ -1742,11 +1742,11 @@ function renderAddWorkoutChoice() {
     <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">What kind of workout did you do today?</p>
     <div class="home-tile-row">
       <button type="button" class="home-tile" id="addWorkoutStrengthChoice">
-        <span class="home-tile-icon">🏋</span>
+        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>
         <span class="home-tile-label">Strength (Gym)</span>
       </button>
       <button type="button" class="home-tile" id="addWorkoutFieldChoice">
-        <span class="home-tile-icon">🏃</span>
+        <span class="home-tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></span>
         <span class="home-tile-label">Field / Training</span>
       </button>
     </div>
@@ -1808,7 +1808,7 @@ function wireExercisePicker(searchInputEl, listEl, library, onPick) {
           return `
             <div class="exercise-lib-card own-add-exercise-card" data-id="${ex.id}">
               <div class="exercise-lib-thumb">
-                ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder">🏋</span>'}
+                ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
               </div>
               <span class="exercise-lib-name">${ex.name}</span>
             </div>
@@ -2016,7 +2016,7 @@ function renderAddWorkoutFieldForm() {
       <label>Avg Heart Rate (optional)</label>
       <input type="number" id="fieldAvgHr" min="30" max="250" placeholder="e.g. 145 bpm">
     </div>
-    <button type="button" class="btn-save start-workout-btn" id="fieldSaveBtn" style="margin-top:16px">💾 Save</button>
+    <button type="button" class="btn-save start-workout-btn" id="fieldSaveBtn" style="margin-top:16px">Save</button>
   `
 
   document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
@@ -2090,7 +2090,7 @@ async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, av
     ({ dayId } = await findOrCreateSelfLoggedDay(dateStr, activityName))
   } catch (err) {
     const btn = document.getElementById('fieldSaveBtn')
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save' }
     return
   }
 
@@ -2120,7 +2120,7 @@ async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, av
     console.log(error)
     customAlert('Something went wrong saving your workout - please try again')
     const btn = document.getElementById('fieldSaveBtn')
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Save' }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save' }
     return
   }
 
@@ -2379,7 +2379,7 @@ function renderWeeklyStatsBody(weekStart) {
     </div>
     ${stats.prEvents.length ? `<div class="summary-exercise-list" style="margin-top:20px">${stats.prEvents.map(e => `
       <div class="summary-exercise-row">
-        <div class="summary-exercise-name">🏆 ${e.exerciseName}</div>
+        <div class="summary-exercise-name"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${e.exerciseName}</div>
         ${e.badges.map(b => `<p class="summary-exercise-sets">${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</p>`).join('')}
       </div>
     `).join('')}</div>` : ''}
@@ -2464,7 +2464,7 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
   // short of hunting the day down manually.
   let actionButton = ''
   if (completedSession && !openSession) {
-    actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}">📋 View Summary</button>`
+    actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> View Summary</button>`
   } else if (openSession || (isToday && (exercises.length > 0 || entry.program.created_by_athlete))) {
     actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
   }
@@ -2486,7 +2486,7 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
     <div class="detail-group">
       <div class="day-preview-group-header">
         <h4 class="detail-group-title">${trainingDisplayName(entry)}</h4>
-        ${athlete.can_reschedule_workouts ? `<button type="button" class="exercise-history-btn day-preview-move-btn" id="moveWorkoutBtn-${entry.day.id}">📅 Move</button>` : ''}
+        ${athlete.can_reschedule_workouts ? `<button type="button" class="exercise-history-btn day-preview-move-btn" id="moveWorkoutBtn-${entry.day.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Move</button>` : ''}
       </div>
       ${exercisesHtml}
       ${actionButton}
@@ -2514,7 +2514,7 @@ function renderDayPreviewExercise(pe, showLogged) {
   return `
     <div class="day-preview-exercise">
       <button type="button" class="day-preview-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
-        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="day-preview-thumb-placeholder">🏋</span>'}
+        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="day-preview-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
       </button>
       <div class="day-preview-info">
         <div class="day-preview-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
@@ -2856,7 +2856,7 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
   currentSlideContext = slide
   currentGroupNav = null
 
-  const kindLabel = slide.groupKind === 'section' ? '🧩 Section' : '🔗 Superset'
+  const kindLabel = slide.groupKind === 'section' ? 'Section' : 'Superset'
   const title = slide.label || (slide.groupKind === 'section' ? 'Section' : 'Superset')
 
   pageContent.innerHTML = `
@@ -2873,7 +2873,7 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
           const thumb = getYouTubeThumbnail(videoUrl)
           return `
             <div class="group-gate-item">
-              <span class="group-gate-item-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '🏋'}</span>
+              <span class="group-gate-item-thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg>'}</span>
               <span>${pe.exercises ? pe.exercises.name : 'Exercise'}</span>
             </div>
           `
@@ -2918,16 +2918,15 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
   currentSlideContext = slide
   currentGroupNav = { entry, dateStr, slides, index, sessionPromise, steps, stepIndex }
 
-  const kindIcon = slide.groupKind === 'section' ? '🧩' : '🔗'
   const rounds = Math.max(...steps.map(s => s.round))
 
   pageContent.innerHTML = `
     <div class="active-exercise-header-row">
-      <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length} · ${kindIcon} Round ${round} of ${rounds}</p>
+      <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length} · Round ${round} of ${rounds}</p>
     </div>
     <div id="activeExerciseCard" class="workout-slide">
       <button type="button" class="active-exercise-thumb" data-video-url="${videoUrl}" ${videoUrl ? '' : 'disabled'}>
-        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
+        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
       </button>
       <div class="active-exercise-title-row">
         <div class="active-exercise-title">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
@@ -3023,8 +3022,8 @@ function exerciseActionButtonsHtml(pe, isSelfLogged, hideSwap) {
   const tracksDistance = pe.exercises && pe.exercises.tracks_distance
   return `
     <div class="exercise-action-btns">
-      <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}" data-tracks-distance="${tracksDistance ? '1' : ''}">📈 History</button>
-      ${!hideSwap && canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}">🔁 Swap</button>` : ''}
+      <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}" data-tracks-distance="${tracksDistance ? '1' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg> History</button>
+      ${!hideSwap && canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg> Swap</button>` : ''}
     </div>
   `
 }
@@ -3050,7 +3049,7 @@ function renderSingleSlideBody(pe, isSelfLogged) {
   return `
     <div id="activeExerciseCard" class="workout-slide">
       <button type="button" class="active-exercise-thumb" data-video-url="${videoUrl}" ${videoUrl ? '' : 'disabled'}>
-        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder">🏋</span>'}
+        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="active-exercise-thumb-placeholder"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
       </button>
       ${pe.section_label ? `<p class="active-exercise-section-label">${pe.section_label}</p>` : ''}
       <div class="active-exercise-title-row">
@@ -3491,7 +3490,7 @@ function renderWorkoutSummary(finishedSession, entry) {
         <div>
           <div class="workout-summary-stat-value">${durationText}</div>
           <div class="workout-summary-stat-label">Duration</div>
-          <button type="button" class="duration-edit-btn" id="durationEditBtn">✏ Edit</button>
+          <button type="button" class="duration-edit-btn" id="durationEditBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Edit</button>
         </div>
         ${hasVolumeData ? `
         <div>
@@ -3518,8 +3517,8 @@ function renderWorkoutSummary(finishedSession, entry) {
       <div class="rpe-flag-followup" id="rpeFlagFollowup" style="display:${finishedSession.session_rpe >= 9 ? 'block' : 'none'}">
         <p class="rpe-flag-question">That's a high rating - what made it feel that hard?</p>
         <div class="rpe-flag-choice-row" id="rpeFlagChoiceRow">
-          <button type="button" class="rpe-flag-choice-btn ${finishedSession.rpe_flag_reason === 'heavy_tiring' ? 'selected' : ''}" data-reason="heavy_tiring">😮‍💨 Just heavy / tiring</button>
-          <button type="button" class="rpe-flag-choice-btn ${finishedSession.rpe_flag_reason === 'pain_injury' ? 'selected' : ''}" data-reason="pain_injury">🤕 Pain or injury</button>
+          <button type="button" class="rpe-flag-choice-btn ${finishedSession.rpe_flag_reason === 'heavy_tiring' ? 'selected' : ''}" data-reason="heavy_tiring">Just heavy / tiring</button>
+          <button type="button" class="rpe-flag-choice-btn ${finishedSession.rpe_flag_reason === 'pain_injury' ? 'selected' : ''}" data-reason="pain_injury">Pain or injury</button>
         </div>
         <div class="rpe-flag-note-row" id="rpeFlagNoteRow" style="display:${finishedSession.rpe_flag_reason === 'pain_injury' ? 'block' : 'none'}">
           <label>What happened / what hurts?</label>
@@ -3858,7 +3857,7 @@ async function loadAndRenderPRBadges(session, entry) {
 
     const container = document.getElementById(`prBadges-${pe.id}`)
     if (container) container.innerHTML = badges.map(b => `
-      <span class="pr-badge pr-badge-${b.type}">🏆 ${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</span>
+      <span class="pr-badge pr-badge-${b.type}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</span>
     `).join('')
   }
 }

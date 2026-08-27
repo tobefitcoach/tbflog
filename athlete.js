@@ -932,8 +932,8 @@ async function loadNotesList() {
       <div class="note-entry-header">
         <span class="note-entry-date">${formatDisplayDate(n.date)}</span>
         <div>
-          <button class="btn-edit-entry" data-note-id="${n.id}">✏</button>
-          <button class="btn-delete-measurement" data-note-id="${n.id}">🗑</button>
+          <button class="btn-edit-entry" data-note-id="${n.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
+          <button class="btn-delete-measurement" data-note-id="${n.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
         </div>
       </div>
       <p class="note-entry-text">${n.note}</p>
@@ -1231,7 +1231,7 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
           </div>
           <div style="display:flex; align-items:center; gap:8px">
             <button class="btn-record" data-metric-id="${metric.id}">+ Record</button>
-            <button class="btn-delete-metric" data-athlete-metric-id="${am.id}">🗑</button>
+            <button class="btn-delete-metric" data-athlete-metric-id="${am.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
           </div>
         </div>
         <p class="metric-latest">Latest: ${latestText}</p>
@@ -2346,8 +2346,8 @@ async function loadEntries(metric) {
             <td>${valueText}</td>
             <td>${m.notes || '—'}</td>
             <td>
-              <button class="btn-edit-entry" data-entry-id="${m.id}">✏</button>
-              <button class="btn-delete-measurement" data-measurement-id="${m.id}">🗑</button>
+              <button class="btn-edit-entry" data-entry-id="${m.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
+              <button class="btn-delete-measurement" data-measurement-id="${m.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
             </td>
           </tr>`
         }).join('')}
@@ -2716,8 +2716,8 @@ async function loadBWEntries() {
             <td>${bodyweightUnit === 'lbs' ? +(m.weight * 2.20462).toFixed(1) + ' lbs' : m.weight + ' kg'}</td>
             <td>${m.notes || '—'}</td>
             <td>
-              <button class="btn-edit-entry" data-entry-id="${m.id}">✏</button>
-              <button class="btn-delete-measurement" data-entry-id="${m.id}">🗑</button>
+              <button class="btn-edit-entry" data-entry-id="${m.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
+              <button class="btn-delete-measurement" data-entry-id="${m.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
             </td>
           </tr>
         `).join('')}

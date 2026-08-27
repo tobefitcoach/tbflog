@@ -50,11 +50,11 @@ function createSectionCard(section) {
   card.classList.add('athlete-card')
   card.innerHTML = `
     <div class="card-top">
-      <div class="athlete-initials">🧩</div>
+      <div class="athlete-initials"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></div>
       <div class="kebab-menu">
         <button class="kebab-btn" data-id="${section.id}">⋮</button>
         <div class="kebab-dropdown" id="dropdown-${section.id}">
-          <button class="kebab-delete" data-id="${section.id}">🗑 Delete section</button>
+          <button class="kebab-delete" data-id="${section.id}">Delete section</button>
         </div>
       </div>
     </div>
