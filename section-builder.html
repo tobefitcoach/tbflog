@@ -158,6 +158,26 @@
       </div>
     </div>
 
+    <!-- Field picker: opened from a card's kebab "+ Add Field" - pick from
+         the coach's reusable extra_field_names library, or type a new one.
+         See openExtraFieldPicker() in section-builder.js -->
+    <div class="modal-overlay" id="extraFieldPickerModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Add Field</h2>
+          <button type="button" class="btn-cancel" id="closeExtraFieldPickerBtn">✕</button>
+        </div>
+        <div class="chip-row" id="extraFieldPickerList"></div>
+        <div class="form-group" style="margin-top:16px">
+          <label>New field name</label>
+          <div style="display:flex; gap:8px">
+            <input type="text" id="newExtraFieldNameInput" placeholder="e.g. Tempo" style="flex:1">
+            <button type="button" class="btn-save" id="createExtraFieldNameBtn">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Shown only while linking a superset - see updatePickingModeBar() in
          section-builder.js -->
     <div class="picking-mode-bar" id="pickingModeBar" style="display:none">
@@ -171,7 +191,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="section-builder.js?v=13"></script>
+    <script type="module" src="section-builder.js?v=14"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

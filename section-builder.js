@@ -310,13 +310,19 @@ async function addExerciseToSection(exerciseId) {
 // ==========================================================================
 // ---- EXTRA FIELDS ----
 // ==========================================================================
+// Field name is picked from the coach's reusable extra_field_names library
+// (see openExtraFieldPicker below) rather than typed per row - so each row
+// is just a label + one value input instead of two free-text inputs, which
+// is both more compact and rules out the same field ending up saved under
+// two slightly different spellings on different exercises.
 function addExtraFieldRow(containerId, name, value) {
   const container = document.getElementById(containerId)
   if (!container) return
   const row = document.createElement('div')
   row.className = 'extra-field-row'
+  row.dataset.name = name || ''
   row.innerHTML = `
-    <input type="text" class="extra-field-name" placeholder="Field name (e.g. RPE)" value="${name || ''}">
+    <span class="extra-field-label">${name || ''}</span>
     <input type="text" class="extra-field-value" placeholder="Value (e.g. 8)" value="${value || ''}">
     <button type="button" class="extra-field-remove">✕</button>
   `
@@ -328,12 +334,75 @@ function collectExtraFields(containerId) {
   const rows = document.querySelectorAll('#' + containerId + ' .extra-field-row')
   const result = {}
   rows.forEach(row => {
-    const name = row.querySelector('.extra-field-name').value.trim()
+    const name = row.dataset.name
     const value = row.querySelector('.extra-field-value').value.trim()
     if (name && value) result[name] = value
   })
   return Object.keys(result).length ? result : null
 }
+
+// ==========================================================================
+// ---- EXTRA FIELD PICKER ----
+// Opened from a card's kebab menu (see 'add-extra-field' below) instead of
+// a permanent "+ Add Field" button sitting on every card. Names come from
+// extra_field_names, the same coach-wide reusable library Workout Builder's
+// picker uses.
+// ==========================================================================
+let extraFieldNamesCache = null
+let extraFieldPickerSeId = null
+
+async function loadExtraFieldNames() {
+  if (extraFieldNamesCache) return extraFieldNamesCache
+  const { data, error } = await fetchWithRetry((signal) => supabase
+    .from('extra_field_names')
+    .select('id, name')
+    .order('name')
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); extraFieldNamesCache = []; return extraFieldNamesCache }
+  extraFieldNamesCache = data
+  return extraFieldNamesCache
+}
+
+async function openExtraFieldPicker(seId) {
+  extraFieldPickerSeId = seId
+  const names = await loadExtraFieldNames()
+  const list = document.getElementById('extraFieldPickerList')
+  list.innerHTML = names.length
+    ? names.map(n => `<button type="button" class="chip-btn" data-name="${n.name}">${n.name}</button>`).join('')
+    : '<p class="no-metrics">No fields created yet - add one below</p>'
+  document.getElementById('newExtraFieldNameInput').value = ''
+  document.getElementById('extraFieldPickerModal').classList.add('active')
+}
+
+function pickExtraField(name) {
+  if (!extraFieldPickerSeId || !name) return
+  const containerId = `extraFields-${extraFieldPickerSeId}`
+  if (document.querySelector(`#${containerId} .extra-field-row[data-name="${name}"]`)) {
+    document.getElementById('extraFieldPickerModal').classList.remove('active')
+    return // already on this card - avoid a silent duplicate that only the last one would save
+  }
+  addExtraFieldRow(containerId, name, '')
+  document.getElementById('extraFieldPickerModal').classList.remove('active')
+}
+
+document.getElementById('extraFieldPickerList').addEventListener('click', function(e) {
+  const btn = e.target.closest('.chip-btn')
+  if (btn) pickExtraField(btn.dataset.name)
+})
+
+document.getElementById('createExtraFieldNameBtn').addEventListener('click', async function() {
+  const name = document.getElementById('newExtraFieldNameInput').value.trim()
+  if (!name) return
+  const { error } = await supabase.from('extra_field_names').upsert([{ coach_id: session.user.id, name }], { onConflict: 'coach_id,name' })
+  if (error) { console.log(error); customAlert('Something went wrong saving that field name - try again'); return }
+  extraFieldNamesCache = null
+  pickExtraField(name)
+})
+
+document.getElementById('closeExtraFieldPickerBtn').addEventListener('click', function() {
+  document.getElementById('extraFieldPickerModal').classList.remove('active')
+})
 
 // ==========================================================================
 // ---- PER-SET TARGETS ----
@@ -530,17 +599,19 @@ function renderExerciseCard(se) {
         <div class="builder-exercise-name">${se.exercises ? se.exercises.name : 'Unknown exercise'}</div>
         ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
         <button type="button" class="builder-link-btn ${se.superset_group_id ? 'linked' : ''}" data-action="toggle-link" style="${groupColor ? `border-color:${groupColor}; color:${groupColor}; background-color:${groupColor}22` : ''}" title="${linkTitle}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+        <div class="kebab-menu builder-kebab-menu">
+          <button type="button" class="builder-kebab-btn" data-action="toggle-kebab" title="More options">⋮</button>
+          <div class="kebab-dropdown">
+            <button type="button" class="kebab-item" data-action="add-extra-field">+ Add Field</button>
+          </div>
+        </div>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
       </div>
       <div class="set-target-rows">
         ${rowsHtml}
       </div>
       <button type="button" class="builder-add-set-btn" data-action="add-set">+ Add Set</button>
-      <div class="builder-exercise-notes">
-        <label>Extra Fields (optional)</label>
-        <div class="extra-fields-container" id="extraFields-${se.id}"></div>
-        <button type="button" class="btn-create-metric" data-action="add-extra-field" style="margin-top:6px">+ Add Field</button>
-      </div>
+      <div class="extra-fields-container" id="extraFields-${se.id}"></div>
       <div class="builder-exercise-notes">
         <label>Notes (visible to the athlete)</label>
         <input type="text" class="exercise-notes-input" value="${se.notes || ''}" placeholder="e.g. Focus on controlled tempo">
@@ -810,10 +881,24 @@ document.getElementById('sectionExercisesList').addEventListener('click', async 
   } else if (btn.dataset.action === 'delete-exercise') {
     await deleteExerciseRow(seId)
   } else if (btn.dataset.action === 'add-extra-field') {
-    addExtraFieldRow(`extraFields-${seId}`)
+    btn.closest('.kebab-dropdown')?.classList.remove('active')
+    openExtraFieldPicker(seId)
   } else if (btn.dataset.action === 'toggle-link') {
     handleLinkClick(seId, sectionDropZone)
+  } else if (btn.dataset.action === 'toggle-kebab') {
+    const dropdown = btn.parentElement.querySelector('.kebab-dropdown')
+    const wasActive = dropdown.classList.contains('active')
+    document.querySelectorAll('#sectionExercisesList .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+    if (!wasActive) dropdown.classList.add('active')
   }
+})
+
+// Kebab dropdowns (see toggle-kebab above) close on their own toggle or on
+// picking an item, but not yet on an outside click - add that here so one
+// left open doesn't linger while the coach works on other cards
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.builder-kebab-menu')) return
+  document.querySelectorAll('#sectionExercisesList .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
 })
 
 // mm:ss rest boxes: strip anything non-digit as it's typed, then pad back
