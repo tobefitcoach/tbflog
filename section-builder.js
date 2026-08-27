@@ -370,8 +370,18 @@ function parseTimeToParts(val) {
   return digits ? { mm: 0, ss: Math.min(parseInt(digits[0]), 59) } : { mm: 0, ss: 0 }
 }
 
-function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, onlyRow) {
-  const repsPlaceholder = (isTimed ? 'e.g. 45 sec' : 'reps') + (isUnilateral ? ' each side' : '')
+// Brought up to parity with training-builder.js/program-builder.js's own
+// renderSetTargetRow here - this one used to just relabel the reps input's
+// placeholder for a timed exercise instead of giving it a real mm:ss
+// timer, the only one of the four builders with that gap.
+function renderSetTargetRow(setNumber, target, tracksReps, isTimed, tracksWeight, isUnilateral, onlyRow) {
+  const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
+  // Legacy rows (saved back when Timed replaced Reps instead of coexisting
+  // with it) stored the duration IN the reps field - fall back to reading
+  // it from there, but only when reps isn't ALSO being tracked, so a real
+  // rep count can never get misread as a duration once both are on.
+  const durationSource = target.duration != null ? target.duration : (isTimed && !tracksReps ? target.reps : null)
+  const { mm, ss } = parseTimeToParts(durationSource)
   const restParts = parseTimeToParts(target.rest)
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
@@ -379,7 +389,17 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
       <select class="set-type-select">
         ${Object.entries(SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
-      <input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">
+      ${tracksReps ? `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">` : ''}
+      ${isTimed ? `
+        <div class="set-time-group" title="Time - minutes:seconds">
+          <span class="set-time-group-label">Time</span>
+          <div class="set-time-input">
+            <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
+            <span class="set-time-sep">:</span>
+            <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
+          </div>
+        </div>
+      ` : ''}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
       <div class="set-time-group" title="Rest - minutes:seconds">
         <span class="set-time-group-label">Rest</span>
@@ -403,10 +423,10 @@ function linkedCardsFor(card) {
   return [...sectionDropZone.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
 }
 
-function addSetTargetRow(rowsEl, isTimed, tracksWeight, isUnilateral) {
+function addSetTargetRow(rowsEl, tracksReps, isTimed, tracksWeight, isUnilateral) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, weight: null, rest: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, false))
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, duration: null, weight: null, rest: null, type: 'main' }, tracksReps, isTimed, tracksWeight, isUnilateral, false))
 }
 
 // Removal can happen from the middle of the list, so every remaining row
@@ -463,13 +483,14 @@ function renderExercisesList() {
 }
 
 function renderExerciseCard(se) {
+  const tracksReps = !se.exercises || se.exercises.tracks_reps !== false
   const isTimed = se.exercises && se.exercises.is_timed
   const tracksWeight = !se.exercises || se.exercises.tracks_weight
   const isUnilateral = se.exercises && se.exercises.is_unilateral
   const videoUrl = (se.exercises && se.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
   const targets = deriveSetTargets(se)
-  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
+  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, tracksReps, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
   const groupMembers = se.superset_group_id ? exercisesCache.filter(other => other.id !== se.id && other.superset_group_id === se.superset_group_id) : []
   const groupColor = se.superset_group_id ? colorForSupersetGroup(se.superset_group_id) : null
   const linkTitle = groupMembers.length
@@ -513,28 +534,38 @@ async function saveExerciseCard(seId, orderIndex) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${seId}"]`)
   if (!card) return true
 
+  const se = exercisesCache.find(s => s.id === seId)
+  const isTimed = !!(se && se.exercises && se.exercises.is_timed)
+
   const rows = [...card.querySelectorAll('.set-target-row')]
   const setTargets = rows.map(row => {
-    const reps = row.querySelector('.set-reps-input').value.trim() || null
+    const repsInput = row.querySelector('.set-reps-input')
+    const reps = repsInput ? (repsInput.value.trim() || null) : null
+    let duration = null
+    if (isTimed) {
+      const mm = parseInt(row.querySelector('.set-time-mm').value) || 0
+      const ss = parseInt(row.querySelector('.set-time-ss').value) || 0
+      duration = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
+    }
     const weightInput = row.querySelector('.set-weight-input')
     const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
     const restMm = parseInt(row.querySelector('.set-rest-mm').value) || 0
     const restSs = parseInt(row.querySelector('.set-rest-ss').value) || 0
     const rest = (restMm === 0 && restSs === 0) ? null : restMm * 60 + restSs
     const type = row.querySelector('.set-type-select').value
-    return { reps, weight, rest, type }
+    return { reps, duration, weight, rest, type }
   })
 
   const notes = card.querySelector('.exercise-notes-input').value.trim() || null
   const extraFields = collectExtraFields(`extraFields-${seId}`)
-  const first = setTargets[0] || { reps: null, weight: null, rest: null }
+  const first = setTargets[0] || { reps: null, duration: null, weight: null, rest: null }
 
   const { error } = await supabase
     .from('section_exercises')
     .update({
       set_targets: setTargets,
       prescribed_sets: setTargets.length,
-      prescribed_reps: first.reps,
+      prescribed_reps: first.reps != null ? first.reps : first.duration,
       prescribed_weight: first.weight,
       rest_seconds: first.rest,
       extra_fields: extraFields,
@@ -728,16 +759,18 @@ document.getElementById('sectionExercisesList').addEventListener('click', async 
   const card = btn.closest('.builder-exercise-card')
   const seId = card ? card.dataset.id : null
   const se = seId ? exercisesCache.find(s => s.id === seId) : null
+  const tracksReps = !!(se && (!se.exercises || se.exercises.tracks_reps !== false))
   const isTimed = !!(se && se.exercises && se.exercises.is_timed)
   const tracksWeight = !!(se && (!se.exercises || se.exercises.tracks_weight))
   const isUnilateral = !!(se && se.exercises && se.exercises.is_unilateral)
 
   if (btn.dataset.action === 'add-set') {
-    addSetTargetRow(card.querySelector('.set-target-rows'), isTimed, tracksWeight, isUnilateral)
+    addSetTargetRow(card.querySelector('.set-target-rows'), tracksReps, isTimed, tracksWeight, isUnilateral)
     for (const other of linkedCardsFor(card)) {
       const oSe = exercisesCache.find(s => s.id === other.dataset.id)
       addSetTargetRow(
         other.querySelector('.set-target-rows'),
+        !!(oSe && (!oSe.exercises || oSe.exercises.tracks_reps !== false)),
         !!(oSe && oSe.exercises && oSe.exercises.is_timed),
         !!(oSe && (!oSe.exercises || oSe.exercises.tracks_weight)),
         !!(oSe && oSe.exercises && oSe.exercises.is_unilateral)

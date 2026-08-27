@@ -493,9 +493,14 @@ function parseTimeToParts(val) {
   return digits ? { mm: 0, ss: Math.min(parseInt(digits[0]), 59) } : { mm: 0, ss: 0 }
 }
 
-function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilateral, tracksDistance, onlyRow) {
+function renderSetTargetRow(setNumber, target, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, onlyRow) {
   const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
-  const { mm, ss } = parseTimeToParts(target.reps)
+  // Legacy rows (saved back when Timed replaced Reps instead of coexisting
+  // with it) stored the duration IN the reps field - fall back to reading
+  // it from there, but only when reps isn't ALSO being tracked, so a real
+  // rep count can never get misread as a duration once both are on.
+  const durationSource = target.duration != null ? target.duration : (isTimed && !tracksReps ? target.reps : null)
+  const { mm, ss } = parseTimeToParts(durationSource)
   const restParts = parseTimeToParts(target.rest)
   return `
     <div class="set-target-row" data-set-number="${setNumber}">
@@ -503,6 +508,7 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
       <select class="set-type-select">
         ${Object.entries(SET_TYPES).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
       </select>
+      ${tracksReps ? `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">` : ''}
       ${isTimed ? `
         <div class="set-time-group" title="Time - minutes:seconds">
           <span class="set-time-group-label">Time</span>
@@ -512,7 +518,7 @@ function renderSetTargetRow(setNumber, target, isTimed, tracksWeight, isUnilater
             <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
           </div>
         </div>
-      ` : `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">`}
+      ` : ''}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
       ${tracksDistance ? `<input type="number" class="set-distance-input" value="${target.distance != null ? target.distance : ''}" placeholder="meters" step="1">` : ''}
       <div class="set-time-group" title="Rest - minutes:seconds">
@@ -537,10 +543,10 @@ function linkedCardsFor(card) {
   return [...trainingDropZone.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
 }
 
-function addSetTargetRow(rowsEl, isTimed, tracksWeight, isUnilateral, tracksDistance) {
+function addSetTargetRow(rowsEl, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, weight: null, rest: null, distance: null, type: 'main' }, isTimed, tracksWeight, isUnilateral, tracksDistance, false))
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, duration: null, weight: null, rest: null, distance: null, type: 'main' }, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, false))
 }
 
 // Removal can happen from the middle of the list, so every remaining row
@@ -629,6 +635,7 @@ function renderExercisesList() {
 }
 
 function renderExerciseCard(te) {
+  const tracksReps = !te.exercises || te.exercises.tracks_reps !== false
   const isTimed = te.exercises && te.exercises.is_timed
   const tracksWeight = !te.exercises || te.exercises.tracks_weight
   const isUnilateral = te.exercises && te.exercises.is_unilateral
@@ -636,7 +643,7 @@ function renderExerciseCard(te) {
   const videoUrl = (te.exercises && te.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
   const targets = deriveSetTargets(te)
-  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, isTimed, tracksWeight, isUnilateral, tracksDistance, targets.length === 1)).join('')
+  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, targets.length === 1)).join('')
   const groupMembers = te.superset_group_id ? exercisesCache.filter(other => other.id !== te.id && other.superset_group_id === te.superset_group_id) : []
   const groupColor = te.superset_group_id ? colorForSupersetGroup(te.superset_group_id) : null
   const linkTitle = groupMembers.length
@@ -690,17 +697,18 @@ async function saveExerciseCard(teId, orderIndex) {
   if (!card) return true
 
   const te = exercisesCache.find(t => t.id === teId)
+  const tracksReps = !!(te && (!te.exercises || te.exercises.tracks_reps !== false))
   const isTimed = !!(te && te.exercises && te.exercises.is_timed)
 
   const rows = [...card.querySelectorAll('.set-target-row')]
   const setTargets = rows.map(row => {
-    let reps
+    const repsInput = row.querySelector('.set-reps-input')
+    const reps = repsInput ? (repsInput.value.trim() || null) : null
+    let duration = null
     if (isTimed) {
       const mm = parseInt(row.querySelector('.set-time-mm').value) || 0
       const ss = parseInt(row.querySelector('.set-time-ss').value) || 0
-      reps = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
-    } else {
-      reps = row.querySelector('.set-reps-input').value.trim() || null
+      duration = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
     }
     const weightInput = row.querySelector('.set-weight-input')
     const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
@@ -710,19 +718,22 @@ async function saveExerciseCard(teId, orderIndex) {
     const restSs = parseInt(row.querySelector('.set-rest-ss').value) || 0
     const rest = (restMm === 0 && restSs === 0) ? null : restMm * 60 + restSs
     const type = row.querySelector('.set-type-select').value
-    return { reps, weight, distance, rest, type }
+    return { reps, duration, weight, distance, rest, type }
   })
 
   const notes = card.querySelector('.exercise-notes-input').value.trim() || null
   const extraFields = collectExtraFields(`extraFields-${teId}`)
-  const first = setTargets[0] || { reps: null, weight: null, rest: null }
+  const first = setTargets[0] || { reps: null, duration: null, weight: null, rest: null }
 
   const { error } = await supabase
     .from('training_exercises')
     .update({
       set_targets: setTargets,
       prescribed_sets: setTargets.length,
-      prescribed_reps: first.reps,
+      // Legacy single-value column, still read by places that predate the
+      // set_targets pyramid - falls back to duration so a purely-timed
+      // exercise still shows something sensible there
+      prescribed_reps: first.reps != null ? first.reps : first.duration,
       prescribed_weight: first.weight,
       rest_seconds: first.rest,
       extra_fields: extraFields,
@@ -924,17 +935,19 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
   const card = btn.closest('.builder-exercise-card')
   const teId = card ? card.dataset.id : null
   const te = teId ? exercisesCache.find(t => t.id === teId) : null
+  const tracksReps = !!(te && (!te.exercises || te.exercises.tracks_reps !== false))
   const isTimed = !!(te && te.exercises && te.exercises.is_timed)
   const tracksWeight = !!(te && (!te.exercises || te.exercises.tracks_weight))
   const isUnilateral = !!(te && te.exercises && te.exercises.is_unilateral)
   const tracksDistance = !!(te && te.exercises && te.exercises.tracks_distance)
 
   if (btn.dataset.action === 'add-set') {
-    addSetTargetRow(card.querySelector('.set-target-rows'), isTimed, tracksWeight, isUnilateral, tracksDistance)
+    addSetTargetRow(card.querySelector('.set-target-rows'), tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance)
     for (const other of linkedCardsFor(card)) {
       const oTe = exercisesCache.find(t => t.id === other.dataset.id)
       addSetTargetRow(
         other.querySelector('.set-target-rows'),
+        !!(oTe && (!oTe.exercises || oTe.exercises.tracks_reps !== false)),
         !!(oTe && oTe.exercises && oTe.exercises.is_timed),
         !!(oTe && (!oTe.exercises || oTe.exercises.tracks_weight)),
         !!(oTe && oTe.exercises && oTe.exercises.is_unilateral),
@@ -1194,9 +1207,11 @@ function toggleCreateNewTypeField() {
 // afterward for a less common combination (e.g. a weighted timed hold)
 function applyTypeLoggingDefaults(type) {
   if (type === 'timed') {
+    document.getElementById('tCreateExerciseTracksReps').checked = false
     document.getElementById('tCreateExerciseIsTimed').checked = true
     document.getElementById('tCreateExerciseTracksWeight').checked = false
   } else if (type === 'weights') {
+    document.getElementById('tCreateExerciseTracksReps').checked = true
     document.getElementById('tCreateExerciseIsTimed').checked = false
     document.getElementById('tCreateExerciseTracksWeight').checked = true
   }
@@ -1224,6 +1239,7 @@ document.getElementById('openCreateExerciseBtn').addEventListener('click', funct
   populateCreateCategorySelect()
   document.getElementById('tCreateExerciseNewType').value = ''
   populateCreateTypeSelect()
+  document.getElementById('tCreateExerciseTracksReps').checked = true
   document.getElementById('tCreateExerciseTracksWeight').checked = true
   document.getElementById('tCreateExerciseIsTimed').checked = false
   document.getElementById('tCreateExerciseIsUnilateral').checked = false
@@ -1251,6 +1267,7 @@ function openExerciseModal(exercise) {
   document.getElementById('tCreateExerciseType').value = exercise.type || 'weights'
   toggleCreateNewCategoryField()
   toggleCreateNewTypeField()
+  document.getElementById('tCreateExerciseTracksReps').checked = exercise.tracks_reps !== false
   document.getElementById('tCreateExerciseTracksWeight').checked = !!exercise.tracks_weight
   document.getElementById('tCreateExerciseIsTimed').checked = !!exercise.is_timed
   document.getElementById('tCreateExerciseIsUnilateral').checked = !!exercise.is_unilateral
@@ -1276,6 +1293,7 @@ document.getElementById('saveTCreateExerciseBtn').addEventListener('click', asyn
     : typeSelect
   const videoUrl = document.getElementById('tCreateExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('tCreateExerciseInstructions').value.trim()
+  const tracksReps = document.getElementById('tCreateExerciseTracksReps').checked
   const tracksWeight = document.getElementById('tCreateExerciseTracksWeight').checked
   const isTimed = document.getElementById('tCreateExerciseIsTimed').checked
   const isUnilateral = document.getElementById('tCreateExerciseIsUnilateral').checked
@@ -1285,7 +1303,7 @@ document.getElementById('saveTCreateExerciseBtn').addEventListener('click', asyn
 
   const { data, error } = await supabase
     .from('exercises')
-    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }])
+    .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, tracks_reps: tracksReps, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }])
     .select()
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
@@ -1317,6 +1335,7 @@ document.getElementById('saveTEditExerciseBtn').addEventListener('click', async 
     : typeSelect
   const videoUrl = document.getElementById('tCreateExerciseVideoUrl').value.trim()
   const instructions = document.getElementById('tCreateExerciseInstructions').value.trim()
+  const tracksReps = document.getElementById('tCreateExerciseTracksReps').checked
   const tracksWeight = document.getElementById('tCreateExerciseTracksWeight').checked
   const isTimed = document.getElementById('tCreateExerciseIsTimed').checked
   const isUnilateral = document.getElementById('tCreateExerciseIsUnilateral').checked
@@ -1324,7 +1343,7 @@ document.getElementById('saveTEditExerciseBtn').addEventListener('click', async 
 
   if (!name) { customAlert('Please enter a name'); return }
 
-  const updates = { name, category, type, video_url: videoUrl, instructions, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }
+  const updates = { name, category, type, video_url: videoUrl, instructions, tracks_reps: tracksReps, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }
   const { error } = await supabase.from('exercises').update(updates).eq('id', editingExerciseId)
   if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
 

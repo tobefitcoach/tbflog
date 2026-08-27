@@ -82,7 +82,7 @@ let athlete = null
 let entriesByDate = {} // 'YYYY-MM-DD' -> array of { program, week, day }
 let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
 // Whatever the athlete has typed into a not-yet-checked set's inputs, keyed
-// by "peId-setNumber" - { reps, weight, distance }. renderSetRow reads from
+// by "peId-setNumber" - { reps, duration, weight, distance }. renderSetRow reads from
 // here first, falling back to the coach's target/previously-logged value
 // only when nothing's been typed yet. Every exercise slide fully replaces
 // pageContent's innerHTML on render (swiping, or a group step-through
@@ -2813,7 +2813,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
     const historyBtn = e.target.closest('.exercise-history-btn')
     if (historyBtn) {
-      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight, !!historyBtn.dataset.tracksDistance)
+      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.tracksReps, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight, !!historyBtn.dataset.tracksDistance)
       return
     }
     const swapBtn = e.target.closest('.exercise-swap-btn')
@@ -2917,6 +2917,7 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
 
   const slide = slides[index]
   const { pe, round } = steps[stepIndex]
+  const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
@@ -2941,7 +2942,7 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
         ${exerciseActionButtonsHtml(pe, isSelfLogged, true)}
       </div>
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
-      <div class="set-rows">${renderSetRow(pe, round, logged, isTimed, tracksWeight, false)}</div>
+      <div class="set-rows">${renderSetRow(pe, round, logged, tracksReps, isTimed, tracksWeight, false)}</div>
     </div>
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe to skip <span class="swipe-hint-arrow">›</span></p>
     <div id="restTimerBar" class="rest-timer-bar"></div>
@@ -2952,7 +2953,7 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
   document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
     const historyBtn = e.target.closest('.exercise-history-btn')
     if (historyBtn) {
-      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight, !!historyBtn.dataset.tracksDistance)
+      openExerciseHistoryModal(historyBtn.dataset.exerciseId, historyBtn.dataset.exerciseName, !!historyBtn.dataset.tracksReps, !!historyBtn.dataset.isTimed, !!historyBtn.dataset.tracksWeight, !!historyBtn.dataset.tracksDistance)
     }
     // No Swap inside a group step - swapping one exercise mid-round has no
     // clean "which round does the new exercise start at" answer, so
@@ -3025,6 +3026,7 @@ function canSwapExercise(pe, isSelfLogged) {
 // at" answer, so Swap is only ever offered outside a group's step-through
 function exerciseActionButtonsHtml(pe, isSelfLogged, hideSwap) {
   const name = pe.exercises ? pe.exercises.name : 'Exercise'
+  const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const tracksDistance = pe.exercises && pe.exercises.tracks_distance
@@ -3037,7 +3039,7 @@ function exerciseActionButtonsHtml(pe, isSelfLogged, hideSwap) {
   const showAlternative = !hideSwap && pe.alternative_exercise_id && canSwapExercise(pe, isSelfLogged)
   return `
     <div class="exercise-action-btns">
-      <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}" data-tracks-distance="${tracksDistance ? '1' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg> History</button>
+      <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-tracks-reps="${tracksReps ? '1' : ''}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}" data-tracks-distance="${tracksDistance ? '1' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg> History</button>
       ${showAlternative ? `<button type="button" class="exercise-alternative-btn" data-action="use-alternative" data-pe-id="${pe.id}" title="${onAlternative ? 'Switch back to the original exercise' : "Can't do this one? Switch to the alternative"}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg> ${onAlternative ? 'Original' : 'Alternative'}</button>` : ''}
       ${!hideSwap && canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg> Swap</button>` : ''}
     </div>
@@ -3048,6 +3050,7 @@ function exerciseActionButtonsHtml(pe, isSelfLogged, hideSwap) {
 // the Swap button. A linked group (superset/section) never reaches this -
 // see renderGroupGate/renderGroupStep instead.
 function renderSingleSlideBody(pe, isSelfLogged) {
+  const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
@@ -3059,7 +3062,7 @@ function renderSingleSlideBody(pe, isSelfLogged) {
   for (let setNumber = 1; setNumber <= rowCount; setNumber++) {
     const logged = loggedSets.find(s => s.set_number === setNumber)
     const isExtra = setNumber > (pe.prescribed_sets || 0)
-    rowsHtml += renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra)
+    rowsHtml += renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksWeight, isExtra)
   }
 
   return `
@@ -3129,10 +3132,10 @@ async function loadExerciseHistory(exerciseId, months) {
     }))
 }
 
-let exerciseHistoryState = { exerciseId: null, isTimed: false, tracksWeight: true, tracksDistance: false, months: 3 }
+let exerciseHistoryState = { exerciseId: null, tracksReps: true, isTimed: false, tracksWeight: true, tracksDistance: false, months: 3 }
 
-async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, tracksWeight, tracksDistance) {
-  exerciseHistoryState = { exerciseId, isTimed, tracksWeight, tracksDistance, months: 3 }
+async function openExerciseHistoryModal(exerciseId, exerciseName, tracksReps, isTimed, tracksWeight, tracksDistance) {
+  exerciseHistoryState = { exerciseId, tracksReps, isTimed, tracksWeight, tracksDistance, months: 3 }
   document.getElementById('exerciseHistoryTitle').textContent = exerciseName || 'History'
   document.querySelectorAll('#exerciseHistoryTimeFilters .time-filter-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.months === '3')
@@ -3142,7 +3145,7 @@ async function openExerciseHistoryModal(exerciseId, exerciseName, isTimed, track
 }
 
 async function renderExerciseHistoryBody() {
-  const { exerciseId, isTimed, tracksWeight, tracksDistance, months } = exerciseHistoryState
+  const { exerciseId, tracksReps, isTimed, tracksWeight, tracksDistance, months } = exerciseHistoryState
   const body = document.getElementById('exerciseHistoryBody')
   body.innerHTML = '<p class="no-metrics">Loading...</p>'
 
@@ -3155,7 +3158,17 @@ async function renderExerciseHistoryBody() {
 
   body.innerHTML = history.map(function(day) {
     const setsLine = day.sets.map(function(s) {
-      const repsText = isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`
+      // Reps and duration are independent now - show whichever this
+      // exercise actually tracks, joined together when both are on.
+      // Legacy rows (before the two were split) stored the duration in
+      // actual_reps, so that's the fallback source when reps isn't tracked.
+      const repsParts = []
+      if (tracksReps) repsParts.push(`${s.actual_reps || '-'} reps`)
+      if (isTimed) {
+        const durationSource = s.actual_duration != null ? s.actual_duration : (!tracksReps ? s.actual_reps : null)
+        if (durationSource != null) repsParts.push(formatTimedReps(durationSource))
+      }
+      const repsText = repsParts.join(' · ')
       // Uses the unit THIS set was actually logged in (falls back to kg -
       // the real stored unit - for older rows saved before weight_unit
       // existed), not the athlete's current default, so switching your
@@ -3938,7 +3951,7 @@ function computeWeekPREvents(weekStart) {
 // Unchanged from the per-set logging built earlier - now dropped into the
 // single active-exercise card above instead of an all-exercises list.
 // ==========================================================================
-function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exerciseLabel) {
+function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksWeight, isExtra, exerciseLabel) {
   const checked = !!(logged && logged.completed_at)
   // A not-yet-checked set's draft (see draftSetValues above) wins over the
   // coach's target/previously-logged value - it's whatever the athlete
@@ -3956,6 +3969,12 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exe
   // then fully cleared - !== undefined (not != null) is what keeps a
   // deliberately-cleared field from reverting to the prescribed value
   const repsVal = draft && draft.reps !== undefined ? draft.reps : (logged ? (logged.actual_reps || '') : ((target ? target.reps : pe.prescribed_reps) || ''))
+  // Duration is its own field now (Reps and Timed used to be mutually
+  // exclusive, sharing the same reps/actual_reps slot) - falls back to
+  // reading repsVal itself for exercises that predate the split and are
+  // still reps-off/timed-only, since that's exactly where the old data lives.
+  let durationVal = draft && draft.duration !== undefined ? draft.duration : (logged ? (logged.actual_duration || '') : ((target && target.duration != null) ? target.duration : ''))
+  if (!durationVal && isTimed && !tracksReps) durationVal = repsVal
   // Each row starts out in the athlete's default unit (data-unit), but can
   // be flipped per-row with the unit toggle button below - actual_weight is
   // always stored in kg regardless of which unit was used to type it in.
@@ -3973,20 +3992,21 @@ function renderSetRow(pe, setNumber, logged, isTimed, tracksWeight, isExtra, exe
   const typeLabel = setType === 'warmup' ? 'Warmup' : setType === 'failure' ? 'Failure' : ''
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
   const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
-  const { mm, ss } = parseTimeToParts(repsVal)
+  const { mm, ss } = parseTimeToParts(durationVal)
   const tracksDistance = pe.exercises && pe.exercises.tracks_distance
   const distanceVal = draft && draft.distance !== undefined ? draft.distance : (logged ? (logged.actual_distance != null ? logged.actual_distance : '') : ((target && target.distance != null) ? target.distance : ''))
 
   return `
     <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
       <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
+      ${tracksReps ? `<input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>` : ''}
       ${isTimed ? `
         <div class="set-time-input">
           <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2" ${checked ? 'disabled' : ''}>
           <span class="set-time-sep">:</span>
           <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2" ${checked ? 'disabled' : ''}>
         </div>
-      ` : `<input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>`}
+      ` : ''}
       ${tracksWeight ? `
         <input type="number" inputmode="decimal" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
         <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
@@ -4112,7 +4132,7 @@ function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) {
     } else if (e.target.matches('.set-time-mm, .set-time-ss')) {
       const mmVal = row.querySelector('.set-time-mm').value
       const ssVal = row.querySelector('.set-time-ss').value
-      draftSetValues[key].reps = (mmVal === '' && ssVal === '') ? '' : `${mmVal}:${ssVal}`
+      draftSetValues[key].duration = (mmVal === '' && ssVal === '') ? '' : `${mmVal}:${ssVal}`
     } else if (e.target.matches('.set-weight-input')) {
       // Cached in kg (not whatever unit the row happens to be showing
       // right now) so it re-displays correctly if the athlete's default
@@ -4134,9 +4154,10 @@ function addSetRow(peId) {
   // exerciseLabel/scoping-within-a-shared-container needed any more
   const ownRows = [...rowsContainer.querySelectorAll(`.set-row[data-pe-id="${peId}"]`)]
   const nextNumber = ownRows.length + 1
+  const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
-  const html = renderSetRow(pe, nextNumber, null, isTimed, tracksWeight, true)
+  const html = renderSetRow(pe, nextNumber, null, tracksReps, isTimed, tracksWeight, true)
   const lastOwnRow = ownRows[ownRows.length - 1]
   if (lastOwnRow) lastOwnRow.insertAdjacentHTML('afterend', html)
   else rowsContainer.insertAdjacentHTML('beforeend', html)
@@ -4169,13 +4190,12 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   const ssInput = rowEl.querySelector('.set-time-ss')
   const weightInput = rowEl.querySelector('.set-weight-input')
   const distanceInput = rowEl.querySelector('.set-distance-input')
-  let actualReps
+  const actualReps = repsInput ? (repsInput.value.trim() || null) : null
+  let actualDuration = null
   if (isTimed) {
     const mm = parseInt(mmInput.value) || 0
     const ss = parseInt(ssInput.value) || 0
-    actualReps = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
-  } else {
-    actualReps = repsInput.value.trim() || null
+    actualDuration = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
   }
   // Convert whatever unit this row is currently showing back to kg - that's
   // the only thing that ever gets saved
@@ -4191,7 +4211,8 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
 
   rowEl.classList.add('completed')
   rowEl.classList.remove('unsynced')
-  if (isTimed) { mmInput.disabled = true; ssInput.disabled = true } else { repsInput.disabled = true }
+  if (repsInput) repsInput.disabled = true
+  if (isTimed) { mmInput.disabled = true; ssInput.disabled = true }
   if (weightInput) weightInput.disabled = true
   if (distanceInput) distanceInput.disabled = true
   const checkBtn = rowEl.querySelector('.set-check-btn')
@@ -4220,6 +4241,7 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
     date: dateStr,
     set_number: setNumber,
     actual_reps: actualReps,
+    actual_duration: actualDuration,
     actual_weight: actualWeight,
     actual_distance: actualDistance,
     weight_unit: actualWeight != null ? rowUnit : null,
@@ -4543,6 +4565,7 @@ function performQueuedSave(entry) {
       date: entry.date,
       set_number: entry.set_number,
       actual_reps: entry.actual_reps,
+      actual_duration: entry.actual_duration,
       actual_weight: entry.actual_weight,
       actual_distance: entry.actual_distance,
       weight_unit: entry.weight_unit,

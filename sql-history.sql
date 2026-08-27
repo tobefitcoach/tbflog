@@ -1676,3 +1676,31 @@ create index if not exists idx_training_label_links_training_id on training_labe
 -- ==========================================================================
 alter table training_exercises add column if not exists alternative_exercise_id uuid references exercises(id);
 alter table program_exercises add column if not exists alternative_exercise_id uuid references exercises(id);
+
+-- ==========================================================================
+-- Reps and Timed are independent now, instead of Timed replacing Reps
+-- (an exercise can track sets/reps/weight AND a hold time at once, e.g.
+-- "3 sets x 10 reps, each held 3 seconds" - previously only one of reps or
+-- duration could ever be tracked, sharing the same reps/actual_reps column).
+--
+-- tracks_reps defaults true for every existing exercise (matches current
+-- behavior for every non-timed exercise, which always tracked reps) - the
+-- one backfill needed is turning it OFF for exercises that are already
+-- is_timed=true, since under the OLD mutually-exclusive rule those never
+-- tracked reps at all (Timed simply replaced the reps input with a timer).
+-- Without this backfill, every existing timed exercise would suddenly
+-- show an empty, meaningless "reps" box alongside its timer.
+--
+-- actual_duration is the new independent column for the logged hold time -
+-- exercise_log_sets.actual_reps previously held EITHER a rep count or a
+-- time string depending on is_timed, now actual_reps is always a real rep
+-- count (or null) and actual_duration is always the real duration (or
+-- null). Old logged rows keep their duration sitting in actual_reps
+-- unmigrated - the app already knows to fall back to reading it from there
+-- for any exercise that's timed and not (yet) tracking reps, so nothing
+-- needs a data migration here.
+-- ==========================================================================
+alter table exercises add column if not exists tracks_reps boolean not null default true;
+update exercises set tracks_reps = false where is_timed = true;
+
+alter table exercise_log_sets add column if not exists actual_duration text;

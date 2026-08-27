@@ -136,9 +136,11 @@ function toggleNewTypeField() {
 // timed hold). The coach can still flip either toggle back afterward.
 function applyTypeLoggingDefaults(type) {
   if (type === 'timed') {
+    document.getElementById('exerciseTracksReps').checked = false
     document.getElementById('exerciseIsTimed').checked = true
     document.getElementById('exerciseTracksWeight').checked = false
   } else if (type === 'weights') {
+    document.getElementById('exerciseTracksReps').checked = true
     document.getElementById('exerciseIsTimed').checked = false
     document.getElementById('exerciseTracksWeight').checked = true
   }
@@ -280,7 +282,8 @@ function openExerciseModal(exercise) {
   document.getElementById('exerciseFootContacts').value = exercise ? (exercise.foot_contacts ?? '') : ''
   document.getElementById('exerciseIntensityTier').value = (exercise && exercise.intensity_tier) || 'low'
   // Independent of Type - defaults for a brand-new exercise match the old
-  // 'weights' behavior (weight tracked, not timed, not unilateral)
+  // 'weights' behavior (reps + weight tracked, not timed, not unilateral)
+  document.getElementById('exerciseTracksReps').checked = exercise ? exercise.tracks_reps !== false : true
   document.getElementById('exerciseTracksWeight').checked = exercise ? !!exercise.tracks_weight : true
   document.getElementById('exerciseIsTimed').checked = exercise ? !!exercise.is_timed : false
   document.getElementById('exerciseIsUnilateral').checked = exercise ? !!exercise.is_unilateral : false
@@ -321,7 +324,9 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   const isPlyo = type === 'plyometric'
   const footContacts = isPlyo ? (parseInt(document.getElementById('exerciseFootContacts').value) || null) : null
   const intensityTier = isPlyo ? document.getElementById('exerciseIntensityTier').value : null
-  // Independent of Type - any combination is valid (e.g. a weighted timed hold)
+  // Independent of Type - any combination is valid (e.g. reps AND a hold
+  // time, or a weighted timed hold)
+  const tracksReps = document.getElementById('exerciseTracksReps').checked
   const tracksWeight = document.getElementById('exerciseTracksWeight').checked
   const isTimed = document.getElementById('exerciseIsTimed').checked
   const isUnilateral = document.getElementById('exerciseIsUnilateral').checked
@@ -333,12 +338,12 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
   if (currentExercise) {
     ({ error } = await supabase
       .from('exercises')
-      .update({ name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance })
+      .update({ name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_reps: tracksReps, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance })
       .eq('id', currentExercise.id))
   } else {
     ({ error } = await supabase
       .from('exercises')
-      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }]))
+      .insert([{ coach_id: session.user.id, name, category, type, video_url: videoUrl, instructions, foot_contacts: footContacts, intensity_tier: intensityTier, tracks_reps: tracksReps, tracks_weight: tracksWeight, is_timed: isTimed, is_unilateral: isUnilateral, tracks_distance: tracksDistance }]))
   }
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
