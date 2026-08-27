@@ -104,6 +104,7 @@ let athleteStretchPreferencesCache = null   // Map<stretch_id, 'liked'|'disliked
 let mobilityFlowInterval = null             // countdown for the guided flow screen, parallel to mobilityTimerInterval
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 let coachName = null // fetched once, lazily, the first time the Profile tab is opened
+let coachMobilityEnabled = true // fetched once in enterWeekView() - coach's global on/off for the Daily Mobility/Stretching tile
 
 // Session RPE (1-10, modified Borg CR-10 scale) - this exact scale is what
 // Training Load's session_rpe x duration_minutes formula (loadOverviewStats,
@@ -218,7 +219,7 @@ function renderWaitingToBeLinked() {
 function renderCompleteProfilePrompt() {
   pageContent.innerHTML = `
     <h2>Welcome, ${athlete.name}!</h2>
-    <p>Let's finish setting up your account. Confirm your details below (fix anything your coach got wrong) and set a password so you can log back in directly next time, without needing another email link.</p>
+    <p>Let's finish setting up your account. Confirm your details below and set a password so you can log back in directly next time, without needing another email link.</p>
     <div class="form-group">
       <label>Full Name</label>
       <input type="text" id="onboardNameInput" value="${(athlete.name || '').replace(/"/g, '&quot;')}" />
@@ -284,6 +285,14 @@ function renderCompleteProfilePrompt() {
 async function enterWeekView() {
   document.getElementById('bottomNav').style.display = 'flex'
   document.getElementById('navStatsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
+  const { data: coachProfile } = await saveWithRetry((signal) => supabase
+    .from('profiles')
+    .select('mobility_enabled')
+    .eq('id', athlete.coach_id)
+    .maybeSingle()
+    .abortSignal(signal)
+  )
+  coachMobilityEnabled = coachProfile ? coachProfile.mobility_enabled !== false : true
   await loadTrainingData()
   await loadTournaments()
   await loadCoachMessages()
@@ -1137,16 +1146,17 @@ function renderWeekView(weekStart) {
       <button class="btn-cancel" id="weekNextBtn" ${nextEnabled ? '' : 'disabled'}>Next →</button>
     </div>
     <div class="week-strip">${cardsHtml}</div>
-    <div class="home-tile-row">
+    <div class="home-tile-row ${coachMobilityEnabled ? '' : 'home-tile-row-single'}">
       <button type="button" class="home-tile ${athlete.can_self_log_workouts ? '' : 'disabled'}" id="addOwnWorkoutTile">
         <span class="home-tile-icon">🏋</span>
         <span class="home-tile-label">Add Own Workout</span>
         ${athlete.can_self_log_workouts ? '' : '<span class="home-tile-sublabel">Ask your coach to enable this</span>'}
       </button>
+      ${coachMobilityEnabled ? `
       <button type="button" class="home-tile" id="mobilityTile">
         <span class="home-tile-icon">🧘</span>
         <span class="home-tile-label">Daily Mobility/Stretching</span>
-      </button>
+      </button>` : ''}
     </div>
     <div class="home-tile-row home-tile-row-single">
       <button type="button" class="home-tile" id="tournamentsTile">
@@ -1174,9 +1184,11 @@ function renderWeekView(weekStart) {
     }
     renderAddWorkoutChoice()
   })
-  document.getElementById('mobilityTile').addEventListener('click', function() {
-    renderMobilityAreaPicker()
-  })
+  if (coachMobilityEnabled) {
+    document.getElementById('mobilityTile').addEventListener('click', function() {
+      renderMobilityAreaPicker()
+    })
+  }
   document.getElementById('tournamentsTile').addEventListener('click', function() {
     renderTournaments()
   })

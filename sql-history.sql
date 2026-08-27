@@ -1591,3 +1591,20 @@ create policy "user manages own scheduled notifications" on scheduled_notificati
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
 create index if not exists idx_scheduled_notifications_fire_at on scheduled_notifications(fire_at);
+
+-- ==========================================================================
+-- Global coach on/off switch for the Daily Mobility/Stretching tile - lets a
+-- coach hide it from every athlete at once while they haven't filmed any
+-- stretch videos yet, without having to touch each athlete individually.
+-- Lives on `profiles` (one row per coach) rather than `athletes`, since it's
+-- a single coach-wide preference, not a per-athlete permission like the
+-- can_* columns on athletes.
+--
+-- profiles already has a column-level grant restricting authenticated
+-- updates to just the `name` column (line 53 above) - this column needs its
+-- own explicit grant too, or the "update own profile" RLS policy passing
+-- doesn't matter, Postgres blocks the column write before RLS is even
+-- checked.
+-- ==========================================================================
+alter table profiles add column if not exists mobility_enabled boolean not null default true;
+grant update (mobility_enabled) on profiles to authenticated;

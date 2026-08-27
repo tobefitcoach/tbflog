@@ -623,9 +623,16 @@ cancelBtn.addEventListener('click', function() {
  
 saveBtn.addEventListener('click', async function() {
   const name = document.getElementById('athleteName').value;
-  const dob = document.getElementById('athleteDOB').value;
-  const gender = document.getElementById('athleteGender').value;
-  const height = parseInt(document.getElementById('athleteHeight').value);
+  // Empty -> null, not '' - a blank string sent to a `date` column errors
+  // outright, and an empty gender fails its check constraint, so any coach
+  // who only has a name+email at intake (the common case) couldn't save at
+  // all. Height goes through the same treatment since parseInt('') is NaN.
+  const dobRaw = document.getElementById('athleteDOB').value;
+  const dob = dobRaw || null;
+  const genderRaw = document.getElementById('athleteGender').value;
+  const gender = genderRaw || null;
+  const heightRaw = parseInt(document.getElementById('athleteHeight').value);
+  const height = Number.isNaN(heightRaw) ? null : heightRaw;
   // Empty -> null, not '' - the email column has a "no duplicates" rule in
   // the database, and two blank emails would otherwise count as duplicates
   const email = document.getElementById('athleteEmail').value.trim() || null;

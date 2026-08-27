@@ -43,3 +43,34 @@ document.getElementById('pushToggleBtn').addEventListener('click', async functio
   else await enablePush(supabase, session.user.id)
   currentStatus = await refreshPushRow()
 })
+
+// Global on/off for the "Daily Mobility/Stretching" tile athletes see on
+// their home screen - turn off while you haven't filmed any stretch videos
+// yet, so athletes don't land on an empty flow.
+function mobilityStatusDesc(enabled) {
+  return enabled
+    ? 'Athletes see the Daily Mobility/Stretching tile on their home screen'
+    : "Hidden from athletes - turn this on once you've added stretches to the library"
+}
+
+const { data: profileData } = await supabase.from('profiles').select('mobility_enabled').eq('id', session.user.id).single()
+let mobilityEnabled = profileData ? profileData.mobility_enabled !== false : true
+document.getElementById('mobilityStatusDesc').textContent = mobilityStatusDesc(mobilityEnabled)
+const mobilityBtn = document.getElementById('mobilityToggleBtn')
+mobilityBtn.textContent = mobilityEnabled ? 'Disable' : 'Enable'
+mobilityBtn.disabled = false
+
+mobilityBtn.addEventListener('click', async function(e) {
+  e.target.disabled = true
+  const newValue = !mobilityEnabled
+  const { error } = await supabase.from('profiles').update({ mobility_enabled: newValue }).eq('id', session.user.id)
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+  } else {
+    mobilityEnabled = newValue
+    document.getElementById('mobilityStatusDesc').textContent = mobilityStatusDesc(mobilityEnabled)
+    mobilityBtn.textContent = mobilityEnabled ? 'Disable' : 'Enable'
+  }
+  mobilityBtn.disabled = false
+})

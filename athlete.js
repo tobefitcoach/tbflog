@@ -2511,9 +2511,16 @@ document.getElementById('cancelEditAthleteBtn').addEventListener('click', functi
 
 document.getElementById('saveEditAthleteBtn').addEventListener('click', async function() {
   const name = document.getElementById('editAthleteName').value.trim()
-  const dob = document.getElementById('editAthleteDOB').value
-  const gender = document.getElementById('editAthleteGender').value
-  const height = parseInt(document.getElementById('editAthleteHeight').value)
+  // Empty -> null, not '' - a blank string sent to a `date` column errors
+  // outright, and an empty gender fails its check constraint, so clearing
+  // either field back out (not just leaving it blank on first save) would
+  // fail too. Height goes through the same treatment since parseInt('') is NaN.
+  const dobRaw = document.getElementById('editAthleteDOB').value
+  const dob = dobRaw || null
+  const genderRaw = document.getElementById('editAthleteGender').value
+  const gender = genderRaw || null
+  const heightRaw = parseInt(document.getElementById('editAthleteHeight').value)
+  const height = Number.isNaN(heightRaw) ? null : heightRaw
   // Empty -> null, not '' - the email column has a "no duplicates" rule in
   // the database, and two blank emails would otherwise count as duplicates
   const email = document.getElementById('editAthleteEmail').value.trim() || null
