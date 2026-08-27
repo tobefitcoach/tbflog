@@ -377,11 +377,9 @@
   background-color: #5a5aae;
 }
 
-/* Program Builder's week pager - same toolbar/grid shape as the athlete
-   calendar above (.calendar-toolbar/.calendar-grid), just paging through
-   blocks of weeks instead of months, and 4-across instead of 7 since a
-   program's weeks aren't tied to real dates. See renderWeekNav() in
-   program-builder.js. */
+/* Program Builder's week pager - same toolbar shape as the athlete
+   calendar above (.calendar-toolbar), just paging through blocks of weeks
+   instead of months. See renderWeekNav() in program-builder.js. */
 .week-page-nav {
   display: flex;
   align-items: center;
@@ -394,51 +392,31 @@
   text-align: center;
 }
 
-.week-tile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
-  margin-bottom: 24px;
+/* Program Builder's actual grid, one .program-day-row per week - reuses
+   the athlete calendar's own .calendar-day/.calendar-day-add-btn/
+   .calendar-day-badge* classes directly (not parallel copies) so a day
+   slot looks and behaves exactly like a real calendar day: a hover "+" to
+   add a workout from the Workout Library on an empty one, a badge (and a
+   click to open it) once something's on it. Day 1-7 columns instead of
+   Mon-Sun, since a template isn't tied to real dates yet. */
+.program-day-header {
+  margin-top: 8px;
 }
 
-.week-tile {
-  position: relative;
-  min-height: 70px;
-  border: 1px solid #2a2a4e;
-  border-radius: 8px;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: border-color 0.2s, background-color 0.2s;
+.program-week-heading {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.week-tile:hover {
-  border-color: #4a4a8e;
+.program-week-heading h4 {
+  margin: 0;
 }
 
-.week-tile.active {
-  border-color: #4a4a8e;
-  background-color: #4a4a8e22;
-}
-
-.week-tile-number {
-  font-weight: 600;
-}
-
-.week-tile-days {
-  color: #aaaacc;
-  font-size: 13px;
-}
-
-.week-tile-delete {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 20px;
-  height: 20px;
+.program-week-delete {
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -451,9 +429,16 @@
   cursor: pointer;
 }
 
-.week-tile-delete:hover {
+.program-week-delete:hover {
   background-color: #c0466e33;
   color: #c0466e;
+}
+
+.program-day-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
 }
 
 /* One clickable training row in the "Add Training" popup - selecting one

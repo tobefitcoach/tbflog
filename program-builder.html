@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=28" />
-    <link rel="stylesheet" href="athlete.css?v=53" />
+    <link rel="stylesheet" href="athlete.css?v=54" />
   </head>
   <body>
 
@@ -52,17 +52,86 @@
         </div>
         <!-- Weeks page 4-at-a-time, same paging pattern as the athlete
              calendar's month view - see renderWeekNav() in
-             program-builder.js. Clicking a tile shows that week's days
-             below in #weeksList (only ever one week's worth at a time, so
-             the page doesn't turn into one long scroll for a many-week
-             program). -->
+             program-builder.js. Every week always shows all 7 day slots
+             (day_number 1-7, matching the fixed 7-day week the date math
+             already assumes once this gets assigned to an athlete - see
+             resolveDate() in athlete-calendar.js) - an empty slot shows a
+             hover "+" to add a workout straight from the Workout Library,
+             a filled one shows what's on it and opens for editing on
+             click. Same look/interaction as the athlete calendar's own
+             month grid, just paging through weeks instead of months. -->
         <div class="week-page-nav">
           <button class="btn-cancel" id="weekPagePrevBtn">← Prev</button>
           <h3 id="weekPageLabel">&nbsp;</h3>
           <button class="btn-cancel" id="weekPageNextBtn">Next →</button>
         </div>
-        <div class="week-tile-grid" id="weekTileGrid"></div>
+        <div class="calendar-weekday-header program-day-header">
+          <span>Day 1</span><span>Day 2</span><span>Day 3</span><span>Day 4</span><span>Day 5</span><span>Day 6</span><span>Day 7</span>
+        </div>
+        <div id="programWeeksGrid"></div>
+      </div>
+    </div>
+
+    <!-- One day's exercises - opened by clicking a day cell in the grid
+         above (see openProgramDayModal() in program-builder.js). Its body
+         (#weeksList) is exactly the same day-editing markup/behavior this
+         page always had (Add Exercise, Add Section, Add Workout, drag
+         exercises, autosave, Save) - it just lives in a modal now instead
+         of being permanently inline, since only one day is ever being
+         edited at a time. -->
+    <div class="modal-overlay" id="programDayModal">
+      <div class="modal modal-wide">
+        <div class="graph-modal-header">
+          <h2 id="programDayModalTitle">Day</h2>
+          <div style="display:flex; align-items:center; gap:12px">
+            <button type="button" class="btn-profile-action" id="renameDayBtn">Rename</button>
+            <button class="btn-cancel" id="closeProgramDayBtn">✕</button>
+          </div>
+        </div>
         <div id="weeksList"></div>
+      </div>
+    </div>
+
+    <!-- Rename Day Modal -->
+    <div class="modal-overlay" id="renameDayModal">
+      <div class="modal">
+        <h2>Rename Day</h2>
+        <div class="form-group">
+          <label>Label</label>
+          <input type="text" id="renameDayInput" placeholder="e.g. Upper Body" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelRenameDayBtn">Cancel</button>
+          <button class="btn-save" id="saveRenameDayBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Workout popup: list + preview, same layout pattern as the
+         calendar's "Add Workout" popup and this page's own "Add Section"
+         below - picking a row previews it on the right, Insert bulk-copies
+         its exercises into the day. -->
+    <div class="modal-overlay" id="addTrainingModal">
+      <div class="modal modal-wide">
+        <div class="graph-modal-header">
+          <h2>Add Workout</h2>
+          <button class="btn-cancel" id="closeAddTrainingBtn">✕</button>
+        </div>
+        <div class="day-add-workout-layout">
+          <div class="day-add-workout-list-col">
+            <div class="day-add-workout-list-header">
+              <span class="day-add-workout-list-title">Workouts</span>
+              <a href="trainings.html" target="_blank" class="btn-small-create">+ New</a>
+            </div>
+            <div class="entries-modal-body" id="addTrainingList"></div>
+          </div>
+          <div class="day-add-workout-preview" id="addTrainingPreview">
+            <p class="no-metrics">Select a workout to preview it</p>
+          </div>
+        </div>
+        <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
+          <button class="btn-save" id="insertTrainingBtn" disabled>Insert</button>
+        </div>
       </div>
     </div>
 
@@ -77,21 +146,6 @@
         <div class="form-actions">
           <button class="btn-cancel" id="cancelRenameProgramBtn">Cancel</button>
           <button class="btn-save" id="saveRenameProgramBtn">Save</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add Day Modal -->
-    <div class="modal-overlay" id="addDayModal">
-      <div class="modal">
-        <h2>Add Day</h2>
-        <div class="form-group">
-          <label>Label</label>
-          <input type="text" id="addDayLabel" placeholder="e.g. Day 1 — Upper Body" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelAddDayBtn">Cancel</button>
-          <button class="btn-save" id="saveAddDayBtn">Add Day</button>
         </div>
       </div>
     </div>
@@ -224,7 +278,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=33"></script>
+    <script type="module" src="program-builder.js?v=34"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

@@ -17,15 +17,15 @@ const programId = params.get('id')
 
 let allExercises = []
 let weeksCache = [] // last-loaded weeks (with nested days/exercises), used to compute next week/day/order numbers without extra queries
-let currentWeekIdForAddDay = null
 let currentDayIdForAddExercise = null
 
 // Weeks page 4-at-a-time (same paging pattern as the athlete calendar's
-// month view) instead of stacking every week's days on one long page -
-// only the selected week's days are ever rendered into #weeksList.
+// month view). Every week always shows all 7 day slots (day_number 1-7) as
+// a real calendar-style grid - clicking one opens #programDayModal, whose
+// body (#weeksList) is the only place a day's exercises are ever rendered.
 const WEEKS_PER_PAGE = 4
 let currentWeekPage = 0
-let selectedWeekId = null
+let currentModalDayId = null // which day #programDayModal is currently showing, if any
 
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
@@ -298,15 +298,16 @@ async function loadWeeks() {
   })
 
   weeksCache = data
-  if (!selectedWeekId || !weeksCache.some(w => w.id === selectedWeekId)) {
-    selectedWeekId = weeksCache.length ? weeksCache[0].id : null
-    currentWeekPage = 0
-  }
   renderWeekNav()
 }
 
 // ==========================================================================
-// ---- WEEK PAGER (4 weeks at a time) + SELECTED WEEK'S DAYS ----
+// ---- WEEK PAGER (4 weeks at a time) + THE DAY GRID ----
+// Every week always shows all 7 day slots (day_number 1-7) as a real
+// calendar-style grid, same look/interaction as the athlete calendar's own
+// month view - an empty slot shows a hover "+" (jumps straight to Add
+// Workout), a filled one shows what's on it and opens #programDayModal on
+// click.
 // ==========================================================================
 function renderWeekNav() {
   const totalPages = Math.max(1, Math.ceil(weeksCache.length / WEEKS_PER_PAGE))
@@ -327,109 +328,170 @@ function renderWeekNav() {
   document.getElementById('weekPagePrevBtn').disabled = currentWeekPage === 0
   document.getElementById('weekPageNextBtn').disabled = currentWeekPage >= totalPages - 1
 
-  const grid = document.getElementById('weekTileGrid')
+  const grid = document.getElementById('programWeeksGrid')
   grid.innerHTML = pageWeeks.length
-    ? pageWeeks.map(renderWeekTile).join('')
+    ? pageWeeks.map(renderProgramWeekSection).join('')
     : '<p class="no-metrics">No weeks yet — click "+ Add Week" to get started</p>'
-
-  renderSelectedWeekDays()
 }
 
-// Used after a day is added/removed - only that one tile's day-count needs
-// to catch up, not a full renderWeekNav() (which would also touch page
-// bounds/flush pending saves unnecessarily for an action that's already
-// happening from inside the currently-selected week)
-function refreshWeekTile(weekId) {
-  const week = weeksCache.find(w => w.id === weekId)
-  if (!week) return
-  const tile = document.querySelector(`#weekTileGrid .week-tile[data-week-id="${weekId}"]`)
-  if (tile) tile.outerHTML = renderWeekTile(week)
-}
-
-function renderWeekTile(week) {
-  const dayCount = week.program_days.length
+function renderProgramWeekSection(week) {
   return `
-    <div class="week-tile ${week.id === selectedWeekId ? 'active' : ''}" data-action="select-week" data-week-id="${week.id}">
-      <span class="week-tile-number">Week ${week.week_number}</span>
-      <span class="week-tile-days">${dayCount} day${dayCount === 1 ? '' : 's'}</span>
-      <button type="button" class="week-tile-delete" data-action="delete-week" data-week-id="${week.id}" title="Delete week">✕</button>
+    <div class="program-week-heading" data-week-id="${week.id}">
+      <h4>Week ${week.week_number}</h4>
+      <button type="button" class="program-week-delete" data-action="delete-week" data-week-id="${week.id}" title="Delete week">✕</button>
+    </div>
+    <div class="program-day-row">
+      ${[1, 2, 3, 4, 5, 6, 7].map(dayNumber => renderProgramDayCell(week, dayNumber)).join('')}
     </div>
   `
 }
 
-function renderSelectedWeekDays() {
-  const container = document.getElementById('weeksList')
-  const week = weeksCache.find(w => w.id === selectedWeekId)
+function renderProgramDayCell(week, dayNumber) {
+  const day = week.program_days.find(d => d.day_number === dayNumber)
+  const hasContent = day && (day.label || day.program_exercises.length > 0)
+  const badge = hasContent
+    ? (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`)
+    : ''
 
-  if (!week) {
-    // Nothing to show below the tile grid - either there are no weeks at
-    // all (that empty state already shows in the tile grid itself, right
-    // above this) or nothing's selected yet
-    container.innerHTML = ''
+  return `
+    <div class="calendar-day" data-action="open-day" data-week-id="${week.id}" data-day-number="${dayNumber}">
+      <button type="button" class="calendar-day-add-btn" data-action="quick-add-day" data-week-id="${week.id}" data-day-number="${dayNumber}" title="Add a workout">+</button>
+      ${badge ? `<div class="calendar-day-badges"><span class="calendar-day-badge calendar-day-badge-planned">${badge}</span></div>` : ''}
+    </div>
+  `
+}
+
+// Every DB write below goes through weeksCache, so it's the source of truth
+// - lets a specific week/day be found without a re-fetch, same convention
+// findDay()/findPE() already use elsewhere in this file.
+function findWeek(weekId) {
+  return weeksCache.find(w => w.id === weekId)
+}
+
+// Days aren't pre-created for every slot (that'd be 7 rows per week up
+// front, most never used) - created the first time the coach actually
+// opens or adds to that slot, same lazy-creation shape as the athlete
+// calendar's own findOrCreateAdHocDay
+async function findOrCreateProgramDay(weekId, dayNumber) {
+  const week = findWeek(weekId)
+  if (!week) return null
+  const existing = week.program_days.find(d => d.day_number === dayNumber)
+  if (existing) return existing
+
+  const { data, error } = await supabase.from('program_days').insert([{ week_id: weekId, day_number: dayNumber }]).select()
+  if (error) { console.log(error); customAlert('Something went wrong'); return null }
+  const newDay = { ...data[0], program_exercises: [] }
+  week.program_days.push(newDay)
+  return newDay
+}
+
+document.getElementById('programWeeksGrid').addEventListener('click', async function(e) {
+  const deleteBtn = e.target.closest('[data-action="delete-week"]')
+  if (deleteBtn) { await deleteWeek(deleteBtn.dataset.weekId); return }
+
+  // Separate handler + stopPropagation so clicking "+" doesn't also
+  // trigger the cell's own click (which opens the full day-detail modal)
+  const quickAddBtn = e.target.closest('[data-action="quick-add-day"]')
+  if (quickAddBtn) {
+    e.stopPropagation()
+    const day = await findOrCreateProgramDay(quickAddBtn.dataset.weekId, parseInt(quickAddBtn.dataset.dayNumber))
+    if (day) openAddTrainingModal(day.id)
     return
   }
 
-  container.innerHTML = `
-    <div class="metric-category" data-week-id="${week.id}">
-      <div class="metrics-header">
-        <h3 class="category-title">Week ${week.week_number}</h3>
-        <button class="btn-profile-action" data-action="add-day" data-week-id="${week.id}">+ Add Day</button>
-      </div>
-      ${week.program_days.length === 0
-        ? '<p class="no-metrics">No days yet</p>'
-        : week.program_days.map(renderDayBlock).join('')}
-    </div>
-  `
+  const cell = e.target.closest('[data-action="open-day"]')
+  if (cell) {
+    const day = await findOrCreateProgramDay(cell.dataset.weekId, parseInt(cell.dataset.dayNumber))
+    if (day) openProgramDayModal(day.id)
+  }
+})
+
+document.getElementById('weekPagePrevBtn').addEventListener('click', function() {
+  currentWeekPage--
+  renderWeekNav()
+})
+
+document.getElementById('weekPageNextBtn').addEventListener('click', function() {
+  currentWeekPage++
+  renderWeekNav()
+})
+
+// ==========================================================================
+// ---- DAY DETAIL MODAL ----
+// One day's exercises - the only place #weeksList (this page's original,
+// always-editable exercise-card list) ever gets rendered now. Everything
+// that already worked there (Add Exercise, Add Section, drag exercises,
+// autosave, Save Day) is untouched; it just lives in a modal instead of
+// being permanently inline.
+// ==========================================================================
+function openProgramDayModal(dayId) {
+  currentModalDayId = dayId
+  refreshProgramDayModalBody()
+  document.getElementById('programDayModal').classList.add('active')
+}
+
+function refreshProgramDayModalBody() {
+  const day = findDay(currentModalDayId)
+  if (!day) return
+  const week = weeksCache.find(w => w.program_days.some(d => d.id === currentModalDayId))
+
+  document.getElementById('programDayModalTitle').textContent = week ? `Week ${week.week_number} — ${day.label || ('Day ' + day.day_number)}` : (day.label || ('Day ' + day.day_number))
+  document.getElementById('weeksList').innerHTML = renderDayBlock(day)
 
   // innerHTML wipes any dynamically-built children, so extra field rows
   // (built with document.createElement, not template strings) get
   // re-populated here for every card, same as the old edit modal did
-  for (const day of week.program_days) {
-    for (const pe of day.program_exercises) {
-      if (pe.extra_fields) {
-        for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRow(`extraFields-${pe.id}`, k, v)
-      }
+  for (const pe of day.program_exercises) {
+    if (pe.extra_fields) {
+      for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRow(`extraFields-${pe.id}`, k, v)
     }
   }
 }
 
-// Flushes every card currently on screen (the selected week's days) before
-// switching away - paging, selecting a different week, or deleting one -
-// so nothing mid-edit gets lost when #weeksList gets replaced.
-async function flushVisibleDayCards() {
-  const dayBlocks = [...document.querySelectorAll('#weeksList .exercise-item')]
-  await Promise.all(dayBlocks.map(flushAllPendingSaves))
+// Refreshes just the one grid cell for the day currently open in the
+// modal, from weeksCache (already kept live-accurate by every add/delete/
+// autosave path) - avoids a full reload just to update one badge.
+function refreshDayCellFor(dayId) {
+  const day = findDay(dayId)
+  const week = weeksCache.find(w => w.program_days.some(d => d.id === dayId))
+  if (!day || !week) return
+  const cell = document.querySelector(`#programWeeksGrid .calendar-day[data-week-id="${week.id}"][data-day-number="${day.day_number}"]`)
+  if (cell) cell.outerHTML = renderProgramDayCell(week, day.day_number)
 }
 
-async function selectWeek(weekId) {
-  if (weekId === selectedWeekId) return
-  await flushVisibleDayCards()
-  selectedWeekId = weekId
-  renderWeekNav()
+async function closeProgramDayModal() {
+  if (currentModalDayId) {
+    await flushAllPendingSaves(document.getElementById('weeksList'))
+    refreshDayCellFor(currentModalDayId)
+  }
+  document.getElementById('programDayModal').classList.remove('active')
+  currentModalDayId = null
 }
 
-document.getElementById('weekTileGrid').addEventListener('click', async function(e) {
-  const deleteBtn = e.target.closest('[data-action="delete-week"]')
-  if (deleteBtn) { await deleteWeek(deleteBtn.dataset.weekId); return }
+document.getElementById('closeProgramDayBtn').addEventListener('click', closeProgramDayModal)
 
-  const tile = e.target.closest('[data-action="select-week"]')
-  if (tile) await selectWeek(tile.dataset.weekId)
+document.getElementById('renameDayBtn').addEventListener('click', function() {
+  const day = findDay(currentModalDayId)
+  if (!day) return
+  document.getElementById('renameDayInput').value = day.label || ''
+  document.getElementById('renameDayModal').classList.add('active')
 })
 
-document.getElementById('weekPagePrevBtn').addEventListener('click', async function() {
-  await flushVisibleDayCards()
-  currentWeekPage--
-  const startIdx = currentWeekPage * WEEKS_PER_PAGE
-  selectedWeekId = weeksCache[startIdx] ? weeksCache[startIdx].id : null
-  renderWeekNav()
+document.getElementById('cancelRenameDayBtn').addEventListener('click', function() {
+  document.getElementById('renameDayModal').classList.remove('active')
 })
 
-document.getElementById('weekPageNextBtn').addEventListener('click', async function() {
-  await flushVisibleDayCards()
-  currentWeekPage++
-  const startIdx = currentWeekPage * WEEKS_PER_PAGE
-  selectedWeekId = weeksCache[startIdx] ? weeksCache[startIdx].id : null
-  renderWeekNav()
+document.getElementById('saveRenameDayBtn').addEventListener('click', async function() {
+  const day = findDay(currentModalDayId)
+  if (!day) return
+  const label = document.getElementById('renameDayInput').value.trim() || null
+
+  const { error } = await supabase.from('program_days').update({ label }).eq('id', day.id)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+
+  day.label = label
+  document.getElementById('renameDayModal').classList.remove('active')
+  refreshProgramDayModalBody()
 })
 
 // One header per run of consecutive exercises sharing the same non-null
@@ -450,12 +512,12 @@ function renderExerciseListHtml(list) {
 
 function renderDayBlock(day) {
   return `
-    <div class="exercise-item" style="margin-bottom:16px" data-day-id="${day.id}">
-      <div class="metric-item-header">
-        <h4>${day.label || ('Day ' + day.day_number)}</h4>
+    <div class="exercise-item" data-day-id="${day.id}">
+      <div class="metric-item-header" style="justify-content:flex-end">
         <div style="display:flex; gap:8px">
           <button class="btn-edit-entry" data-action="add-exercise" data-day-id="${day.id}">+ Add Exercise</button>
           <button class="btn-edit-entry" data-action="add-section" data-day-id="${day.id}">Add Section</button>
+          <button class="btn-edit-entry" data-action="add-training" data-day-id="${day.id}">Add Workout</button>
           <button class="btn-delete-measurement" data-action="delete-day" data-day-id="${day.id}">Delete Day</button>
         </div>
       </div>
@@ -633,6 +695,8 @@ async function saveDay(dayId) {
     return
   }
 
+  document.getElementById('programDayModal').classList.remove('active')
+  currentModalDayId = null
   await loadWeeks()
 }
 
@@ -798,10 +862,10 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
   if (!btn) return
   const action = btn.dataset.action
 
-  if (action === 'add-day') openAddDayModal(btn.dataset.weekId)
-  else if (action === 'add-exercise') openExercisePickerModal(btn.dataset.dayId)
+  if (action === 'add-exercise') openExercisePickerModal(btn.dataset.dayId)
   else if (action === 'add-section') openAddSectionModal(btn.dataset.dayId)
-  else if (action === 'delete-day') deleteDay(btn.dataset.dayId)
+  else if (action === 'add-training') openAddTrainingModal(btn.dataset.dayId)
+  else if (action === 'delete-day') await deleteDay(btn.dataset.dayId)
   else if (action === 'delete-exercise') deleteExerciseRow(btn.closest('.builder-exercise-card').dataset.id)
   else if (action === 'save-day') await saveDay(btn.dataset.dayId)
   else if (action === 'add-set' || action === 'remove-set' || action === 'add-extra-field') {
@@ -956,9 +1020,9 @@ document.getElementById('weeksList').addEventListener('dragend', function() {
 // ==========================================================================
 // ---- ADD / DELETE WEEK ----
 // ==========================================================================
-// Jumps to whichever page the new week lands on and selects it, so the
-// coach immediately sees the week they just added instead of having to
-// page forward to find it themselves.
+// Jumps to whichever page the new week lands on, so the coach immediately
+// sees the week they just added instead of having to page forward
+// themselves.
 document.getElementById('addWeekBtn').addEventListener('click', async function() {
   const nextNumber = weeksCache.length ? Math.max(...weeksCache.map(w => w.week_number)) + 1 : 1
 
@@ -969,102 +1033,67 @@ document.getElementById('addWeekBtn').addEventListener('click', async function()
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
-  await flushVisibleDayCards()
   const newWeek = { ...data[0], program_days: [] }
   weeksCache.push(newWeek)
   currentWeekPage = Math.floor((weeksCache.length - 1) / WEEKS_PER_PAGE)
-  selectedWeekId = newWeek.id
   renderWeekNav()
 })
 
-// Removes just this one week - if it was the selected one, falls back to
-// whichever week now leads the current page (or the last page, if deleting
-// left the current page past the end)
+// The day-detail modal is the only place unsaved edits can be sitting - if
+// it's open for a day inside the week being deleted, flush + close it
+// first so nothing typed but not yet autosaved gets lost
 async function deleteWeek(weekId) {
   if (!(await customConfirm('Delete this week and everything in it?'))) return
+
+  const week = findWeek(weekId)
+  if (week && currentModalDayId && week.program_days.some(d => d.id === currentModalDayId)) {
+    await flushAllPendingSaves(document.getElementById('weeksList'))
+    document.getElementById('programDayModal').classList.remove('active')
+    currentModalDayId = null
+  }
 
   const { error } = await supabase.from('program_weeks').delete().eq('id', weekId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
-  const wasSelected = weekId === selectedWeekId
   weeksCache = weeksCache.filter(w => w.id !== weekId)
-
-  // renderWeekNav() below always re-renders #weeksList (whichever week is
-  // currently selected, deleted or not), so anything mid-edit there needs
-  // flushing regardless of which week was just deleted
-  await flushVisibleDayCards()
 
   const totalPages = Math.max(1, Math.ceil(weeksCache.length / WEEKS_PER_PAGE))
   if (currentWeekPage >= totalPages) currentWeekPage = totalPages - 1
-  if (wasSelected) {
-    const startIdx = currentWeekPage * WEEKS_PER_PAGE
-    selectedWeekId = weeksCache[startIdx] ? weeksCache[startIdx].id : null
-  }
   renderWeekNav()
 }
 
 // ==========================================================================
-// ---- ADD / DELETE DAY ----
+// ---- DELETE DAY ----
+// A day slot isn't "added" separately from the grid anymore (see
+// findOrCreateProgramDay) - only deleting one is still an explicit action,
+// from inside the day-detail modal itself.
 // ==========================================================================
-function openAddDayModal(weekId) {
-  currentWeekIdForAddDay = weekId
-  document.getElementById('addDayLabel').value = ''
-  document.getElementById('addDayModal').classList.add('active')
-}
-
-document.getElementById('cancelAddDayBtn').addEventListener('click', function() {
-  document.getElementById('addDayModal').classList.remove('active')
-})
-
-// Appends just the new day block instead of reloading the whole tree, so
-// unsaved edits sitting in other days' cards aren't wiped out
-document.getElementById('saveAddDayBtn').addEventListener('click', async function() {
-  const label = document.getElementById('addDayLabel').value.trim()
-  const week = weeksCache.find(w => w.id === currentWeekIdForAddDay)
-  const nextNumber = week.program_days.length ? Math.max(...week.program_days.map(d => d.day_number)) + 1 : 1
-
-  const { data, error } = await supabase
-    .from('program_days')
-    .insert([{ week_id: currentWeekIdForAddDay, day_number: nextNumber, label }])
-    .select()
-
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-
-  const newDay = { ...data[0], program_exercises: [] }
-  week.program_days.push(newDay)
-
-  const weekBlock = document.querySelector(`.metric-category[data-week-id="${week.id}"]`)
-  const noDaysMsg = weekBlock.querySelector('.no-metrics')
-  if (noDaysMsg) {
-    noDaysMsg.outerHTML = renderDayBlock(newDay)
-  } else {
-    weekBlock.insertAdjacentHTML('beforeend', renderDayBlock(newDay))
-  }
-  refreshWeekTile(week.id)
-
-  document.getElementById('addDayModal').classList.remove('active')
-})
-
-// Removes just this one day block instead of reloading the whole tree
 async function deleteDay(dayId) {
   if (!(await customConfirm('Delete this day and its exercises?'))) return
 
   const { error } = await supabase.from('program_days').delete().eq('id', dayId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
+  // Cancel any pending autosave for this day's cards - the row (and its
+  // exercises, cascade-deleted) is already gone, so a stray timer firing
+  // afterward would just be a wasted no-op write at best
+  document.querySelectorAll(`.exercise-item[data-day-id="${dayId}"] .builder-exercise-card`).forEach(card => {
+    clearTimeout(autosaveTimers[card.dataset.id])
+    delete autosaveTimers[card.dataset.id]
+  })
+
   for (const week of weeksCache) {
     const idx = week.program_days.findIndex(d => d.id === dayId)
     if (idx === -1) continue
     week.program_days.splice(idx, 1)
-    const dayBlock = document.querySelector(`.exercise-item[data-day-id="${dayId}"]`)
-    if (dayBlock) dayBlock.remove()
-    if (week.program_days.length === 0) {
-      const weekBlock = document.querySelector(`.metric-category[data-week-id="${week.id}"]`)
-      if (weekBlock) weekBlock.insertAdjacentHTML('beforeend', '<p class="no-metrics">No days yet</p>')
-    }
-    refreshWeekTile(week.id)
     break
   }
+
+  if (currentModalDayId === dayId) {
+    document.getElementById('programDayModal').classList.remove('active')
+    currentModalDayId = null
+  }
+  renderWeekNav()
 }
 
 // ==========================================================================
@@ -1422,6 +1451,155 @@ async function insertSectionIntoDay(sectionId, sectionName) {
   }
 
   document.getElementById('addSectionModal').classList.remove('active')
+}
+
+// ==========================================================================
+// ---- ADD WORKOUT (clone a saved Workout Library training into a day) ----
+// Same list + preview + insert UX as Add Section above, and the same clone
+// shape athlete-calendar.js's cloneTrainingToDay uses for a real athlete
+// day - carries section/superset links and any "Adjust Fields"/Alternative
+// Exercise overrides from the Training over, so assigning one that was
+// fine-tuned in Workout Builder doesn't silently lose that. Reachable two
+// ways: the "+" on an empty grid cell (day-detail modal isn't open yet),
+// or the "Add Workout" button inside an already-open day - insertTrainingIntoDay
+// below handles both.
+// ==========================================================================
+let cachedTrainings = null
+let selectedTrainingId = null
+let selectedTrainingName = null
+let currentDayIdForAddTraining = null
+
+async function getTrainingsList() {
+  if (cachedTrainings) return cachedTrainings
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('trainings').select('*').order('name').abortSignal(signal))
+  if (error) { console.log(error); customAlert('Something went wrong loading your Workout Library - check your connection and try again'); return null }
+  cachedTrainings = data
+  return cachedTrainings
+}
+
+function resetTrainingPreview() {
+  selectedTrainingId = null
+  selectedTrainingName = null
+  document.getElementById('addTrainingPreview').innerHTML = '<p class="no-metrics">Select a workout to preview it</p>'
+  document.getElementById('insertTrainingBtn').disabled = true
+}
+
+async function openAddTrainingModal(dayId) {
+  currentDayIdForAddTraining = dayId
+  resetTrainingPreview()
+  const list = document.getElementById('addTrainingList')
+  const data = await getTrainingsList()
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Workout Library</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No workouts saved yet - create one in the Workout Library first</p>'
+  } else {
+    list.innerHTML = data.map(t => `
+      <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
+        <span>${t.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewTraining(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
+
+  document.getElementById('addTrainingModal').classList.add('active')
+}
+
+async function previewTraining(trainingId, name) {
+  selectedTrainingId = trainingId
+  selectedTrainingName = name
+  document.getElementById('insertTrainingBtn').disabled = false
+
+  const preview = document.getElementById('addTrainingPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading...</p>'
+
+  const { data, error } = await supabase
+    .from('training_exercises')
+    .select('*, exercises!exercise_id(id, name, video_url)')
+    .eq('training_id', trainingId)
+
+  if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this workout</p>'; return }
+
+  data.sort((a, b) => a.order_index - b.order_index)
+  preview.innerHTML = data.length === 0
+    ? '<p class="no-metrics">No exercises in this workout</p>'
+    : data.map(renderSectionPreviewExercise).join('')
+}
+
+document.getElementById('insertTrainingBtn').addEventListener('click', async function() {
+  if (!selectedTrainingId) return
+  await insertTrainingIntoDay(selectedTrainingId, selectedTrainingName)
+})
+
+document.getElementById('closeAddTrainingBtn').addEventListener('click', function() {
+  document.getElementById('addTrainingModal').classList.remove('active')
+})
+
+async function insertTrainingIntoDay(trainingId, trainingName) {
+  const day = findDay(currentDayIdForAddTraining)
+  if (!day) return
+
+  const { data: trainingExercises, error } = await supabase.from('training_exercises').select('*').eq('training_id', trainingId)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+  trainingExercises.sort((a, b) => a.order_index - b.order_index)
+  if (trainingExercises.length === 0) { document.getElementById('addTrainingModal').classList.remove('active'); return }
+
+  const baseOrder = day.program_exercises.length ? Math.max(...day.program_exercises.map(pe => pe.order_index)) + 1 : 0
+
+  // Fresh id per distinct superset/section-instance value in this batch,
+  // same reasoning as insertSectionIntoDay above - so dropping the same
+  // Workout onto two different days never makes them look linked
+  const groupIdMap = {}
+  const sectionInstanceMap = {}
+  for (const te of trainingExercises) {
+    if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
+    if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
+  }
+
+  const { data: inserted, error: insertError } = await supabase.from('program_exercises').insert(
+    trainingExercises.map((te, i) => ({
+      day_id: day.id, exercise_id: te.exercise_id, order_index: baseOrder + i,
+      prescribed_sets: te.prescribed_sets, prescribed_reps: te.prescribed_reps,
+      prescribed_weight: te.prescribed_weight, rest_seconds: te.rest_seconds,
+      extra_fields: te.extra_fields, set_targets: te.set_targets, notes: te.notes,
+      section_label: te.section_label,
+      section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
+      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
+      tracks_weight_override: te.tracks_weight_override,
+      is_timed_override: te.is_timed_override,
+      is_unilateral_override: te.is_unilateral_override,
+      tracks_distance_override: te.tracks_distance_override,
+      alternative_exercise_id: te.alternative_exercise_id
+    }))
+  ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+
+  day.program_exercises.push(...inserted)
+
+  // A still-unlabeled day gets the workout's name stamped on as its label,
+  // so the grid cell shows something meaningful without the coach having
+  // to rename it themselves - never overwrites a label they already set
+  if (!day.label) {
+    const { error: labelError } = await supabase.from('program_days').update({ label: trainingName }).eq('id', day.id)
+    if (!labelError) day.label = trainingName
+  }
+
+  document.getElementById('addTrainingModal').classList.remove('active')
+
+  if (currentModalDayId === day.id) {
+    await flushAllPendingSaves(document.getElementById('weeksList'))
+    refreshProgramDayModalBody()
+  } else {
+    refreshDayCellFor(day.id)
+  }
 }
 
 // ==========================================================================
