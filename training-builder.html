@@ -100,7 +100,7 @@
          "+ Create New Exercise" button, adds straight to the training too -->
     <div class="modal-overlay" id="tCreateExerciseModal">
       <div class="modal">
-        <h2>Create New Exercise</h2>
+        <h2 id="tCreateExerciseModalTitle">Create New Exercise</h2>
         <div class="form-group">
           <label>Name</label>
           <input type="text" id="tCreateExerciseName" placeholder="e.g. Romanian Deadlift" />
@@ -155,6 +155,7 @@
         <div class="form-actions">
           <button class="btn-cancel" id="cancelTCreateExerciseBtn">Cancel</button>
           <button class="btn-save" id="saveTCreateExerciseBtn">Create & Select</button>
+          <button class="btn-save" id="saveTEditExerciseBtn" style="display:none">Save Changes</button>
         </div>
       </div>
     </div>
@@ -221,6 +222,23 @@
       </div>
     </div>
 
+    <!-- Set Alternative Exercise: opened from a card's kebab menu - picks a
+         single coach-curated fallback the athlete can one-tap switch to if
+         they can't do the prescribed exercise. See openSetAlternativeModal
+         in training-builder.js. -->
+    <div class="modal-overlay" id="setAlternativeModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Alternative Exercise</h2>
+          <button type="button" class="btn-cancel" id="closeSetAlternativeBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px" id="setAlternativeExerciseName"></p>
+        <input type="text" id="setAlternativeSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
+        <div class="exercise-library-list" id="setAlternativeList" style="max-height:320px; overflow-y:auto; margin-top:10px"></div>
+        <button type="button" class="btn-cancel" id="removeAlternativeBtn" style="margin-top:12px; width:100%">Remove Alternative</button>
+      </div>
+    </div>
+
     <!-- Field picker: opened from a card's kebab "+ Add Field" - pick from
          the coach's reusable extra_field_names library, or type a new one.
          See openExtraFieldPicker() in training-builder.js -->
@@ -254,7 +272,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="training-builder.js?v=28"></script>
+    <script type="module" src="training-builder.js?v=29"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

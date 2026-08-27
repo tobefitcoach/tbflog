@@ -2818,6 +2818,14 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
     }
     const swapBtn = e.target.closest('.exercise-swap-btn')
     if (swapBtn) { openSwapModal(entry, dateStr, slides, index, sessionPromise, swapBtn.dataset.peId) }
+    const altBtn = e.target.closest('.exercise-alternative-btn')
+    if (altBtn) {
+      const pe = entry.day.program_exercises.find(p => p.id === altBtn.dataset.peId)
+      if (!pe) return
+      const onAlternative = pe.alternative_exercise_id && pe.exercise_id === pe.alternative_exercise_id
+      const targetId = onAlternative ? pe.original_exercise_id : pe.alternative_exercise_id
+      if (targetId) swapExercise(entry, dateStr, slides, index, sessionPromise, altBtn.dataset.peId, targetId)
+    }
   })
 
   attachSwipeHandlers(
@@ -3020,9 +3028,17 @@ function exerciseActionButtonsHtml(pe, isSelfLogged, hideSwap) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
   const tracksDistance = pe.exercises && pe.exercises.tracks_distance
+  // Coach-curated single fallback (set via Workout Builder's kebab menu) -
+  // a quick one-tap alternative for "can't do this / no equipment",
+  // distinct from the free-search Swap button below. Same gating as Swap
+  // (canSwapExercise/hideSwap) - once a set's logged, switching would
+  // orphan it, and mid-round in a group has no clean answer either.
+  const onAlternative = pe.alternative_exercise_id && pe.exercise_id === pe.alternative_exercise_id
+  const showAlternative = !hideSwap && pe.alternative_exercise_id && canSwapExercise(pe, isSelfLogged)
   return `
     <div class="exercise-action-btns">
       <button type="button" class="exercise-history-btn" data-action="history" data-exercise-id="${pe.exercise_id}" data-exercise-name="${name}" data-is-timed="${isTimed ? '1' : ''}" data-tracks-weight="${tracksWeight ? '1' : ''}" data-tracks-distance="${tracksDistance ? '1' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg> History</button>
+      ${showAlternative ? `<button type="button" class="exercise-alternative-btn" data-action="use-alternative" data-pe-id="${pe.id}" title="${onAlternative ? 'Switch back to the original exercise' : "Can't do this one? Switch to the alternative"}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg> ${onAlternative ? 'Original' : 'Alternative'}</button>` : ''}
       ${!hideSwap && canSwapExercise(pe, isSelfLogged) ? `<button type="button" class="exercise-swap-btn" data-action="swap" data-pe-id="${pe.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg> Swap</button>` : ''}
     </div>
   `

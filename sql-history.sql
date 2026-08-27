@@ -1661,3 +1661,18 @@ create policy "coach manages own training label links" on training_label_links f
 
 create index if not exists idx_training_labels_coach_id on training_labels(coach_id);
 create index if not exists idx_training_label_links_training_id on training_label_links(training_id);
+
+-- ==========================================================================
+-- Alternative exercise: a coach-curated single fallback set in Workout
+-- Builder (kebab menu -> Set Alternative Exercise) for when an athlete
+-- can't do the prescribed exercise (no equipment, an injury) - shown as a
+-- quick one-tap icon during the guided workout, distinct from the existing
+-- free-search Swap button. Set on training_exercises (where the coach
+-- builds it) and carried through to program_exercises by every clone path
+-- that copies a training's/day's exercises onto a real athlete day
+-- (cloneTrainingToDay, cloneDayToDate, cloneTemplateToAthlete - all three
+-- in athlete-calendar.js). No RLS change needed - both tables' existing
+-- "coach manages..."/"athlete manages..." policies aren't column-scoped.
+-- ==========================================================================
+alter table training_exercises add column if not exists alternative_exercise_id uuid references exercises(id);
+alter table program_exercises add column if not exists alternative_exercise_id uuid references exercises(id);

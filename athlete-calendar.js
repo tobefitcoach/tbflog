@@ -1700,7 +1700,8 @@ async function cloneTrainingToDay(trainingId, dayId) {
       tracks_weight_override: te.tracks_weight_override,
       is_timed_override: te.is_timed_override,
       is_unilateral_override: te.is_unilateral_override,
-      tracks_distance_override: te.tracks_distance_override
+      tracks_distance_override: te.tracks_distance_override,
+      alternative_exercise_id: te.alternative_exercise_id
     }))
   )
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
@@ -1843,7 +1844,8 @@ async function cloneDayToDate(sourceDayId, name, targetDateStr) {
       tracks_weight_override: pe.tracks_weight_override,
       is_timed_override: pe.is_timed_override,
       is_unilateral_override: pe.is_unilateral_override,
-      tracks_distance_override: pe.tracks_distance_override
+      tracks_distance_override: pe.tracks_distance_override,
+      alternative_exercise_id: pe.alternative_exercise_id
     }))
   )
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
@@ -2296,7 +2298,8 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
         tracks_weight_override: pe.tracks_weight_override,
         is_timed_override: pe.is_timed_override,
         is_unilateral_override: pe.is_unilateral_override,
-        tracks_distance_override: pe.tracks_distance_override
+        tracks_distance_override: pe.tracks_distance_override,
+        alternative_exercise_id: pe.alternative_exercise_id
       })
     })
   })
