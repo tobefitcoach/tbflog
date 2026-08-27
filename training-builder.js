@@ -340,7 +340,7 @@ async function addExerciseToTraining(exerciseId) {
     training_id: trainingId,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }]).select('*, exercises(id, name, category, type, video_url, instructions, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  }]).select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_weight, is_timed, is_unilateral, tracks_distance)')
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -583,7 +583,7 @@ function applyFieldOverrides(te) {
 async function loadExercisesList() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('training_exercises')
-    .select('*, exercises(id, name, category, type, video_url, instructions, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+    .select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .eq('training_id', trainingId)
     .abortSignal(signal)
   )
@@ -1491,7 +1491,7 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
       section_instance_id: sectionInstanceId,
       superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
     }))
-  ).select('*, exercises(id, name, category, type, video_url, instructions, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  ).select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_weight, is_timed, is_unilateral, tracks_distance)')
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 
   exercisesCache.push(...inserted)
