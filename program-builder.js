@@ -457,23 +457,65 @@ async function saveExerciseCard(peId, orderIndex) {
   const extraFields = collectExtraFields(`extraFields-${peId}`)
   const first = setTargets[0] || { reps: null, duration: null, weight: null, rest: null }
 
-  const { error } = await supabase
-    .from('program_exercises')
-    .update({
-      set_targets: setTargets,
-      prescribed_sets: setTargets.length,
-      prescribed_reps: first.reps != null ? first.reps : first.duration,
-      prescribed_weight: first.weight,
-      rest_seconds: first.rest,
-      extra_fields: extraFields,
-      notes,
-      order_index: orderIndex,
-      superset_group_id: card.dataset.supersetGroupId || null
-    })
-    .eq('id', peId)
+  const updates = {
+    set_targets: setTargets,
+    prescribed_sets: setTargets.length,
+    prescribed_reps: first.reps != null ? first.reps : first.duration,
+    prescribed_weight: first.weight,
+    rest_seconds: first.rest,
+    extra_fields: extraFields,
+    notes,
+    order_index: orderIndex,
+    superset_group_id: card.dataset.supersetGroupId || null
+  }
+
+  const { error } = await supabase.from('program_exercises').update(updates).eq('id', peId)
 
   if (error) { console.log(error); return false }
+  // Keeps weeksCache in sync with what's actually saved, so any action that
+  // rebuilds a day's cards from cache (inserting a section) reflects what
+  // was just typed instead of overwriting it with stale pre-edit data - see
+  // scheduleAutosave/flushCardSave below.
+  if (pe) Object.assign(pe, updates)
   return true
+}
+
+// ==========================================================================
+// ---- AUTOSAVE ----
+// Every set/notes/extra-field edit and superset link/unlink used to only
+// persist when the coach pressed that day's "Save Day" button - meaning any
+// action that rebuilds a day's cards from weeksCache (like inserting a
+// section) would silently wipe out whatever was typed but not yet saved.
+// Now every edit gets written to the database on its own, a moment after
+// the coach stops typing (same "it just stays, unless you change it
+// yourself" reliability the athlete's own logging screen already has) -
+// "Save Day" still exists, but nothing is ever actually waiting on it.
+// ==========================================================================
+let autosaveTimers = {}
+
+function scheduleAutosave(peId) {
+  clearTimeout(autosaveTimers[peId])
+  autosaveTimers[peId] = setTimeout(() => flushCardSave(peId), 800)
+}
+
+async function flushCardSave(peId) {
+  clearTimeout(autosaveTimers[peId])
+  delete autosaveTimers[peId]
+  const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
+  if (!card) return true
+  const dayBlock = card.closest('.exercise-item')
+  const ids = [...dayBlock.querySelectorAll('.builder-exercise-card')].map(c => c.dataset.id)
+  const orderIndex = ids.indexOf(peId)
+  if (orderIndex === -1) return true
+  return saveExerciseCard(peId, orderIndex)
+}
+
+// Flushes every card in one day at once - used right before an action
+// rebuilds that WHOLE day's cards from weeksCache (inserting a section), so
+// nothing mid-edit on any other card in that day gets lost in the rebuild.
+async function flushAllPendingSaves(dayBlock) {
+  const ids = [...dayBlock.querySelectorAll('.builder-exercise-card')].map(c => c.dataset.id)
+  await Promise.all(ids.map((id, i) => { clearTimeout(autosaveTimers[id]); delete autosaveTimers[id]; return saveExerciseCard(id, i) }))
 }
 
 // Saves every exercise card in one day at once (see data-action="save-day")
@@ -485,6 +527,7 @@ async function saveDay(dayId) {
 
   const dayBlock = document.querySelector(`.exercise-item[data-day-id="${dayId}"]`)
   const ids = [...dayBlock.querySelectorAll('.builder-exercise-card')].map(card => card.dataset.id)
+  ids.forEach(id => { clearTimeout(autosaveTimers[id]); delete autosaveTimers[id] })
   const results = await Promise.all(ids.map(saveExerciseCard))
 
   if (results.some(ok => !ok)) {
@@ -573,6 +616,7 @@ function finalizePicking(listScopeEl) {
   })
   exitPickingMode(listScopeEl)
   ids.forEach(id => refreshSupersetBadge(listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`), listScopeEl))
+  ids.forEach(scheduleAutosave)
 }
 
 // Removes just this one card from its group (tapped via 🔗, or from
@@ -587,6 +631,8 @@ function removeFromSupersetGroup(id, listScopeEl) {
   if (remaining.length === 1) delete remaining[0].dataset.supersetGroupId
   refreshSupersetBadge(card, listScopeEl)
   remaining.forEach(c => refreshSupersetBadge(c, listScopeEl))
+  scheduleAutosave(id)
+  remaining.forEach(c => scheduleAutosave(c.dataset.id))
 }
 
 // Deterministic color per superset group id, so several groups on the
@@ -674,6 +720,7 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
 
     if (action === 'add-set') {
       addSetTargetRow(card.querySelector('.set-target-rows'), tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance)
+      scheduleAutosave(peId)
       const dayScopeEl = card.closest('.exercise-item')
       for (const other of linkedCardsFor(card, dayScopeEl)) {
         const oPe = findPE(other.dataset.id)
@@ -685,15 +732,20 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
           !!(oPe && oPe.exercises && oPe.exercises.is_unilateral),
           !!(oPe && oPe.exercises && oPe.exercises.tracks_distance)
         )
+        scheduleAutosave(other.dataset.id)
       }
     } else if (action === 'remove-set') {
       const row = btn.closest('.set-target-row')
       const setNumber = row.dataset.setNumber
       removeSetTargetRow(row)
+      scheduleAutosave(peId)
       const dayScopeEl = card.closest('.exercise-item')
       for (const other of linkedCardsFor(card, dayScopeEl)) {
         const otherRow = other.querySelector(`.set-target-row[data-set-number="${setNumber}"]`)
-        if (otherRow && other.querySelectorAll('.set-target-row').length > 1) removeSetTargetRow(otherRow)
+        if (otherRow && other.querySelectorAll('.set-target-row').length > 1) {
+          removeSetTargetRow(otherRow)
+          scheduleAutosave(other.dataset.id)
+        }
       }
     }
     else if (action === 'add-extra-field') addExtraFieldRow(`extraFields-${peId}`)
@@ -722,6 +774,20 @@ document.getElementById('weeksList').addEventListener('focusout', function(e) {
     const val = Math.min(parseInt(e.target.value) || 0, max)
     e.target.value = String(val).padStart(2, '0')
   }
+})
+
+// Any set field, note, or extra-field value - autosave the owning card a
+// moment after the coach stops typing (see scheduleAutosave above)
+const AUTOSAVE_FIELD_SELECTOR = '.set-reps-input, .set-weight-input, .set-distance-input, .set-time-mm, .set-time-ss, .exercise-notes-input, .extra-field-value'
+document.getElementById('weeksList').addEventListener('input', function(e) {
+  if (!e.target.matches(AUTOSAVE_FIELD_SELECTOR)) return
+  const card = e.target.closest('.builder-exercise-card')
+  if (card) scheduleAutosave(card.dataset.id)
+})
+document.getElementById('weeksList').addEventListener('change', function(e) {
+  if (!e.target.matches('.set-type-select')) return
+  const card = e.target.closest('.builder-exercise-card')
+  if (card) scheduleAutosave(card.dataset.id)
 })
 
 // ---- Reorder exercises within a day by dragging the ⠿ handle ----
@@ -1066,6 +1132,8 @@ document.getElementById('saveCreateExerciseBtn').addEventListener('click', async
 async function deleteExerciseRow(peId) {
   if (!(await customConfirm('Remove this exercise from the day?'))) return
 
+  clearTimeout(autosaveTimers[peId])
+  delete autosaveTimers[peId]
   const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
   if (card && card.dataset.supersetGroupId) removeFromSupersetGroup(peId, card.closest('.exercise-item'))
 
@@ -1232,6 +1300,7 @@ async function insertSectionIntoDay(sectionId, sectionName) {
   day.program_exercises.push(...inserted)
 
   const dayBlock = document.querySelector(`.exercise-item[data-day-id="${day.id}"]`)
+  await flushAllPendingSaves(dayBlock)
   const noExMsg = dayBlock.querySelector('.no-metrics')
   const html = renderExerciseListHtml(day.program_exercises)
   if (noExMsg) {

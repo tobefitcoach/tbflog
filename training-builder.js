@@ -750,26 +750,66 @@ async function saveExerciseCard(teId, orderIndex) {
   const extraFields = collectExtraFields(`extraFields-${teId}`)
   const first = setTargets[0] || { reps: null, duration: null, weight: null, rest: null }
 
-  const { error } = await supabase
-    .from('training_exercises')
-    .update({
-      set_targets: setTargets,
-      prescribed_sets: setTargets.length,
-      // Legacy single-value column, still read by places that predate the
-      // set_targets pyramid - falls back to duration so a purely-timed
-      // exercise still shows something sensible there
-      prescribed_reps: first.reps != null ? first.reps : first.duration,
-      prescribed_weight: first.weight,
-      rest_seconds: first.rest,
-      extra_fields: extraFields,
-      notes,
-      order_index: orderIndex,
-      superset_group_id: card.dataset.supersetGroupId || null
-    })
-    .eq('id', teId)
+  const updates = {
+    set_targets: setTargets,
+    prescribed_sets: setTargets.length,
+    // Legacy single-value column, still read by places that predate the
+    // set_targets pyramid - falls back to duration so a purely-timed
+    // exercise still shows something sensible there
+    prescribed_reps: first.reps != null ? first.reps : first.duration,
+    prescribed_weight: first.weight,
+    rest_seconds: first.rest,
+    extra_fields: extraFields,
+    notes,
+    order_index: orderIndex,
+    superset_group_id: card.dataset.supersetGroupId || null
+  }
+
+  const { error } = await supabase.from('training_exercises').update(updates).eq('id', teId)
 
   if (error) { console.log(error); return false }
+  // Keeps exercisesCache in sync with what's actually saved, so any action
+  // that re-renders a card from cache (Adjust Fields, Set Alternative,
+  // Adjust Exercise) reflects what was just typed instead of overwriting it
+  // with stale pre-edit data - see scheduleAutosave/flushCardSave below.
+  if (te) Object.assign(te, updates)
   return true
+}
+
+// ==========================================================================
+// ---- AUTOSAVE ----
+// Every set/notes/extra-field edit and superset link/unlink used to only
+// persist when the coach pressed the page's one big Save button - meaning
+// any of the kebab actions below (which redraw a card straight from
+// exercisesCache) would silently wipe out whatever was typed but not yet
+// saved. Now every edit gets written to the database on its own, a moment
+// after the coach stops typing (same "it just stays, unless you change it
+// yourself" reliability the athlete's own logging screen already has) -
+// the big Save button still exists for the final "I'm done" navigation,
+// but nothing is ever actually waiting on it anymore.
+// ==========================================================================
+let autosaveTimers = {}
+
+function scheduleAutosave(teId) {
+  clearTimeout(autosaveTimers[teId])
+  autosaveTimers[teId] = setTimeout(() => flushCardSave(teId), 800)
+}
+
+async function flushCardSave(teId) {
+  clearTimeout(autosaveTimers[teId])
+  delete autosaveTimers[teId]
+  const ids = [...document.querySelectorAll('#trainingExercisesList .builder-exercise-card')].map(c => c.dataset.id)
+  const orderIndex = ids.indexOf(teId)
+  if (orderIndex === -1) return true
+  return saveExerciseCard(teId, orderIndex)
+}
+
+// Flushes every card at once - used right before an action rebuilds the
+// WHOLE list from exercisesCache (Adjust Exercise, inserting a section),
+// so nothing mid-edit on any other card gets lost in that rebuild.
+async function flushAllPendingSaves() {
+  const ids = [...document.querySelectorAll('#trainingExercisesList .builder-exercise-card')].map(c => c.dataset.id)
+  await Promise.all(ids.map((id, i) => { clearTimeout(autosaveTimers[id]); delete autosaveTimers[id]; return saveExerciseCard(id, i) }))
 }
 
 // Saves every exercise card on the page at once. Standalone page: heads
@@ -783,6 +823,7 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
   btn.textContent = 'Saving...'
 
   const ids = [...document.querySelectorAll('#trainingExercisesList .builder-exercise-card')].map(card => card.dataset.id)
+  ids.forEach(id => { clearTimeout(autosaveTimers[id]); delete autosaveTimers[id] })
   const results = await Promise.all(ids.map(saveExerciseCard))
 
   if (results.some(ok => !ok)) {
@@ -806,6 +847,8 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
 async function deleteExerciseRow(id) {
   if (!(await customConfirm('Remove this exercise from the workout?'))) return
 
+  clearTimeout(autosaveTimers[id])
+  delete autosaveTimers[id]
   const card = document.querySelector(`.builder-exercise-card[data-id="${id}"]`)
   if (card && card.dataset.supersetGroupId) removeFromSupersetGroup(id, trainingDropZone)
 
@@ -898,6 +941,7 @@ function finalizePicking(listScopeEl) {
   })
   exitPickingMode(listScopeEl)
   ids.forEach(id => refreshSupersetBadge(listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)))
+  ids.forEach(scheduleAutosave)
 }
 
 // Removes just this one card from its group (tapped via 🔗, or from
@@ -912,6 +956,8 @@ function removeFromSupersetGroup(id, listScopeEl) {
   if (remaining.length === 1) delete remaining[0].dataset.supersetGroupId
   refreshSupersetBadge(card)
   remaining.forEach(refreshSupersetBadge)
+  scheduleAutosave(id)
+  remaining.forEach(c => scheduleAutosave(c.dataset.id))
 }
 
 // Deterministic color per superset group id, so several groups on the
@@ -968,6 +1014,7 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
 
   if (btn.dataset.action === 'add-set') {
     addSetTargetRow(card.querySelector('.set-target-rows'), tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance)
+    scheduleAutosave(teId)
     for (const other of linkedCardsFor(card)) {
       const oTe = exercisesCache.find(t => t.id === other.dataset.id)
       addSetTargetRow(
@@ -978,17 +1025,22 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
         !!(oTe && oTe.exercises && oTe.exercises.is_unilateral),
         !!(oTe && oTe.exercises && oTe.exercises.tracks_distance)
       )
+      scheduleAutosave(other.dataset.id)
     }
   } else if (btn.dataset.action === 'remove-set') {
     const row = btn.closest('.set-target-row')
     const setNumber = row.dataset.setNumber
     removeSetTargetRow(row)
+    scheduleAutosave(teId)
     for (const other of linkedCardsFor(card)) {
       const otherRow = other.querySelector(`.set-target-row[data-set-number="${setNumber}"]`)
       // Never drop a linked card to zero rows even if counts had somehow
       // already drifted apart - same floor the remove button's own
       // disabled state already enforces for a single card
-      if (otherRow && other.querySelectorAll('.set-target-row').length > 1) removeSetTargetRow(otherRow)
+      if (otherRow && other.querySelectorAll('.set-target-row').length > 1) {
+        removeSetTargetRow(otherRow)
+        scheduleAutosave(other.dataset.id)
+      }
     }
   } else if (btn.dataset.action === 'delete-exercise') {
     await deleteExerciseRow(teId)
@@ -1004,10 +1056,12 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
     if (!wasActive) dropdown.classList.add('active')
   } else if (btn.dataset.action === 'adjust-fields') {
     btn.closest('.kebab-dropdown').classList.remove('active')
-    openAdjustFieldsModal(te)
+    await flushCardSave(teId)
+    openAdjustFieldsModal(exercisesCache.find(t => t.id === teId))
   } else if (btn.dataset.action === 'set-alternative') {
     btn.closest('.kebab-dropdown').classList.remove('active')
-    openSetAlternativeModal(te)
+    await flushCardSave(teId)
+    openSetAlternativeModal(exercisesCache.find(t => t.id === teId))
   } else if (btn.dataset.action === 'edit-exercise') {
     btn.closest('.kebab-dropdown').classList.remove('active')
     if (te && te.exercises) openExerciseModal(te.exercises)
@@ -1184,6 +1238,20 @@ document.getElementById('trainingExercisesList').addEventListener('focusout', fu
     const val = Math.min(parseInt(e.target.value) || 0, max)
     e.target.value = String(val).padStart(2, '0')
   }
+})
+
+// Any set field, note, or extra-field value - autosave the owning card a
+// moment after the coach stops typing (see scheduleAutosave above)
+const AUTOSAVE_FIELD_SELECTOR = '.set-reps-input, .set-weight-input, .set-distance-input, .set-time-mm, .set-time-ss, .exercise-notes-input, .extra-field-value'
+document.getElementById('trainingExercisesList').addEventListener('input', function(e) {
+  if (!e.target.matches(AUTOSAVE_FIELD_SELECTOR)) return
+  const card = e.target.closest('.builder-exercise-card')
+  if (card) scheduleAutosave(card.dataset.id)
+})
+document.getElementById('trainingExercisesList').addEventListener('change', function(e) {
+  if (!e.target.matches('.set-type-select')) return
+  const card = e.target.closest('.builder-exercise-card')
+  if (card) scheduleAutosave(card.dataset.id)
 })
 
 // ==========================================================================
@@ -1372,6 +1440,12 @@ document.getElementById('saveTEditExerciseBtn').addEventListener('click', async 
   const { error } = await supabase.from('exercises').update(updates).eq('id', editingExerciseId)
   if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
 
+  // Flushed BEFORE the cache is updated with the new logging-field values
+  // below - flushing after would have every card's still-old DOM (not yet
+  // re-rendered) read against the NEW field flags, reaching for inputs
+  // (e.g. a timer box on a card that isn't timed yet) that don't exist yet
+  await flushAllPendingSaves()
+
   const cachedEx = allExercises.find(ex => ex.id === editingExerciseId)
   if (cachedEx) Object.assign(cachedEx, updates)
   allExercises.sort((a, b) => a.name.localeCompare(b.name))
@@ -1520,6 +1594,7 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 
   exercisesCache.push(...inserted)
+  await flushAllPendingSaves()
   renderExercisesList()
   document.getElementById('addSectionModal').classList.remove('active')
 }

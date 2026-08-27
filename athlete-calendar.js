@@ -731,6 +731,7 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
       !!(pe && pe.exercises && pe.exercises.is_unilateral),
       !!(pe && pe.exercises && pe.exercises.tracks_distance)
     )
+    scheduleAutosaveCal(peId)
     const dayScopeEl = card.closest('.detail-group')
     for (const other of linkedCardsForCal(card, dayScopeEl)) {
       const oPe = findScheduledPE(other.dataset.id)
@@ -742,15 +743,20 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
         !!(oPe && oPe.exercises && oPe.exercises.is_unilateral),
         !!(oPe && oPe.exercises && oPe.exercises.tracks_distance)
       )
+      scheduleAutosaveCal(other.dataset.id)
     }
   } else if (btn.dataset.action === 'remove-set') {
     const row = btn.closest('.set-target-row')
     const setNumber = row.dataset.setNumber
     removeSetTargetRowCal(row)
+    scheduleAutosaveCal(peId)
     const dayScopeEl = card.closest('.detail-group')
     for (const other of linkedCardsForCal(card, dayScopeEl)) {
       const otherRow = other.querySelector(`.set-target-row[data-set-number="${setNumber}"]`)
-      if (otherRow && other.querySelectorAll('.set-target-row').length > 1) removeSetTargetRowCal(otherRow)
+      if (otherRow && other.querySelectorAll('.set-target-row').length > 1) {
+        removeSetTargetRowCal(otherRow)
+        scheduleAutosaveCal(other.dataset.id)
+      }
     }
   } else if (btn.dataset.action === 'add-extra-field') {
     addExtraFieldRowCal(`extraFieldsSched-${peId}`)
@@ -788,6 +794,20 @@ document.getElementById('dayDetailContent').addEventListener('focusout', functio
     const val = Math.min(parseInt(e.target.value) || 0, max)
     e.target.value = String(val).padStart(2, '0')
   }
+})
+
+// Any set field, note, or extra-field value - autosave the owning card a
+// moment after the coach stops typing (see scheduleAutosaveCal above)
+const AUTOSAVE_FIELD_SELECTOR_CAL = '.set-reps-input, .set-weight-input, .set-distance-input, .set-time-mm, .set-time-ss, .exercise-notes-input, .extra-field-value'
+document.getElementById('dayDetailContent').addEventListener('input', function(e) {
+  if (!e.target.matches(AUTOSAVE_FIELD_SELECTOR_CAL)) return
+  const card = e.target.closest('.builder-exercise-card')
+  if (card) scheduleAutosaveCal(card.dataset.id)
+})
+document.getElementById('dayDetailContent').addEventListener('change', function(e) {
+  if (!e.target.matches('.set-type-select')) return
+  const card = e.target.closest('.builder-exercise-card')
+  if (card) scheduleAutosaveCal(card.dataset.id)
 })
 
 // ---- Reorder exercises within a day-entry group by dragging the ⠿ handle ----
@@ -916,23 +936,54 @@ async function saveScheduledExercise(peId, orderIndex) {
   const extraFields = collectExtraFieldsCal(`extraFieldsSched-${peId}`)
   const first = setTargets[0] || { reps: null, duration: null, weight: null, rest: null }
 
-  const { error } = await supabase
-    .from('program_exercises')
-    .update({
-      set_targets: setTargets,
-      prescribed_sets: setTargets.length,
-      prescribed_reps: first.reps != null ? first.reps : first.duration,
-      prescribed_weight: first.weight,
-      rest_seconds: first.rest,
-      extra_fields: extraFields,
-      notes,
-      order_index: orderIndex,
-      superset_group_id: card.dataset.supersetGroupId || null
-    })
-    .eq('id', peId)
+  const updates = {
+    set_targets: setTargets,
+    prescribed_sets: setTargets.length,
+    prescribed_reps: first.reps != null ? first.reps : first.duration,
+    prescribed_weight: first.weight,
+    rest_seconds: first.rest,
+    extra_fields: extraFields,
+    notes,
+    order_index: orderIndex,
+    superset_group_id: card.dataset.supersetGroupId || null
+  }
+
+  const { error } = await supabase.from('program_exercises').update(updates).eq('id', peId)
 
   if (error) { console.log(error); return false }
+  // Keeps calendarEntriesByDate in sync with what's actually saved - see
+  // scheduleAutosaveCal/flushCardSaveCal below.
+  if (pe) Object.assign(pe, updates)
   return true
+}
+
+// ==========================================================================
+// ---- AUTOSAVE ----
+// Every set/notes/extra-field edit and superset link/unlink used to only
+// persist when the coach pressed a day's "Save" button - matching the same
+// "it just stays, unless you change it yourself" reliability the athlete's
+// own logging screen already has, every edit here now gets written to the
+// database on its own, a moment after the coach stops typing. "Save" still
+// exists (it's what closes the modal), but nothing is ever actually
+// waiting on it to persist anymore.
+// ==========================================================================
+let autosaveTimersCal = {}
+
+function scheduleAutosaveCal(peId) {
+  clearTimeout(autosaveTimersCal[peId])
+  autosaveTimersCal[peId] = setTimeout(() => flushCardSaveCal(peId), 800)
+}
+
+async function flushCardSaveCal(peId) {
+  clearTimeout(autosaveTimersCal[peId])
+  delete autosaveTimersCal[peId]
+  const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
+  if (!card) return true
+  const group = card.closest('.detail-group')
+  const ids = [...group.querySelectorAll('.builder-exercise-card')].map(c => c.dataset.id)
+  const orderIndex = ids.indexOf(peId)
+  if (orderIndex === -1) return true
+  return saveScheduledExercise(peId, orderIndex)
 }
 
 // ==========================================================================
@@ -1012,6 +1063,7 @@ function finalizePickingCal(listScopeEl) {
   })
   exitPickingModeCal(listScopeEl)
   ids.forEach(id => refreshSupersetBadgeCal(listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`), listScopeEl))
+  ids.forEach(scheduleAutosaveCal)
 }
 
 // Removes just this one card from its group (tapped via 🔗, or from the
@@ -1026,6 +1078,8 @@ function removeFromSupersetGroupCal(id, listScopeEl) {
   if (remaining.length === 1) delete remaining[0].dataset.supersetGroupId
   refreshSupersetBadgeCal(card, listScopeEl)
   remaining.forEach(c => refreshSupersetBadgeCal(c, listScopeEl))
+  scheduleAutosaveCal(id)
+  remaining.forEach(c => scheduleAutosaveCal(c.dataset.id))
 }
 
 // Deterministic color per superset group id, so several groups on the
@@ -1070,6 +1124,7 @@ async function saveScheduledDay(groupEl) {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving...' }
 
   const cardIds = [...groupEl.querySelectorAll('.builder-exercise-card')].map(card => card.dataset.id)
+  cardIds.forEach(id => { clearTimeout(autosaveTimersCal[id]); delete autosaveTimersCal[id] })
   const results = await Promise.all(cardIds.map(saveScheduledExercise))
 
   if (results.some(ok => !ok)) {
@@ -1114,6 +1169,8 @@ function switchGroupToEditCal(groupEl) {
 async function deleteScheduledExercise(peId) {
   if (!(await customConfirm('Remove this exercise?'))) return
 
+  clearTimeout(autosaveTimersCal[peId])
+  delete autosaveTimersCal[peId]
   const card = document.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
   if (card && card.dataset.supersetGroupId) removeFromSupersetGroupCal(peId, card.closest('.detail-group'))
 
