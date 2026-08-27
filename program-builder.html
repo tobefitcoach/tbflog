@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=28" />
-    <link rel="stylesheet" href="athlete.css?v=52" />
+    <link rel="stylesheet" href="athlete.css?v=53" />
   </head>
   <body>
 
@@ -50,6 +50,18 @@
             <button class="btn-add" id="addWeekBtn">+ Add Week</button>
           </div>
         </div>
+        <!-- Weeks page 4-at-a-time, same paging pattern as the athlete
+             calendar's month view - see renderWeekNav() in
+             program-builder.js. Clicking a tile shows that week's days
+             below in #weeksList (only ever one week's worth at a time, so
+             the page doesn't turn into one long scroll for a many-week
+             program). -->
+        <div class="week-page-nav">
+          <button class="btn-cancel" id="weekPagePrevBtn">← Prev</button>
+          <h3 id="weekPageLabel">&nbsp;</h3>
+          <button class="btn-cancel" id="weekPageNextBtn">Next →</button>
+        </div>
+        <div class="week-tile-grid" id="weekTileGrid"></div>
         <div id="weeksList"></div>
       </div>
     </div>
@@ -212,7 +224,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=32"></script>
+    <script type="module" src="program-builder.js?v=33"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

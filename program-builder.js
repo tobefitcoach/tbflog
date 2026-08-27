@@ -20,6 +20,13 @@ let weeksCache = [] // last-loaded weeks (with nested days/exercises), used to c
 let currentWeekIdForAddDay = null
 let currentDayIdForAddExercise = null
 
+// Weeks page 4-at-a-time (same paging pattern as the athlete calendar's
+// month view) instead of stacking every week's days on one long page -
+// only the selected week's days are ever rendered into #weeksList.
+const WEEKS_PER_PAGE = 4
+let currentWeekPage = 0
+let selectedWeekId = null
+
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
   window.location.href = 'login.html'
@@ -291,49 +298,139 @@ async function loadWeeks() {
   })
 
   weeksCache = data
-  renderWeeks(weeksCache)
+  if (!selectedWeekId || !weeksCache.some(w => w.id === selectedWeekId)) {
+    selectedWeekId = weeksCache.length ? weeksCache[0].id : null
+    currentWeekPage = 0
+  }
+  renderWeekNav()
 }
 
-function renderWeeks(weeks) {
-  const container = document.getElementById('weeksList')
+// ==========================================================================
+// ---- WEEK PAGER (4 weeks at a time) + SELECTED WEEK'S DAYS ----
+// ==========================================================================
+function renderWeekNav() {
+  const totalPages = Math.max(1, Math.ceil(weeksCache.length / WEEKS_PER_PAGE))
+  if (currentWeekPage >= totalPages) currentWeekPage = totalPages - 1
+  if (currentWeekPage < 0) currentWeekPage = 0
 
-  if (weeks.length === 0) {
-    container.innerHTML = '<p class="no-metrics">No weeks yet — click "+ Add Week" to get started</p>'
+  const startIdx = currentWeekPage * WEEKS_PER_PAGE
+  const pageWeeks = weeksCache.slice(startIdx, startIdx + WEEKS_PER_PAGE)
+
+  const label = document.getElementById('weekPageLabel')
+  if (!pageWeeks.length) {
+    label.textContent = 'No weeks yet'
+  } else {
+    const first = pageWeeks[0].week_number
+    const last = pageWeeks[pageWeeks.length - 1].week_number
+    label.textContent = first === last ? `Week ${first}` : `Weeks ${first}–${last}`
+  }
+  document.getElementById('weekPagePrevBtn').disabled = currentWeekPage === 0
+  document.getElementById('weekPageNextBtn').disabled = currentWeekPage >= totalPages - 1
+
+  const grid = document.getElementById('weekTileGrid')
+  grid.innerHTML = pageWeeks.length
+    ? pageWeeks.map(renderWeekTile).join('')
+    : '<p class="no-metrics">No weeks yet — click "+ Add Week" to get started</p>'
+
+  renderSelectedWeekDays()
+}
+
+// Used after a day is added/removed - only that one tile's day-count needs
+// to catch up, not a full renderWeekNav() (which would also touch page
+// bounds/flush pending saves unnecessarily for an action that's already
+// happening from inside the currently-selected week)
+function refreshWeekTile(weekId) {
+  const week = weeksCache.find(w => w.id === weekId)
+  if (!week) return
+  const tile = document.querySelector(`#weekTileGrid .week-tile[data-week-id="${weekId}"]`)
+  if (tile) tile.outerHTML = renderWeekTile(week)
+}
+
+function renderWeekTile(week) {
+  const dayCount = week.program_days.length
+  return `
+    <div class="week-tile ${week.id === selectedWeekId ? 'active' : ''}" data-action="select-week" data-week-id="${week.id}">
+      <span class="week-tile-number">Week ${week.week_number}</span>
+      <span class="week-tile-days">${dayCount} day${dayCount === 1 ? '' : 's'}</span>
+      <button type="button" class="week-tile-delete" data-action="delete-week" data-week-id="${week.id}" title="Delete week">✕</button>
+    </div>
+  `
+}
+
+function renderSelectedWeekDays() {
+  const container = document.getElementById('weeksList')
+  const week = weeksCache.find(w => w.id === selectedWeekId)
+
+  if (!week) {
+    // Nothing to show below the tile grid - either there are no weeks at
+    // all (that empty state already shows in the tile grid itself, right
+    // above this) or nothing's selected yet
+    container.innerHTML = ''
     return
   }
 
-  container.innerHTML = weeks.map(renderWeekBlock).join('')
-
-  // innerHTML wipes any dynamically-built children, so extra field rows
-  // (built with document.createElement, not template strings) get
-  // re-populated here for every card, same as the old edit modal did
-  for (const week of weeks) {
-    for (const day of week.program_days) {
-      for (const pe of day.program_exercises) {
-        if (pe.extra_fields) {
-          for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRow(`extraFields-${pe.id}`, k, v)
-        }
-      }
-    }
-  }
-}
-
-function renderWeekBlock(week) {
-  return `
+  container.innerHTML = `
     <div class="metric-category" data-week-id="${week.id}">
       <div class="metrics-header">
         <h3 class="category-title">Week ${week.week_number}</h3>
-        <div style="display:flex; gap:8px">
-          <button class="btn-profile-action" data-action="add-day" data-week-id="${week.id}">+ Add Day</button>
-          <button class="btn-delete-metric" data-action="delete-week" data-week-id="${week.id}">Delete Week</button>
-        </div>
+        <button class="btn-profile-action" data-action="add-day" data-week-id="${week.id}">+ Add Day</button>
       </div>
       ${week.program_days.length === 0
         ? '<p class="no-metrics">No days yet</p>'
         : week.program_days.map(renderDayBlock).join('')}
     </div>
   `
+
+  // innerHTML wipes any dynamically-built children, so extra field rows
+  // (built with document.createElement, not template strings) get
+  // re-populated here for every card, same as the old edit modal did
+  for (const day of week.program_days) {
+    for (const pe of day.program_exercises) {
+      if (pe.extra_fields) {
+        for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRow(`extraFields-${pe.id}`, k, v)
+      }
+    }
+  }
 }
+
+// Flushes every card currently on screen (the selected week's days) before
+// switching away - paging, selecting a different week, or deleting one -
+// so nothing mid-edit gets lost when #weeksList gets replaced.
+async function flushVisibleDayCards() {
+  const dayBlocks = [...document.querySelectorAll('#weeksList .exercise-item')]
+  await Promise.all(dayBlocks.map(flushAllPendingSaves))
+}
+
+async function selectWeek(weekId) {
+  if (weekId === selectedWeekId) return
+  await flushVisibleDayCards()
+  selectedWeekId = weekId
+  renderWeekNav()
+}
+
+document.getElementById('weekTileGrid').addEventListener('click', async function(e) {
+  const deleteBtn = e.target.closest('[data-action="delete-week"]')
+  if (deleteBtn) { await deleteWeek(deleteBtn.dataset.weekId); return }
+
+  const tile = e.target.closest('[data-action="select-week"]')
+  if (tile) await selectWeek(tile.dataset.weekId)
+})
+
+document.getElementById('weekPagePrevBtn').addEventListener('click', async function() {
+  await flushVisibleDayCards()
+  currentWeekPage--
+  const startIdx = currentWeekPage * WEEKS_PER_PAGE
+  selectedWeekId = weeksCache[startIdx] ? weeksCache[startIdx].id : null
+  renderWeekNav()
+})
+
+document.getElementById('weekPageNextBtn').addEventListener('click', async function() {
+  await flushVisibleDayCards()
+  currentWeekPage++
+  const startIdx = currentWeekPage * WEEKS_PER_PAGE
+  selectedWeekId = weeksCache[startIdx] ? weeksCache[startIdx].id : null
+  renderWeekNav()
+})
 
 // One header per run of consecutive exercises sharing the same non-null
 // section_label - list must already be sorted by order_index. Manually/
@@ -702,7 +799,6 @@ document.getElementById('weeksList').addEventListener('click', async function(e)
   const action = btn.dataset.action
 
   if (action === 'add-day') openAddDayModal(btn.dataset.weekId)
-  else if (action === 'delete-week') deleteWeek(btn.dataset.weekId)
   else if (action === 'add-exercise') openExercisePickerModal(btn.dataset.dayId)
   else if (action === 'add-section') openAddSectionModal(btn.dataset.dayId)
   else if (action === 'delete-day') deleteDay(btn.dataset.dayId)
@@ -860,9 +956,9 @@ document.getElementById('weeksList').addEventListener('dragend', function() {
 // ==========================================================================
 // ---- ADD / DELETE WEEK ----
 // ==========================================================================
-// Appends just the new week block instead of reloading + re-rendering the
-// whole tree, so any unsaved edits sitting in other days' cards aren't
-// wiped out by the refresh
+// Jumps to whichever page the new week lands on and selects it, so the
+// coach immediately sees the week they just added instead of having to
+// page forward to find it themselves.
 document.getElementById('addWeekBtn').addEventListener('click', async function() {
   const nextNumber = weeksCache.length ? Math.max(...weeksCache.map(w => w.week_number)) + 1 : 1
 
@@ -873,30 +969,38 @@ document.getElementById('addWeekBtn').addEventListener('click', async function()
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
+  await flushVisibleDayCards()
   const newWeek = { ...data[0], program_days: [] }
   weeksCache.push(newWeek)
-
-  const container = document.getElementById('weeksList')
-  if (weeksCache.length === 1) {
-    container.innerHTML = renderWeekBlock(newWeek)
-  } else {
-    container.insertAdjacentHTML('beforeend', renderWeekBlock(newWeek))
-  }
+  currentWeekPage = Math.floor((weeksCache.length - 1) / WEEKS_PER_PAGE)
+  selectedWeekId = newWeek.id
+  renderWeekNav()
 })
 
-// Removes just this one week block instead of reloading the whole tree
+// Removes just this one week - if it was the selected one, falls back to
+// whichever week now leads the current page (or the last page, if deleting
+// left the current page past the end)
 async function deleteWeek(weekId) {
   if (!(await customConfirm('Delete this week and everything in it?'))) return
 
   const { error } = await supabase.from('program_weeks').delete().eq('id', weekId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
+  const wasSelected = weekId === selectedWeekId
   weeksCache = weeksCache.filter(w => w.id !== weekId)
-  const block = document.querySelector(`.metric-category[data-week-id="${weekId}"]`)
-  if (block) block.remove()
-  if (weeksCache.length === 0) {
-    document.getElementById('weeksList').innerHTML = '<p class="no-metrics">No weeks yet — click "+ Add Week" to get started</p>'
+
+  // renderWeekNav() below always re-renders #weeksList (whichever week is
+  // currently selected, deleted or not), so anything mid-edit there needs
+  // flushing regardless of which week was just deleted
+  await flushVisibleDayCards()
+
+  const totalPages = Math.max(1, Math.ceil(weeksCache.length / WEEKS_PER_PAGE))
+  if (currentWeekPage >= totalPages) currentWeekPage = totalPages - 1
+  if (wasSelected) {
+    const startIdx = currentWeekPage * WEEKS_PER_PAGE
+    selectedWeekId = weeksCache[startIdx] ? weeksCache[startIdx].id : null
   }
+  renderWeekNav()
 }
 
 // ==========================================================================
@@ -936,6 +1040,7 @@ document.getElementById('saveAddDayBtn').addEventListener('click', async functio
   } else {
     weekBlock.insertAdjacentHTML('beforeend', renderDayBlock(newDay))
   }
+  refreshWeekTile(week.id)
 
   document.getElementById('addDayModal').classList.remove('active')
 })
@@ -957,6 +1062,7 @@ async function deleteDay(dayId) {
       const weekBlock = document.querySelector(`.metric-category[data-week-id="${week.id}"]`)
       if (weekBlock) weekBlock.insertAdjacentHTML('beforeend', '<p class="no-metrics">No days yet</p>')
     }
+    refreshWeekTile(week.id)
     break
   }
 }

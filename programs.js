@@ -105,6 +105,7 @@ function createTemplateCard(template) {
 // ==========================================================================
 document.getElementById('newTemplateBtn').addEventListener('click', function() {
   document.getElementById('newTemplateName').value = ''
+  document.getElementById('newTemplateWeeks').value = '4'
   document.getElementById('newTemplateModal').classList.add('active')
 })
 
@@ -114,6 +115,7 @@ document.getElementById('cancelNewTemplateBtn').addEventListener('click', functi
 
 document.getElementById('saveNewTemplateBtn').addEventListener('click', async function() {
   const name = document.getElementById('newTemplateName').value.trim()
+  const weekCount = Math.max(1, Math.min(52, parseInt(document.getElementById('newTemplateWeeks').value) || 1))
   if (!name) { customAlert('Please enter a name'); return }
 
   const { data, error } = await supabase
@@ -126,6 +128,12 @@ document.getElementById('saveNewTemplateBtn').addEventListener('click', async fu
     customAlert('Something went wrong')
     return
   }
+
+  const { error: weeksError } = await supabase
+    .from('program_weeks')
+    .insert(Array.from({ length: weekCount }, (_, i) => ({ program_id: data[0].id, week_number: i + 1 })))
+
+  if (weeksError) { console.log('Error creating weeks:', weeksError) } // non-fatal - the builder's own "+ Add Week" still works if this failed
 
   window.location.href = `program-builder.html?id=${data[0].id}`
 })
