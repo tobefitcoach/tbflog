@@ -1722,6 +1722,7 @@ async function loadExerciseLibrary() {
   const { data, error } = await saveWithRetry((signal) => supabase
     .from('exercises')
     .select('*')
+    .eq('archived', false)
     .order('name')
     .abortSignal(signal)
   )

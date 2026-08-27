@@ -1719,3 +1719,20 @@ alter table section_exercises add column if not exists is_timed_override boolean
 alter table section_exercises add column if not exists is_unilateral_override boolean;
 alter table section_exercises add column if not exists tracks_distance_override boolean;
 alter table section_exercises add column if not exists alternative_exercise_id uuid references exercises(id);
+
+-- ==========================================================================
+-- Deleting an exercise used to hard-fail (Postgres 23503) the moment it was
+-- referenced by any training_exercises/program_exercises/section_exercises
+-- row, since none of those FKs cascade - the coach had to go track down and
+-- remove every reference by hand first. Now: template rows (training/section
+-- library - no "done" concept) and not-yet-logged scheduled rows get
+-- deleted along with it automatically; a scheduled row that already has
+-- exercise_log_sets logged against it is left alone so the athlete's
+-- history stays intact. The exercises row itself is never hard-deleted
+-- anymore (archived instead) specifically so those surviving history rows
+-- keep a valid, name-resolving reference - see deleteExercise() in
+-- exercises.js. Archived exercises are filtered out of the Library and
+-- every "add exercise" picker from here on, which is functionally the same
+-- as being deleted. No RLS change needed - not column-scoped.
+-- ==========================================================================
+alter table exercises add column if not exists archived boolean not null default false;

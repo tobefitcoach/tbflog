@@ -55,7 +55,7 @@ async function loadProgram() {
 // ---- EXERCISE LIBRARY CACHE (for the "Add Exercise" picker dropdown) ----
 // ==========================================================================
 async function loadAllExercises() {
-  const { data, error } = await fetchWithRetry((signal) => supabase.from('exercises').select('*').order('name').abortSignal(signal))
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('exercises').select('*').eq('archived', false).order('name').abortSignal(signal))
   if (error) { console.log('Error loading exercises:', error); customAlert('Something went wrong loading the exercise library - check your connection and try again'); return }
   allExercises = data
   populateExerciseSelect()

@@ -28,6 +28,7 @@ async function loadExercises() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('exercises')
     .select('*')
+    .eq('archived', false)
     .order('name')
     .abortSignal(signal)
   )
@@ -354,28 +355,61 @@ document.getElementById('saveExerciseBtn').addEventListener('click', async funct
 
 // ==========================================================================
 // ---- DELETE ----
-// exercise_id on program_exercises has no cascade, so deleting an exercise
-// that's used in a program fails with Postgres error 23503 (foreign key
-// violation) - caught below and shown as a friendly message instead of the
-// generic "Something went wrong"
+// Never a hard delete of the exercises row itself (archived instead) - a
+// scheduled instance that already has logged sets keeps referencing this
+// row for its history to display correctly, so the row has to keep
+// existing. What DOES get removed outright: template rows (Workout/Section
+// Library have no "done" concept) and scheduled rows with zero logged sets
+// (nothing to lose - the athlete never touched it). Archived exercises are
+// filtered out of the Library and every "add exercise" picker, which is
+// functionally the same as being deleted.
 // ==========================================================================
 async function deleteExercise(id) {
-  if (!(await customConfirm('Delete this exercise?'))) return
-
-  const { error } = await supabase
-    .from('exercises')
-    .delete()
-    .eq('id', id)
-
-  if (error) {
-    console.log(error)
-    if (error.code === '23503') {
-      customAlert("This exercise is used in one or more programs and can't be deleted. Remove it from those programs first.")
-    } else {
-      customAlert('Something went wrong')
-    }
+  const [
+    { count: trainingCount, error: trainingErr },
+    { count: sectionCount, error: sectionErr },
+    { data: scheduledRows, error: scheduledErr }
+  ] = await Promise.all([
+    supabase.from('training_exercises').select('id', { count: 'exact', head: true }).eq('exercise_id', id),
+    supabase.from('section_exercises').select('id', { count: 'exact', head: true }).eq('exercise_id', id),
+    supabase.from('program_exercises').select('id, exercise_log_sets(id)').eq('exercise_id', id)
+  ])
+  if (trainingErr || sectionErr || scheduledErr) {
+    console.log(trainingErr || sectionErr || scheduledErr)
+    customAlert('Something went wrong')
     return
   }
+
+  const scheduledWithLogs = scheduledRows.filter(pe => pe.exercise_log_sets && pe.exercise_log_sets.length > 0)
+  const scheduledWithoutLogs = scheduledRows.filter(pe => !pe.exercise_log_sets || pe.exercise_log_sets.length === 0)
+  const templateCount = (trainingCount || 0) + (sectionCount || 0)
+
+  let message = 'Delete this exercise?'
+  if (templateCount > 0 || scheduledWithoutLogs.length > 0 || scheduledWithLogs.length > 0) {
+    const usedParts = []
+    if (templateCount > 0) usedParts.push(`${templateCount} template${templateCount === 1 ? '' : 's'}`)
+    if (scheduledWithoutLogs.length > 0) usedParts.push(`${scheduledWithoutLogs.length} upcoming workout${scheduledWithoutLogs.length === 1 ? '' : 's'}`)
+    message = usedParts.length
+      ? `This exercise is used in ${usedParts.join(' and ')} - it'll be removed from ${usedParts.length === 1 ? 'there' : 'those'} too.${scheduledWithLogs.length ? ' It\'ll stay in athlete history for anything already logged.' : ''} Delete it?`
+      : `This exercise has logged history with one or more athletes - it'll stay in their history, but won't be usable for new workouts anymore. Delete it?`
+  }
+  if (!(await customConfirm(message))) return
+
+  if (trainingCount > 0) {
+    const { error } = await supabase.from('training_exercises').delete().eq('exercise_id', id)
+    if (error) { console.log(error); customAlert('Something went wrong'); return }
+  }
+  if (sectionCount > 0) {
+    const { error } = await supabase.from('section_exercises').delete().eq('exercise_id', id)
+    if (error) { console.log(error); customAlert('Something went wrong'); return }
+  }
+  if (scheduledWithoutLogs.length > 0) {
+    const { error } = await supabase.from('program_exercises').delete().in('id', scheduledWithoutLogs.map(pe => pe.id))
+    if (error) { console.log(error); customAlert('Something went wrong'); return }
+  }
+
+  const { error } = await supabase.from('exercises').update({ archived: true }).eq('id', id)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   loadExercises()
 }
