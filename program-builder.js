@@ -206,10 +206,35 @@ function linkedCardsFor(card, dayScopeEl) {
   return [...dayScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
 }
 
+// Reads a set row's current (possibly-edited) field values, so a new set
+// added below it starts from what's already there instead of always blank -
+// an untouched row's inputs are still at their blank defaults, so this
+// naturally stays blank too when nothing was filled in yet.
+function readSetRowValues(rowEl) {
+  if (!rowEl) return { reps: null, duration: null, weight: null, rest: null, distance: null, type: 'main' }
+  const repsInput = rowEl.querySelector('.set-reps-input')
+  const weightInput = rowEl.querySelector('.set-weight-input')
+  const distanceInput = rowEl.querySelector('.set-distance-input')
+  const typeSelect = rowEl.querySelector('.set-type-select')
+  const timeMm = rowEl.querySelector('.set-time-mm:not(.set-rest-mm)')
+  const timeSs = rowEl.querySelector('.set-time-ss:not(.set-rest-ss)')
+  const restMm = rowEl.querySelector('.set-rest-mm')
+  const restSs = rowEl.querySelector('.set-rest-ss')
+  return {
+    reps: repsInput ? repsInput.value : null,
+    duration: timeMm ? `${timeMm.value}:${timeSs.value}` : null,
+    weight: weightInput && weightInput.value !== '' ? weightInput.value : null,
+    distance: distanceInput && distanceInput.value !== '' ? distanceInput.value : null,
+    rest: restMm ? `${restMm.value}:${restSs.value}` : null,
+    type: typeSelect ? typeSelect.value : 'main'
+  }
+}
+
 function addSetTargetRow(rowsEl, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, { reps: null, duration: null, weight: null, rest: null, distance: null, type: 'main' }, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, false))
+  const carryOver = readSetRowValues(rows[rows.length - 1])
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, carryOver, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, false))
 }
 
 // Removal can happen from the middle of the list, so every remaining row
