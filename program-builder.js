@@ -338,7 +338,10 @@ function renderProgramWeekSection(week) {
   return `
     <div class="program-week-heading" data-week-id="${week.id}">
       <h4>Week ${week.week_number}</h4>
-      <button type="button" class="program-week-delete" data-action="delete-week" data-week-id="${week.id}" title="Delete week">✕</button>
+      <div style="display:flex; gap:4px">
+        <button type="button" class="program-week-copy" data-action="copy-week" data-week-id="${week.id}" title="Copy week">⧉</button>
+        <button type="button" class="program-week-delete" data-action="delete-week" data-week-id="${week.id}" title="Delete week">✕</button>
+      </div>
     </div>
     <div class="program-day-row">
       ${[1, 2, 3, 4, 5, 6, 7].map(dayNumber => renderProgramDayCell(week, dayNumber)).join('')}
@@ -349,14 +352,28 @@ function renderProgramWeekSection(week) {
 function renderProgramDayCell(week, dayNumber) {
   const day = week.program_days.find(d => d.day_number === dayNumber)
   const hasContent = day && (day.label || day.program_exercises.length > 0)
-  const badge = hasContent
+  const badgeLabel = hasContent
     ? (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`)
     : ''
+
+  const badges = hasContent ? `
+    <div class="calendar-day-badges">
+      <div class="calendar-day-badge-row">
+        <span class="calendar-day-badge calendar-day-badge-planned">${badgeLabel}</span>
+        <div class="kebab-menu calendar-badge-kebab">
+          <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
+          <div class="kebab-dropdown">
+            <button type="button" class="kebab-item" data-action="copy-day" data-day-id="${day.id}">Copy to another day</button>
+            <button type="button" class="kebab-item" data-action="delete-day-cell" data-day-id="${day.id}">Delete Workout</button>
+          </div>
+        </div>
+      </div>
+    </div>` : ''
 
   return `
     <div class="calendar-day" data-action="open-day" data-week-id="${week.id}" data-day-number="${dayNumber}">
       <button type="button" class="calendar-day-add-btn" data-action="quick-add-day" data-week-id="${week.id}" data-day-number="${dayNumber}" title="Add a workout">+</button>
-      ${badge ? `<div class="calendar-day-badges"><span class="calendar-day-badge calendar-day-badge-planned">${badge}</span></div>` : ''}
+      ${badges}
     </div>
   `
 }
@@ -389,6 +406,38 @@ document.getElementById('programWeeksGrid').addEventListener('click', async func
   const deleteBtn = e.target.closest('[data-action="delete-week"]')
   if (deleteBtn) { await deleteWeek(deleteBtn.dataset.weekId); return }
 
+  const copyWeekBtn = e.target.closest('[data-action="copy-week"]')
+  if (copyWeekBtn) { openCopyWeekModal(copyWeekBtn.dataset.weekId); return }
+
+  // Kebab (⋮) actions on a day cell's badge - each stops propagation so it
+  // never also triggers the cell's own click (open-day), same reasoning as
+  // quick-add-day below
+  const kebabBtn = e.target.closest('[data-action="toggle-kebab"]')
+  if (kebabBtn) {
+    e.stopPropagation()
+    const dropdown = kebabBtn.parentElement.querySelector('.kebab-dropdown')
+    const wasActive = dropdown.classList.contains('active')
+    document.querySelectorAll('#programWeeksGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+    if (!wasActive) dropdown.classList.add('active')
+    return
+  }
+
+  const copyDayBtn = e.target.closest('[data-action="copy-day"]')
+  if (copyDayBtn) {
+    e.stopPropagation()
+    copyDayBtn.closest('.kebab-dropdown').classList.remove('active')
+    openCopyProgramDayModal(copyDayBtn.dataset.dayId)
+    return
+  }
+
+  const deleteDayBtn = e.target.closest('[data-action="delete-day-cell"]')
+  if (deleteDayBtn) {
+    e.stopPropagation()
+    deleteDayBtn.closest('.kebab-dropdown').classList.remove('active')
+    await deleteDay(deleteDayBtn.dataset.dayId)
+    return
+  }
+
   // Separate handler + stopPropagation so clicking "+" doesn't also
   // trigger the cell's own click (which opens the full day-detail modal)
   const quickAddBtn = e.target.closest('[data-action="quick-add-day"]')
@@ -404,6 +453,13 @@ document.getElementById('programWeeksGrid').addEventListener('click', async func
     const day = await findOrCreateProgramDay(cell.dataset.weekId, parseInt(cell.dataset.dayNumber))
     if (day) openProgramDayModal(day.id)
   }
+})
+
+// Kebab dropdowns on the grid close on outside click (mirrors the same
+// pattern in training-builder.js and athlete-calendar.js)
+document.addEventListener('click', function(e) {
+  if (e.target.closest('#programWeeksGrid .kebab-menu')) return
+  document.querySelectorAll('#programWeeksGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
 })
 
 document.getElementById('weekPagePrevBtn').addEventListener('click', function() {
@@ -1601,6 +1657,137 @@ async function insertTrainingIntoDay(trainingId, trainingName) {
     refreshDayCellFor(day.id)
   }
 }
+
+// ==========================================================================
+// ---- COPY A DAY'S EXERCISES ONTO ANOTHER DAY (⋮ menu on a grid cell,
+// and "Copy full week" below) ----
+// Appends sourceDay's exercises onto targetDay - never overwrites, always
+// appends after whatever's already there (same order_index-offset +
+// superset/section id remap as insertTrainingIntoDay above), so copying can
+// never destroy existing work already on the target day.
+// ==========================================================================
+async function cloneProgramDayExercises(sourceDay, targetDay) {
+  const { data: sourceExercises, error } = await supabase.from('program_exercises').select('*').eq('day_id', sourceDay.id)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+  sourceExercises.sort((a, b) => a.order_index - b.order_index)
+  if (sourceExercises.length === 0) return
+
+  const baseOrder = targetDay.program_exercises.length ? Math.max(...targetDay.program_exercises.map(pe => pe.order_index)) + 1 : 0
+  const groupIdMap = {}
+  const sectionInstanceMap = {}
+  for (const pe of sourceExercises) {
+    if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
+    if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
+  }
+
+  const { data: inserted, error: insertError } = await supabase.from('program_exercises').insert(
+    sourceExercises.map((pe, i) => ({
+      day_id: targetDay.id, exercise_id: pe.exercise_id, order_index: baseOrder + i,
+      prescribed_sets: pe.prescribed_sets, prescribed_reps: pe.prescribed_reps, prescribed_weight: pe.prescribed_weight,
+      rest_seconds: pe.rest_seconds, extra_fields: pe.extra_fields, set_targets: pe.set_targets, notes: pe.notes,
+      section_label: pe.section_label,
+      section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
+      superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
+      tracks_weight_override: pe.tracks_weight_override,
+      is_timed_override: pe.is_timed_override,
+      is_unilateral_override: pe.is_unilateral_override,
+      tracks_distance_override: pe.tracks_distance_override,
+      alternative_exercise_id: pe.alternative_exercise_id
+    }))
+  ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+  targetDay.program_exercises.push(...inserted)
+
+  if (!targetDay.label && sourceDay.label) {
+    const { error: labelError } = await supabase.from('program_days').update({ label: sourceDay.label }).eq('id', targetDay.id)
+    if (!labelError) targetDay.label = sourceDay.label
+  }
+}
+
+let copyDaySourceId = null
+
+function openCopyProgramDayModal(dayId) {
+  copyDaySourceId = dayId
+  const weekSelect = document.getElementById('copyDayWeekSelect')
+  weekSelect.innerHTML = weeksCache.map(w => `<option value="${w.id}">Week ${w.week_number}</option>`).join('')
+  document.getElementById('copyDayDaySelect').value = '1'
+  document.getElementById('copyProgramDayModal').classList.add('active')
+}
+
+document.getElementById('cancelCopyProgramDayBtn').addEventListener('click', function() {
+  document.getElementById('copyProgramDayModal').classList.remove('active')
+})
+
+document.getElementById('saveCopyProgramDayBtn').addEventListener('click', async function() {
+  const sourceDay = findDay(copyDaySourceId)
+  if (!sourceDay) return
+  const targetWeekId = document.getElementById('copyDayWeekSelect').value
+  const targetDayNumber = parseInt(document.getElementById('copyDayDaySelect').value)
+
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Copying...'
+  const targetDay = await findOrCreateProgramDay(targetWeekId, targetDayNumber)
+  if (targetDay) await cloneProgramDayExercises(sourceDay, targetDay)
+  btn.disabled = false
+  btn.textContent = 'Copy'
+
+  document.getElementById('copyProgramDayModal').classList.remove('active')
+  renderWeekNav()
+})
+
+// ==========================================================================
+// ---- COPY A FULL WEEK ----
+// ==========================================================================
+let copyWeekSourceId = null
+
+function openCopyWeekModal(weekId) {
+  copyWeekSourceId = weekId
+  const otherWeeks = weeksCache.filter(w => w.id !== weekId)
+  const select = document.getElementById('copyWeekTarget')
+  const emptyMsg = document.getElementById('copyWeekEmptyMsg')
+  const saveBtn = document.getElementById('saveCopyWeekBtn')
+
+  if (otherWeeks.length === 0) {
+    select.style.display = 'none'
+    emptyMsg.style.display = 'block'
+    saveBtn.disabled = true
+  } else {
+    select.style.display = ''
+    emptyMsg.style.display = 'none'
+    saveBtn.disabled = false
+    select.innerHTML = otherWeeks.map(w => `<option value="${w.id}">Week ${w.week_number}</option>`).join('')
+  }
+
+  document.getElementById('copyWeekModal').classList.add('active')
+}
+
+document.getElementById('cancelCopyWeekBtn').addEventListener('click', function() {
+  document.getElementById('copyWeekModal').classList.remove('active')
+})
+
+document.getElementById('saveCopyWeekBtn').addEventListener('click', async function() {
+  const targetWeekId = document.getElementById('copyWeekTarget').value
+  if (!targetWeekId) return
+  const sourceWeek = findWeek(copyWeekSourceId)
+  const targetWeek = findWeek(targetWeekId)
+  if (!sourceWeek || !targetWeek) return
+
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Copying...'
+  for (let dayNumber = 1; dayNumber <= 7; dayNumber++) {
+    const sourceDay = sourceWeek.program_days.find(d => d.day_number === dayNumber)
+    if (!sourceDay || (!sourceDay.label && sourceDay.program_exercises.length === 0)) continue
+    const targetDay = await findOrCreateProgramDay(targetWeek.id, dayNumber)
+    if (targetDay) await cloneProgramDayExercises(sourceDay, targetDay)
+  }
+  btn.disabled = false
+  btn.textContent = 'Copy'
+
+  document.getElementById('copyWeekModal').classList.remove('active')
+  renderWeekNav()
+})
 
 // ==========================================================================
 // ---- RENAME TEMPLATE ----

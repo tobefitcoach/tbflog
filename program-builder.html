@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=28" />
-    <link rel="stylesheet" href="athlete.css?v=54" />
+    <link rel="stylesheet" href="athlete.css?v=55" />
   </head>
   <body>
 
@@ -103,6 +103,53 @@
         <div class="form-actions">
           <button class="btn-cancel" id="cancelRenameDayBtn">Cancel</button>
           <button class="btn-save" id="saveRenameDayBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Copy Day Modal: reachable from the ⋮ menu on a filled grid cell -
+         picks a target week + day (1-7), always appends onto whatever's
+         already there rather than overwriting it -->
+    <div class="modal-overlay" id="copyProgramDayModal">
+      <div class="modal">
+        <h2>Copy to Another Day</h2>
+        <div class="form-group">
+          <label>Week</label>
+          <select id="copyDayWeekSelect"></select>
+        </div>
+        <div class="form-group">
+          <label>Day</label>
+          <select id="copyDayDaySelect">
+            <option value="1">Day 1</option>
+            <option value="2">Day 2</option>
+            <option value="3">Day 3</option>
+            <option value="4">Day 4</option>
+            <option value="5">Day 5</option>
+            <option value="6">Day 6</option>
+            <option value="7">Day 7</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelCopyProgramDayBtn">Cancel</button>
+          <button class="btn-save" id="saveCopyProgramDayBtn">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Copy Week Modal: reachable from the copy icon on a week heading -
+         copies all 7 days at once onto another existing week in this
+         template, appending onto whatever's already on each target day -->
+    <div class="modal-overlay" id="copyWeekModal">
+      <div class="modal">
+        <h2>Copy Week</h2>
+        <div class="form-group">
+          <label>Copy to</label>
+          <select id="copyWeekTarget"></select>
+          <p class="no-metrics" id="copyWeekEmptyMsg" style="display:none">Add another week first to copy into it.</p>
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelCopyWeekBtn">Cancel</button>
+          <button class="btn-save" id="saveCopyWeekBtn">Copy</button>
         </div>
       </div>
     </div>
@@ -278,7 +325,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=34"></script>
+    <script type="module" src="program-builder.js?v=35"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

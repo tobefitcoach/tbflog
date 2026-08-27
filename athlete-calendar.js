@@ -1838,6 +1838,52 @@ document.getElementById('saveCopyWorkoutBtn').addEventListener('click', async fu
   await loadCalendarMonth(currentViewYear, currentViewMonth)
 })
 
+// ==========================================================================
+// ---- COPY A FULL WEEK ----
+// Loops the 7 days from the chosen "from" Monday to the chosen "to" Monday,
+// reusing cloneDayToDate() below as-is for each scheduled day - it already
+// does the full clone (fresh ad-hoc program/week/day, superset/section id
+// remap, overrides carried over), so this is just that function called once
+// per matched day. Dedupes by day.id the same way renderCalendarGrid's own
+// badge list does, so a day with several workouts scheduled gets all of
+// them copied, not just the first.
+// ==========================================================================
+document.getElementById('calCopyWeekBtn').addEventListener('click', function() {
+  document.getElementById('copyWeekFromInput').value = ''
+  document.getElementById('copyWeekToInput').value = ''
+  document.getElementById('copyWeekModalCal').classList.add('active')
+})
+
+document.getElementById('cancelCopyWeekBtnCal').addEventListener('click', function() {
+  document.getElementById('copyWeekModalCal').classList.remove('active')
+})
+
+document.getElementById('saveCopyWeekBtnCal').addEventListener('click', async function() {
+  const fromStr = document.getElementById('copyWeekFromInput').value
+  const toStr = document.getElementById('copyWeekToInput').value
+  if (!fromStr || !toStr) { customAlert('Please pick both dates'); return }
+
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Copying...'
+
+  const fromStart = parseDateStr(fromStr)
+  const toStart = parseDateStr(toStr)
+  for (let i = 0; i < 7; i++) {
+    const sourceDate = toDateStr(new Date(fromStart.getFullYear(), fromStart.getMonth(), fromStart.getDate() + i))
+    const targetDate = toDateStr(new Date(toStart.getFullYear(), toStart.getMonth(), toStart.getDate() + i))
+    const entries = [...new Map((calendarEntriesByDate[sourceDate] || []).map(e => [e.day.id, e])).values()]
+    for (const entry of entries) {
+      await cloneDayToDate(entry.day.id, trainingDisplayName(entry), targetDate)
+    }
+  }
+
+  btn.disabled = false
+  btn.textContent = 'Copy'
+  document.getElementById('copyWeekModalCal').classList.remove('active')
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+})
+
 async function createFreshAdHocDay(dateStr, name) {
   const { data: newProgram, error: programError } = await supabase
     .from('programs')

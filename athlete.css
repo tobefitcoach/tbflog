@@ -434,6 +434,26 @@
   color: #c0466e;
 }
 
+.program-week-copy {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  color: #aaaacc;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.program-week-copy:hover {
+  background-color: #4a4a8e33;
+  color: #4a4a8e;
+}
+
 .program-day-row {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
