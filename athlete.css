@@ -664,8 +664,32 @@
    calendar exercise pickers/edit modals */
 .extra-field-row {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+/* Field name is picked from a library now, not typed per row (see
+   openExtraFieldPicker in the builder JS), so it renders as a fixed label
+   instead of a second input - half the width of the old two-input row. */
+.extra-field-label {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 10px 12px;
+  background-color: #22223a;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #aaaacc;
+}
+
+/* Nothing to show (and no "Extra Fields" heading eating space either) until
+   the coach actually adds one via the kebab menu's "+ Add Field" */
+.extra-fields-container:not(:empty) {
+  margin-top: 10px;
 }
 
 .extra-field-row input {

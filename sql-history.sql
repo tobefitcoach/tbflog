@@ -1608,3 +1608,25 @@ create index if not exists idx_scheduled_notifications_fire_at on scheduled_noti
 -- ==========================================================================
 alter table profiles add column if not exists mobility_enabled boolean not null default true;
 grant update (mobility_enabled) on profiles to authenticated;
+
+-- ==========================================================================
+-- extra_field_names: a coach's reusable library of "extra field" names
+-- (RPE, % of 1RM, Tempo, ...) used by the Workout Builder's field picker -
+-- pick an existing name or type a new one once, instead of retyping the
+-- same field name on every exercise card. Same "small reusable library"
+-- shape as exercises/sections, just a name with no other data. unique
+-- (coach_id, name) makes adding a field the coach already has a no-op
+-- upsert instead of a duplicate library entry.
+-- ==========================================================================
+create table if not exists extra_field_names (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  name text not null,
+  created_at timestamptz not null default now(),
+  unique (coach_id, name)
+);
+alter table extra_field_names enable row level security;
+drop policy if exists "coach manages own extra field names" on extra_field_names;
+create policy "coach manages own extra field names" on extra_field_names for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+create index if not exists idx_extra_field_names_coach_id on extra_field_names(coach_id);

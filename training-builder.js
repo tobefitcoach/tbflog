@@ -359,13 +359,19 @@ async function addExerciseToTraining(exerciseId) {
 // ==========================================================================
 // ---- EXTRA FIELDS ----
 // ==========================================================================
+// Field name is picked from the coach's reusable extra_field_names library
+// (see openExtraFieldPicker below) rather than typed per row - so each row
+// is just a label + one value input instead of two free-text inputs, which
+// is both more compact and rules out the same field ending up saved under
+// two slightly different spellings on different exercises.
 function addExtraFieldRow(containerId, name, value) {
   const container = document.getElementById(containerId)
   if (!container) return
   const row = document.createElement('div')
   row.className = 'extra-field-row'
+  row.dataset.name = name || ''
   row.innerHTML = `
-    <input type="text" class="extra-field-name" placeholder="Field name (e.g. RPE)" value="${name || ''}">
+    <span class="extra-field-label">${name || ''}</span>
     <input type="text" class="extra-field-value" placeholder="Value (e.g. 8)" value="${value || ''}">
     <button type="button" class="extra-field-remove">✕</button>
   `
@@ -377,12 +383,78 @@ function collectExtraFields(containerId) {
   const rows = document.querySelectorAll('#' + containerId + ' .extra-field-row')
   const result = {}
   rows.forEach(row => {
-    const name = row.querySelector('.extra-field-name').value.trim()
+    const name = row.dataset.name
     const value = row.querySelector('.extra-field-value').value.trim()
     if (name && value) result[name] = value
   })
   return Object.keys(result).length ? result : null
 }
+
+// ==========================================================================
+// ---- EXTRA FIELD PICKER ----
+// Opened from a card's kebab menu (see 'add-extra-field' below) instead of
+// a permanent "+ Add Field" button + two-input row sitting on every card -
+// with 2-3 exercises each carrying a few sets, that was enough vertical
+// space to force scrolling just to see the rest of the workout. Names come
+// from extra_field_names, a small coach-wide reusable library (same
+// "library" shape as exercises/sections) so a coach picks "RPE" once and
+// it's there for every exercise after, instead of retyping it each time.
+// ==========================================================================
+let extraFieldNamesCache = null
+let extraFieldPickerTeId = null
+
+async function loadExtraFieldNames() {
+  if (extraFieldNamesCache) return extraFieldNamesCache
+  const { data, error } = await fetchWithRetry((signal) => supabase
+    .from('extra_field_names')
+    .select('id, name')
+    .order('name')
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); extraFieldNamesCache = []; return extraFieldNamesCache }
+  extraFieldNamesCache = data
+  return extraFieldNamesCache
+}
+
+async function openExtraFieldPicker(teId) {
+  extraFieldPickerTeId = teId
+  const names = await loadExtraFieldNames()
+  const list = document.getElementById('extraFieldPickerList')
+  list.innerHTML = names.length
+    ? names.map(n => `<button type="button" class="chip-btn" data-name="${n.name}">${n.name}</button>`).join('')
+    : '<p class="no-metrics">No fields created yet - add one below</p>'
+  document.getElementById('newExtraFieldNameInput').value = ''
+  document.getElementById('extraFieldPickerModal').classList.add('active')
+}
+
+function pickExtraField(name) {
+  if (!extraFieldPickerTeId || !name) return
+  const containerId = `extraFields-${extraFieldPickerTeId}`
+  if (document.querySelector(`#${containerId} .extra-field-row[data-name="${name}"]`)) {
+    document.getElementById('extraFieldPickerModal').classList.remove('active')
+    return // already on this card - avoid a silent duplicate that only the last one would save
+  }
+  addExtraFieldRow(containerId, name, '')
+  document.getElementById('extraFieldPickerModal').classList.remove('active')
+}
+
+document.getElementById('extraFieldPickerList').addEventListener('click', function(e) {
+  const btn = e.target.closest('.chip-btn')
+  if (btn) pickExtraField(btn.dataset.name)
+})
+
+document.getElementById('createExtraFieldNameBtn').addEventListener('click', async function() {
+  const name = document.getElementById('newExtraFieldNameInput').value.trim()
+  if (!name) return
+  const { error } = await supabase.from('extra_field_names').upsert([{ coach_id: session.user.id, name }], { onConflict: 'coach_id,name' })
+  if (error) { console.log(error); customAlert('Something went wrong saving that field name - try again'); return }
+  extraFieldNamesCache = null
+  pickExtraField(name)
+})
+
+document.getElementById('closeExtraFieldPickerBtn').addEventListener('click', function() {
+  document.getElementById('extraFieldPickerModal').classList.remove('active')
+})
 
 // ==========================================================================
 // ---- PER-SET TARGETS ----
@@ -576,6 +648,7 @@ function renderExerciseCard(te) {
           <button type="button" class="builder-kebab-btn" data-action="toggle-kebab" title="More options">⋮</button>
           <div class="kebab-dropdown">
             <button type="button" class="kebab-item" data-action="adjust-fields">Adjust Fields</button>
+            <button type="button" class="kebab-item" data-action="add-extra-field">+ Add Field</button>
           </div>
         </div>
         <button type="button" class="btn-delete-measurement" data-action="delete-exercise" title="Remove from workout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
@@ -584,11 +657,7 @@ function renderExerciseCard(te) {
         ${rowsHtml}
       </div>
       <button type="button" class="builder-add-set-btn" data-action="add-set">+ Add Set</button>
-      <div class="builder-exercise-notes">
-        <label>Extra Fields (optional)</label>
-        <div class="extra-fields-container" id="extraFields-${te.id}"></div>
-        <button type="button" class="btn-create-metric" data-action="add-extra-field" style="margin-top:6px">+ Add Field</button>
-      </div>
+      <div class="extra-fields-container" id="extraFields-${te.id}"></div>
       <div class="builder-exercise-notes">
         <label>Notes (visible to the athlete)</label>
         <input type="text" class="exercise-notes-input" value="${te.notes || ''}" placeholder="e.g. Focus on controlled tempo">
@@ -854,7 +923,8 @@ document.getElementById('trainingExercisesList').addEventListener('click', async
   } else if (btn.dataset.action === 'delete-exercise') {
     await deleteExerciseRow(teId)
   } else if (btn.dataset.action === 'add-extra-field') {
-    addExtraFieldRow(`extraFields-${teId}`)
+    btn.closest('.kebab-dropdown')?.classList.remove('active')
+    openExtraFieldPicker(teId)
   } else if (btn.dataset.action === 'toggle-link') {
     handleLinkClick(teId, trainingDropZone)
   } else if (btn.dataset.action === 'toggle-kebab') {
