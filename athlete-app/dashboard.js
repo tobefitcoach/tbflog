@@ -901,7 +901,7 @@ async function loadTrainingData() {
   ] = await Promise.all([
     saveWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
       .eq('athlete_id', athlete.id)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -1878,7 +1878,7 @@ async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseI
   const { data, error } = await supabase
     .from('program_exercises')
     .insert([{ day_id: entry.day.id, exercise_id: exerciseId, order_index: orderIndex, added_by_athlete: true }])
-    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .single()
 
   if (error) { console.log(error); customAlert('Something went wrong adding that exercise - please try again'); return }
@@ -3250,7 +3250,7 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
       tracks_distance_override: null
     })
     .eq('id', peId)
-    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .single()
 
   if (error) { console.log(error); customAlert('Something went wrong swapping that exercise - please try again'); return }

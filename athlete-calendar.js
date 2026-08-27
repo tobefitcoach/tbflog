@@ -153,7 +153,7 @@ async function loadCalendarMonth(year, month) {
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
+      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
       .abortSignal(signal)
@@ -1251,7 +1251,7 @@ async function previewTraining(trainingId, trainingName) {
   if (!exercises) {
     const { data, error } = await supabase
       .from('training_exercises')
-      .select('*, exercises!exercise_id(name, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+      .select('*, exercises!exercise_id(name, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
       .eq('training_id', trainingId)
       .order('order_index')
     if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }

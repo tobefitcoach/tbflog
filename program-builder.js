@@ -274,7 +274,7 @@ function applyFieldOverrides(pe) {
 async function loadWeeks() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('program_weeks')
-    .select('*, program_days(*, program_exercises(*, exercises!exercise_id(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)))')
+    .select('*, program_days(*, program_exercises(*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)))')
     .eq('program_id', programId)
     .abortSignal(signal)
   )
@@ -924,7 +924,7 @@ document.getElementById('saveExercisePickerBtn').addEventListener('click', async
     day_id: currentDayIdForAddExercise,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }]).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  }]).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -1226,7 +1226,7 @@ async function insertSectionIntoDay(sectionId, sectionName) {
       section_instance_id: sectionInstanceId,
       superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
     }))
-  ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 
   day.program_exercises.push(...inserted)

@@ -291,7 +291,7 @@ async function addExerciseToSection(exerciseId) {
     section_id: sectionId,
     exercise_id: exerciseId,
     order_index: nextOrder
-  }]).select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  }]).select('*, exercises(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
@@ -471,7 +471,7 @@ function removeSetTargetRow(row) {
 async function loadExercisesList() {
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('section_exercises')
-    .select('*, exercises(id, name, category, type, video_url, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+    .select('*, exercises(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .eq('section_id', sectionId)
     .abortSignal(signal)
   )
