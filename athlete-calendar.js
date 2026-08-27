@@ -56,6 +56,7 @@ window.addEventListener('calendar-tab-activated', function() {
   // once, rather than inside renderCalendarGrid (which reruns on every
   // month load and would otherwise stack a new set of listeners each time)
   wireCalendarDragToMove(document.getElementById('calendarGrid'))
+  wireCalendarCopyArming(document.getElementById('calendarGrid'))
   wireCalendarBadgeKebabs(document.getElementById('calendarGrid'))
 })
 
@@ -257,7 +258,41 @@ function renderCalendarGrid(year, month) {
 
   const todayStr = toDateStr(new Date())
 
-  grid.innerHTML = cells.map(cell => {
+  let html = ''
+  cells.forEach((cell, i) => {
+    // Rows always start on Monday (see startWeekday above), so the row's
+    // own first cell IS that week's Monday - one small copy icon per row,
+    // in its own gutter column to the left of the 7 day columns (see the
+    // #calendarGrid/#calendarWeekdayHeader grid-template-columns overrides
+    // in athlete.css). Clicking it arms week-copy, see wireCalendarCopyArming.
+    if (i % 7 === 0) {
+      const weekMonday = toDateStr(cell.date)
+      html += `<div class="calendar-week-gutter-cell"><button type="button" class="calendar-week-copy-btn" data-action="arm-copy-week" data-week-monday="${weekMonday}" title="Copy this week">⧉</button></div>`
+    }
+    const weekMonday = toDateStr(cells[i - (i % 7)].date)
+    html += renderCalendarDayCell(cell, weekMonday, todayStr)
+  })
+  grid.innerHTML = html
+
+  grid.querySelectorAll('.calendar-day').forEach(cellEl => {
+    cellEl.addEventListener('click', function() {
+      openDayModal(cellEl.dataset.date)
+    })
+  })
+
+  // Separate listener + stopPropagation so clicking "+" doesn't also
+  // trigger the cell's own click (which opens the day-detail view instead)
+  grid.querySelectorAll('.calendar-day-add-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation()
+      adHocDayIdForThisSession = null
+      adHocDayDateForThisSession = null
+      openDayAddTrainingModal(btn.dataset.date)
+    })
+  })
+}
+
+function renderCalendarDayCell(cell, weekMonday, todayStr) {
     const dateStr = toDateStr(cell.date)
     const entries = calendarEntriesByDate[dateStr] || []
     // One badge per training (keyed by day.id, always unique - two different
@@ -347,31 +382,13 @@ function renderCalendarGrid(year, month) {
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
     return `
-      <div class="${classes.join(' ')}" data-date="${dateStr}">
+      <div class="${classes.join(' ')}" data-date="${dateStr}" data-week-monday="${weekMonday}">
         <button type="button" class="calendar-day-add-btn" data-date="${dateStr}">+</button>
         <span class="calendar-day-number">${cell.date.getDate()}</span>
         <div class="calendar-day-dots">${dotsHtml}</div>
         <div class="calendar-day-badges">${badgesHtml}</div>
       </div>
     `
-  }).join('')
-
-  grid.querySelectorAll('.calendar-day').forEach(cellEl => {
-    cellEl.addEventListener('click', function() {
-      openDayModal(cellEl.dataset.date)
-    })
-  })
-
-  // Separate listener + stopPropagation so clicking "+" doesn't also
-  // trigger the cell's own click (which opens the day-detail view instead)
-  grid.querySelectorAll('.calendar-day-add-btn').forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.stopPropagation()
-      adHocDayIdForThisSession = null
-      adHocDayDateForThisSession = null
-      openDayAddTrainingModal(btn.dataset.date)
-    })
-  })
 }
 
 // ==========================================================================
@@ -457,7 +474,7 @@ function wireCalendarBadgeKebabs(grid) {
     if (btn.dataset.action === 'copy-training') {
       e.stopPropagation()
       btn.closest('.kebab-dropdown').classList.remove('active')
-      openCopyWorkoutModal(btn.dataset.programDayId, btn.dataset.name)
+      armCopyWorkout(btn.dataset.programDayId, btn.dataset.name)
       return
     }
 
@@ -1801,74 +1818,113 @@ async function findOrCreateAdHocDay(dateStr, name) {
 }
 
 // ==========================================================================
-// ---- COPY A WORKOUT TO ANOTHER DAY (⋮ menu, day-detail modal) ----
-// Always creates a brand new ad-hoc day - unlike findOrCreateAdHocDay above,
-// this deliberately does NOT reuse adHocDayIdForThisSession, since that
-// cache is scoped to the "+ Add Workout" popup's own session and Copy is an
-// unrelated one-shot action; reusing it here would risk silently merging
-// into whatever day that popup last touched.
+// ---- ARM-AND-DROP COPYING (single workout, from the ⋮ menu, and a full
+// week, from the copy icon in the grid's left gutter) ----
+// No date-picker popup - clicking either entry point "arms" a copy (shown
+// via the floating bar below) and the grid itself becomes the target
+// picker: hovering highlights the day (workout mode) or whole week (week
+// mode) under the cursor with a "Drop Here"/"Drop Week Here" label, and
+// clicking commits it there. Nothing outside the grid is blocked while
+// armed - Prev/Next, the sidebar, etc. all still work normally, since only
+// clicks that land inside #calendarGrid are intercepted (see
+// wireCalendarCopyArming below).
 // ==========================================================================
-let copyWorkoutSourceDayId = null
-let copyWorkoutSourceName = null
+let copyArmedMode = null // 'week' | 'workout' | null
+let copyArmedSourceDayId = null // workout mode: the day.id being copied
+let copyArmedSourceName = null // workout mode: display name, carried into the fresh copy
+let copyArmedSourceMonday = null // week mode: the Monday date string of the source week
+let copyArmedHoverKey = null // last-highlighted week-monday or date, so hover updates only touch the DOM when it actually changes
 
-function openCopyWorkoutModal(sourceDayId, sourceName) {
-  copyWorkoutSourceDayId = sourceDayId
-  copyWorkoutSourceName = sourceName
-  document.getElementById('copyWorkoutDateInput').value = ''
-  document.getElementById('copyWorkoutModal').classList.add('active')
+function armCopyWeek(mondayStr) {
+  copyArmedMode = 'week'
+  copyArmedSourceMonday = mondayStr
+  copyArmedSourceDayId = null
+  copyArmedSourceName = null
+  copyArmedHoverKey = null
+  showCopyArmedBar(`Copying week of ${formatShortDateCal(mondayStr)} — click a week on the calendar to copy it there`)
 }
 
-document.getElementById('cancelCopyWorkoutBtn').addEventListener('click', function() {
-  document.getElementById('copyWorkoutModal').classList.remove('active')
+function armCopyWorkout(dayId, name) {
+  copyArmedMode = 'workout'
+  copyArmedSourceDayId = dayId
+  copyArmedSourceName = name
+  copyArmedSourceMonday = null
+  copyArmedHoverKey = null
+  showCopyArmedBar(`Copying "${name}" — click a day on the calendar to copy it there`)
+}
+
+function disarmCopy() {
+  copyArmedMode = null
+  copyArmedSourceDayId = null
+  copyArmedSourceName = null
+  copyArmedSourceMonday = null
+  copyArmedHoverKey = null
+  document.getElementById('copyArmedBar').classList.remove('active')
+  clearCopyHoverHighlight()
+}
+
+function showCopyArmedBar(text) {
+  document.getElementById('copyArmedBarText').textContent = text
+  document.getElementById('copyArmedBar').classList.add('active')
+}
+
+document.getElementById('copyArmedCancelBtn').addEventListener('click', disarmCopy)
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && copyArmedMode) disarmCopy()
 })
 
-document.getElementById('saveCopyWorkoutBtn').addEventListener('click', async function() {
-  const newDate = document.getElementById('copyWorkoutDateInput').value
-  if (!newDate) { customAlert('Please pick a date'); return }
+function clearCopyHoverHighlight() {
+  document.querySelectorAll('#calendarGrid .calendar-day.copy-target-hover').forEach(el => el.classList.remove('copy-target-hover'))
+  document.getElementById('copyDropLabel').classList.remove('active')
+}
 
-  const btn = this
-  btn.disabled = true
-  btn.textContent = 'Copying...'
-  await cloneDayToDate(copyWorkoutSourceDayId, copyWorkoutSourceName, newDate)
-  btn.disabled = false
-  btn.textContent = 'Copy'
+function positionCopyDropLabel(cellEls, text) {
+  const wrap = document.getElementById('calendarGridWrap')
+  const wrapRect = wrap.getBoundingClientRect()
+  const rects = [...cellEls].map(el => el.getBoundingClientRect())
+  const left = Math.min(...rects.map(r => r.left)) - wrapRect.left
+  const right = Math.max(...rects.map(r => r.right)) - wrapRect.left
+  const top = Math.min(...rects.map(r => r.top)) - wrapRect.top
+  const bottom = Math.max(...rects.map(r => r.bottom)) - wrapRect.top
+  const label = document.getElementById('copyDropLabel')
+  label.style.left = `${(left + right) / 2}px`
+  label.style.top = `${(top + bottom) / 2}px`
+  label.textContent = text
+  label.classList.add('active')
+}
 
-  document.getElementById('copyWorkoutModal').classList.remove('active')
-  document.getElementById('dayDetailModal').classList.remove('active')
-  await loadCalendarMonth(currentViewYear, currentViewMonth)
-})
+function updateCopyHoverHighlight(cellEl) {
+  if (!copyArmedMode || !cellEl) { clearCopyHoverHighlight(); copyArmedHoverKey = null; return }
 
-// ==========================================================================
-// ---- COPY A FULL WEEK ----
-// Loops the 7 days from the chosen "from" Monday to the chosen "to" Monday,
-// reusing cloneDayToDate() below as-is for each scheduled day - it already
-// does the full clone (fresh ad-hoc program/week/day, superset/section id
-// remap, overrides carried over), so this is just that function called once
-// per matched day. Dedupes by day.id the same way renderCalendarGrid's own
+  if (copyArmedMode === 'week') {
+    const weekMonday = cellEl.dataset.weekMonday
+    if (weekMonday === copyArmedHoverKey) return
+    copyArmedHoverKey = weekMonday
+    if (weekMonday === copyArmedSourceMonday) { clearCopyHoverHighlight(); return }
+    document.querySelectorAll('#calendarGrid .calendar-day.copy-target-hover').forEach(el => el.classList.remove('copy-target-hover'))
+    const rowCells = document.querySelectorAll(`#calendarGrid .calendar-day[data-week-monday="${weekMonday}"]`)
+    rowCells.forEach(el => el.classList.add('copy-target-hover'))
+    positionCopyDropLabel(rowCells, 'Drop Week Here')
+  } else {
+    const dateStr = cellEl.dataset.date
+    if (dateStr === copyArmedHoverKey) return
+    copyArmedHoverKey = dateStr
+    document.querySelectorAll('#calendarGrid .calendar-day.copy-target-hover').forEach(el => el.classList.remove('copy-target-hover'))
+    cellEl.classList.add('copy-target-hover')
+    positionCopyDropLabel([cellEl], 'Drop Here')
+  }
+}
+
+// Loops the 7 days from sourceMonday to targetMonday, reusing
+// cloneDayToDate() below as-is for each scheduled day - it already does the
+// full clone (fresh ad-hoc program/week/day, superset/section id remap,
+// overrides carried over), so this is just that function called once per
+// matched day. Dedupes by day.id the same way renderCalendarGrid's own
 // badge list does, so a day with several workouts scheduled gets all of
 // them copied, not just the first.
-// ==========================================================================
-document.getElementById('calCopyWeekBtn').addEventListener('click', function() {
-  document.getElementById('copyWeekFromInput').value = ''
-  document.getElementById('copyWeekToInput').value = ''
-  document.getElementById('copyWeekModalCal').classList.add('active')
-})
-
-document.getElementById('cancelCopyWeekBtnCal').addEventListener('click', function() {
-  document.getElementById('copyWeekModalCal').classList.remove('active')
-})
-
-document.getElementById('saveCopyWeekBtnCal').addEventListener('click', async function() {
-  const fromStr = document.getElementById('copyWeekFromInput').value
-  const toStr = document.getElementById('copyWeekToInput').value
-  if (!fromStr || !toStr) { customAlert('Please pick both dates'); return }
-
-  const btn = this
-  btn.disabled = true
-  btn.textContent = 'Copying...'
-
-  const fromStart = parseDateStr(fromStr)
-  const toStart = parseDateStr(toStr)
+async function performCopyWeek(sourceMonday, targetMonday) {
+  const fromStart = parseDateStr(sourceMonday)
+  const toStart = parseDateStr(targetMonday)
   for (let i = 0; i < 7; i++) {
     const sourceDate = toDateStr(new Date(fromStart.getFullYear(), fromStart.getMonth(), fromStart.getDate() + i))
     const targetDate = toDateStr(new Date(toStart.getFullYear(), toStart.getMonth(), toStart.getDate() + i))
@@ -1877,12 +1933,57 @@ document.getElementById('saveCopyWeekBtnCal').addEventListener('click', async fu
       await cloneDayToDate(entry.day.id, trainingDisplayName(entry), targetDate)
     }
   }
-
-  btn.disabled = false
-  btn.textContent = 'Copy'
-  document.getElementById('copyWeekModalCal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
-})
+}
+
+// Wired once on the persistent #calendarGrid node, same reasoning as
+// wireCalendarDragToMove/wireCalendarBadgeKebabs. Registered BEFORE
+// wireCalendarBadgeKebabs (see the calendar-tab-activated listener above)
+// so its capture-phase listener runs first and can stopImmediatePropagation
+// to swallow a click before the kebab/day-open listeners ever see it.
+function wireCalendarCopyArming(grid) {
+  grid.addEventListener('mousemove', function(e) {
+    if (!copyArmedMode) return
+    updateCopyHoverHighlight(e.target.closest('.calendar-day'))
+  })
+  grid.addEventListener('mouseleave', function() {
+    if (!copyArmedMode) return
+    copyArmedHoverKey = null
+    clearCopyHoverHighlight()
+  })
+
+  grid.addEventListener('click', async function(e) {
+    const armBtn = e.target.closest('[data-action="arm-copy-week"]')
+    if (armBtn) {
+      e.stopImmediatePropagation()
+      e.preventDefault()
+      if (copyArmedMode === 'week' && copyArmedSourceMonday === armBtn.dataset.weekMonday) disarmCopy()
+      else armCopyWeek(armBtn.dataset.weekMonday)
+      return
+    }
+
+    if (!copyArmedMode) return
+    const cell = e.target.closest('.calendar-day')
+    if (!cell) return
+    e.stopImmediatePropagation()
+    e.preventDefault()
+
+    if (copyArmedMode === 'week') {
+      const targetMonday = cell.dataset.weekMonday
+      const sourceMonday = copyArmedSourceMonday
+      disarmCopy()
+      if (targetMonday === sourceMonday) return
+      await performCopyWeek(sourceMonday, targetMonday)
+    } else {
+      const targetDate = cell.dataset.date
+      const sourceDayId = copyArmedSourceDayId
+      const sourceName = copyArmedSourceName
+      disarmCopy()
+      await cloneDayToDate(sourceDayId, sourceName, targetDate)
+      await loadCalendarMonth(currentViewYear, currentViewMonth)
+    }
+  }, true)
+}
 
 async function createFreshAdHocDay(dateStr, name) {
   const { data: newProgram, error: programError } = await supabase

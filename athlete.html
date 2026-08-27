@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=28" />
-  <link rel="stylesheet" href="athlete.css?v=55" />
+  <link rel="stylesheet" href="athlete.css?v=56" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -218,19 +218,33 @@
 
       <div class="tab-panel" id="tab-calendar">
         <!-- Filled in by athlete-calendar.js on first activation -->
+        <!-- Shown while a Copy Week/Copy Workout is "armed" (see
+             wireCalendarCopyArming in athlete-calendar.js) - the calendar
+             itself is the target picker at that point, this bar just shows
+             what's being copied and offers a way out -->
+        <div class="copy-armed-bar" id="copyArmedBar">
+          <span id="copyArmedBarText"></span>
+          <button type="button" class="unit-btn" id="copyArmedCancelBtn">Cancel</button>
+        </div>
         <div class="calendar-toolbar">
           <button class="btn-cancel" id="calPrevBtn">← Prev</button>
           <h3 id="calMonthLabel">&nbsp;</h3>
           <button class="btn-cancel" id="calNextBtn">Next →</button>
-          <button class="btn-cancel" id="calCopyWeekBtn">Copy Week</button>
         </div>
         <!-- Static - the grid below always starts each row on Monday (see
              renderCalendarGrid's startWeekday math), so this never needs to
-             be regenerated per month -->
-        <div class="calendar-weekday-header">
+             be regenerated per month. Leading empty span lines the header up
+             with the copy-icon gutter column #calendarGrid gets in JS (see
+             the #calendarWeekdayHeader/#calendarGrid grid-template-columns
+             overrides in athlete.css). -->
+        <div class="calendar-weekday-header" id="calendarWeekdayHeader">
+          <span></span>
           <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
         </div>
-        <div class="calendar-grid" id="calendarGrid"></div>
+        <div id="calendarGridWrap" style="position:relative">
+          <div class="calendar-grid" id="calendarGrid"></div>
+          <div class="copy-drop-label" id="copyDropLabel"></div>
+        </div>
       </div>
 
       <!-- Per-athlete settings, separate from Edit Info since these are
@@ -974,48 +988,6 @@
       </div>
     </div>
 
-    <!-- Copy Workout Modal: opened from a workout's ⋮ menu inside
-         Day Detail - creates a fresh, unlogged copy on a chosen date (see
-         cloneDayToDate() in athlete-calendar.js), never a copy of what was
-         actually logged. -->
-    <div class="modal-overlay" id="copyWorkoutModal">
-      <div class="modal">
-        <h2>Copy Workout</h2>
-        <p style="color:#aaaacc; font-size:13px; margin-top:-8px">Creates a fresh, unlogged copy on the new date - not a copy of what was actually logged.</p>
-        <div class="form-group">
-          <label>New Date</label>
-          <input type="date" id="copyWorkoutDateInput" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelCopyWorkoutBtn">Cancel</button>
-          <button class="btn-save" id="saveCopyWorkoutBtn">Copy</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Copy Week Modal: copies every workout scheduled Mon-Sun of one week
-         onto another week, one cloneDayToDate() call per scheduled day (see
-         athlete-calendar.js) - same fresh/unlogged guarantee as the single
-         Copy Workout modal above, just looped over 7 days. -->
-    <div class="modal-overlay" id="copyWeekModalCal">
-      <div class="modal">
-        <h2>Copy Week</h2>
-        <p style="color:#aaaacc; font-size:13px; margin-top:-8px">Copies every workout scheduled Mon–Sun of one week onto another week. Creates fresh, unlogged copies.</p>
-        <div class="form-group">
-          <label>Copy week starting (Monday)</label>
-          <input type="date" id="copyWeekFromInput" />
-        </div>
-        <div class="form-group">
-          <label>To week starting (Monday)</label>
-          <input type="date" id="copyWeekToInput" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelCopyWeekBtnCal">Cancel</button>
-          <button class="btn-save" id="saveCopyWeekBtnCal">Copy</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Add Training popup: opens from the small "+" that appears when
          hovering a calendar day (see .calendar-day-add-btn). Two tabs: drop
          a single saved Training onto just this day, or assign a whole
@@ -1173,8 +1145,8 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=36"></script>
-    <script type="module" src="athlete-calendar.js?v=61"></script>
+    <script type="module" src="athlete.js?v=37"></script>
+    <script type="module" src="athlete-calendar.js?v=62"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

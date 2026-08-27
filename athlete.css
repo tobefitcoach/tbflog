@@ -331,6 +331,97 @@
   gap: 8px;
 }
 
+/* ID overrides (higher specificity than the .calendar-grid/.calendar-weekday-header
+   class rules above) add a leading gutter column for the per-week copy icon
+   - only the athlete calendar gets this, not Program Builder's own week grid,
+   which reuses the same base classes but stays 7-column */
+#calendarWeekdayHeader {
+  grid-template-columns: 24px repeat(7, 1fr);
+}
+
+#calendarGrid {
+  grid-template-columns: 24px repeat(7, minmax(0, 1fr));
+}
+
+.calendar-week-gutter-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-week-copy-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  color: #aaaacc;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.calendar-week-copy-btn:hover {
+  background-color: #4a4a8e33;
+  color: #4a4a8e;
+}
+
+/* Hover target while a Copy Week/Copy Workout is armed - see
+   wireCalendarCopyArming() in athlete-calendar.js */
+.calendar-day.copy-target-hover {
+  border-color: #4a4a8e;
+  background-color: rgba(74, 74, 142, 0.3);
+}
+
+.copy-drop-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background-color: #4a4a8e;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+  display: none;
+  z-index: 50;
+}
+
+.copy-drop-label.active {
+  display: block;
+}
+
+.copy-armed-bar {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  align-items: center;
+  gap: 16px;
+  background-color: #1a1a2e;
+  border: 1px solid #4a4a8e;
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.copy-armed-bar.active {
+  display: flex;
+}
+
+.copy-armed-bar span {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .calendar-day {
   position: relative;
   min-height: 90px;
@@ -2289,6 +2380,20 @@
     min-height: 56px;
     padding: 4px;
     gap: 2px;
+  }
+
+  #calendarWeekdayHeader {
+    grid-template-columns: 16px repeat(7, 1fr);
+  }
+
+  #calendarGrid {
+    grid-template-columns: 16px repeat(7, minmax(0, 1fr));
+  }
+
+  .calendar-week-copy-btn {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
   }
 
   .calendar-day-number {

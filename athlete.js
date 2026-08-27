@@ -3276,7 +3276,13 @@ function drawTrendChart(doc, labels, values, title, margin, y, pageWidth, height
     options: {
       responsive: false,
       animation: false,
-      devicePixelRatio: 2,
+      // devicePixelRatio 1, not 2 - this chart only ever gets printed into a
+      // ~62mm-tall PDF box, where a 1000px-wide source is already ~140 DPI;
+      // doubling that (as devicePixelRatio: 2 used to) quadrupled every
+      // chart's exported PNG bytes for no visible gain, and a report with
+      // many tracked metrics selected could add up past the storage
+      // bucket's upload size limit
+      devicePixelRatio: 1,
       layout: { padding: { top: 6, right: 10, bottom: 2, left: 4 } },
       plugins: {
         legend: { display: false },
