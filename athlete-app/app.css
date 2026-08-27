@@ -500,15 +500,32 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 8px 6px;
+  gap: 2px;
+  padding: 6px;
   border: 1px solid #2a2a4e;
   border-radius: 8px;
   background-color: #0f0f1a;
 }
 
+/* Bumped up from a plain 16px input box to a real "digital clock" look
+   (bigger, bold, monospace digits) so a timed set reads as a timer at a
+   glance instead of blending in with the plain reps/weight boxes next to
+   it - matches the same weight class as the guided rest timer's own
+   .rest-timer-time, not the small data-entry inputs. */
 .set-time-mm,
-.set-time-ss,
+.set-time-ss {
+  width: 30px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  padding: 0;
+}
+
 .field-duration-hh,
 .field-duration-mm {
   width: 28px;
@@ -529,7 +546,9 @@ header {
 
 .set-time-sep {
   color: #aaaacc;
-  font-size: 16px;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .set-unit-toggle {
