@@ -1735,6 +1735,12 @@ function renderMobilityFlow(queue, totalSeconds) {
       <div class="mobility-flow-progress"><div class="mobility-flow-progress-fill" id="mobilityFlowProgressFill"></div></div>
       <video class="mobility-flow-video active" id="mobilityVideoA" muted playsinline loop></video>
       <video class="mobility-flow-video" id="mobilityVideoB" muted playsinline loop></video>
+      <div class="mobility-side-transition" id="mobilitySideTransition">
+        <span class="mobility-side-transition-text">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+          Other Side
+        </span>
+      </div>
       <div class="mobility-flow-overlay">
         <div class="mobility-flow-top">
           <button type="button" class="mobility-flow-icon-btn" id="mobilityFlowEndBtn">✕</button>
@@ -1777,7 +1783,14 @@ function renderMobilityFlow(queue, totalSeconds) {
   }
 
   function updateChrome() {
-    document.getElementById('mobilityFlowName').textContent = queue[index].name + (queue[index].__otherSide ? ' · Other Side' : '')
+    const nameEl = document.getElementById('mobilityFlowName')
+    const newName = queue[index].name + (queue[index].__otherSide ? ' · Other Side' : '')
+    // Fade the label through instead of snapping it, so a new exercise's
+    // name doesn't just jump-cut in sync with the video crossfade below
+    if (nameEl.textContent !== newName) {
+      nameEl.style.opacity = '0'
+      setTimeout(function() { nameEl.textContent = newName; nameEl.style.opacity = '1' }, 200)
+    }
     document.getElementById('mobilityFlowTime').textContent = formatTimer(remaining)
     updatePrefButtons(queue[index].id)
     const doneSoFar = queue.slice(0, index).reduce((sum, s) => sum + (s.default_hold_seconds || 30), 0)
@@ -1786,15 +1799,40 @@ function renderMobilityFlow(queue, totalSeconds) {
     if (fill) fill.style.width = pct + '%'
   }
 
-  function advance() {
-    index++
-    if (index >= queue.length) { finishFlow(); return }
+  function swapToCurrentIndex() {
     frontIndex = 1 - frontIndex
     videos[frontIndex].classList.add('active')
     videos[1 - frontIndex].classList.remove('active')
     remaining = queue[index].default_hold_seconds || 30
     updateChrome()
     preloadNext()
+  }
+
+  // Held for ~1s between the two passes of a two-sided stretch - the actual
+  // video swap happens while the interstitial is still fully opaque (see the
+  // inner setTimeout), so what's revealed when it fades back out is already
+  // the preloaded, mirrored other-side clip playing, not a jump-cut mid-swap.
+  // Freezes the countdown for the same span so the hold time isn't eaten by
+  // the transition itself.
+  function showOtherSideTransition(onSwap) {
+    const wasPaused = paused
+    paused = true
+    const el = document.getElementById('mobilitySideTransition')
+    el.classList.add('active')
+    setTimeout(function() {
+      onSwap()
+      setTimeout(function() {
+        el.classList.remove('active')
+        paused = wasPaused
+      }, 200)
+    }, 700)
+  }
+
+  function advance() {
+    index++
+    if (index >= queue.length) { finishFlow(); return }
+    if (queue[index].__otherSide) showOtherSideTransition(swapToCurrentIndex)
+    else swapToCurrentIndex()
   }
 
   function finishFlow() {
