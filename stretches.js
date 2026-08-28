@@ -167,7 +167,6 @@ function openStretchModal(stretch) {
   document.getElementById('stretchName').value = stretch ? stretch.name : ''
   document.getElementById('stretchDefaultHold').value = stretch ? stretch.default_hold_seconds : 30
   document.getElementById('stretchIsUnilateral').checked = stretch ? !!stretch.is_unilateral : false
-  document.getElementById('stretchInstructions').value = stretch ? (stretch.instructions || '') : ''
   document.getElementById('stretchVideoFile').value = ''
   document.getElementById('stretchNewAreaGroup').style.display = 'none'
   renderAreaChips()
@@ -192,7 +191,6 @@ document.getElementById('saveStretchBtn').addEventListener('click', async functi
   const name = document.getElementById('stretchName').value.trim()
   const defaultHoldSeconds = parseInt(document.getElementById('stretchDefaultHold').value) || 30
   const isUnilateral = document.getElementById('stretchIsUnilateral').checked
-  const instructions = document.getElementById('stretchInstructions').value.trim()
   const bodyAreas = [...selectedAreas]
 
   if (!name) { customAlert('Please enter a name'); return }
@@ -220,12 +218,12 @@ document.getElementById('saveStretchBtn').addEventListener('click', async functi
   if (currentStretch) {
     ({ error } = await supabase
       .from('stretches')
-      .update({ name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds, is_unilateral: isUnilateral, instructions })
+      .update({ name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds, is_unilateral: isUnilateral })
       .eq('id', currentStretch.id))
   } else {
     ({ error } = await supabase
       .from('stretches')
-      .insert([{ coach_id: session.user.id, name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds, is_unilateral: isUnilateral, instructions }]))
+      .insert([{ coach_id: session.user.id, name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds, is_unilateral: isUnilateral }]))
   }
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }

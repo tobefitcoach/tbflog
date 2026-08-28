@@ -1787,12 +1787,3 @@ update athletes set intro_seen = true where intro_seen = false;
 -- column-scoped.
 -- ==========================================================================
 alter table stretches add column if not exists is_unilateral boolean not null default false;
-
--- ==========================================================================
--- stretches.instructions - short coach-written cues read aloud, once, by
--- the browser's built-in speech synthesis when that stretch comes up in the
--- athlete app's guided mobility flow (see speakInstructions() in
--- athlete-app/dashboard.js). Purely client-side text-to-speech, no audio
--- file/storage involved. No RLS change needed - not column-scoped.
--- ==========================================================================
-alter table stretches add column if not exists instructions text;
