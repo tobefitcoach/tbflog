@@ -3606,8 +3606,22 @@ async function shareReportWithAthlete(doc, periodLabel) {
       const url = new URL('athlete-app/dashboard.html', window.location.href).href
       sendPush(supabase, currentAthlete.user_id, 'TBFlog', 'Your coach shared a progress report', url) // not awaited
     }
+
+    showToast(`Sent to ${currentAthlete.name}'s chat ✓`)
   } catch (err) {
     console.log('Error sharing report:', err)
     customAlert('Something went wrong sharing the report')
   }
+}
+
+// Brief bottom-center confirmation that fades itself out - for background
+// actions (like the chat share above) that have no other visible result on
+// this page, so the coach isn't left guessing whether it worked
+let toastHideTimer = null
+function showToast(message) {
+  const el = document.getElementById('pageToast')
+  el.textContent = message
+  el.classList.add('active')
+  clearTimeout(toastHideTimer)
+  toastHideTimer = setTimeout(() => el.classList.remove('active'), 3000)
 }

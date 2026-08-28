@@ -2557,6 +2557,33 @@
   cursor: not-allowed;
 }
 
+/* Brief bottom-center confirmation, auto-hides itself - used after
+   background actions with no other visible feedback (e.g. sharing a report
+   to chat), same visual family as .picking-mode-bar but self-dismissing */
+.toast-notice {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 600;
+  background-color: #1a1a2e;
+  border: 1px solid #4a4a8e;
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast-notice.active {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 .builder-link-btn {
   flex-shrink: 0;
   background: none;
