@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stretch Library — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=29" />
-    <link rel="stylesheet" href="athlete.css?v=59" />
+    <link rel="stylesheet" href="athlete.css?v=60" />
   </head>
   <body>
 
@@ -101,18 +101,22 @@
       </div>
     </div>
 
-    <!-- Manage Areas Modal - rename or remove a targeted area across every
-         stretch tagged with it (body_areas is a text[] per stretch, not its
-         own table, so this is a bulk find/replace, not a lookup edit). To
-         add a brand new area, use "+ Add New Area" while editing a stretch -
-         it shows up here once at least one stretch carries it. -->
+    <!-- Manage Areas Modal - create, rename, or remove a targeted area.
+         Renaming/removing loops over every stretch tagged with it (body_areas
+         is a text[] per stretch, not its own table); creating writes to
+         stretch_body_areas, the coach's own persisted area list, so a new
+         area exists right away even before any stretch uses it. -->
     <div class="modal-overlay" id="manageAreasModal">
       <div class="modal">
         <div class="graph-modal-header">
           <h2>Manage Targeted Areas</h2>
           <button class="btn-cancel" id="closeManageAreasModalBtn">✕</button>
         </div>
-        <p style="color:#aaaacc; font-size:13px; margin-top:-8px">Rename or remove an area across every stretch tagged with it.</p>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px">Rename or remove an area across every stretch tagged with it, or add a new one.</p>
+        <div class="manage-area-row">
+          <input type="text" id="manageAreaNewInput" placeholder="e.g. Ankles" />
+          <button type="button" class="btn-small-create" id="manageAreaAddBtn">+ Add</button>
+        </div>
         <div id="manageAreasList"></div>
       </div>
     </div>
@@ -120,7 +124,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="stretches.js?v=5"></script>
+    <script type="module" src="stretches.js?v=6"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

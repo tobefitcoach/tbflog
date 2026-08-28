@@ -649,6 +649,13 @@
   background-color: #0f0f1a;
 }
 
+.manage-area-count {
+  flex-shrink: 0;
+  color: #aaaacc;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .manage-area-delete-btn {
   flex-shrink: 0;
   background: transparent;

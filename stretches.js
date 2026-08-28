@@ -11,12 +11,13 @@ import { supabase } from './coachClient.js'
 
 let currentStretch = null // stretch being edited, or null when adding new
 let allStretchesCache = []
+let allAreasCache = [] // names from stretch_body_areas - the coach's persisted area list, independent of whether any stretch is tagged with them yet
 let selectedAreas = new Set()
 let pendingVideoFile = null
 // Search + area-chip filtering, same pattern as exercises.js - no chip
 // selected shows everything, one or more narrows it (OR between chips,
 // AND with the search box). Chips are built from areas actually in use,
-// not the starter suggestion list, so an empty filter is never offered.
+// not the full known-areas list, so an empty filter is never offered.
 let activeAreaFilters = new Set()
 
 const { data: { session } } = await supabase.auth.getSession()
@@ -30,28 +31,31 @@ if (!session) {
 // ---- LOAD + RENDER ----
 // ==========================================================================
 async function loadStretches() {
-  const { data, error } = await fetchWithRetry((signal) => supabase
-    .from('stretches')
-    .select('*')
-    .order('name')
-    .abortSignal(signal)
-  )
+  const [
+    { data: stretchesData, error: stretchesError },
+    { data: areasData, error: areasError }
+  ] = await Promise.all([
+    fetchWithRetry((signal) => supabase.from('stretches').select('*').order('name').abortSignal(signal)),
+    fetchWithRetry((signal) => supabase.from('stretch_body_areas').select('name').order('name').abortSignal(signal))
+  ])
 
-  if (error) {
-    console.log('Error loading stretches:', error)
+  if (stretchesError || areasError) {
+    console.log('Error loading stretches:', stretchesError || areasError)
     customAlert('Something went wrong loading your stretches - check your connection and try again')
     return
   }
 
-  allStretchesCache = data
-  document.getElementById('stretchTotalCount').textContent = `(${data.length})`
+  allStretchesCache = stretchesData
+  allAreasCache = areasData.map(a => a.name)
+  document.getElementById('stretchTotalCount').textContent = `(${stretchesData.length})`
   renderAreaFilterChips()
   applyLibraryFilters()
 }
 
 // Distinct body_areas values actually assigned to at least one stretch right
-// now - shared by the filter chips and the Manage Areas modal below, since
-// both only make sense for areas that are actually in use
+// now - powers the filter chips, which only make sense for areas actually
+// in use (unlike getKnownAreas() below, used by the modal chip picker and
+// Manage Areas, which also includes areas that exist but aren't used yet)
 function getUsedAreas() {
   return [...new Set(allStretchesCache.flatMap(s => s.body_areas || []))].sort()
 }
@@ -89,12 +93,14 @@ document.getElementById('stretchAreaFilterChips').addEventListener('click', func
 
 // ==========================================================================
 // ---- MANAGE AREAS ----
-// Rename or remove a targeted area across every stretch tagged with it.
-// body_areas is a text[] per stretch, not its own table, so there's no
-// single row to edit - a rename/delete here is a client-side loop over
-// every affected stretch, each getting its own update.
+// Rename, remove, or create a targeted area. body_areas is a text[] per
+// stretch, not its own table, so renaming/removing means a client-side loop
+// updating every affected stretch - but a brand new area (not yet tagged to
+// any stretch) has nowhere to live except stretch_body_areas, the coach's
+// own persisted area list, which is what "+ Add" below writes to.
 // ==========================================================================
 document.getElementById('manageAreasBtn').addEventListener('click', function() {
+  document.getElementById('manageAreaNewInput').value = ''
   renderManageAreasList()
   document.getElementById('manageAreasModal').classList.add('active')
 })
@@ -103,22 +109,40 @@ document.getElementById('closeManageAreasModalBtn').addEventListener('click', fu
   document.getElementById('manageAreasModal').classList.remove('active')
 })
 
+document.getElementById('manageAreaAddBtn').addEventListener('click', async function() {
+  const input = document.getElementById('manageAreaNewInput')
+  const name = input.value.trim()
+  if (!name) return
+  if (allAreasCache.includes(name)) { input.value = ''; return } // already exists - nothing to do
+
+  const { error } = await supabase.from('stretch_body_areas').insert([{ coach_id: session.user.id, name }])
+  if (error) { console.log(error); customAlert('Something went wrong adding that area'); return }
+
+  input.value = ''
+  await loadStretches()
+  renderManageAreasList()
+})
+
 function renderManageAreasList() {
-  const areas = getUsedAreas()
+  const areas = getKnownAreas()
   const container = document.getElementById('manageAreasList')
 
   if (areas.length === 0) {
-    container.innerHTML = '<p class="no-metrics">No areas in use yet - add one while editing a stretch.</p>'
+    container.innerHTML = '<p class="no-metrics">No areas yet - add one above.</p>'
     return
   }
 
-  container.innerHTML = areas.map(a => `
-    <div class="manage-area-row" data-area="${a}">
-      <input type="text" class="manage-area-input" value="${a}" />
-      <button type="button" class="btn-small-create manage-area-save-btn">Save</button>
-      <button type="button" class="manage-area-delete-btn">Delete</button>
-    </div>
-  `).join('')
+  container.innerHTML = areas.map(a => {
+    const count = allStretchesCache.filter(s => (s.body_areas || []).includes(a)).length
+    return `
+      <div class="manage-area-row" data-area="${a}">
+        <input type="text" class="manage-area-input" value="${a}" />
+        <span class="manage-area-count">${count ? `${count} stretch${count === 1 ? '' : 'es'}` : 'unused'}</span>
+        <button type="button" class="btn-small-create manage-area-save-btn">Save</button>
+        <button type="button" class="manage-area-delete-btn">Delete</button>
+      </div>
+    `
+  }).join('')
 
   container.querySelectorAll('.manage-area-save-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -134,22 +158,33 @@ function renderManageAreasList() {
     btn.addEventListener('click', async function() {
       const area = btn.closest('.manage-area-row').dataset.area
       const count = allStretchesCache.filter(s => (s.body_areas || []).includes(area)).length
-      if (!(await customConfirm(`Remove "${area}" from ${count} stretch${count === 1 ? '' : 'es'}? The stretches themselves won't be deleted.`))) return
+      const warning = count ? ` Removes it from ${count} stretch${count === 1 ? '' : 'es'} (the stretches themselves won't be deleted).` : ''
+      if (!(await customConfirm(`Delete "${area}"?${warning}`))) return
       deleteArea(area)
     })
   })
 }
 
-// Renames oldArea to newArea on every stretch that carries it. Deduped via
-// Set in case a stretch is somehow already tagged with both (e.g. renaming
-// "Hip" to an area it's already also tagged "Hips" with) so it doesn't end
-// up listed twice on the same stretch.
+// Renames oldArea to newArea everywhere: on every stretch that carries it
+// (deduped via Set in case a stretch is somehow already tagged with both,
+// e.g. renaming "Hip" to an area it's already also tagged "Hips" with) and
+// on its stretch_body_areas row, if one exists (it always should once the
+// area's been through this modal or the seed migration - the update is
+// just a harmless no-op otherwise).
 async function renameArea(oldArea, newArea) {
   const affected = allStretchesCache.filter(s => (s.body_areas || []).includes(oldArea))
   for (const s of affected) {
     const updated = [...new Set(s.body_areas.map(a => a === oldArea ? newArea : a))]
     const { error } = await supabase.from('stretches').update({ body_areas: updated }).eq('id', s.id)
     if (error) { console.log(error); customAlert('Something went wrong renaming that area'); return }
+  }
+  const { error } = await supabase.from('stretch_body_areas').update({ name: newArea }).eq('name', oldArea)
+  if (error) {
+    // 23505 = unique violation - newArea already has its own row (this
+    // rename is actually a merge into an existing area), so just drop the
+    // now-redundant old one instead of treating it as a failure
+    if (error.code === '23505') await supabase.from('stretch_body_areas').delete().eq('name', oldArea)
+    else { console.log(error); customAlert('Something went wrong renaming that area'); return }
   }
   if (activeAreaFilters.has(oldArea)) { activeAreaFilters.delete(oldArea); activeAreaFilters.add(newArea) }
   await loadStretches()
@@ -163,6 +198,8 @@ async function deleteArea(area) {
     const { error } = await supabase.from('stretches').update({ body_areas: updated }).eq('id', s.id)
     if (error) { console.log(error); customAlert('Something went wrong removing that area'); return }
   }
+  const { error } = await supabase.from('stretch_body_areas').delete().eq('name', area)
+  if (error) { console.log(error); customAlert('Something went wrong removing that area'); return }
   activeAreaFilters.delete(area)
   await loadStretches()
   renderManageAreasList()
@@ -226,16 +263,15 @@ function renderStretches(stretches) {
 // ==========================================================================
 // ---- BODY AREA CHIPS ----
 // A stretch can carry more than one area (unlike exercises.category), so
-// this is a multi-select chip row instead of a dropdown. Starter vocabulary
-// plus any custom area a coach has already typed elsewhere in the library,
-// same "existing values + escape hatch" idea as exercises.js's category
-// dropdown, just rendered as toggle-chips instead of <option>s.
+// this is a multi-select chip row instead of a dropdown. Every area the
+// coach has ever created (stretch_body_areas, managed via Manage Areas)
+// plus any body_areas value in actual use, same "existing values + escape
+// hatch" idea as exercises.js's category dropdown, just rendered as
+// toggle-chips instead of <option>s.
 // ==========================================================================
-const STARTER_BODY_AREAS = ['Hips', 'Hamstrings', 'Quads', 'Calves', 'Inner Thighs', 'Glutes', 'Lower Back', 'Upper Back', 'Shoulders', 'Neck', 'Chest', 'Full Body']
-
 function getKnownAreas() {
-  const custom = [...new Set(allStretchesCache.flatMap(s => s.body_areas || []))].filter(a => !STARTER_BODY_AREAS.includes(a)).sort()
-  return [...STARTER_BODY_AREAS, ...custom]
+  const fromStretches = allStretchesCache.flatMap(s => s.body_areas || [])
+  return [...new Set([...allAreasCache, ...fromStretches])].sort()
 }
 
 function renderAreaChips() {
@@ -256,13 +292,18 @@ document.getElementById('stretchAddAreaBtn').addEventListener('click', function(
   document.getElementById('stretchNewArea').focus()
 })
 
-document.getElementById('addNewStretchAreaBtn').addEventListener('click', function() {
+document.getElementById('addNewStretchAreaBtn').addEventListener('click', async function() {
   const val = document.getElementById('stretchNewArea').value.trim()
   if (!val) return
   selectedAreas.add(val)
   document.getElementById('stretchNewArea').value = ''
   document.getElementById('stretchNewAreaGroup').style.display = 'none'
   renderAreaChips()
+
+  if (!allAreasCache.includes(val)) {
+    const { error } = await supabase.from('stretch_body_areas').insert([{ coach_id: session.user.id, name: val }])
+    if (!error) allAreasCache.push(val) // so it's suggested right away, even if this stretch never actually gets saved
+  }
 })
 
 // ==========================================================================

@@ -1787,3 +1787,40 @@ update athletes set intro_seen = true where intro_seen = false;
 -- column-scoped.
 -- ==========================================================================
 alter table stretches add column if not exists is_unilateral boolean not null default false;
+
+-- ==========================================================================
+-- stretch_body_areas - coach-owned master list of targeted body areas, kept
+-- separate from stretches.body_areas (which is just a text[] tag on each
+-- individual stretch). Lets an area be created/renamed/deleted from the
+-- Stretch Library's Manage Areas modal even before any stretch is tagged
+-- with it - previously an area only "existed" once a stretch carried it,
+-- and the starter suggestions (Hips, Hamstrings, etc.) were a fixed,
+-- un-editable list baked into stretches.js. Same RLS shape as every other
+-- coach-owned table (see is_coach() above).
+-- ==========================================================================
+create table if not exists stretch_body_areas (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now(),
+  unique (coach_id, name)
+);
+
+alter table stretch_body_areas enable row level security;
+
+drop policy if exists "coach manages own stretch areas" on stretch_body_areas;
+create policy "coach manages own stretch areas" on stretch_body_areas for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()) and is_coach());
+
+-- Seed: the old hardcoded starter suggestions, for every existing coach
+insert into stretch_body_areas (coach_id, name)
+select id, area from profiles
+cross join (values ('Hips'),('Hamstrings'),('Quads'),('Calves'),('Inner Thighs'),('Glutes'),('Lower Back'),('Upper Back'),('Shoulders'),('Neck'),('Chest'),('Full Body')) as starters(area)
+where role = 'coach'
+on conflict (coach_id, name) do nothing;
+
+-- Seed: any custom area already tagged on an existing stretch, so nothing
+-- already in use silently disappears from Manage Areas
+insert into stretch_body_areas (coach_id, name)
+select distinct coach_id, unnest(body_areas) from stretches
+on conflict (coach_id, name) do nothing;
