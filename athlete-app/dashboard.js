@@ -1799,6 +1799,14 @@ function renderMobilityFlow(queue, totalSeconds) {
     if (fill) fill.style.width = pct + '%'
   }
 
+  // Grace period after every exercise change, on top of the prescribed hold
+  // - the video/name update immediately (so the athlete can see what's next
+  // and start moving), but the countdown stays frozen for this long before
+  // it actually starts ticking, so getting into position never eats into
+  // the real hold time. Same duration used for the "Other Side" interstitial
+  // below, just spent behind that black screen instead of the video.
+  const TRANSITION_PAUSE_MS = 2200
+
   function swapToCurrentIndex() {
     frontIndex = 1 - frontIndex
     videos[frontIndex].classList.add('active')
@@ -1808,12 +1816,21 @@ function renderMobilityFlow(queue, totalSeconds) {
     preloadNext()
   }
 
-  // Held for ~1s between the two passes of a two-sided stretch - the actual
-  // video swap happens while the interstitial is still fully opaque (see the
+  // Pauses the countdown (display included, since the ticker's own "if
+  // (paused) return" skips updating it too) without touching the hold total
+  // - restores whatever paused actually was before, so this can't
+  // accidentally un-pause an athlete who paused manually right as a
+  // transition started.
+  function pauseCountdownBriefly(ms) {
+    const wasPaused = paused
+    paused = true
+    setTimeout(function() { paused = wasPaused }, ms)
+  }
+
+  // Held between the two passes of a two-sided stretch - the actual video
+  // swap happens while the interstitial is still fully opaque (see the
   // inner setTimeout), so what's revealed when it fades back out is already
   // the preloaded, mirrored other-side clip playing, not a jump-cut mid-swap.
-  // Freezes the countdown for the same span so the hold time isn't eaten by
-  // the transition itself.
   function showOtherSideTransition(onSwap) {
     const wasPaused = paused
     paused = true
@@ -1824,15 +1841,19 @@ function renderMobilityFlow(queue, totalSeconds) {
       setTimeout(function() {
         el.classList.remove('active')
         paused = wasPaused
-      }, 200)
-    }, 700)
+      }, TRANSITION_PAUSE_MS - 1700)
+    }, 1700)
   }
 
   function advance() {
     index++
     if (index >= queue.length) { finishFlow(); return }
-    if (queue[index].__otherSide) showOtherSideTransition(swapToCurrentIndex)
-    else swapToCurrentIndex()
+    if (queue[index].__otherSide) {
+      showOtherSideTransition(swapToCurrentIndex)
+    } else {
+      swapToCurrentIndex()
+      pauseCountdownBriefly(TRANSITION_PAUSE_MS)
+    }
   }
 
   function finishFlow() {
