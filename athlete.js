@@ -2,6 +2,7 @@
 // SETUP — Supabase client + page state
 // ==========================================================================
 import { supabase } from './coachClient.js'
+import { sendPush } from './push.js'
 
 // Get athlete ID from URL
 const params = new URLSearchParams(window.location.search)
@@ -2936,6 +2937,8 @@ document.getElementById('generatePdfBtn').addEventListener('click', generateRepo
 async function openReportBuilderModal() {
   document.getElementById('reportBuilderModal').classList.add('active')
   document.getElementById('reportSectionChecklist').innerHTML = '<p class="no-metrics">Checking available data...</p>'
+  document.getElementById('reportSendToChatLabel').textContent = `Also send to ${currentAthlete ? currentAthlete.name : 'athlete'} in chat`
+  document.getElementById('reportSendToChat').checked = false
   reportDataCache = await fetchReportData()
   if (!reportDataCache) {
     document.getElementById('reportBuilderModal').classList.remove('active')
@@ -3554,11 +3557,57 @@ async function generateReportPDF() {
     const blobUrl = doc.output('bloburl')
     window.open(blobUrl, '_blank')
     document.getElementById('reportBuilderModal').classList.remove('active')
+
+    if (document.getElementById('reportSendToChat').checked) {
+      await shareReportWithAthlete(doc, periodLabel)
+    }
   } catch (err) {
     console.log('Error generating report PDF:', err)
     customAlert('Something went wrong generating the PDF - please try again')
   } finally {
     btn.disabled = false
     btn.textContent = '📄 Generate PDF'
+  }
+}
+
+// Uploads the just-generated PDF to the chat-attachments bucket (same
+// {coach_id}/{uuid}.ext convention as the stretch-videos bucket) and drops
+// it into this athlete's chat as a message with a pdf_url - shows up next
+// time the coach opens communication.html's Communication inbox for this
+// athlete (chat lives there now, not on this page). Only runs when the
+// "Also send to chat" checkbox in the Report Builder modal was on, chosen
+// up front instead of a confirm() popup after the PDF already opened.
+async function shareReportWithAthlete(doc, periodLabel) {
+  try {
+    const blob = doc.output('blob')
+    const path = `${session.user.id}/${crypto.randomUUID()}.pdf`
+    const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(path, blob, { contentType: 'application/pdf' })
+    if (uploadError) {
+      console.log('Error uploading report:', uploadError)
+      customAlert('Something went wrong sharing the report')
+      return
+    }
+    const pdfUrl = supabase.storage.from('chat-attachments').getPublicUrl(path).data.publicUrl
+
+    const { error } = await supabase.from('chat_messages').insert([{
+      coach_id: session.user.id,
+      athlete_id: athleteId,
+      sender: 'coach',
+      message: `📄 Progress Report (${periodLabel})`,
+      pdf_url: pdfUrl
+    }])
+    if (error) {
+      console.log('Error sharing report:', error)
+      customAlert('Something went wrong sharing the report')
+      return
+    }
+
+    if (currentAthlete.user_id) {
+      const url = new URL('athlete-app/dashboard.html', window.location.href).href
+      sendPush(supabase, currentAthlete.user_id, 'TBFlog', 'Your coach shared a progress report', url) // not awaited
+    }
+  } catch (err) {
+    console.log('Error sharing report:', err)
+    customAlert('Something went wrong sharing the report')
   }
 }
