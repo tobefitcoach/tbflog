@@ -13,6 +13,11 @@ let currentStretch = null // stretch being edited, or null when adding new
 let allStretchesCache = []
 let selectedAreas = new Set()
 let pendingVideoFile = null
+// Search + area-chip filtering, same pattern as exercises.js - no chip
+// selected shows everything, one or more narrows it (OR between chips,
+// AND with the search box). Chips are built from areas actually in use,
+// not the starter suggestion list, so an empty filter is never offered.
+let activeAreaFilters = new Set()
 
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
@@ -39,15 +44,49 @@ async function loadStretches() {
   }
 
   allStretchesCache = data
-  renderStretches(data)
+  document.getElementById('stretchTotalCount').textContent = `(${data.length})`
+  renderAreaFilterChips()
+  applyLibraryFilters()
 }
+
+// Rebuilds the chip row from whatever body_areas values are actually
+// present right now - same technique renderAreaChips() in the modal uses,
+// just scoped to in-use areas only (a filter chip for an area with zero
+// stretches would just be a dead end)
+function renderAreaFilterChips() {
+  const areas = [...new Set(allStretchesCache.flatMap(s => s.body_areas || []))].sort()
+  const row = document.getElementById('stretchAreaFilterChips')
+  row.innerHTML = areas.map(a =>
+    `<button type="button" class="chip-btn ${activeAreaFilters.has(a) ? 'selected' : ''}" data-area="${a}">${a}</button>`
+  ).join('')
+}
+
+function applyLibraryFilters() {
+  const search = document.getElementById('stretchSearchInput').value.trim().toLowerCase()
+  let filtered = search ? allStretchesCache.filter(s => s.name.toLowerCase().includes(search)) : allStretchesCache
+  if (activeAreaFilters.size) filtered = filtered.filter(s => (s.body_areas || []).some(a => activeAreaFilters.has(a)))
+  renderStretches(filtered)
+}
+
+document.getElementById('stretchSearchInput').addEventListener('input', applyLibraryFilters)
+
+document.getElementById('stretchAreaFilterChips').addEventListener('click', function(e) {
+  const btn = e.target.closest('.chip-btn')
+  if (!btn) return
+  const area = btn.dataset.area
+  if (activeAreaFilters.has(area)) activeAreaFilters.delete(area)
+  else activeAreaFilters.add(area)
+  btn.classList.toggle('selected')
+  applyLibraryFilters()
+})
 
 function renderStretches(stretches) {
   const container = document.getElementById('stretchList')
-  document.getElementById('stretchTotalCount').textContent = `(${stretches.length})`
 
   if (stretches.length === 0) {
-    container.innerHTML = '<p class="no-metrics">No stretches yet — add your first one!</p>'
+    container.innerHTML = allStretchesCache.length === 0
+      ? '<p class="no-metrics">No stretches yet — add your first one!</p>'
+      : '<p class="no-metrics">No stretches match your search/filter</p>'
     return
   }
 
