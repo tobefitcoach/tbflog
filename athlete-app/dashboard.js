@@ -1721,6 +1721,19 @@ async function startMobilityFlow(selectedAreas, totalSeconds) {
 // load. The countdown timer is the sole authority on when to advance -
 // never the video's own length or its 'ended' event - which is what lets a
 // short clip (loop="true") cover a longer hold.
+// Reads a stretch's coach-written instructions aloud, once, via the
+// browser's built-in speech synthesis - no audio file, no server round
+// trip. Called once per queue entry (initial load + every advance()), never
+// tied to the video's own loop, so it naturally reads once even though the
+// clip behind it repeats for the whole hold duration. cancel() first so
+// skipping ahead mid-sentence doesn't stack overlapping speech.
+function speakInstructions(stretch) {
+  if (!window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+  if (!stretch || !stretch.instructions) return
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(stretch.instructions))
+}
+
 function renderMobilityFlow(queue, totalSeconds) {
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
@@ -1795,16 +1808,19 @@ function renderMobilityFlow(queue, totalSeconds) {
     remaining = queue[index].default_hold_seconds || 30
     updateChrome()
     preloadNext()
+    speakInstructions(queue[index])
   }
 
   function finishFlow() {
     clearMobilityFlowTimer()
+    if (window.speechSynthesis) window.speechSynthesis.cancel()
     finishMobilitySession(startedAt) // unchanged - started_at is the real flow-start time, ended_at is now, however the flow actually stopped
   }
 
   loadStretchIntoVideo(videos[0], queue[0])
   updateChrome()
   preloadNext()
+  speakInstructions(queue[0])
 
   mobilityFlowInterval = setInterval(function() {
     if (paused) return
@@ -1818,6 +1834,7 @@ function renderMobilityFlow(queue, totalSeconds) {
     paused = !paused
     this.textContent = paused ? '▶' : '⏸'
     videos.forEach(function(v) { if (paused) v.pause(); else v.play().catch(function() {}) })
+    if (window.speechSynthesis) { if (paused) window.speechSynthesis.pause(); else window.speechSynthesis.resume() }
   })
 
   document.getElementById('mobilityFlowSkipBtn').addEventListener('click', advance)

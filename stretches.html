@@ -89,6 +89,11 @@
           <input type="file" id="stretchVideoFile" accept="video/*" />
           <p style="color:#aaaacc; font-size:12px; margin-top:4px">A short clip (5-15s) is enough - it loops automatically to cover the hold duration.</p>
         </div>
+        <div class="form-group">
+          <label>Instructions (optional)</label>
+          <textarea id="stretchInstructions" class="notes-textarea" placeholder="e.g. Keep your back straight, breathe deeply..."></textarea>
+          <p style="color:#aaaacc; font-size:12px; margin-top:4px">Read aloud once by the athlete app when this stretch comes up - not looped, even though the video is.</p>
+        </div>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelStretchBtn">Cancel</button>
           <button class="btn-save" id="saveStretchBtn">Save</button>
@@ -99,7 +104,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="stretches.js?v=3"></script>
+    <script type="module" src="stretches.js?v=4"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>
