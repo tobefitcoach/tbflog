@@ -730,7 +730,8 @@ header {
 
 /* Reuses the coach's .exercise-lib-card (video thumb + name) since it's
    the same "pick an exercise" job, just tap-to-add instead of drag */
-#ownAddExerciseList {
+#ownAddExerciseList,
+#ownBuilderList {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -744,6 +745,71 @@ header {
 .own-add-exercise-card.adding {
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* Selected state for renderOwnWorkoutBuilder's multi-select cards - tapping
+   toggles this instead of immediately adding, unlike the single-add flow
+   above */
+.own-add-exercise-card.selected {
+  border-color: #4fc3f7;
+  background-color: rgba(79, 195, 247, 0.1);
+}
+
+.own-builder-check {
+  display: none;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #4fc3f7;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.own-add-exercise-card.selected .own-builder-check {
+  display: block;
+}
+
+.own-builder-subtitle {
+  color: #aaaacc;
+  font-size: 13px;
+  margin: -6px 0 14px;
+}
+
+.own-builder-section-label {
+  color: #aaaacc;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 14px 0 2px;
+}
+
+.own-builder-section-label:first-child {
+  margin-top: 0;
+}
+
+/* Same fixed-above-the-bottom-nav treatment as .rest-timer-bar, so it stays
+   reachable while scrolling a long exercise list without covering the nav */
+.own-builder-start-bar {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  position: fixed;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  background-color: #1a1a2e;
+  border: 1px solid #4a4a8e;
+  border-radius: 36px;
+  padding: 10px 12px 10px 22px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+}
+
+.own-builder-start-count {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Fixed to the bottom of the screen so it stays visible while scrolling

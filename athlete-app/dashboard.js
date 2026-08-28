@@ -1988,13 +1988,11 @@ function renderAddWorkoutChoice() {
 }
 
 // ---- Strength: same live guided screen as a coach-assigned workout ----
-// Pressing "Strength" drops straight into the exact renderActiveExercise
-// flow used to follow a coach-built training - video thumb, + Add Set,
-// checkable rows - just starting with zero exercises and an "+ Add
-// Exercise" button (see startWorkout/renderActiveExercise/
-// renderOwnWorkoutAddExercise) instead of a coach-built list. No separate
-// "plan your targets first" step: the athlete just adds an exercise and
-// logs actual sets as they go, same as always.
+// Pressing "Strength" first sends the athlete through renderOwnWorkoutBuilder
+// (multi-select their whole exercise list up front), then drops into the
+// exact renderActiveExercise flow used to follow a coach-built training -
+// video thumb, + Add Set, checkable rows - once "Start Workout" is pressed
+// there. Logging itself is unchanged either way: actual sets as they go.
 async function startOwnStrengthWorkout() {
   const dateStr = toDateStr(new Date())
   let dayId, created
@@ -2052,10 +2050,12 @@ function wireExercisePicker(searchInputEl, listEl, library, onPick) {
   render()
 }
 
-// Search + tap-to-add - how a self-logged workout grows its exercise list
-// live, one at a time. Reached both for the very first exercise (empty
-// day, from startWorkout) and via the "+ Add Exercise" button on any later
-// slide (renderSingleSlideBody), passing the slide index to return to.
+// Search + tap-to-add-and-jump-straight-in - reached only mid-workout, via
+// the "+ Add Exercise" button on a later slide (renderSingleSlideBody, which
+// always passes the slide index to return to). Deliberately still one-at-a-
+// time: this is for a spontaneous "oh, one more thing" mid-session, not
+// upfront planning - that's renderOwnWorkoutBuilder below, used instead for
+// the very first exercise of a fresh (or emptied-back-to-zero) day.
 async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
   clearRestTimer()
   pageWrap.classList.add('wide')
@@ -2072,10 +2072,8 @@ async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, retur
 
   document.getElementById('ownAddExerciseBackBtn').addEventListener('click', function() {
     const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
-    if (exercises.length === 0) { renderWeekView(currentWeekStart || startOfWeek(new Date())); return }
     const slides = buildWorkoutSlides(exercises)
-    const idx = returnIndex != null ? Math.min(returnIndex, slides.length - 1) : slides.length - 1
-    renderActiveExercise(entry, dateStr, slides, idx, sessionPromise)
+    renderActiveExercise(entry, dateStr, slides, Math.min(returnIndex, slides.length - 1), sessionPromise)
   })
 
   const library = await loadExerciseLibrary()
@@ -2089,6 +2087,161 @@ async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, retur
       addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseId)
     }
   )
+}
+
+// Every exercise the athlete has ever self-added to one of their own
+// workouts, most recently first - pure client-side derivation from
+// entriesByDate (already loaded by loadTrainingData(), no extra query
+// needed) mapped back through the current library so an archived/deleted
+// exercise never shows up. Powers the "Recently Logged" shortcut in
+// renderOwnWorkoutBuilder, so a repeat gym day doesn't mean re-searching
+// for the same handful of exercises every time.
+function getRecentlyLoggedExercises(library, limit) {
+  const latestCreatedAt = new Map() // exercise_id -> most recent created_at it was added at
+  for (const dateStr in entriesByDate) {
+    for (const entry of entriesByDate[dateStr]) {
+      if (!entry.program.created_by_athlete) continue
+      for (const pe of entry.day.program_exercises) {
+        const existing = latestCreatedAt.get(pe.exercise_id)
+        if (!existing || pe.created_at > existing) latestCreatedAt.set(pe.exercise_id, pe.created_at)
+      }
+    }
+  }
+  return [...latestCreatedAt.entries()]
+    .sort((a, b) => b[1].localeCompare(a[1]))
+    .map(([exerciseId]) => library.find(ex => ex.id === exerciseId))
+    .filter(Boolean)
+    .slice(0, limit)
+}
+
+// ---- Own workout builder: multi-select the whole exercise list up front ----
+// Reached for a brand-new (or emptied-back-out-to-zero) self-logged day.
+// Tapping a card just toggles it selected - nothing is written to
+// program_exercises until "Start Workout" inserts the whole batch in one
+// go, so backing out here leaves no trace. Once started, it's the exact
+// same renderActiveExercise flow as a coach-built workout.
+async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
+  clearRestTimer()
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  const selected = new Map() // exercise_id -> exercise object, insertion-ordered
+  const activeCategoryFilters = new Set()
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="ownBuilderBackBtn">← Back</button>
+      <h2 class="day-view-date">Build Your Workout</h2>
+    </div>
+    <p class="own-builder-subtitle">Select all the exercises you want to do, then start your workout.</p>
+    <input type="text" id="ownBuilderSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
+    <div class="chip-row" id="ownBuilderCategoryChips"></div>
+    <div id="ownBuilderList"></div>
+    <div class="own-builder-start-bar" id="ownBuilderStartBar"></div>
+  `
+
+  document.getElementById('ownBuilderBackBtn').addEventListener('click', function() {
+    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  const library = await loadExerciseLibrary()
+  if (library === null) return
+
+  const categories = [...new Set(library.map(ex => ex.category).filter(c => c && c.trim()))].sort()
+  document.getElementById('ownBuilderCategoryChips').innerHTML = categories.map(cat =>
+    `<button type="button" class="chip-btn" data-category="${cat}">${cat}</button>`
+  ).join('')
+  document.getElementById('ownBuilderCategoryChips').addEventListener('click', function(e) {
+    const btn = e.target.closest('.chip-btn')
+    if (!btn) return
+    const cat = btn.dataset.category
+    if (activeCategoryFilters.has(cat)) activeCategoryFilters.delete(cat)
+    else activeCategoryFilters.add(cat)
+    btn.classList.toggle('selected')
+    renderList()
+  })
+
+  document.getElementById('ownBuilderSearchInput').addEventListener('input', renderList)
+
+  function cardHtml(ex) {
+    const thumb = getYouTubeThumbnail(ex.video_url)
+    return `
+      <div class="exercise-lib-card own-add-exercise-card ${selected.has(ex.id) ? 'selected' : ''}" data-id="${ex.id}">
+        <div class="exercise-lib-thumb">
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
+        </div>
+        <span class="exercise-lib-name">${ex.name}</span>
+        <span class="own-builder-check">✓</span>
+      </div>
+    `
+  }
+
+  function renderList() {
+    const search = document.getElementById('ownBuilderSearchInput').value.trim().toLowerCase()
+    const filtered = library.filter(ex =>
+      (!search || ex.name.toLowerCase().includes(search)) &&
+      (activeCategoryFilters.size === 0 || activeCategoryFilters.has((ex.category || '').trim()))
+    )
+
+    const showRecents = !search && activeCategoryFilters.size === 0
+    const recents = showRecents ? getRecentlyLoggedExercises(library, 6) : []
+    const recentIds = new Set(recents.map(ex => ex.id))
+    const rest = filtered.filter(ex => !recentIds.has(ex.id))
+
+    const listEl = document.getElementById('ownBuilderList')
+    listEl.innerHTML =
+      (recents.length ? `<p class="own-builder-section-label">Recently Logged</p>${recents.map(cardHtml).join('')}<p class="own-builder-section-label">All Exercises</p>` : '') +
+      (rest.length === 0 && recents.length === 0 ? '<p class="no-metrics">No exercises found</p>' : rest.map(cardHtml).join(''))
+
+    listEl.querySelectorAll('.own-add-exercise-card').forEach(card => {
+      card.addEventListener('click', function() {
+        const id = card.dataset.id
+        if (selected.has(id)) selected.delete(id)
+        else selected.set(id, library.find(ex => ex.id === id))
+        card.classList.toggle('selected')
+        renderStartBar()
+      })
+    })
+  }
+
+  function renderStartBar() {
+    const bar = document.getElementById('ownBuilderStartBar')
+    if (selected.size === 0) { bar.style.display = 'none'; return }
+    bar.style.display = 'flex'
+    bar.innerHTML = `
+      <span class="own-builder-start-count">${selected.size} exercise${selected.size === 1 ? '' : 's'} selected</span>
+      <button type="button" class="btn-save" id="ownBuilderStartBtn">Start Workout</button>
+    `
+    document.getElementById('ownBuilderStartBtn').addEventListener('click', startBuiltWorkout)
+  }
+
+  async function startBuiltWorkout() {
+    const ids = [...selected.keys()]
+    if (ids.length === 0) return
+    const btn = document.getElementById('ownBuilderStartBtn')
+    btn.disabled = true
+    btn.textContent = 'Starting...'
+
+    const rows = ids.map((exerciseId, i) => ({ day_id: entry.day.id, exercise_id: exerciseId, order_index: i, added_by_athlete: true }))
+    const { data, error } = await supabase
+      .from('program_exercises')
+      .insert(rows)
+      .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+
+    if (error) {
+      console.log(error)
+      customAlert('Something went wrong starting your workout - please try again')
+      btn.disabled = false
+      btn.textContent = 'Start Workout'
+      return
+    }
+
+    entry.day.program_exercises.push(...data)
+    const slides = buildWorkoutSlides([...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index))
+    renderActiveExercise(entry, dateStr, slides, 0, sessionPromise)
+  }
+
+  renderList()
 }
 
 async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseId) {
@@ -2125,7 +2278,7 @@ function removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId) {
 
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   if (exercises.length === 0) {
-    renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise)
+    renderOwnWorkoutBuilder(entry, dateStr, sessionPromise)
   } else {
     const slides = buildWorkoutSlides(exercises)
     renderActiveExercise(entry, dateStr, slides, Math.min(index, slides.length - 1), sessionPromise, -1)
@@ -2946,9 +3099,8 @@ function proceedToStartWorkout(entry, dateStr) {
   })
 
   // A self-logged workout has no coach-built list to start from - the
-  // athlete builds it live, one exercise at a time, via the same "+ Add
-  // Exercise" screen a later slide's button also opens
-  if (exercises.length === 0) { renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise); return }
+  // athlete picks their whole list up front via renderOwnWorkoutBuilder
+  if (exercises.length === 0) { renderOwnWorkoutBuilder(entry, dateStr, sessionPromise); return }
 
   const slides = buildWorkoutSlides(exercises)
   const resumeIndex = findResumeIndex(slides)
