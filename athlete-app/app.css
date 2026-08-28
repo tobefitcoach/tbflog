@@ -281,6 +281,13 @@ header {
   opacity: 1;
 }
 
+/* Two-sided stretch, "other side" pass - see loadStretchIntoVideo() in
+   dashboard.js. Flips the SAME clip horizontally so it visually reads as
+   the other side instead of an obvious repeat of the exact same footage. */
+.mobility-flow-video.mirrored {
+  transform: scaleX(-1);
+}
+
 .mobility-flow-overlay {
   position: absolute;
   inset: 0;

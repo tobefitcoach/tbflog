@@ -1776,3 +1776,14 @@ create policy "public reads athlete avatars" on storage.objects for select
 -- ==========================================================================
 alter table athletes add column if not exists intro_seen boolean not null default false;
 update athletes set intro_seen = true where intro_seen = false;
+
+-- ==========================================================================
+-- stretches.is_unilateral - a coach films just ONE side of a two-sided
+-- stretch (quad stretch, pigeon pose, figure-4, etc.) and flags it here.
+-- buildMobilityQueue() in athlete-app/dashboard.js then queues it twice in
+-- a row (same clip, mirrored horizontally the second time via CSS - see
+-- loadStretchIntoVideo()), each pass getting the full hold duration, with
+-- an "Other Side" label on the second. No RLS change needed - not
+-- column-scoped.
+-- ==========================================================================
+alter table stretches add column if not exists is_unilateral boolean not null default false;

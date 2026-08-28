@@ -1677,14 +1677,28 @@ function buildMobilityQueue(stretches, prefsMap, selectedAreas, totalSeconds) {
     if (pool.length === 0) {
       // Start a new lap - reshuffle until it doesn't open with whatever
       // just closed the previous lap, so a lap boundary never repeats a
-      // stretch back-to-back
+      // stretch back-to-back (comparing by .id, not object identity, still
+      // works correctly for a two-sided pair below - both entries share
+      // the same underlying stretch's id)
       do {
         pool = weightedShuffle()
       } while (candidates.length > 1 && queue.length > 0 && pool[0].id === queue[queue.length - 1].id)
     }
     const next = pool.shift()
-    queue.push(next)
-    elapsed += (next.default_hold_seconds || 30)
+    const holdSeconds = next.default_hold_seconds || 30
+    if (next.is_unilateral) {
+      // One filmed clip, shown twice in a row - second pass is a shallow
+      // clone flagged __otherSide so renderMobilityFlow's updateChrome() can
+      // show a "switch sides" cue, same video_url/id/hold either way (the
+      // id match is what lets the like/dislike buttons and the lap-repeat
+      // check above treat both halves as the one stretch they are)
+      queue.push(next)
+      queue.push({ ...next, __otherSide: true })
+      elapsed += holdSeconds * 2
+    } else {
+      queue.push(next)
+      elapsed += holdSeconds
+    }
   }
   return queue
 }
@@ -1741,6 +1755,11 @@ function renderMobilityFlow(queue, totalSeconds) {
   let frontIndex = 0
 
   function loadStretchIntoVideo(videoEl, stretch) {
+    // A two-sided stretch's "other side" pass replays the SAME clip (only
+    // one side was ever filmed, see buildMobilityQueue) - mirroring it
+    // horizontally is a cheap way to make it actually look like the other
+    // side instead of visibly repeating the exact same footage
+    videoEl.classList.toggle('mirrored', !!(stretch && stretch.__otherSide))
     if (stretch && stretch.video_url) {
       videoEl.src = stretch.video_url
       videoEl.load()
@@ -1758,7 +1777,7 @@ function renderMobilityFlow(queue, totalSeconds) {
   }
 
   function updateChrome() {
-    document.getElementById('mobilityFlowName').textContent = queue[index].name
+    document.getElementById('mobilityFlowName').textContent = queue[index].name + (queue[index].__otherSide ? ' · Other Side' : '')
     document.getElementById('mobilityFlowTime').textContent = formatTimer(remaining)
     updatePrefButtons(queue[index].id)
     const doneSoFar = queue.slice(0, index).reduce((sum, s) => sum + (s.default_hold_seconds || 30), 0)

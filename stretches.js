@@ -67,7 +67,7 @@ function renderStretches(stretches) {
               </div>
             </div>
           </div>
-          <p class="exercise-instructions" style="color:#4a4a8e; margin-bottom:4px">${s.default_hold_seconds}s hold</p>
+          <p class="exercise-instructions" style="color:#4a4a8e; margin-bottom:4px">${s.default_hold_seconds}s hold${s.is_unilateral ? ' · Two-Sided' : ''}</p>
           ${(s.body_areas || []).length ? `<div class="stretch-item-areas">${s.body_areas.map(a => `<span class="chip-btn chip-btn-readonly">${a}</span>`).join('')}</div>` : ''}
         </div>
       `).join('')}
@@ -166,6 +166,7 @@ function openStretchModal(stretch) {
   document.getElementById('stretchModalTitle').textContent = stretch ? 'Edit Stretch' : 'Add Stretch'
   document.getElementById('stretchName').value = stretch ? stretch.name : ''
   document.getElementById('stretchDefaultHold').value = stretch ? stretch.default_hold_seconds : 30
+  document.getElementById('stretchIsUnilateral').checked = stretch ? !!stretch.is_unilateral : false
   document.getElementById('stretchVideoFile').value = ''
   document.getElementById('stretchNewAreaGroup').style.display = 'none'
   renderAreaChips()
@@ -189,6 +190,7 @@ document.getElementById('cancelStretchBtn').addEventListener('click', function()
 document.getElementById('saveStretchBtn').addEventListener('click', async function() {
   const name = document.getElementById('stretchName').value.trim()
   const defaultHoldSeconds = parseInt(document.getElementById('stretchDefaultHold').value) || 30
+  const isUnilateral = document.getElementById('stretchIsUnilateral').checked
   const bodyAreas = [...selectedAreas]
 
   if (!name) { customAlert('Please enter a name'); return }
@@ -216,12 +218,12 @@ document.getElementById('saveStretchBtn').addEventListener('click', async functi
   if (currentStretch) {
     ({ error } = await supabase
       .from('stretches')
-      .update({ name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds })
+      .update({ name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds, is_unilateral: isUnilateral })
       .eq('id', currentStretch.id))
   } else {
     ({ error } = await supabase
       .from('stretches')
-      .insert([{ coach_id: session.user.id, name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds }]))
+      .insert([{ coach_id: session.user.id, name, body_areas: bodyAreas, video_url: videoUrl, default_hold_seconds: defaultHoldSeconds, is_unilateral: isUnilateral }]))
   }
 
   if (error) { console.log(error); customAlert('Something went wrong'); return }
