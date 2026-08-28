@@ -49,12 +49,19 @@ async function loadStretches() {
   applyLibraryFilters()
 }
 
+// Distinct body_areas values actually assigned to at least one stretch right
+// now - shared by the filter chips and the Manage Areas modal below, since
+// both only make sense for areas that are actually in use
+function getUsedAreas() {
+  return [...new Set(allStretchesCache.flatMap(s => s.body_areas || []))].sort()
+}
+
 // Rebuilds the chip row from whatever body_areas values are actually
 // present right now - same technique renderAreaChips() in the modal uses,
 // just scoped to in-use areas only (a filter chip for an area with zero
 // stretches would just be a dead end)
 function renderAreaFilterChips() {
-  const areas = [...new Set(allStretchesCache.flatMap(s => s.body_areas || []))].sort()
+  const areas = getUsedAreas()
   const row = document.getElementById('stretchAreaFilterChips')
   row.innerHTML = areas.map(a =>
     `<button type="button" class="chip-btn ${activeAreaFilters.has(a) ? 'selected' : ''}" data-area="${a}">${a}</button>`
@@ -79,6 +86,87 @@ document.getElementById('stretchAreaFilterChips').addEventListener('click', func
   btn.classList.toggle('selected')
   applyLibraryFilters()
 })
+
+// ==========================================================================
+// ---- MANAGE AREAS ----
+// Rename or remove a targeted area across every stretch tagged with it.
+// body_areas is a text[] per stretch, not its own table, so there's no
+// single row to edit - a rename/delete here is a client-side loop over
+// every affected stretch, each getting its own update.
+// ==========================================================================
+document.getElementById('manageAreasBtn').addEventListener('click', function() {
+  renderManageAreasList()
+  document.getElementById('manageAreasModal').classList.add('active')
+})
+
+document.getElementById('closeManageAreasModalBtn').addEventListener('click', function() {
+  document.getElementById('manageAreasModal').classList.remove('active')
+})
+
+function renderManageAreasList() {
+  const areas = getUsedAreas()
+  const container = document.getElementById('manageAreasList')
+
+  if (areas.length === 0) {
+    container.innerHTML = '<p class="no-metrics">No areas in use yet - add one while editing a stretch.</p>'
+    return
+  }
+
+  container.innerHTML = areas.map(a => `
+    <div class="manage-area-row" data-area="${a}">
+      <input type="text" class="manage-area-input" value="${a}" />
+      <button type="button" class="btn-small-create manage-area-save-btn">Save</button>
+      <button type="button" class="manage-area-delete-btn">Delete</button>
+    </div>
+  `).join('')
+
+  container.querySelectorAll('.manage-area-save-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const row = btn.closest('.manage-area-row')
+      const oldArea = row.dataset.area
+      const newArea = row.querySelector('.manage-area-input').value.trim()
+      if (!newArea || newArea === oldArea) return
+      renameArea(oldArea, newArea)
+    })
+  })
+
+  container.querySelectorAll('.manage-area-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const area = btn.closest('.manage-area-row').dataset.area
+      const count = allStretchesCache.filter(s => (s.body_areas || []).includes(area)).length
+      if (!(await customConfirm(`Remove "${area}" from ${count} stretch${count === 1 ? '' : 'es'}? The stretches themselves won't be deleted.`))) return
+      deleteArea(area)
+    })
+  })
+}
+
+// Renames oldArea to newArea on every stretch that carries it. Deduped via
+// Set in case a stretch is somehow already tagged with both (e.g. renaming
+// "Hip" to an area it's already also tagged "Hips" with) so it doesn't end
+// up listed twice on the same stretch.
+async function renameArea(oldArea, newArea) {
+  const affected = allStretchesCache.filter(s => (s.body_areas || []).includes(oldArea))
+  for (const s of affected) {
+    const updated = [...new Set(s.body_areas.map(a => a === oldArea ? newArea : a))]
+    const { error } = await supabase.from('stretches').update({ body_areas: updated }).eq('id', s.id)
+    if (error) { console.log(error); customAlert('Something went wrong renaming that area'); return }
+  }
+  if (activeAreaFilters.has(oldArea)) { activeAreaFilters.delete(oldArea); activeAreaFilters.add(newArea) }
+  await loadStretches()
+  renderManageAreasList()
+}
+
+async function deleteArea(area) {
+  const affected = allStretchesCache.filter(s => (s.body_areas || []).includes(area))
+  for (const s of affected) {
+    const updated = s.body_areas.filter(a => a !== area)
+    const { error } = await supabase.from('stretches').update({ body_areas: updated }).eq('id', s.id)
+    if (error) { console.log(error); customAlert('Something went wrong removing that area'); return }
+  }
+  activeAreaFilters.delete(area)
+  await loadStretches()
+  renderManageAreasList()
+}
 
 function renderStretches(stretches) {
   const container = document.getElementById('stretchList')

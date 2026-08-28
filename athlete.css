@@ -629,6 +629,42 @@
   color: white;
 }
 
+/* One editable row per area in the Manage Areas modal - see
+   renderManageAreasList() in stretches.js */
+.manage-area-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.manage-area-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #ffffff;
+  background-color: #0f0f1a;
+}
+
+.manage-area-delete-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid #2a2a4e;
+  color: #aaaacc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.manage-area-delete-btn:hover {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
 .day-add-workout-preview {
   flex: 1;
   min-width: 0;

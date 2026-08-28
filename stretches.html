@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stretch Library — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=29" />
-    <link rel="stylesheet" href="athlete.css?v=58" />
+    <link rel="stylesheet" href="athlete.css?v=59" />
   </head>
   <body>
 
@@ -49,7 +49,10 @@
         </div>
         <p style="color:#aaaacc; font-size:13px; margin-top:-16px; margin-bottom:24px">Videos here power the athlete app's guided Daily Mobility/Stretching flow - short looping clips work best (see the filming tips you already have).</p>
         <input type="text" id="stretchSearchInput" class="exercise-search-input" placeholder="Search stretches..." style="margin-bottom:10px" />
-        <div class="chip-row" id="stretchAreaFilterChips" style="margin-bottom:16px"></div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:16px">
+          <div class="chip-row" id="stretchAreaFilterChips"></div>
+          <button type="button" class="btn-small-create" id="manageAreasBtn" style="flex-shrink:0">Manage Areas</button>
+        </div>
         <div id="stretchList"></div>
       </div>
     </div>
@@ -98,10 +101,26 @@
       </div>
     </div>
 
+    <!-- Manage Areas Modal - rename or remove a targeted area across every
+         stretch tagged with it (body_areas is a text[] per stretch, not its
+         own table, so this is a bulk find/replace, not a lookup edit). To
+         add a brand new area, use "+ Add New Area" while editing a stretch -
+         it shows up here once at least one stretch carries it. -->
+    <div class="modal-overlay" id="manageAreasModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Manage Targeted Areas</h2>
+          <button class="btn-cancel" id="closeManageAreasModalBtn">✕</button>
+        </div>
+        <p style="color:#aaaacc; font-size:13px; margin-top:-8px">Rename or remove an area across every stretch tagged with it.</p>
+        <div id="manageAreasList"></div>
+      </div>
+    </div>
+
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="stretches.js?v=4"></script>
+    <script type="module" src="stretches.js?v=5"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>
