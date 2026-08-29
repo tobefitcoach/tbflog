@@ -1587,7 +1587,11 @@ function clearMobilityTimer() {
   mobilityTimerInterval = null
 }
 
-async function finishMobilitySession(startedAt) {
+// selectedAreas is the up-to-2 focus areas chosen in renderMobilityAreaPicker
+// (or undefined from renderMobilityTimer's no-library path, where there was
+// never a library to pick areas from) - stored so the coach can see what the
+// athlete was focusing on from the calendar day-detail view.
+async function finishMobilitySession(startedAt, selectedAreas) {
   const { error } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .insert([{
@@ -1596,7 +1600,8 @@ async function finishMobilitySession(startedAt) {
       session_type: 'mobility',
       started_at: startedAt.toISOString(),
       ended_at: new Date().toISOString(),
-      local_date: toDateStr(startedAt)
+      local_date: toDateStr(startedAt),
+      mobility_focus_areas: selectedAreas && selectedAreas.length ? selectedAreas : null
     }])
     .abortSignal(signal)
   )
@@ -1718,7 +1723,7 @@ async function startMobilityFlow(selectedAreas, totalSeconds) {
     customAlert("No stretches available yet - ask your coach to add some to the library.")
     return
   }
-  renderMobilityFlow(queue, totalSeconds)
+  renderMobilityFlow(queue, totalSeconds, selectedAreas)
 }
 
 // ---- Continuous-flow guided screen ----
@@ -1730,7 +1735,7 @@ async function startMobilityFlow(selectedAreas, totalSeconds) {
 // load. The countdown timer is the sole authority on when to advance -
 // never the video's own length or its 'ended' event - which is what lets a
 // short clip (loop="true") cover a longer hold.
-function renderMobilityFlow(queue, totalSeconds) {
+function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -1867,7 +1872,7 @@ function renderMobilityFlow(queue, totalSeconds) {
 
   function finishFlow() {
     clearMobilityFlowTimer()
-    finishMobilitySession(startedAt) // unchanged - started_at is the real flow-start time, ended_at is now, however the flow actually stopped
+    finishMobilitySession(startedAt, selectedAreas) // startedAt unchanged - real flow-start time, ended_at is now, however the flow actually stopped
   }
 
   loadStretchIntoVideo(videos[0], queue[0])

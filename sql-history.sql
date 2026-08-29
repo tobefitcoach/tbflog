@@ -1848,3 +1848,19 @@ alter table athletes add column if not exists tournaments_enabled boolean not nu
 
 alter table athletes alter column can_self_log_workouts set default true;
 update athletes set can_self_log_workouts = true where can_self_log_workouts = false;
+
+-- ==========================================================================
+-- Let the coach manage logged mobility sessions from the calendar, same as
+-- a real workout (minus copying - there's nothing to schedule ahead for a
+-- logged session). mobility_focus_areas records the up-to-2 areas the
+-- athlete picked in renderMobilityAreaPicker (athlete-app/dashboard.js), so
+-- the coach can see what they were focusing on from the day-detail view.
+-- No RLS change needed for the new column (not column-scoped), but there
+-- was never a coach DELETE policy on workout_sessions at all before now -
+-- coach could only view sessions and update the RPE-flag review columns.
+-- ==========================================================================
+alter table workout_sessions add column if not exists mobility_focus_areas text[];
+
+drop policy if exists "coach deletes sessions for own athletes" on workout_sessions;
+create policy "coach deletes sessions for own athletes" on workout_sessions for delete
+  using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = (select auth.uid())));

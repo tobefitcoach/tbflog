@@ -161,7 +161,7 @@ async function loadCalendarMonth(year, month) {
     ),
     fetchWithRetry((signal) => supabase
       .from('workout_sessions')
-      .select('program_day_id, started_at, ended_at, local_date, session_rpe, session_type, rpe_flag_reason, rpe_flag_note, rpe_flag_reviewed_at')
+      .select('id, program_day_id, started_at, ended_at, local_date, session_rpe, session_type, rpe_flag_reason, rpe_flag_note, rpe_flag_reviewed_at, mobility_focus_areas')
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
     ),
@@ -321,63 +321,83 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
       const status = session ? (session.ended_at ? 'done' : 'in-progress') : 'planned'
       const glyph = status === 'done' ? '✓' : (status === 'in-progress' ? '▶' : '')
       // dayId marks this as a real, draggable workout with its own kebab
-      // menu (copy/delete, see the badgesHtml build below) - mobility/
-      // tournament items below never get one, so they're never draggable
-      // and never get a kebab
+      // menu (copy/delete, see the badgesHtml build below) - tournament
+      // items never get one (nothing to delete/copy from the calendar),
+      // mobility gets a delete-only kebab (see mobilitySessionId below)
       return { status, glyph, label: trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
     })
-    if (mobility) items.push({ status: 'mobility', glyph: '', label: 'Mobility' })
+    if (mobility) items.push({ status: 'mobility', glyph: '', label: 'Mobility', mobilitySessionId: mobility.id })
     if (tournament) items.push({ status: 'tournament', glyph: '', label: tournament.name })
 
     const visibleItems = items.slice(0, 4)
     const extraCount = items.length - visibleItems.length
-    // Real workouts (dayId set) get the same kebab (copy/delete) as the
-    // desktop badges below, just triggered by tapping the dot itself since
+    // Real workouts (dayId set) get copy+delete, mobility (mobilitySessionId
+    // set) gets delete only - no "copy" makes sense for a logged mobility
+    // session - and tournament/"+N more" stay plain with no menu at all.
+    // Dots (mobile) trigger the same kebab by tapping the dot itself, since
     // there's no room for a separate ⋮ button at this size - see
-    // wireCalendarBadgeKebabs, which already handles any [data-action]
-    // element generically so this needed no JS changes beyond the markup.
-    // Mobility/tournament/"+N more" dots stay plain, same as their badge
-    // equivalents.
+    // wireCalendarBadgeKebabs, which handles any [data-action] element
+    // generically so this needed no JS changes beyond the markup.
     const dotsHtml = visibleItems.map(it => {
-      if (!it.dayId) {
-        return `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`
-      }
-      const deleteAttrs = it.isAdhoc
-        ? `data-mode="adhoc" data-program-id="${it.programId}"`
-        : `data-mode="day" data-program-day-id="${it.dayId}"`
-      return `
-        <div class="kebab-menu calendar-dot-kebab">
-          <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
-          <div class="kebab-dropdown">
-            <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
-            <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
-          </div>
-        </div>
-      `
-    }).join('')
-      + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
-    // Real workouts (dayId set) get their own kebab (copy/delete) right on
-    // the badge - see wireCalendarBadgeKebabs. Mobility/tournament/"+N
-    // more" items stay plain badges with no menu.
-    const badgesHtml = visibleItems.map(it => {
-      if (!it.dayId) {
-        return `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
-      }
-      const deleteAttrs = it.isAdhoc
-        ? `data-mode="adhoc" data-program-id="${it.programId}"`
-        : `data-mode="day" data-program-day-id="${it.dayId}"`
-      return `
-        <div class="calendar-day-badge-row">
-          <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
-          <div class="kebab-menu calendar-badge-kebab">
-            <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
+      if (it.dayId) {
+        const deleteAttrs = it.isAdhoc
+          ? `data-mode="adhoc" data-program-id="${it.programId}"`
+          : `data-mode="day" data-program-day-id="${it.dayId}"`
+        return `
+          <div class="kebab-menu calendar-dot-kebab">
+            <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
             <div class="kebab-dropdown">
               <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
               <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
             </div>
           </div>
-        </div>
-      `
+        `
+      }
+      if (it.mobilitySessionId) {
+        return `
+          <div class="kebab-menu calendar-dot-kebab">
+            <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
+            <div class="kebab-dropdown">
+              <button type="button" class="kebab-item" data-action="delete-mobility" data-session-id="${it.mobilitySessionId}">Delete Mobility Session</button>
+            </div>
+          </div>
+        `
+      }
+      return `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`
+    }).join('')
+      + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
+    const badgesHtml = visibleItems.map(it => {
+      if (it.dayId) {
+        const deleteAttrs = it.isAdhoc
+          ? `data-mode="adhoc" data-program-id="${it.programId}"`
+          : `data-mode="day" data-program-day-id="${it.dayId}"`
+        return `
+          <div class="calendar-day-badge-row">
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
+            <div class="kebab-menu calendar-badge-kebab">
+              <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
+              <div class="kebab-dropdown">
+                <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
+                <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
+              </div>
+            </div>
+          </div>
+        `
+      }
+      if (it.mobilitySessionId) {
+        return `
+          <div class="calendar-day-badge-row">
+            <span class="calendar-day-badge calendar-day-badge-${it.status}">${escapeHtmlCal(it.label)}</span>
+            <div class="kebab-menu calendar-badge-kebab">
+              <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
+              <div class="kebab-dropdown">
+                <button type="button" class="kebab-item" data-action="delete-mobility" data-session-id="${it.mobilitySessionId}">Delete Mobility Session</button>
+              </div>
+            </div>
+          </div>
+        `
+      }
+      return `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
@@ -483,6 +503,12 @@ function wireCalendarBadgeKebabs(grid) {
       deleteTraining(btn.dataset.mode, btn.dataset.programId, btn.dataset.programDayId)
       return
     }
+
+    if (btn.dataset.action === 'delete-mobility') {
+      e.stopPropagation()
+      deleteMobilitySession(btn.dataset.sessionId)
+      return
+    }
   }, true)
 }
 
@@ -501,10 +527,13 @@ function openDayModal(dateStr) {
   // independent of the entries.length check below, since mobility never
   // creates a programs/program_days row
   const mobility = mobilityEntriesByDateCal[dateStr]
+  const mobilityFocusText = mobility && mobility.mobility_focus_areas && mobility.mobility_focus_areas.length
+    ? mobility.mobility_focus_areas.map(escapeHtmlCal).join(', ')
+    : 'Full Body / No preference'
   const mobilityHtml = mobility ? `
     <div class="detail-group">
       <h4 class="detail-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg> Mobility / Stretching</h4>
-      <p class="workout-preview-target">${Math.round((new Date(mobility.ended_at) - new Date(mobility.started_at)) / 60000)} min</p>
+      <p class="workout-preview-target">${Math.round((new Date(mobility.ended_at) - new Date(mobility.started_at)) / 60000)} min · Focus: ${mobilityFocusText}</p>
     </div>
   ` : ''
 
@@ -903,6 +932,19 @@ async function deleteTraining(mode, programId, programDayId) {
     ? await supabase.from('programs').delete().eq('id', programId)
     : await supabase.from('program_days').delete().eq('id', programDayId)
 
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+
+  document.getElementById('dayDetailModal').classList.remove('active')
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+}
+
+// A logged mobility session has no program/day/exercises of its own to
+// speak of - just delete the workout_sessions row directly. No "copy"
+// equivalent makes sense here (there's nothing to schedule ahead of time).
+async function deleteMobilitySession(sessionId) {
+  if (!(await customConfirm('Delete this mobility session?'))) return
+
+  const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('dayDetailModal').classList.remove('active')
