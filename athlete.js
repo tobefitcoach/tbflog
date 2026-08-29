@@ -100,6 +100,32 @@ document.getElementById('settingsSelfLogToggle').addEventListener('change', asyn
   }
 })
 
+document.getElementById('settingsMobilityToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ mobility_enabled: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked
+  }
+})
+
+document.getElementById('settingsTournamentsToggle').addEventListener('change', async function(e) {
+  const { error } = await supabase
+    .from('athletes')
+    .update({ tournaments_enabled: e.target.checked })
+    .eq('id', athleteId)
+
+  if (error) {
+    console.log(error)
+    customAlert('Something went wrong saving that setting')
+    e.target.checked = !e.target.checked
+  }
+})
+
 document.getElementById('settingsAddExercisesToggle').addEventListener('change', async function(e) {
   const { error } = await supabase
     .from('athletes')
@@ -279,6 +305,8 @@ document.getElementById('profileDetails').textContent =
   // fields already loaded above, no chart-canvas-sizing concern like Metrics
   document.getElementById('settingsNextWeekToggle').checked = !!data.can_preview_next_week
   document.getElementById('settingsSelfLogToggle').checked = !!data.can_self_log_workouts
+  document.getElementById('settingsMobilityToggle').checked = !!data.mobility_enabled
+  document.getElementById('settingsTournamentsToggle').checked = !!data.tournaments_enabled
   document.getElementById('settingsAddExercisesToggle').checked = !!data.can_add_exercises
   document.getElementById('settingsChangeExercisesToggle').checked = !!data.can_change_exercises
   document.getElementById('settingsRescheduleToggle').checked = !!data.can_reschedule_workouts

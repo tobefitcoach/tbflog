@@ -1824,3 +1824,27 @@ on conflict (coach_id, name) do nothing;
 insert into stretch_body_areas (coach_id, name)
 select distinct coach_id, unnest(body_areas) from stretches
 on conflict (coach_id, name) do nothing;
+
+-- ==========================================================================
+-- Per-athlete home-screen toggles: mobility_enabled and tournaments_enabled,
+-- alongside the existing can_self_log_workouts - all three now live in the
+-- athlete's Settings tab (Calendar itself always stays on, no toggle). No
+-- RLS change needed - not column-scoped.
+--
+-- mobility_enabled here is checked ALONGSIDE profiles.mobility_enabled
+-- (settings.html's coach-wide "Mobility / Stretching" row), not instead of
+-- it - that one stays as a global "I haven't filmed any stretches yet, hide
+-- this from everyone" switch, this one lets the coach also turn it off for
+-- one specific athlete once the feature IS ready overall.
+--
+-- can_self_log_workouts previously defaulted to false (an athlete had to be
+-- explicitly opted in) - flipped to default true here, matching "own
+-- workout" being one of the three things asked to be auto-on, and backfilled
+-- for every existing athlete so this actually takes effect immediately
+-- rather than only for athletes created from now on.
+-- ==========================================================================
+alter table athletes add column if not exists mobility_enabled boolean not null default true;
+alter table athletes add column if not exists tournaments_enabled boolean not null default true;
+
+alter table athletes alter column can_self_log_workouts set default true;
+update athletes set can_self_log_workouts = true where can_self_log_workouts = false;

@@ -104,7 +104,7 @@ let athleteStretchPreferencesCache = null   // Map<stretch_id, 'liked'|'disliked
 let mobilityFlowInterval = null             // countdown for the guided flow screen, parallel to mobilityTimerInterval
 let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 let coachName = null // fetched once, lazily, the first time the Profile tab is opened
-let coachMobilityEnabled = true // fetched once in enterWeekView() - coach's global on/off for the Daily Mobility/Stretching tile
+let coachMobilityEnabled = true // fetched once in enterWeekView() - coach's global "feature is ready" on/off, ANDed with the per-athlete athlete.mobility_enabled toggle below to decide whether the tile actually shows
 
 // Session RPE (1-10, modified Borg CR-10 scale) - this exact scale is what
 // Training Load's session_rpe x duration_minutes formula (loadOverviewStats,
@@ -154,7 +154,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, date_of_birth, gender, height, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, coach_id, intro_seen')
+    .select('id, name, date_of_birth, gender, height, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, mobility_enabled, tournaments_enabled, coach_id, intro_seen')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -1250,6 +1250,12 @@ function renderWeekView(weekStart) {
   const maxAllowedWeekStart = athlete.can_preview_next_week ? addDays(realCurrentWeekStart, 7) : realCurrentWeekStart
   const nextEnabled = toDateStr(weekStart) < toDateStr(maxAllowedWeekStart)
 
+  // Mobility needs BOTH the coach's global "feature is ready" switch and
+  // this specific athlete's own toggle on - tournaments only has the
+  // per-athlete one, there's no equivalent global readiness gate for it
+  const showMobility = coachMobilityEnabled && athlete.mobility_enabled
+  const showTournaments = athlete.tournaments_enabled
+
   const todayStr = toDateStr(new Date())
   const days = []
   for (let i = 0; i < 7; i++) days.push(addDays(weekStart, i))
@@ -1319,24 +1325,25 @@ function renderWeekView(weekStart) {
       <button class="btn-cancel" id="weekNextBtn" ${nextEnabled ? '' : 'disabled'}>Next →</button>
     </div>
     <div class="week-strip">${cardsHtml}</div>
-    <div class="home-tile-row ${coachMobilityEnabled ? '' : 'home-tile-row-single'}">
+    <div class="home-tile-row ${showMobility ? '' : 'home-tile-row-single'}">
       <button type="button" class="home-tile ${athlete.can_self_log_workouts ? '' : 'disabled'}" id="addOwnWorkoutTile">
         <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
         <span class="home-tile-label">Add Own Workout</span>
         ${athlete.can_self_log_workouts ? '' : '<span class="home-tile-sublabel">Ask your coach to enable this</span>'}
       </button>
-      ${coachMobilityEnabled ? `
+      ${showMobility ? `
       <button type="button" class="home-tile" id="mobilityTile">
         <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v5"></path><path d="M12 8l-5 5"></path><path d="M12 8l5 5"></path><path d="M12 11l-3 9"></path><path d="M12 11l3 9"></path></svg></span>
         <span class="home-tile-label">Daily Mobility/Stretching</span>
       </button>` : ''}
     </div>
+    ${showTournaments ? `
     <div class="home-tile-row home-tile-row-single">
       <button type="button" class="home-tile" id="tournamentsTile">
         <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>
         <span class="home-tile-label">Tournaments</span>
       </button>
-    </div>
+    </div>` : ''}
   `
 
   document.querySelectorAll('.week-day-card').forEach(cardEl => {
@@ -1357,14 +1364,16 @@ function renderWeekView(weekStart) {
     }
     renderAddWorkoutChoice()
   })
-  if (coachMobilityEnabled) {
+  if (showMobility) {
     document.getElementById('mobilityTile').addEventListener('click', function() {
       renderMobilityAreaPicker()
     })
   }
-  document.getElementById('tournamentsTile').addEventListener('click', function() {
-    renderTournaments()
-  })
+  if (showTournaments) {
+    document.getElementById('tournamentsTile').addEventListener('click', function() {
+      renderTournaments()
+    })
+  }
 
   wireSyncBanner(function() { renderWeekView(weekStart) })
 }
