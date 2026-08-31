@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=29" />
-  <link rel="stylesheet" href="athlete.css?v=60" />
+  <link rel="stylesheet" href="athlete.css?v=61" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -176,6 +176,14 @@
       <div id="painReportsSection" style="display:none; margin-top:24px">
         <h3 class="detail-group-title" style="color:#ff6b6b"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> Pain / Injury Reports</h3>
         <div id="painReportsList"></div>
+      </div>
+
+      <!-- Recent activity: last 5 things this athlete has done, merged from
+           tournaments/own workouts/completed sessions - see
+           loadRecentActivity() in athlete.js -->
+      <div style="margin-top:24px">
+        <h3 class="detail-group-title">Recent Activity</h3>
+        <div id="recentActivityList"></div>
       </div>
       </div>
 
@@ -1174,7 +1182,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=42"></script>
+    <script type="module" src="athlete.js?v=43"></script>
     <script type="module" src="athlete-calendar.js?v=63"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>

@@ -1574,6 +1574,46 @@
   margin-bottom: 10px;
 }
 
+/* Recent Activity feed on the Overview tab - see loadRecentActivity() in
+   athlete.js */
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.activity-row:last-child {
+  border-bottom: none;
+}
+
+.activity-icon-chip {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #2a2a4e;
+  color: #aaaacc;
+}
+
+.activity-text {
+  flex: 1;
+  min-width: 0;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.activity-date {
+  flex-shrink: 0;
+  color: #aaaacc;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .stretch-item-areas {
   display: flex;
   flex-wrap: wrap;

@@ -53,7 +53,7 @@ async function loadOverviewStatsGuarded() {
   if (overviewLoadInFlight) return
   overviewLoadInFlight = true
   try {
-    await loadOverviewStats()
+    await Promise.all([loadOverviewStats(), loadRecentActivity()])
   } finally {
     overviewLoadInFlight = false
   }
@@ -327,6 +327,9 @@ document.getElementById('profileDetails').textContent =
 
   // Training completion + volume stats
   loadOverviewStats()
+
+  // Recent activity feed
+  loadRecentActivity()
 }
 
 // ==========================================================================
@@ -709,13 +712,106 @@ function renderPainReports(sessions, dayInfoById) {
 }
 
 // Only used for user-entered free text rendered via innerHTML (the
-// pain/injury note above) - every other string on this tab is either
+// pain/injury note above, and the tournament/workout names in the recent
+// activity feed below) - every other string on this tab is either
 // coach-authored or a fixed option, so this isn't applied everywhere
 function escapeHtml(str) {
   if (!str) return ''
   const div = document.createElement('div')
   div.textContent = str
   return div.innerHTML
+}
+
+// ==========================================================================
+// ---- RECENT ACTIVITY ----
+// Last 5 things this athlete has done, merged from 3 otherwise-unrelated
+// tables (there's no single activity-log table) - tournaments added, own
+// workouts started, and workouts (incl. mobility sessions) completed. Each
+// query is capped at 5 and independently the most recent of its own kind,
+// so merging+sorting client-side and slicing the top 5 overall can never
+// miss a genuinely-recent event in favor of a stale one from another table.
+// ==========================================================================
+function formatActivityDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+async function loadRecentActivity() {
+  const list = document.getElementById('recentActivityList')
+
+  const [
+    { data: tournaments, error: tournamentsError },
+    { data: ownPrograms, error: programsError },
+    { data: sessions, error: sessionsError }
+  ] = await Promise.all([
+    fetchWithRetry((signal) => supabase
+      .from('tournaments')
+      .select('id, name, created_at')
+      .eq('athlete_id', athleteId)
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
+      .from('programs')
+      .select('id, name, created_at')
+      .eq('athlete_id', athleteId)
+      .eq('created_by_athlete', true)
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .select('id, ended_at, session_type, program_days(day_number, label, program_weeks(programs(name, is_adhoc)))')
+      .eq('athlete_id', athleteId)
+      .not('ended_at', 'is', null)
+      .order('ended_at', { ascending: false })
+      .limit(5)
+      .abortSignal(signal)
+    )
+  ])
+
+  if (tournamentsError || programsError || sessionsError) {
+    console.log('Error loading recent activity:', tournamentsError || programsError || sessionsError)
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading recent activity</p>'
+    return
+  }
+
+  const trophyIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>'
+  const dumbbellIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg>'
+  const mobilityIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg>'
+  const checkIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+
+  const events = []
+  for (const t of tournaments) {
+    events.push({ at: t.created_at, icon: trophyIcon, text: `Added a tournament: ${escapeHtml(t.name)}` })
+  }
+  for (const p of ownPrograms) {
+    events.push({ at: p.created_at, icon: dumbbellIcon, text: `Added their own workout${p.name ? ': ' + escapeHtml(p.name) : ''}` })
+  }
+  for (const s of sessions) {
+    if (s.session_type === 'mobility') {
+      events.push({ at: s.ended_at, icon: mobilityIcon, text: 'Completed a mobility session' })
+      continue
+    }
+    const day = s.program_days
+    const program = day && day.program_weeks && day.program_weeks.programs
+    const name = program ? trainingDisplayNameOv(program, day) : 'a workout'
+    events.push({ at: s.ended_at, icon: checkIcon, text: `Completed a workout: ${escapeHtml(name)}` })
+  }
+
+  events.sort((a, b) => b.at.localeCompare(a.at))
+  const recent = events.slice(0, 5)
+
+  list.innerHTML = recent.length === 0
+    ? '<p class="no-metrics">No activity yet</p>'
+    : recent.map(e => `
+        <div class="activity-row">
+          <span class="activity-icon-chip">${e.icon}</span>
+          <span class="activity-text">${e.text}</span>
+          <span class="activity-date">${formatActivityDate(e.at)}</span>
+        </div>
+      `).join('')
 }
 
 // Opened by clicking the "Avg Duration (30d)" stat tile. Individual
