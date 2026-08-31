@@ -1848,6 +1848,13 @@
   margin: 0 0 16px;
 }
 
+.graph-granularity-note {
+  font-size: 12px;
+  color: #aaaacc;
+  text-align: center;
+  margin: 10px 0 0;
+}
+
 /* Main chart canvas area inside the modal */
 .graph-container {
   position: relative;

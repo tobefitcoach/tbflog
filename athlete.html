@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=29" />
-  <link rel="stylesheet" href="athlete.css?v=62" />
+  <link rel="stylesheet" href="athlete.css?v=63" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -534,6 +534,10 @@
         <div class="graph-container">
           <canvas id="fullGraph"></canvas>
         </div>
+        <!-- Which granularity the points above are averaged to (auto-scaled
+             to the selected time range - see GRANULARITY_FOR_MONTHS in
+             athlete.js), blank for the 1M view which shows raw entries -->
+        <p class="graph-granularity-note" id="graphGranularityNote"></p>
       </div>
     </div>
     <!-- Entries Modal: full history table (all measurements) for one metric -->
@@ -1182,7 +1186,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="athlete.js?v=43"></script>
+    <script type="module" src="athlete.js?v=44"></script>
     <script type="module" src="athlete-calendar.js?v=63"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>

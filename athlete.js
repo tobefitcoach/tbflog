@@ -2015,6 +2015,61 @@ let currentGraphMetric = null
 let currentGraphMonths = 1 // remembers the active time filter, so the bodyweight toggle can redraw without needing it passed in again
 let showBodyweightOverlay = false
 
+// ---- Auto-scaled averaging ----
+// A fluctuating metric (day-to-day Zone 2 pace, say) is hard to read as a
+// trend one raw entry at a time - each point below is instead the average
+// of every entry in its week/2-week/month bucket, with the bucket size
+// auto-scaled to the selected time range so a short window still shows
+// enough points to be useful, and a long one doesn't stay just as jittery
+// as the raw data. 1M is left as 'raw' (no averaging) since a month rarely
+// has enough entries for averaging to help rather than just erase them.
+const GRANULARITY_FOR_MONTHS = { 1: 'raw', 3: 'weekly', 6: 'biweekly', 12: 'monthly', 0: 'monthly' }
+const GRANULARITY_LABELS = { raw: '', weekly: 'Showing weekly averages', biweekly: 'Showing biweekly averages', monthly: 'Showing monthly averages' }
+
+function averageOf(nums) {
+  const valid = nums.filter(n => n != null && !Number.isNaN(n))
+  return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null
+}
+
+// Buckets are aligned to a fixed reference Monday, not the query's own start
+// date - so a bucket's boundaries stay the same regardless of which time
+// filter is active, which is what lets the metric series and the bodyweight
+// overlay series (aggregated separately, via the same function) land on
+// exactly the same bucket dates and merge cleanly onto one x-axis.
+function chartBucketKey(dateStr, granularity) {
+  const d = parseDateStrOv(dateStr)
+  if (granularity === 'monthly') {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  }
+  const dayMs = 86400000
+  const weekLength = granularity === 'biweekly' ? 14 : 7
+  const epochMonday = new Date('2024-01-01T00:00:00') // an arbitrary real Monday, just a fixed grid reference
+  const bucketIndex = Math.floor(Math.round((d - epochMonday) / dayMs) / weekLength)
+  return toDateStrOv(new Date(epochMonday.getTime() + bucketIndex * weekLength * dayMs))
+}
+
+// Averages every listed field across entries sharing a bucket, returning one
+// synthetic entry per bucket dated to the bucket's start. 'raw' is a no-op -
+// callers pass every field formatMeasurementValue()/getValue() might read
+// for the current metric type, so an aggregated point still has everything
+// its tooltip needs (e.g. pogo's height/ground_contact alongside rsi).
+function aggregateEntriesForChart(entries, granularity, valueFields) {
+  if (granularity === 'raw' || entries.length === 0) return entries
+  const buckets = new Map()
+  for (const e of entries) {
+    const key = chartBucketKey(e.date, granularity)
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key).push(e)
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, group]) => {
+      const out = { date: key }
+      for (const field of valueFields) out[field] = averageOf(group.map(e => e[field]))
+      return out
+    })
+}
+
 async function openGraphModal(metric) {
   currentGraphMetric = metric
   document.getElementById('graphModalTitle').textContent = metric.name
@@ -2115,13 +2170,21 @@ async function loadGraphData(months) {
 
   if (!data || data.length === 0) {
     if (fullChart) { fullChart.destroy(); fullChart = null }
+    document.getElementById('graphGranularityNote').textContent = ''
     return
   }
 
+  const granularity = GRANULARITY_FOR_MONTHS[months]
+  document.getElementById('graphGranularityNote').textContent = GRANULARITY_LABELS[granularity]
+  // Every field either render function's tooltip might read for this
+  // metric's type - see formatMeasurementValue()/getValue() - so an
+  // averaged bucket still has everything it needs to display correctly
+  const chartData = aggregateEntriesForChart(data, granularity, ['value', 'rsi', 'height', 'ground_contact'])
+
   if (showBodyweightOverlay) {
-    await renderGraphWithBodyweightOverlay(data, months)
+    await renderGraphWithBodyweightOverlay(chartData, months, granularity)
   } else {
-    renderGraphRaw(data)
+    renderGraphRaw(chartData)
   }
 }
 
@@ -2194,7 +2257,7 @@ function renderGraphRaw(data) {
 // which puts them on one shared, honest axis. The hover tooltip still shows
 // each line's real value (metric in its own unit, bodyweight in kg/lbs), so
 // the % is just how they're drawn, not how they're read.
-async function renderGraphWithBodyweightOverlay(data, months) {
+async function renderGraphWithBodyweightOverlay(data, months, granularity) {
   let bwQuery = supabase
     .from('bodyweight')
     .select('*')
@@ -2209,7 +2272,11 @@ async function renderGraphWithBodyweightOverlay(data, months) {
     bwQuery = bwQuery.gte('date', fromDateStr)
   }
 
-  const { data: bwData } = await bwQuery
+  const { data: bwDataRaw } = await bwQuery
+  // Aggregated with the exact same bucketing as the metric series (both go
+  // through chartBucketKey with the same granularity), so the two series'
+  // bucket dates line up and merge cleanly below instead of drifting apart
+  const bwData = aggregateEntriesForChart(bwDataRaw || [], granularity, ['weight'])
 
   // Also grab the last bodyweight entry logged BEFORE this window, so if
   // nothing was logged during the selected range the line still carries
@@ -2231,7 +2298,7 @@ async function renderGraphWithBodyweightOverlay(data, months) {
   // Combined, sorted list of every date either series has an entry on, so
   // both lines plot on the same x-axis even though their entries don't
   // line up 1-to-1 (metric-index gap and bodyweight-log dates rarely match)
-  const allDates = [...new Set([...data.map(m => m.date), ...(bwData || []).map(b => b.date)])].sort()
+  const allDates = [...new Set([...data.map(m => m.date), ...bwData.map(b => b.date)])].sort()
 
   // --- Metric series: indexed to % change from the first value shown ---
   const metricBaseline = getMetricValue(data[0])
@@ -2246,9 +2313,9 @@ async function renderGraphWithBodyweightOverlay(data, months) {
   // with no new entry, so the line stays flat/continuous instead of gapping
   // out when nothing was logged during part (or all) of the selected range ---
   const bwByDate = {}
-  if (bwData) bwData.forEach(b => { bwByDate[b.date] = b.weight })
+  bwData.forEach(b => { bwByDate[b.date] = b.weight })
 
-  const bwBaseline = carryInWeight !== null ? carryInWeight : (bwData && bwData[0] ? bwData[0].weight : null)
+  const bwBaseline = carryInWeight !== null ? carryInWeight : (bwData[0] ? bwData[0].weight : null)
 
   let lastKnownWeight = carryInWeight
   const bwRawByDate = {}
