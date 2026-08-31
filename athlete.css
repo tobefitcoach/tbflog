@@ -1743,17 +1743,23 @@
   margin-bottom: 24px;
 }
 
-/* Row holding the time-range filters on the left and the bodyweight overlay toggle on the right */
+/* Row holding the time-range filters on the left and the bodyweight overlay
+   toggle on the right - wraps instead of overflowing when both don't fit on
+   one line (narrow phone screens: 5 filter buttons alone can eat the whole
+   modal width, which used to just push the toggle off past the edge) */
 .graph-controls-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  row-gap: 10px;
   margin-bottom: 24px;
 }
 
 /* Row of time-range filter buttons (e.g. 1M / 3M / 1Y / All) */
 .graph-time-filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
