@@ -2135,6 +2135,7 @@ async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, retur
   cardWrap.classList.add('wide')
 
   pageContent.innerHTML = `
+    <div class="workout-active" style="display:none"></div>
     <div class="day-view-header">
       <button type="button" class="btn-cancel" id="ownAddExerciseBackBtn">← Back</button>
       <h2 class="day-view-date">Add Exercise</h2>
@@ -2202,6 +2203,7 @@ async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
   const activeCategoryFilters = new Set()
 
   pageContent.innerHTML = `
+    <div class="workout-active" style="display:none"></div>
     <div class="day-view-header">
       <button type="button" class="btn-cancel" id="ownBuilderBackBtn">← Back</button>
       <h2 class="day-view-date">Build Your Workout</h2>
@@ -3242,6 +3244,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   currentGroupNav = null
 
   pageContent.innerHTML = `
+    <div class="workout-active" style="display:none"></div>
     <div class="active-exercise-header-row">
       <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
       ${canAddExercises ? '<button type="button" class="own-add-exercise-btn" id="ownAddExerciseBtn">+ Add Exercise</button>' : ''}
@@ -3324,6 +3327,7 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
   const title = slide.label || (slide.groupKind === 'section' ? 'Section' : 'Superset')
 
   pageContent.innerHTML = `
+    <div class="workout-active" style="display:none"></div>
     <div class="active-exercise-header-row">
       <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length}</p>
     </div>
@@ -3386,6 +3390,7 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
   const rounds = Math.max(...steps.map(s => s.round))
 
   pageContent.innerHTML = `
+    <div class="workout-active" style="display:none"></div>
     <div class="active-exercise-header-row">
       <p class="active-exercise-progress">Exercise ${index + 1} of ${slides.length} · Round ${round} of ${rounds}</p>
     </div>
@@ -3727,6 +3732,7 @@ function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, directi
   cardWrap.classList.add('wide')
 
   pageContent.innerHTML = `
+    <div class="workout-active" style="display:none"></div>
     <p class="active-exercise-progress">Workout Complete</p>
     <div class="workout-summary workout-slide">
       <h2>Nice work 💪</h2>

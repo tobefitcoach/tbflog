@@ -77,6 +77,18 @@ header {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
 }
 
+/* Hidden while actively doing a workout (guided exercise screens, the
+   self-log builder, mid-workout Add Exercise, the end-of-workout slide) -
+   Home/Stats/Chat/etc. have no business being reachable mid-set. Each of
+   those screens drops an invisible .workout-active marker into its own
+   template (see renderActiveExercise and friends in dashboard.js); since
+   :has() re-evaluates on every innerHTML swap, the nav reappears on its own
+   the instant any other screen renders, with no explicit "show it again"
+   call needed anywhere. */
+body:has(.workout-active) .bottom-nav {
+  display: none;
+}
+
 .bottom-nav-btn {
   flex: 1;
   display: flex;
