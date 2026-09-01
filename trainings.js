@@ -6,6 +6,8 @@
 // ==========================================================================
 import { supabase } from './coachClient.js'
 
+const WORKOUT_TYPE_LABELS = { gym: '🏋️ Gym', field: '⚽ Field', run: '🏃 Run' }
+
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
   window.location.href = 'login.html'
@@ -92,6 +94,7 @@ function createTrainingCard(training) {
       </div>
     </div>
     <h3>${training.name}</h3>
+    <span class="workout-type-badge workout-type-badge-${training.workout_type || 'gym'}">${WORKOUT_TYPE_LABELS[training.workout_type || 'gym']}</span>
     <p>${exerciseCount} exercise${exerciseCount === 1 ? '' : 's'}</p>
     ${labelTagsHtml}
   `

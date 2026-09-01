@@ -1864,3 +1864,22 @@ alter table workout_sessions add column if not exists mobility_focus_areas text[
 drop policy if exists "coach deletes sessions for own athletes" on workout_sessions;
 create policy "coach deletes sessions for own athletes" on workout_sessions for delete
   using (exists (select 1 from athletes a where a.id = workout_sessions.athlete_id and a.coach_id = (select auth.uid())));
+
+-- ==========================================================================
+-- Workout type: Gym / Field / Run. Previously every workout looked
+-- identical wherever it showed up - trainings.workout_type is set at the
+-- top of every reusable Workout Library entry and copied onto each
+-- program_days row it's scheduled into (Program Builder day, "+ Add
+-- Workout" on the athlete calendar, or a copied/cloned day) - from there
+-- it's just a normal column on that specific day, adjustable on its own
+-- from wherever that day is opened (Program Builder's day modal, the
+-- coach's per-athlete calendar day-detail). Self-logged Own Workouts set it
+-- directly: Strength -> gym, Field/Training -> field, the new Run choice ->
+-- run. No RLS change needed for either column - not column-scoped, existing
+-- "coach manages own X"/"athlete views own X" policies already cover it.
+-- ==========================================================================
+alter table trainings add column if not exists workout_type text not null default 'gym'
+  check (workout_type in ('gym', 'field', 'run'));
+
+alter table program_days add column if not exists workout_type text
+  check (workout_type in ('gym', 'field', 'run'));

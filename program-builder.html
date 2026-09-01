@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Program Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=29" />
-    <link rel="stylesheet" href="athlete.css?v=64" />
+    <link rel="stylesheet" href="athlete.css?v=65" />
   </head>
   <body>
 
@@ -84,6 +84,11 @@
         <div class="graph-modal-header">
           <h2 id="programDayModalTitle">Day</h2>
           <div style="display:flex; align-items:center; gap:12px">
+            <select id="programDayTypeSelect" class="workout-type-select">
+              <option value="gym">🏋️ Gym</option>
+              <option value="field">⚽ Field</option>
+              <option value="run">🏃 Run</option>
+            </select>
             <button type="button" class="btn-profile-action" id="renameDayBtn">Rename</button>
             <button class="btn-cancel" id="closeProgramDayBtn">✕</button>
           </div>
@@ -325,7 +330,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=35"></script>
+    <script type="module" src="program-builder.js?v=36"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

@@ -349,11 +349,14 @@ function renderProgramWeekSection(week) {
   `
 }
 
+const WORKOUT_TYPE_ICONS = { gym: '🏋️', field: '⚽', run: '🏃' }
+
 function renderProgramDayCell(week, dayNumber) {
   const day = week.program_days.find(d => d.day_number === dayNumber)
   const hasContent = day && (day.label || day.program_exercises.length > 0)
+  const typeIcon = day && day.workout_type ? WORKOUT_TYPE_ICONS[day.workout_type] + ' ' : ''
   const badgeLabel = hasContent
-    ? (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`)
+    ? typeIcon + (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`)
     : ''
 
   const badges = hasContent ? `
@@ -492,6 +495,7 @@ function refreshProgramDayModalBody() {
   const week = weeksCache.find(w => w.program_days.some(d => d.id === currentModalDayId))
 
   document.getElementById('programDayModalTitle').textContent = week ? `Week ${week.week_number} — ${day.label || ('Day ' + day.day_number)}` : (day.label || ('Day ' + day.day_number))
+  document.getElementById('programDayTypeSelect').value = day.workout_type || 'gym'
   document.getElementById('weeksList').innerHTML = renderDayBlock(day)
 
   // innerHTML wipes any dynamically-built children, so extra field rows
@@ -525,6 +529,15 @@ async function closeProgramDayModal() {
 }
 
 document.getElementById('closeProgramDayBtn').addEventListener('click', closeProgramDayModal)
+
+document.getElementById('programDayTypeSelect').addEventListener('change', async function() {
+  const day = findDay(currentModalDayId)
+  if (!day) return
+  const { error } = await supabase.from('program_days').update({ workout_type: this.value }).eq('id', day.id)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+  day.workout_type = this.value
+  refreshDayCellFor(day.id)
+})
 
 document.getElementById('renameDayBtn').addEventListener('click', function() {
   const day = findDay(currentModalDayId)
@@ -1648,6 +1661,18 @@ async function insertTrainingIntoDay(trainingId, trainingName) {
     if (!labelError) day.label = trainingName
   }
 
+  // Same "only if not already set" reasoning as the label above - a day
+  // that already has a type (e.g. the coach changed it, or a second
+  // Workout was already dropped on) keeps whatever it has
+  if (!day.workout_type) {
+    const training = (cachedTrainings || []).find(t => t.id === trainingId)
+    const workoutType = training ? training.workout_type : null
+    if (workoutType) {
+      const { error: typeError } = await supabase.from('program_days').update({ workout_type: workoutType }).eq('id', day.id)
+      if (!typeError) day.workout_type = workoutType
+    }
+  }
+
   document.getElementById('addTrainingModal').classList.remove('active')
 
   if (currentModalDayId === day.id) {
@@ -1701,6 +1726,11 @@ async function cloneProgramDayExercises(sourceDay, targetDay) {
   if (!targetDay.label && sourceDay.label) {
     const { error: labelError } = await supabase.from('program_days').update({ label: sourceDay.label }).eq('id', targetDay.id)
     if (!labelError) targetDay.label = sourceDay.label
+  }
+
+  if (!targetDay.workout_type && sourceDay.workout_type) {
+    const { error: typeError } = await supabase.from('program_days').update({ workout_type: sourceDay.workout_type }).eq('id', targetDay.id)
+    if (!typeError) targetDay.workout_type = sourceDay.workout_type
   }
 }
 

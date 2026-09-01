@@ -57,7 +57,13 @@ async function loadTraining() {
   }
 
   document.getElementById('trainingNameHeading').textContent = data.name
+  document.getElementById('trainingTypeSelect').value = data.workout_type || 'gym'
 }
+
+document.getElementById('trainingTypeSelect').addEventListener('change', async function() {
+  const { error } = await supabase.from('trainings').update({ workout_type: this.value }).eq('id', trainingId)
+  if (error) { console.log(error); customAlert('Something went wrong saving the workout type') }
+})
 
 // ==========================================================================
 // ---- EXERCISE LIBRARY PANEL (search + drag source) ----

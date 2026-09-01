@@ -994,6 +994,7 @@ function addDays(date, n) {
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const WORKOUT_TYPE_LABELS_ATH = { gym: '🏋️ Gym', field: '⚽ Field', run: '🏃 Run' }
 
 function trainingDisplayName(entry) {
   if (entry.program.is_adhoc) return entry.program.name || 'Training'
@@ -2008,6 +2009,10 @@ function renderAddWorkoutChoice() {
         <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l3 2"></path><path d="M9 2h6"></path><path d="M12 2v3"></path></svg></span>
         <span class="home-tile-label">Field / Training</span>
       </button>
+      <button type="button" class="home-tile" id="addWorkoutRunChoice">
+        <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="4" r="2"></circle><path d="M10 22l2-6 3 2 2-6"></path><path d="M6 13l3-3 4 1 3-4"></path><path d="M4 22l3-5"></path></svg></span>
+        <span class="home-tile-label">Run</span>
+      </button>
     </div>
   `
 
@@ -2018,7 +2023,10 @@ function renderAddWorkoutChoice() {
     startOwnStrengthWorkout()
   })
   document.getElementById('addWorkoutFieldChoice').addEventListener('click', function() {
-    renderAddWorkoutFieldForm()
+    renderAddWorkoutFieldForm('field')
+  })
+  document.getElementById('addWorkoutRunChoice').addEventListener('click', function() {
+    renderAddWorkoutFieldForm('run')
   })
 }
 
@@ -2032,7 +2040,7 @@ async function startOwnStrengthWorkout() {
   const dateStr = toDateStr(new Date())
   let dayId, created
   try {
-    ({ dayId, created } = await findOrCreateSelfLoggedDay(dateStr, 'My Workout'))
+    ({ dayId, created } = await findOrCreateSelfLoggedDay(dateStr, 'My Workout', 'gym'))
   } catch (err) {
     return
   }
@@ -2338,7 +2346,7 @@ function removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId) {
 // self-logged day apart from resuming today's already-existing one (used
 // by startOwnStrengthWorkout to fire a "workout added" notification only
 // once, not every time the athlete reopens an in-progress day)
-async function findOrCreateSelfLoggedDay(dateStr, name) {
+async function findOrCreateSelfLoggedDay(dateStr, name, workoutType) {
   // Not .maybeSingle() - this date can now genuinely hold more than one
   // self-logged program (see the finished-session check below), so every
   // match needs checking, not just the first/only one
@@ -2376,25 +2384,29 @@ async function findOrCreateSelfLoggedDay(dateStr, name) {
 
   const { data: newDay, error: dayError } = await supabase
     .from('program_days')
-    .insert([{ week_id: newWeek[0].id, day_number: 1 }])
+    .insert([{ week_id: newWeek[0].id, day_number: 1, workout_type: workoutType || null }])
     .select()
   if (dayError) { console.log(dayError); customAlert('Something went wrong saving your workout'); throw dayError }
 
   return { dayId: newDay[0].id, created: true }
 }
 
-// ---- Field/Training: duration + RPE, no exercises at all ----
-function renderAddWorkoutFieldForm() {
+// ---- Field/Training and Run: duration + RPE, no exercises at all - same
+// shape for both, just a different title/placeholder/default activity name
+// and the `type` ('field' or 'run') that ends up on the program_days row ----
+function renderAddWorkoutFieldForm(type) {
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
   const presets = [20, 30, 45, 60, 90]
   let selectedRpe = null
+  const title = type === 'run' ? 'Run' : 'Field / Training'
+  const activityPlaceholder = type === 'run' ? 'e.g. 5k tempo run, track intervals' : 'e.g. Soccer practice, 5k run'
 
   pageContent.innerHTML = `
     <div class="day-view-header">
       <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
-      <h2 class="day-view-date">Field / Training</h2>
+      <h2 class="day-view-date">${title}</h2>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -2402,7 +2414,7 @@ function renderAddWorkoutFieldForm() {
     </div>
     <div class="form-group">
       <label>Activity (optional)</label>
-      <input type="text" id="fieldActivityInput" placeholder="e.g. Soccer practice, 5k run">
+      <input type="text" id="fieldActivityInput" placeholder="${activityPlaceholder}">
     </div>
     <div class="form-group">
       <label>Duration</label>
@@ -2490,16 +2502,16 @@ function renderAddWorkoutFieldForm() {
     btn.disabled = true
     btn.textContent = 'Saving...'
 
-    const activity = document.getElementById('fieldActivityInput').value.trim() || 'Field Training'
+    const activity = document.getElementById('fieldActivityInput').value.trim() || title
     const avgHr = parseInt(document.getElementById('fieldAvgHr').value) || null
-    await saveFieldTraining(dateStr, activity, minutes, selectedRpe, avgHr)
+    await saveFieldTraining(dateStr, activity, minutes, selectedRpe, avgHr, type)
   })
 }
 
-async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, avgHeartRate) {
+async function saveFieldTraining(dateStr, activityName, durationMinutes, rpe, avgHeartRate, workoutType) {
   let dayId
   try {
-    ({ dayId } = await findOrCreateSelfLoggedDay(dateStr, activityName))
+    ({ dayId } = await findOrCreateSelfLoggedDay(dateStr, activityName, workoutType))
   } catch (err) {
     const btn = document.getElementById('fieldSaveBtn')
     if (btn) { btn.disabled = false; btn.textContent = 'Save' }
@@ -2898,7 +2910,10 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
     <div class="detail-group">
       <div class="day-preview-group-header">
         <h4 class="detail-group-title">${trainingDisplayName(entry)}</h4>
-        ${athlete.can_reschedule_workouts ? `<button type="button" class="exercise-history-btn day-preview-move-btn" id="moveWorkoutBtn-${entry.day.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Move</button>` : ''}
+        <div style="display:flex; align-items:center; gap:8px">
+          ${entry.day.workout_type ? `<span class="workout-type-badge workout-type-badge-${entry.day.workout_type}">${WORKOUT_TYPE_LABELS_ATH[entry.day.workout_type]}</span>` : ''}
+          ${athlete.can_reschedule_workouts ? `<button type="button" class="exercise-history-btn day-preview-move-btn" id="moveWorkoutBtn-${entry.day.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Move</button>` : ''}
+        </div>
       </div>
       ${exercisesHtml}
       ${actionButton}

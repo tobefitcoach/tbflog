@@ -132,6 +132,9 @@ function resolveDate(startDateStr, weekNumber, dayNumber) {
   return toDateStr(result)
 }
 
+const WORKOUT_TYPE_ICONS_CAL = { gym: '🏋️', field: '⚽', run: '🏃' }
+const WORKOUT_TYPE_LABELS_CAL = { gym: '🏋️ Gym', field: '⚽ Field', run: '🏃 Run' }
+
 function trainingDisplayName(entry) {
   if (entry.program.is_adhoc) return entry.program.name || 'Training'
   return entry.day.label || ('Day ' + entry.day.day_number)
@@ -324,7 +327,8 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
       // menu (copy/delete, see the badgesHtml build below) - tournament
       // items never get one (nothing to delete/copy from the calendar),
       // mobility gets a delete-only kebab (see mobilitySessionId below)
-      return { status, glyph, label: trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
+      const typeIcon = entry.day.workout_type ? WORKOUT_TYPE_ICONS_CAL[entry.day.workout_type] + ' ' : ''
+      return { status, glyph, label: typeIcon + trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
     })
     if (mobility) items.push({ status: 'mobility', glyph: '', label: 'Mobility', mobilitySessionId: mobility.id })
     if (tournament) items.push({ status: 'tournament', glyph: '', label: tournament.name })
@@ -569,9 +573,16 @@ function openDayModal(dateStr) {
 
       return `
         <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
-          <div style="display:flex; justify-content:space-between; align-items:center">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
             <h4 class="detail-group-title">${label}</h4>
-            ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
+            <div style="display:flex; align-items:center; gap:8px">
+              ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
+              <select class="workout-type-select" data-action="set-workout-type" data-day-id="${entry.day.id}">
+                <option value="gym" ${entry.day.workout_type === 'gym' || !entry.day.workout_type ? 'selected' : ''}>🏋️ Gym</option>
+                <option value="field" ${entry.day.workout_type === 'field' ? 'selected' : ''}>⚽ Field</option>
+                <option value="run" ${entry.day.workout_type === 'run' ? 'selected' : ''}>🏃 Run</option>
+              </select>
+            </div>
           </div>
           ${showReview ? renderSessionSummaryCal(session) : ''}
           ${exercises.length === 0
@@ -850,10 +861,21 @@ document.getElementById('dayDetailContent').addEventListener('input', function(e
   const card = e.target.closest('.builder-exercise-card')
   if (card) scheduleAutosaveCal(card.dataset.id)
 })
-document.getElementById('dayDetailContent').addEventListener('change', function(e) {
-  if (!e.target.matches('.set-type-select')) return
-  const card = e.target.closest('.builder-exercise-card')
-  if (card) scheduleAutosaveCal(card.dataset.id)
+document.getElementById('dayDetailContent').addEventListener('change', async function(e) {
+  if (e.target.matches('.set-type-select')) {
+    const card = e.target.closest('.builder-exercise-card')
+    if (card) scheduleAutosaveCal(card.dataset.id)
+    return
+  }
+
+  if (e.target.matches('[data-action="set-workout-type"]')) {
+    const dayId = e.target.dataset.dayId
+    const { error } = await supabase.from('program_days').update({ workout_type: e.target.value }).eq('id', dayId)
+    if (error) { console.log(error); customAlert('Something went wrong'); return }
+    const entry = (calendarEntriesByDate[currentDayDateForModal] || []).find(en => en.day.id === dayId)
+    if (entry) entry.day.workout_type = e.target.value
+    renderCalendarGrid(currentViewYear, currentViewMonth)
+  }
 })
 
 // ---- Reorder exercises within a day-entry group by dragging the ⠿ handle ----
@@ -1745,6 +1767,20 @@ document.getElementById('doneTrainingBuilderBtn').addEventListener('click', func
 async function applyTrainingToDay(trainingId, trainingName, dateStr) {
   const dayId = await findOrCreateAdHocDay(dateStr, trainingName)
   await cloneTrainingToDay(trainingId, dayId)
+
+  // Only stamps the type if this day doesn't already have one - same
+  // "don't clobber what's already set" reasoning as the day's label. A
+  // separate query since findOrCreateAdHocDay (shared with the Section tab,
+  // which reuses the same day within one "+ Add Workout" popup session)
+  // only ever returns an id, not the day's current fields
+  const training = (cachedTrainings || []).find(t => t.id === trainingId)
+  if (training && training.workout_type) {
+    const { data: dayRow } = await supabase.from('program_days').select('workout_type').eq('id', dayId).single()
+    if (dayRow && !dayRow.workout_type) {
+      await supabase.from('program_days').update({ workout_type: training.workout_type }).eq('id', dayId)
+    }
+  }
+
   document.getElementById('dayAddTrainingModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
 }
@@ -2027,7 +2063,7 @@ function wireCalendarCopyArming(grid) {
   }, true)
 }
 
-async function createFreshAdHocDay(dateStr, name) {
+async function createFreshAdHocDay(dateStr, name, workoutType) {
   const { data: newProgram, error: programError } = await supabase
     .from('programs')
     .insert([{ coach_id: session.user.id, athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: name || 'Workout' }])
@@ -2042,7 +2078,7 @@ async function createFreshAdHocDay(dateStr, name) {
 
   const { data: newDay, error: dayError } = await supabase
     .from('program_days')
-    .insert([{ week_id: newWeek[0].id, day_number: 1 }])
+    .insert([{ week_id: newWeek[0].id, day_number: 1, workout_type: workoutType || null }])
     .select()
   if (dayError) { console.log(dayError); customAlert('Something went wrong'); throw dayError }
 
@@ -2057,15 +2093,15 @@ async function createFreshAdHocDay(dateStr, name) {
 // remap, Adjust Fields overrides carried over) - just sourced from an
 // existing day's program_exercises instead of a Training Library entry.
 async function cloneDayToDate(sourceDayId, name, targetDateStr) {
-  const { data: sourceExercises, error } = await supabase
-    .from('program_exercises')
-    .select('*')
-    .eq('day_id', sourceDayId)
+  const [{ data: sourceDay }, { data: sourceExercises, error }] = await Promise.all([
+    supabase.from('program_days').select('workout_type').eq('id', sourceDayId).single(),
+    supabase.from('program_exercises').select('*').eq('day_id', sourceDayId)
+  ])
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   sourceExercises.sort((a, b) => a.order_index - b.order_index)
 
-  const newDayId = await createFreshAdHocDay(targetDateStr, name)
+  const newDayId = await createFreshAdHocDay(targetDateStr, name, sourceDay && sourceDay.workout_type)
   if (sourceExercises.length === 0) return
 
   const groupIdMap = {}

@@ -1428,6 +1428,45 @@
   color: #b8b8ff;
 }
 
+/* ==========================================================================
+   WORKOUT TYPE - Gym / Field / Run, set at the top of every Workout Library
+   entry (training-builder.html) and shown/editable wherever that workout
+   turns up: the Workout Library list, Program Builder's day cell + day
+   modal, the coach's per-athlete calendar day cell + day-detail dropdown,
+   and read-only on the athlete's own day preview.
+   ========================================================================== */
+.workout-type-select {
+  background-color: transparent;
+  border: 1px solid #2a2a4e;
+  color: #ffffff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workout-type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.workout-type-badge-gym {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #7fb0ff;
+}
+.workout-type-badge-field {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #7fdc82;
+}
+.workout-type-badge-run {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: #ffb74d;
+}
+
 .label-filter {
   position: relative;
   margin-bottom: 20px;
