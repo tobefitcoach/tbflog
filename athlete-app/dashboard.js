@@ -1339,7 +1339,7 @@ function renderWeekView(weekStart) {
 
   pageContent.innerHTML = `
     <div class="welcome-header">
-      <h2>Welcome back, ${athlete.name}</h2>
+      <h2>Welcome back, ${athlete.name.split(' ')[0]}</h2>
       <p>Here's your training for the week</p>
     </div>
     ${renderSyncBannerHtml(pendingCount)}
