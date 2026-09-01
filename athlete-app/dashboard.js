@@ -994,7 +994,7 @@ function addDays(date, n) {
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const WORKOUT_TYPE_LABELS_ATH = { gym: '🏋️ Gym', field: '⚽ Field', run: '🏃 Run' }
+const WORKOUT_TYPE_LABELS_ATH = { gym: 'Gym', field: 'Field', run: 'Run' }
 
 function trainingDisplayName(entry) {
   if (entry.program.is_adhoc) return entry.program.name || 'Training'

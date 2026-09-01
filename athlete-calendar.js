@@ -132,8 +132,7 @@ function resolveDate(startDateStr, weekNumber, dayNumber) {
   return toDateStr(result)
 }
 
-const WORKOUT_TYPE_ICONS_CAL = { gym: '🏋️', field: '⚽', run: '🏃' }
-const WORKOUT_TYPE_LABELS_CAL = { gym: '🏋️ Gym', field: '⚽ Field', run: '🏃 Run' }
+const WORKOUT_TYPE_LABELS_CAL = { gym: 'Gym', field: 'Field', run: 'Run' }
 
 function trainingDisplayName(entry) {
   if (entry.program.is_adhoc) return entry.program.name || 'Training'
@@ -327,8 +326,11 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
       // menu (copy/delete, see the badgesHtml build below) - tournament
       // items never get one (nothing to delete/copy from the calendar),
       // mobility gets a delete-only kebab (see mobilitySessionId below)
-      const typeIcon = entry.day.workout_type ? WORKOUT_TYPE_ICONS_CAL[entry.day.workout_type] + ' ' : ''
-      return { status, glyph, label: typeIcon + trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
+      // Small colored dot (not part of the escaped label text, since it's
+      // real markup) - status is already the badge's background color, so
+      // type gets its own separate marker instead of competing for it
+      const typeDot = entry.day.workout_type ? `<span class="workout-type-dot workout-type-dot-${entry.day.workout_type}"></span>` : ''
+      return { status, glyph, typeDot, label: trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
     })
     if (mobility) items.push({ status: 'mobility', glyph: '', label: 'Mobility', mobilitySessionId: mobility.id })
     if (tournament) items.push({ status: 'tournament', glyph: '', label: tournament.name })
@@ -377,7 +379,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           : `data-mode="day" data-program-day-id="${it.dayId}"`
         return `
           <div class="calendar-day-badge-row">
-            <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
             <div class="kebab-menu calendar-badge-kebab">
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
@@ -401,7 +403,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
-      return `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
+      return `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
@@ -578,9 +580,7 @@ function openDayModal(dateStr) {
             <div style="display:flex; align-items:center; gap:8px">
               ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
               <select class="workout-type-select" data-action="set-workout-type" data-day-id="${entry.day.id}">
-                <option value="gym" ${entry.day.workout_type === 'gym' || !entry.day.workout_type ? 'selected' : ''}>🏋️ Gym</option>
-                <option value="field" ${entry.day.workout_type === 'field' ? 'selected' : ''}>⚽ Field</option>
-                <option value="run" ${entry.day.workout_type === 'run' ? 'selected' : ''}>🏃 Run</option>
+                ${Object.entries(WORKOUT_TYPE_LABELS_CAL).map(([value, text]) => `<option value="${value}" ${(entry.day.workout_type || 'gym') === value ? 'selected' : ''}>${text}</option>`).join('')}
               </select>
             </div>
           </div>

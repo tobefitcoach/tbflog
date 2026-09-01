@@ -349,14 +349,14 @@ function renderProgramWeekSection(week) {
   `
 }
 
-const WORKOUT_TYPE_ICONS = { gym: '🏋️', field: '⚽', run: '🏃' }
-
 function renderProgramDayCell(week, dayNumber) {
   const day = week.program_days.find(d => d.day_number === dayNumber)
   const hasContent = day && (day.label || day.program_exercises.length > 0)
-  const typeIcon = day && day.workout_type ? WORKOUT_TYPE_ICONS[day.workout_type] + ' ' : ''
+  // Small colored dot, not an icon - status/planned already owns the
+  // badge's background color, so type gets its own separate marker
+  const typeDot = day && day.workout_type ? `<span class="workout-type-dot workout-type-dot-${day.workout_type}"></span>` : ''
   const badgeLabel = hasContent
-    ? typeIcon + (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`)
+    ? typeDot + (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`)
     : ''
 
   const badges = hasContent ? `

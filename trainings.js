@@ -6,7 +6,7 @@
 // ==========================================================================
 import { supabase } from './coachClient.js'
 
-const WORKOUT_TYPE_LABELS = { gym: '🏋️ Gym', field: '⚽ Field', run: '🏃 Run' }
+const WORKOUT_TYPE_LABELS = { gym: 'Gym', field: 'Field', run: 'Run' }
 
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {

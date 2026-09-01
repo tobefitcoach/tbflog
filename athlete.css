@@ -1467,6 +1467,24 @@
   color: #ffb74d;
 }
 
+/* Small colored marker used instead of a badge where there's no room for
+   text (calendar day-cell badges) - status already owns that badge's
+   background color, so type gets its own separate dot */
+.workout-type-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  /* White ring so the dot still reads against a same-hue status badge
+     (e.g. a blue Gym dot on a blue "planned" badge) */
+  border: 1px solid rgba(255, 255, 255, 0.85);
+}
+.workout-type-dot-gym { background-color: #3b82f6; }
+.workout-type-dot-field { background-color: #4caf50; }
+.workout-type-dot-run { background-color: #ff9800; }
+
 .label-filter {
   position: relative;
   margin-bottom: 20px;
