@@ -1,0 +1,9 @@
+{
+  "appId": "com.tobefitcoach.tbflog",
+  "appName": "TBFlog",
+  "webDir": "www",
+  "server": {
+    "url": "https://tobefitcoach.github.io/tbflog/athlete-app/",
+    "cleartext": false
+  }
+}
