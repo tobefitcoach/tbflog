@@ -2239,6 +2239,33 @@
   }
 }
 
+/* Training stats (3 cards) share a row 50/50 with Recent Activity on the
+   Overview tab, instead of Recent Activity taking the full width below them */
+.overview-top-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 32px;
+}
+
+.overview-top-split .stats-bar {
+  margin-bottom: 0;
+}
+
+/* Only 3 stat cards live in #overviewStatsBar, unlike the other 4-card
+   stats-bars on this page, so it gets its own column count rather than the
+   shared 4-then-2 responsive pattern above */
+#overviewStatsBar {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 768px) {
+  .overview-top-split {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 /* ==========================================================================
    ATHLETE NOTES

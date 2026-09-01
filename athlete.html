@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=29" />
-  <link rel="stylesheet" href="athlete.css?v=63" />
+  <link rel="stylesheet" href="athlete.css?v=64" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -114,14 +114,6 @@
         </div>
       </div>
 
-      <!-- Recent activity: last 5 things this athlete has done, merged from
-           tournaments/own workouts/completed sessions - see
-           loadRecentActivity() in athlete.js -->
-      <div style="margin-top:24px">
-        <h3 class="detail-group-title">Recent Activity</h3>
-        <div id="recentActivityList"></div>
-      </div>
-
       <!-- Manual refresh + freshness indicator - this tab has no live
            updates otherwise, so a coach checking on an athlete's in-progress
            workout needs a way to know these numbers are current. Also
@@ -132,21 +124,35 @@
         <button class="unit-btn" id="refreshOverviewBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>Refresh</button>
       </div>
 
-      <!-- Training stats: how much of what was programmed actually got
-           done, and how much volume they're moving - computed from the
-           athlete's logged exercise_log_sets, see loadOverviewStats() -->
-      <div class="stats-bar" id="overviewStatsBar">
-        <div class="stat-item stat-item-clickable" id="statCompletionCard">
-          <span class="stat-value" id="statCompletion">—</span>
-          <span class="stat-label">Completion (30d)</span>
+      <!-- Training stats + Recent Activity share the row 50/50 on desktop
+           (Recent Activity used to be its own full-width block, which was
+           more space than it needed), stacking on mobile - see
+           .overview-top-split in athlete.css -->
+      <div class="overview-top-split">
+        <!-- Training stats: how much of what was programmed actually got
+             done, and how much volume they're moving - computed from the
+             athlete's logged exercise_log_sets, see loadOverviewStats() -->
+        <div class="stats-bar" id="overviewStatsBar">
+          <div class="stat-item stat-item-clickable" id="statCompletionCard">
+            <span class="stat-value" id="statCompletion">—</span>
+            <span class="stat-label">Completion (30d)</span>
+          </div>
+          <div class="stat-item stat-item-clickable" id="statVolumeCard">
+            <span class="stat-value" id="statVolume">—</span>
+            <span class="stat-label">Volume (7d)</span>
+          </div>
+          <div class="stat-item stat-item-clickable" id="statDurationCard">
+            <span class="stat-value" id="statDuration">—</span>
+            <span class="stat-label">Avg Duration (30d)</span>
+          </div>
         </div>
-        <div class="stat-item stat-item-clickable" id="statVolumeCard">
-          <span class="stat-value" id="statVolume">—</span>
-          <span class="stat-label">Volume (7d)</span>
-        </div>
-        <div class="stat-item stat-item-clickable" id="statDurationCard">
-          <span class="stat-value" id="statDuration">—</span>
-          <span class="stat-label">Avg Duration (30d)</span>
+
+        <!-- Recent activity: last 5 things this athlete has done, merged
+             from tournaments/own workouts/completed sessions - see
+             loadRecentActivity() in athlete.js -->
+        <div>
+          <h3 class="detail-group-title" style="margin-top:0">Recent Activity</h3>
+          <div id="recentActivityList"></div>
         </div>
       </div>
 
