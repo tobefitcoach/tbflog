@@ -177,6 +177,59 @@ header {
   padding: 24px;
 }
 
+/* ==========================================================================
+   HOME SCREEN - fills the space between the header and the floating bottom
+   nav exactly, with no page scroll (unlike every other screen here, which
+   scrolls normally) - scoped to whenever .home-screen is actually on the
+   page (see renderWeekView() in dashboard.js) via :has(), so nothing else
+   needs to remember to turn this off when navigating away from Home.
+   ========================================================================== */
+body:has(.home-screen) {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(.home-screen) header {
+  flex-shrink: 0;
+}
+
+body:has(.home-screen) .athlete-app-page {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 36px;
+}
+
+body:has(.home-screen) .athlete-app-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.home-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Everything above the week strip keeps its natural size; the strip itself
+   grows to soak up whatever room is left, so a taller phone gets bigger
+   day cards/icons instead of empty space below the tiles. */
+.home-screen > * {
+  flex-shrink: 0;
+}
+
+.home-screen .week-strip {
+  flex: 1;
+  flex-shrink: 1;
+}
+
 .day-view-header {
   display: flex;
   align-items: center;
@@ -892,6 +945,7 @@ header {
      below its content's unwrapped width, so one day with a wide child can
      silently blow that column out wider than its 6 neighbors */
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-content: stretch;
   gap: 10px;
   margin-bottom: 20px;
 }
@@ -955,7 +1009,7 @@ header {
 }
 
 .week-day-number {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   color: #ffffff;
 }
@@ -973,8 +1027,8 @@ header {
 }
 
 .type-icon {
-  width: 22px;
-  height: 22px;
+  width: 27px;
+  height: 27px;
   border-radius: 50%;
   color: #ffffff;
   display: flex;
@@ -984,8 +1038,8 @@ header {
 }
 
 .type-icon svg {
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
 }
 
 .type-icon-planned {
@@ -1011,13 +1065,13 @@ header {
 
 .type-icon-more {
   width: auto;
-  min-width: 22px;
-  padding: 0 6px;
-  border-radius: 11px;
+  min-width: 27px;
+  padding: 0 7px;
+  border-radius: 14px;
   background-color: transparent;
   border: 1px solid #2a2a4e;
   color: #aaaacc;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 /* --- Home screen tiles: Add Own Workout / Daily Mobility, below the week
