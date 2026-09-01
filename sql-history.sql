@@ -2009,3 +2009,37 @@ create policy "athlete manages own form answers" on form_answers for all
     select 1 from form_assignments fa join athletes a on a.id = fa.athlete_id
     where fa.id = form_answers.assignment_id and a.user_id = (select auth.uid())
   ));
+
+-- ==========================================================================
+-- WORKOUT LIBRARY: order by last touched instead of alphabetically by name -
+-- a freshly-created, not-yet-named/labeled workout was getting buried
+-- wherever its default name happened to sort. updated_at auto-bumps on any
+-- direct edit to the training row itself (rename, workout type) AND on any
+-- change to its exercises (add/edit/reorder/delete), via the two triggers
+-- below, so the list always surfaces whatever was worked on most recently.
+-- ==========================================================================
+alter table trainings add column if not exists updated_at timestamptz not null default now();
+
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.updated_at = now();
+  return new;
+end; $$;
+
+drop trigger if exists trainings_touch_updated_at on trainings;
+create trigger trainings_touch_updated_at
+  before update on trainings
+  for each row execute function public.touch_updated_at();
+
+create or replace function public.touch_training_updated_at()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  update trainings set updated_at = now() where id = coalesce(new.training_id, old.training_id);
+  return coalesce(new, old);
+end; $$;
+
+drop trigger if exists training_exercises_touch_parent on training_exercises;
+create trigger training_exercises_touch_parent
+  after insert or update or delete on training_exercises
+  for each row execute function public.touch_training_updated_at();

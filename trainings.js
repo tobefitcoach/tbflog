@@ -33,7 +33,7 @@ async function loadTrainings() {
     { data: labelsData },
     { data: labelLinksData }
   ] = await Promise.all([
-    fetchWithRetry((signal) => supabase.from('trainings').select('*, training_exercises(id)').order('name').abortSignal(signal)),
+    fetchWithRetry((signal) => supabase.from('trainings').select('*, training_exercises(id)').order('updated_at', { ascending: false }).abortSignal(signal)),
     fetchWithRetry((signal) => supabase.from('training_labels').select('*').order('name').abortSignal(signal), 1),
     fetchWithRetry((signal) => supabase.from('training_label_links').select('*').abortSignal(signal), 1)
   ])
