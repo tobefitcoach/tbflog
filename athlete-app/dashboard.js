@@ -1800,6 +1800,12 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
   let index = 0
   let remaining = queue[0].default_hold_seconds || 30
   let paused = false
+  // Ticks up once per second the countdown actually runs (so a manual
+  // pause or a between-exercise grace period doesn't count against it) -
+  // this, not queue position, is what the progress bar tracks: pick a
+  // 10-minute session and the bar is full once 10 minutes of it have
+  // actually elapsed, regardless of how many stretches that turned out to be.
+  let elapsedActiveSeconds = 0
 
   pageContent.innerHTML = `
     <div class="mobility-flow-screen">
@@ -1864,8 +1870,11 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
     }
     document.getElementById('mobilityFlowTime').textContent = formatTimer(remaining)
     updatePrefButtons(queue[index].id)
-    const doneSoFar = queue.slice(0, index).reduce((sum, s) => sum + (s.default_hold_seconds || 30), 0)
-    const pct = Math.min(100, Math.round((doneSoFar / totalSeconds) * 100))
+    updateProgressBar()
+  }
+
+  function updateProgressBar() {
+    const pct = Math.min(100, Math.round((elapsedActiveSeconds / totalSeconds) * 100))
     const fill = document.getElementById('mobilityFlowProgressFill')
     if (fill) fill.style.width = pct + '%'
   }
@@ -1939,8 +1948,10 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
   mobilityFlowInterval = setInterval(function() {
     if (paused) return
     remaining--
+    elapsedActiveSeconds++
     const timeEl = document.getElementById('mobilityFlowTime')
     if (timeEl) timeEl.textContent = formatTimer(remaining)
+    updateProgressBar()
     if (remaining <= 0) advance()
   }, 1000)
 
