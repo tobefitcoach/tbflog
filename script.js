@@ -18,6 +18,7 @@ const athleteGrid = document.querySelector('.athlete-grid');
 let allAthletes = []
 let flaggedCountByAthlete = {}
 let athleteStatsById = {} // athlete_id -> { acwr, acwrBuilding, furthestDate, completionRate30 } - see loadAthleteCardStats()
+let lowTrainingsWarningDays = 7 // coach's own "warn me N days before an athlete's last training" setting (settings.html), refreshed in loadAthleteExtras
 // Status now lives in the sidebar submenu (index.html?status=X) instead of
 // in-page chips, so the initial filter comes from the URL, not a hardcoded default
 let currentStatusFilter = new URLSearchParams(window.location.search).get('status') || 'active'
@@ -201,7 +202,8 @@ async function loadAthleteExtras() {
     { data: logSets, error: logError },
     { data: sessions, error: sessionsError },
     { data: labelsData },
-    { data: labelLinksData }
+    { data: labelLinksData },
+    { data: profileData }
   ] = await Promise.all([
     // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
     // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
@@ -238,8 +240,12 @@ async function loadAthleteExtras() {
       .abortSignal(signal), 1
     ),
     fetchWithRetry((signal) => supabase.from('athlete_labels').select('*').order('name').abortSignal(signal), 1),
-    fetchWithRetry((signal) => supabase.from('athlete_label_links').select('*').abortSignal(signal), 1)
+    fetchWithRetry((signal) => supabase.from('athlete_label_links').select('*').abortSignal(signal), 1),
+    // Coach's own "warn me N days before an athlete's last training" setting
+    fetchWithRetry((signal) => supabase.from('profiles').select('low_trainings_warning_days').eq('id', session.user.id).single().abortSignal(signal), 1)
   ])
+
+  lowTrainingsWarningDays = profileData ? (profileData.low_trainings_warning_days ?? 7) : 7
 
   allLabels = labelsData || []
   labelLinksByAthlete = {}
@@ -263,6 +269,51 @@ async function loadAthleteExtras() {
   }
 
   applyFilters() // re-render now that badges/stats are in (counts already shown, don't depend on this)
+  checkLowTrainings() // fire-and-forget - never blocks the list from rendering
+}
+
+// ==========================================================================
+// ---- LOW ON TRAININGS (no trainings left, or running out soon) ----
+// stats.furthestDate is already the furthest scheduled day across every
+// non-template program (see computeAthleteCardStats) - "low" means that
+// date is within the coach's configured warning window from today, or
+// there's no scheduled date at all. Only checked for active athletes -
+// pending/offline/archived aren't actually being trained yet, so flagging
+// them here would just be noise.
+// ==========================================================================
+function isLowOnTrainings(athlete, stats) {
+  if (athleteStatus(athlete) !== 'active') return false
+  const todayStr = toDateStrIdx(new Date())
+  if (!stats || !stats.furthestDate) return true
+  return daysBetweenDateStrsIdx(todayStr, stats.furthestDate) <= lowTrainingsWarningDays
+}
+
+// Notifies the coach (via the bell - see bell.js) the first time an athlete
+// crosses into "low on trainings", using athletes.low_trainings_notified_for
+// as a dedupe key so reloading this page repeatedly doesn't spam a fresh
+// notification every time - a NEW one only fires once the coach has fixed
+// it (added more trainings, pushing furthestDate out) and it later runs dry
+// again, since that produces a different furthestDate to compare against.
+async function checkLowTrainings() {
+  for (const athlete of allAthletes) {
+    const stats = athleteStatsById[athlete.id]
+    if (!isLowOnTrainings(athlete, stats)) continue
+
+    const currentKey = (stats && stats.furthestDate) || 'never'
+    if (athlete.low_trainings_notified_for === currentKey) continue
+
+    const message = (stats && stats.furthestDate)
+      ? `${athlete.name} only has trainings scheduled through ${parseDateStrIdx(stats.furthestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      : `${athlete.name} doesn't have any trainings scheduled yet`
+
+    const { error: notifError } = await supabase.from('notifications').insert([{
+      coach_id: session.user.id, athlete_id: athlete.id, type: 'low_trainings', message
+    }])
+    if (notifError) { console.log(notifError); continue }
+
+    const { error: updateError } = await supabase.from('athletes').update({ low_trainings_notified_for: currentKey }).eq('id', athlete.id)
+    if (!updateError) athlete.low_trainings_notified_for = currentKey
+  }
 }
 
 // ==========================================================================
@@ -429,6 +480,10 @@ function applyFilters() {
     (selectedLabelFilterIds.size === 0 || [...selectedLabelFilterIds].some(id => labelLinksByAthlete[a.id]?.has(id)))
   )
 
+  // Athletes low on (or out of) trainings float to the top - Array.sort is
+  // stable, so everyone else keeps whatever order they were already in
+  filtered.sort((a, b) => isLowOnTrainings(b, athleteStatsById[b.id]) - isLowOnTrainings(a, athleteStatsById[a.id]))
+
   athleteGrid.innerHTML = ''
   if (filtered.length === 0) {
     athleteGrid.innerHTML = (query || selectedLabelFilterIds.size > 0) ? '<p>No athletes match your search.</p>' : '<p>No athletes here yet.</p>'
@@ -478,6 +533,7 @@ function createAthleteCard(athlete, flaggedCount) {
     : '—'
   const programRanOut = stats.furthestDate && stats.furthestDate < todayStr
   const programBadgeHtml = programRanOut ? '<span class="stat-risk-badge neutral">Program Ended</span>' : ''
+  const lowOnTrainings = isLowOnTrainings(athlete, stats)
 
   const completionText = stats.completionRate30 == null ? '—' : `${stats.completionRate30}%`
 
@@ -490,6 +546,7 @@ card.innerHTML = `
     <div class="card-top">
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
         <div class="athlete-initials">${avatarHtml}</div>
+        ${lowOnTrainings ? '<span class="low-trainings-badge" title="Low on (or out of) scheduled trainings">!</span>' : ''}
         <span class="athlete-status-badge status-${status}">${STATUS_LABELS[status]}</span>
         ${flaggedCount ? `<span class="pain-flag-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> ${flaggedCount > 1 ? flaggedCount + ' pain reports' : 'Pain reported'}</span>` : ''}
         ${labelTagsHtml}

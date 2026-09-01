@@ -1611,6 +1611,24 @@
   color: #ff6b6b;
 }
 
+/* Low on (or out of) scheduled trainings - see isLowOnTrainings() in
+   script.js. Deliberately louder than every other card badge (solid fill,
+   not a tinted pill) since this is the one thing meant to grab attention
+   at a glance while scanning the Athletes list. */
+.low-trainings-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #ff4444;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
 .pain-flag-note {
   color: #ff6b6b;
   font-size: 13px;
@@ -2135,6 +2153,19 @@
 .settings-row-desc {
   color: #aaaacc;
   font-size: 13px;
+}
+
+/* Sub-section label grouping related settings-rows (e.g. "Home Screen" vs
+   "Workout Flexibility") within one tab - subtler than .detail-group-title
+   since it's a division within a section, not the section itself. */
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7a7aa8;
+  margin-top: 28px;
+  margin-bottom: 4px;
 }
 
 /* Profile Photo row on the athlete app's own Settings tab - see

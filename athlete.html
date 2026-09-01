@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=29" />
-  <link rel="stylesheet" href="athlete.css?v=67" />
+  <link rel="stylesheet" href="athlete.css?v=68" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -268,6 +268,7 @@
         <h3 class="detail-group-title" style="margin-bottom:4px">Athlete Settings</h3>
         <p style="color:#aaaacc; font-size:13px; margin-bottom:20px">Set these up once when onboarding this athlete.</p>
 
+        <h4 class="settings-group-title" style="margin-top:0">Home Screen</h4>
         <div class="settings-row">
           <div class="settings-row-info">
             <div class="settings-row-title">Show Daily Mobility/Stretching</div>
@@ -301,17 +302,7 @@
           </label>
         </div>
 
-        <div class="settings-row">
-          <div class="settings-row-info">
-            <div class="settings-row-title">Preview next week's program early</div>
-            <div class="settings-row-desc">Lets this athlete see next week's scheduled workout before it becomes the current week.</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="settingsNextWeekToggle" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
+        <h4 class="settings-group-title">Workout Flexibility</h4>
         <div class="settings-row">
           <div class="settings-row-info">
             <div class="settings-row-title">Let this athlete add extra exercises</div>
@@ -341,6 +332,18 @@
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="settingsRescheduleToggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <h4 class="settings-group-title">General</h4>
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <div class="settings-row-title">Preview next week's program early</div>
+            <div class="settings-row-desc">Lets this athlete see next week's scheduled workout before it becomes the current week.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="settingsNextWeekToggle" />
             <span class="toggle-slider"></span>
           </label>
         </div>

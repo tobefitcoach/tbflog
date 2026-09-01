@@ -1883,3 +1883,30 @@ alter table trainings add column if not exists workout_type text not null defaul
 
 alter table program_days add column if not exists workout_type text
   check (workout_type in ('gym', 'field', 'run'));
+
+-- ==========================================================================
+-- Low on (or out of) trainings: flags an active athlete on the Athletes
+-- list (script.js) once their furthest scheduled day is within
+-- low_trainings_warning_days of today (or they have none at all), sorts
+-- them to the top, and fires a coach notification (the bell) the first
+-- time each occurrence happens - low_trainings_notified_for stores which
+-- "furthest date" state (or the literal 'never') was already notified
+-- about, so reloading the list repeatedly doesn't spam a fresh
+-- notification every time - only fixing it and later running dry again
+-- does, since that's a different value to compare against.
+-- ==========================================================================
+alter table profiles add column if not exists low_trainings_warning_days int not null default 7;
+
+alter table athletes add column if not exists low_trainings_notified_for text;
+
+alter table notifications drop constraint if exists notifications_type_check;
+alter table notifications add constraint notifications_type_check
+  check (type in ('workout_added', 'workout_completed', 'tournament_added', 'low_trainings'));
+
+-- Every other notification type is athlete-triggered (see
+-- athlete_notifies_own_coach above) - this one is computed by the coach's
+-- own client while browsing the Athletes list, so it needs its own insert
+-- policy.
+drop policy if exists "coach creates own notifications" on notifications;
+create policy "coach creates own notifications" on notifications for insert
+  with check (coach_id = (select auth.uid()));

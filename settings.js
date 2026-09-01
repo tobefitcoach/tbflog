@@ -74,3 +74,17 @@ mobilityBtn.addEventListener('click', async function(e) {
   }
   mobilityBtn.disabled = false
 })
+
+// How many days before an athlete's last scheduled training the Athletes
+// list (script.js) flags them with the red "!" and sorts them to the top -
+// see isLowOnTrainings() there.
+const { data: warningData } = await supabase.from('profiles').select('low_trainings_warning_days').eq('id', session.user.id).single()
+const warningInput = document.getElementById('lowTrainingsWarningInput')
+warningInput.value = warningData ? (warningData.low_trainings_warning_days ?? 7) : 7
+
+warningInput.addEventListener('change', async function() {
+  const days = Math.max(0, Math.min(60, parseInt(warningInput.value) || 0))
+  warningInput.value = days
+  const { error } = await supabase.from('profiles').update({ low_trainings_warning_days: days }).eq('id', session.user.id)
+  if (error) { console.log(error); customAlert('Something went wrong saving that setting') }
+})
