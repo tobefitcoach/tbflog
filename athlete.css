@@ -1000,6 +1000,15 @@
   color: #aaaacc;
 }
 
+/* Mobility/tournament badges are clickable too (view-mobility/
+   view-tournament) but never draggable, so they don't pick up the
+   cursor:grab rule above - workout badges already get a pointer-ish cursor
+   from that rule, this just covers the other two */
+.calendar-day-badge[data-action^="view-"]:not([draggable="true"]),
+.calendar-day-dot[data-action^="view-"] {
+  cursor: pointer;
+}
+
 /* Real-workout badges pair up with their own kebab (copy/delete) right on
    the calendar grid now - see wireCalendarBadgeKebabs in
    athlete-calendar.js. min-width:0 on the badge lets its own

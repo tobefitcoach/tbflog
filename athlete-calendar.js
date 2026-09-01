@@ -276,14 +276,10 @@ function renderCalendarGrid(year, month) {
   })
   grid.innerHTML = html
 
-  grid.querySelectorAll('.calendar-day').forEach(cellEl => {
-    cellEl.addEventListener('click', function() {
-      openDayModal(cellEl.dataset.date)
-    })
-  })
-
-  // Separate listener + stopPropagation so clicking "+" doesn't also
-  // trigger the cell's own click (which opens the day-detail view instead)
+  // The cell background itself is no longer clickable - with two workouts
+  // back to back it was never clear which one you'd land on. Only a
+  // specific badge/dot opens anything now (see wireCalendarBadgeKebabs'
+  // view-workout/view-mobility/view-tournament handling below).
   grid.querySelectorAll('.calendar-day-add-btn').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation()
@@ -316,8 +312,10 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
     // git history) and full-name badges (desktop, where a column is wide
     // enough that showing real names is more useful than a dot). CSS picks
     // which one is visible per viewport width - see .calendar-day-dots/
-    // .calendar-day-badges in athlete.css. Clicking the day always opens
-    // the full detail modal regardless of which is showing.
+    // .calendar-day-badges in athlete.css. Clicking a specific badge/dot
+    // opens that ONE item's own detail modal (view-workout/view-mobility/
+    // view-tournament, see wireCalendarBadgeKebabs) - the day cell's blank
+    // background does nothing.
     const items = badges.map(entry => {
       const session = sessionByDayId[entry.day.id]
       const status = session ? (session.ended_at ? 'done' : 'in-progress') : 'planned'
@@ -353,6 +351,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           <div class="kebab-menu calendar-dot-kebab">
             <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
             <div class="kebab-dropdown">
+              <button type="button" class="kebab-item" data-action="view-workout" data-program-day-id="${it.dayId}" data-date="${dateStr}">View Workout</button>
               <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
               <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
             </div>
@@ -364,12 +363,13 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           <div class="kebab-menu calendar-dot-kebab">
             <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
             <div class="kebab-dropdown">
+              <button type="button" class="kebab-item" data-action="view-mobility" data-date="${dateStr}">View Mobility</button>
               <button type="button" class="kebab-item" data-action="delete-mobility" data-session-id="${it.mobilitySessionId}">Delete Mobility Session</button>
             </div>
           </div>
         `
       }
-      return `<span class="calendar-day-dot calendar-day-dot-${it.status}">${it.glyph}</span>`
+      return `<span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="view-tournament" data-date="${dateStr}">${it.glyph}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
     const badgesHtml = visibleItems.map(it => {
@@ -379,7 +379,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           : `data-mode="day" data-program-day-id="${it.dayId}"`
         return `
           <div class="calendar-day-badge-row">
-            <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}" data-action="view-workout" data-date="${dateStr}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
             <div class="kebab-menu calendar-badge-kebab">
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
@@ -393,7 +393,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
       if (it.mobilitySessionId) {
         return `
           <div class="calendar-day-badge-row">
-            <span class="calendar-day-badge calendar-day-badge-${it.status}">${escapeHtmlCal(it.label)}</span>
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-mobility" data-date="${dateStr}">${escapeHtmlCal(it.label)}</span>
             <div class="kebab-menu calendar-badge-kebab">
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
@@ -403,7 +403,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
-      return `<span class="calendar-day-badge calendar-day-badge-${it.status}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
+      return `<span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-tournament" data-date="${dateStr}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
@@ -467,21 +467,16 @@ async function moveWorkoutToDate(dayId, newDateStr) {
 }
 
 // ==========================================================================
-// ---- PER-BADGE/DOT KEBAB (COPY / DELETE) ON THE CALENDAR GRID ----
-// Copy/Delete for a workout live right on its badge (desktop) or dot
-// (mobile) in the month view now, not buried inside the day-detail popup -
-// a coach scanning the calendar can act on a workout without opening
-// anything first, on either layout. Wired once on the persistent
-// #calendarGrid node, same reasoning as wireCalendarDragToMove.
+// ---- PER-BADGE/DOT ACTIONS ON THE CALENDAR GRID (view / copy / delete) ----
+// View/Copy/Delete for a workout live right on its badge (desktop) or dot
+// (mobile) in the month view - a coach scanning the calendar can act on a
+// specific workout without first opening a combined popup for the whole
+// day. Wired once on the persistent #calendarGrid node, same reasoning as
+// wireCalendarDragToMove.
 //
-// Registered on the CAPTURE phase (the trailing `true`), not the usual
-// bubble phase - each day cell has its own click listener straight on
-// itself (opens the day-detail modal, see renderCalendarGrid), which is
-// closer to the click target than this grid-level listener and would
-// therefore always fire FIRST during the normal bubble phase, no matter
-// what stopPropagation() does here afterwards. Capture runs top-down,
-// before that, so stopPropagation() here actually stops it from ever
-// reaching the cell's own listener.
+// Registered on the CAPTURE phase (the trailing `true`) so a toggle-kebab
+// tap (which stopPropagation()s here) can never also register as, say, a
+// drag start on the same element.
 // ==========================================================================
 function wireCalendarBadgeKebabs(grid) {
   grid.addEventListener('click', function(e) {
@@ -494,6 +489,26 @@ function wireCalendarBadgeKebabs(grid) {
       const wasActive = dropdown.classList.contains('active')
       document.querySelectorAll('#calendarGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
       if (!wasActive) dropdown.classList.add('active')
+      return
+    }
+
+    if (btn.dataset.action === 'view-workout') {
+      e.stopPropagation()
+      if (btn.closest('.kebab-dropdown')) btn.closest('.kebab-dropdown').classList.remove('active')
+      openWorkoutDetailModal(btn.dataset.date, btn.dataset.dayId || btn.dataset.programDayId)
+      return
+    }
+
+    if (btn.dataset.action === 'view-mobility') {
+      e.stopPropagation()
+      if (btn.closest('.kebab-dropdown')) btn.closest('.kebab-dropdown').classList.remove('active')
+      openMobilityDetailModal(btn.dataset.date)
+      return
+    }
+
+    if (btn.dataset.action === 'view-tournament') {
+      e.stopPropagation()
+      openTournamentDetailModal(btn.dataset.date)
       return
     }
 
@@ -520,82 +535,49 @@ function wireCalendarBadgeKebabs(grid) {
 
 // ==========================================================================
 // ---- DAY DETAIL MODAL ----
-// Reads straight from the in-memory calendarEntriesByDate map - no query.
+// Reads straight from the in-memory calendarEntriesByDate/mobilityEntries
+// ByDateCal/tournamentsByDateCal maps - no query. Opened per-ITEM now, not
+// per-day - a day with two workouts back to back used to dump both into one
+// scrolling popup with no clear seam between them, so clicking a day cell's
+// empty background now does nothing; only clicking a specific workout/
+// mobility/tournament badge opens its own modal, titled with that item's
+// own name instead of the date.
 // ==========================================================================
-function openDayModal(dateStr) {
-  currentDayDateForModal = dateStr
-  document.getElementById('dayDetailTitle').textContent = formatDisplayDateCal(dateStr)
-
+function openWorkoutDetailModal(dateStr, dayId) {
   const entries = calendarEntriesByDate[dateStr] || []
-  const content = document.getElementById('dayDetailContent')
+  const entry = entries.find(e => String(e.day.id) === String(dayId))
+  if (!entry) return
 
-  // A day can have both a scheduled workout AND a mobility session -
-  // independent of the entries.length check below, since mobility never
-  // creates a programs/program_days row
-  const mobility = mobilityEntriesByDateCal[dateStr]
-  const mobilityFocusText = mobility && mobility.mobility_focus_areas && mobility.mobility_focus_areas.length
-    ? mobility.mobility_focus_areas.map(escapeHtmlCal).join(', ')
-    : 'Full Body / No preference'
-  const mobilityHtml = mobility ? `
-    <div class="detail-group">
-      <h4 class="detail-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg> Mobility / Stretching</h4>
-      <p class="workout-preview-target">${Math.round((new Date(mobility.ended_at) - new Date(mobility.started_at)) / 60000)} min · Focus: ${mobilityFocusText}</p>
+  currentDayDateForModal = dateStr
+  document.getElementById('dayDetailTitle').textContent = trainingDisplayName(entry)
+
+  const exercises = entry.day.program_exercises
+
+  // Once the athlete has started (or finished) this day, show what they
+  // actually logged instead of the editable plan - that's what a coach
+  // clicking on a done/in-progress workout actually wants to see. The
+  // plan is still reachable via "Edit Plan Instead" for fixing mistakes.
+  const session = sessionByDayId[entry.day.id]
+  const showReview = !!session
+
+  document.getElementById('dayDetailContent').innerHTML = `
+    <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
+      <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:8px">
+        ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
+        <select class="workout-type-select" data-action="set-workout-type" data-day-id="${entry.day.id}">
+          ${Object.entries(WORKOUT_TYPE_LABELS_CAL).map(([value, text]) => `<option value="${value}" ${(entry.day.workout_type || 'gym') === value ? 'selected' : ''}>${text}</option>`).join('')}
+        </select>
+      </div>
+      ${showReview ? renderSessionSummaryCal(session) : ''}
+      ${exercises.length === 0
+        ? '<p class="no-metrics">No exercises</p>'
+        : showReview
+          ? `${exercises.map(pe => renderLoggedExerciseCardCal(pe)).join('')}
+             <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Edit Plan Instead</button>`
+          : `${renderExerciseListHtmlCal(exercises)}
+             <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">Save</button>`}
     </div>
-  ` : ''
-
-  // Independent of entries.length too - a tournament is its own row, not
-  // tied to whether a workout was also scheduled that day
-  const tournament = tournamentsByDateCal[dateStr]
-  const tournamentDateRange = tournament && tournament.date !== tournament.end_date
-    ? `${formatShortDateCal(tournament.date)} – ${formatShortDateCal(tournament.end_date)}`
-    : null
-  const tournamentHtml = tournament ? `
-    <div class="detail-group">
-      <h4 class="detail-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${escapeHtmlCal(tournament.name)}</h4>
-      ${tournamentDateRange ? `<p class="workout-preview-target">${tournamentDateRange}</p>` : ''}
-      <p class="workout-preview-target">Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}</p>
-    </div>
-  ` : ''
-
-  if (entries.length === 0) {
-    content.innerHTML = tournamentHtml + mobilityHtml || '<p class="no-metrics">Nothing scheduled on this day</p>'
-  } else {
-    content.innerHTML = tournamentHtml + mobilityHtml + entries.map(entry => {
-      const label = entry.program.is_adhoc
-        ? entry.program.name
-        : `${entry.program.name} — Week ${entry.week.week_number}, ${entry.day.label || ('Day ' + entry.day.day_number)}`
-      const exercises = entry.day.program_exercises
-
-      // Once the athlete has started (or finished) this day, show what they
-      // actually logged instead of the editable plan - that's what a coach
-      // clicking on a done/in-progress workout actually wants to see. The
-      // plan is still reachable via "Edit Plan Instead" for fixing mistakes.
-      const session = sessionByDayId[entry.day.id]
-      const showReview = !!session
-
-      return `
-        <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
-            <h4 class="detail-group-title">${label}</h4>
-            <div style="display:flex; align-items:center; gap:8px">
-              ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
-              <select class="workout-type-select" data-action="set-workout-type" data-day-id="${entry.day.id}">
-                ${Object.entries(WORKOUT_TYPE_LABELS_CAL).map(([value, text]) => `<option value="${value}" ${(entry.day.workout_type || 'gym') === value ? 'selected' : ''}>${text}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          ${showReview ? renderSessionSummaryCal(session) : ''}
-          ${exercises.length === 0
-            ? '<p class="no-metrics">No exercises</p>'
-            : showReview
-              ? `${exercises.map(pe => renderLoggedExerciseCardCal(pe)).join('')}
-                 <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Edit Plan Instead</button>`
-              : `${renderExerciseListHtmlCal(exercises)}
-                 <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">Save</button>`}
-        </div>
-      `
-    }).join('')
-  }
+  `
 
   document.getElementById('dayDetailModal').classList.add('active')
 
@@ -603,14 +585,53 @@ function openDayModal(dateStr) {
   // (built with document.createElement, not template strings) get
   // re-populated here for every card - only editable (non-review) cards
   // have an extra-fields container at all
-  for (const entry of entries) {
-    if (sessionByDayId[entry.day.id]) continue
-    for (const pe of entry.day.program_exercises) {
+  if (!showReview) {
+    for (const pe of exercises) {
       if (pe.extra_fields) {
         for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRowCal(`extraFieldsSched-${pe.id}`, k, v)
       }
     }
   }
+}
+
+// Mobility never creates a programs/program_days row, so it's read straight
+// from mobilityEntriesByDateCal instead of calendarEntriesByDate
+function openMobilityDetailModal(dateStr) {
+  const mobility = mobilityEntriesByDateCal[dateStr]
+  if (!mobility) return
+
+  currentDayDateForModal = dateStr
+  document.getElementById('dayDetailTitle').innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg> Mobility / Stretching'
+
+  const mobilityFocusText = mobility.mobility_focus_areas && mobility.mobility_focus_areas.length
+    ? mobility.mobility_focus_areas.map(escapeHtmlCal).join(', ')
+    : 'Full Body / No preference'
+
+  document.getElementById('dayDetailContent').innerHTML = `
+    <p class="workout-preview-target">${Math.round((new Date(mobility.ended_at) - new Date(mobility.started_at)) / 60000)} min · Focus: ${mobilityFocusText}</p>
+  `
+
+  document.getElementById('dayDetailModal').classList.add('active')
+}
+
+// A tournament is its own row, not tied to any scheduled workout
+function openTournamentDetailModal(dateStr) {
+  const tournament = tournamentsByDateCal[dateStr]
+  if (!tournament) return
+
+  currentDayDateForModal = dateStr
+  document.getElementById('dayDetailTitle').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${escapeHtmlCal(tournament.name)}`
+
+  const tournamentDateRange = tournament.date !== tournament.end_date
+    ? `${formatShortDateCal(tournament.date)} – ${formatShortDateCal(tournament.end_date)}`
+    : null
+
+  document.getElementById('dayDetailContent').innerHTML = `
+    ${tournamentDateRange ? `<p class="workout-preview-target">${tournamentDateRange}</p>` : ''}
+    <p class="workout-preview-target">Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}</p>
+  `
+
+  document.getElementById('dayDetailModal').classList.add('active')
 }
 
 // One header per run of consecutive exercises sharing the same non-null
