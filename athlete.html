@@ -114,6 +114,14 @@
         </div>
       </div>
 
+      <!-- Recent activity: last 5 things this athlete has done, merged from
+           tournaments/own workouts/completed sessions - see
+           loadRecentActivity() in athlete.js -->
+      <div style="margin-top:24px">
+        <h3 class="detail-group-title">Recent Activity</h3>
+        <div id="recentActivityList"></div>
+      </div>
+
       <!-- Manual refresh + freshness indicator - this tab has no live
            updates otherwise, so a coach checking on an athlete's in-progress
            workout needs a way to know these numbers are current. Also
@@ -178,13 +186,6 @@
         <div id="painReportsList"></div>
       </div>
 
-      <!-- Recent activity: last 5 things this athlete has done, merged from
-           tournaments/own workouts/completed sessions - see
-           loadRecentActivity() in athlete.js -->
-      <div style="margin-top:24px">
-        <h3 class="detail-group-title">Recent Activity</h3>
-        <div id="recentActivityList"></div>
-      </div>
       </div>
 
       <div class="tab-panel" id="tab-metrics">
