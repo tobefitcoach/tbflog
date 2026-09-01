@@ -995,6 +995,13 @@ function addDays(date, n) {
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const WORKOUT_TYPE_LABELS_ATH = { gym: 'Gym', field: 'Field', run: 'Run' }
+// Shapes for the week-strip's per-workout icon (see renderWeekView) -
+// stroke style matches every other small icon already in this file
+const WORKOUT_TYPE_ICON_SVG = {
+  gym: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"></rect><rect x="20" y="9" width="3" height="6" rx="1"></rect><line x1="4" y1="12" x2="20" y2="12"></line><rect x="6" y="7" width="2" height="10" rx="1"></rect><rect x="16" y="7" width="2" height="10" rx="1"></rect></svg>',
+  field: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l3 2"></path><path d="M9 2h6"></path><path d="M12 2v3"></path></svg>',
+  run: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="4" r="2"></circle><path d="M10 22l2-6 3 2 2-6"></path><path d="M6 13l3-3 4 1 3-4"></path><path d="M4 22l3-5"></path></svg>'
+}
 
 function trainingDisplayName(entry) {
   if (entry.program.is_adhoc) return entry.program.name || 'Training'
@@ -1281,32 +1288,48 @@ function renderWeekView(weekStart) {
     const mobility = mobilitySessionsByDate[dateStr]
     const tournament = tournamentsByDate[dateStr]
 
+    // Status (done/in-progress/planned/tournament-only) tints the whole
+    // card now, not just a border - mutually exclusive, most-advanced wins,
+    // so a day never gets two competing tints. "today" stays a separate
+    // ring (box-shadow, see app.css) instead of fighting these for the
+    // background, so it's still visible on a day that also has a status.
     const classes = ['week-day-card']
     if (dateStr === todayStr) classes.push('today')
     if (done) classes.push('done')
-    if (inProgress) classes.push('in-progress')
+    else if (inProgress) classes.push('in-progress')
+    else if (badgeEntries.length > 0) classes.push('planned')
+    else if (tournament) classes.push('tournament-only')
 
     // A busy day (several workouts + mobility + a tournament) used to show
     // one full-name badge per item, which either stacked tall (wrapped
     // text) or blew a grid column wide (unwrapped text - a 1fr grid track
     // won't shrink below an unwrapped child's content width). Small
-    // fixed-size status dots avoid both - every cell stays a uniform size
-    // no matter what's scheduled. Tapping the card still opens the full
-    // day preview with real names.
-    const dayStatus = done ? 'done' : (inProgress ? 'in-progress' : 'planned')
-    const dots = badgeEntries.map(() => `<span class="week-day-dot week-day-dot-${dayStatus}">${done ? '✓' : (inProgress ? '▶' : '')}</span>`)
-    if (mobility) dots.push('<span class="week-day-dot week-day-dot-mobility"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>')
-    if (tournament) dots.push('<span class="week-day-dot week-day-dot-tournament"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>')
-    const visibleDots = dots.slice(0, 4)
-    const extraCount = dots.length - visibleDots.length
+    // fixed-size icons avoid both - every cell stays a uniform size no
+    // matter what's scheduled. Tapping the card still opens the full day
+    // preview with real names.
+    //
+    // Each workout icon is shaped by its own workout_type (gym/field/run)
+    // while it's still upcoming - once the day's done or in progress, the
+    // shape stops mattering as much as the progress does, so every entry
+    // switches to a shared check/play glyph instead (matches the color the
+    // card itself is tinted).
+    const icons = badgeEntries.map(entry => {
+      if (done) return `<span class="type-icon type-icon-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>`
+      if (inProgress) return `<span class="type-icon type-icon-in-progress"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"></polygon></svg></span>`
+      return `<span class="type-icon type-icon-planned">${WORKOUT_TYPE_ICON_SVG[entry.day.workout_type] || WORKOUT_TYPE_ICON_SVG.gym}</span>`
+    })
+    if (mobility) icons.push('<span class="type-icon type-icon-mobility"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>')
+    if (tournament) icons.push('<span class="type-icon type-icon-tournament"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>')
+    const visibleIcons = icons.slice(0, 4)
+    const extraCount = icons.length - visibleIcons.length
 
     return `
       <div class="${classes.join(' ')}" data-date="${dateStr}">
         <span class="week-day-name">${DAY_NAMES[date.getDay() === 0 ? 6 : date.getDay() - 1]}</span>
         <span class="week-day-number">${date.getDate()}</span>
-        <div class="week-day-dots">
-          ${visibleDots.join('')}
-          ${extraCount > 0 ? `<span class="week-day-dot week-day-dot-more">+${extraCount}</span>` : ''}
+        <div class="week-day-icons">
+          ${visibleIcons.join('')}
+          ${extraCount > 0 ? `<span class="type-icon type-icon-more">+${extraCount}</span>` : ''}
         </div>
       </div>
     `

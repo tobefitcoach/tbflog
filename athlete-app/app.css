@@ -903,7 +903,7 @@ header {
   padding: 16px 8px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
   min-height: 130px;
   min-width: 0;
   display: flex;
@@ -916,18 +916,37 @@ header {
   border-color: #4a4a8e;
 }
 
+/* "Today" is a ring (box-shadow), not a border/background change, so it
+   stays visible no matter which status tint below is also on the card -
+   the two used to fight over the same border-color/background and today's
+   own workout would silently win, hiding which card was actually today. */
 .week-day-card.today {
-  border-color: #4a4a8e;
-  background-color: rgba(74, 74, 142, 0.15);
+  box-shadow: 0 0 0 2px #4a4a8e;
 }
 
+/* One status tint per card, mutually exclusive (see renderWeekView) -
+   replaces the old border-only done/in-progress plus adds two the dots
+   version never had: a day that's scheduled but not started yet, and a
+   tournament-only day, so "something's here" is visible without opening it */
 .week-day-card.done {
+  background-color: rgba(76, 175, 80, 0.14);
   border-color: #4caf50;
 }
 
 /* Started but never ended - see the "in progress" note in renderWeekView() */
 .week-day-card.in-progress {
+  background-color: rgba(224, 160, 48, 0.14);
   border-color: #e0a030;
+}
+
+.week-day-card.planned {
+  background-color: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.week-day-card.tournament-only {
+  background-color: rgba(212, 160, 23, 0.12);
+  border-color: rgba(212, 160, 23, 0.45);
 }
 
 .week-day-name {
@@ -941,53 +960,64 @@ header {
   color: #ffffff;
 }
 
-/* Status/type dots replacing full-name badges in each day cell - see the
-   comment above dots' construction in renderWeekView() for why */
-.week-day-dots {
+/* Type icons replacing the old plain status dots - shape says what kind of
+   session it is (or check/play once it's done/in-progress), color says
+   where it's at. See the comment above icons' construction in
+   renderWeekView() for why this replaced full-name badges. */
+.week-day-icons {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 4px;
+  margin-top: auto;
 }
 
-.week-day-dot {
-  width: 18px;
-  height: 18px;
+.type-icon {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background-color: #3b82f6;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
   flex-shrink: 0;
 }
 
-.week-day-dot-done {
+.type-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.type-icon-planned {
+  background-color: #3b82f6;
+}
+
+.type-icon-done {
   background-color: #4caf50;
 }
 
-.week-day-dot-in-progress {
+.type-icon-in-progress {
   background-color: #e0a030;
 }
 
-.week-day-dot-mobility {
+.type-icon-mobility {
   background-color: #4caf50;
 }
 
-.week-day-dot-tournament {
+.type-icon-tournament {
   background-color: #d4a017;
+  color: #1a1a2e;
 }
 
-.week-day-dot-more {
+.type-icon-more {
   width: auto;
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
   background-color: transparent;
   border: 1px solid #2a2a4e;
   color: #aaaacc;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 /* --- Home screen tiles: Add Own Workout / Daily Mobility, below the week
@@ -1910,16 +1940,20 @@ header {
     font-size: 15px;
   }
 
-  .week-day-dot {
-    width: 14px;
-    height: 14px;
-    font-size: 8px;
+  .type-icon {
+    width: 18px;
+    height: 18px;
   }
 
-  .week-day-dot-more {
-    min-width: 14px;
-    padding: 0 4px;
-    font-size: 7px;
+  .type-icon svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  .type-icon-more {
+    min-width: 18px;
+    padding: 0 5px;
+    font-size: 9px;
   }
 
   .day-preview-thumb {

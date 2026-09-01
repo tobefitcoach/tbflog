@@ -1,0 +1,412 @@
+<title>Week Strip Options</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+  /* Deliberately single-theme: this mirrors TBFlog's real athlete app,
+     which is dark-only with no light mode of its own - reproducing its
+     actual tokens matters more here than adapting to the viewer's theme. */
+  :root {
+    --bg: #0f0f1a;
+    --card: #1a1a2e;
+    --card-hover-border: #2a2a4e;
+    --border: #2a2a4e;
+    --text: #ffffff;
+    --text-dim: #aaaacc;
+    --text-faint: #6f6f95;
+    --accent: #4a4a8e;
+    --accent-tint: rgba(74, 74, 142, 0.15);
+    --blue: #3b82f6;
+    --blue-tint: rgba(59, 130, 246, 0.14);
+    --green: #4caf50;
+    --green-tint: rgba(76, 175, 80, 0.14);
+    --orange: #e0a030;
+    --orange-tint: rgba(224, 160, 48, 0.14);
+    --gold: #d4a017;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', Arial, sans-serif;
+    padding: 40px 20px 100px;
+  }
+
+  .page-head {
+    max-width: 640px;
+    margin: 0 auto 48px;
+  }
+
+  .page-head .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+
+  .page-head h1 {
+    font-size: 26px;
+    font-weight: 800;
+    text-wrap: balance;
+    margin-bottom: 10px;
+  }
+
+  .page-head p {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 56ch;
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .option {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .option-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .option-letter {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-tint);
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .option-title {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .option-desc {
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 52ch;
+  }
+
+  /* ---- mock phone-width panel, holding a faithful copy of the real
+     .week-strip markup/tokens from athlete-app/app.css ---- */
+  .device {
+    background: #131320;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 14px;
+    max-width: 400px;
+  }
+
+  .week-strip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .week-day-card {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 4px;
+    text-align: center;
+    min-height: 84px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .week-day-name {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .week-day-number {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* today ring, matches the real app's Monday/current-day treatment */
+  .week-day-card.today-ring {
+    border-color: var(--accent);
+  }
+  .week-day-card.done-ring {
+    border-color: var(--green);
+  }
+
+  /* --- A: bigger type icons --- */
+  .icon-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+    margin-top: auto;
+  }
+  .type-icon {
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+  }
+  .type-icon svg { width: 11px; height: 11px; }
+  .type-icon.gym { background: var(--blue); }
+  .type-icon.field { background: var(--blue); }
+  .type-icon.run { background: var(--blue); }
+  .type-icon.mobility { background: var(--green); }
+  .type-icon.tournament { background: var(--gold); color: #1a1a2e; }
+  .type-icon.done { background: var(--green); }
+
+  /* --- B: colored status bar --- */
+  .status-bar-track {
+    margin-top: auto;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+    display: flex;
+  }
+  .status-bar-seg { flex: 1; }
+  .status-bar-seg.blue { background: var(--blue); }
+  .status-bar-seg.green { background: var(--green); }
+  .status-bar-seg.gold { background: var(--gold); }
+  .status-bar-seg.empty { background: transparent; }
+
+  /* --- C: tinted card background --- */
+  .week-day-card.tint-planned {
+    background-color: var(--blue-tint);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+  .week-day-card.tint-done {
+    background-color: var(--green-tint);
+    border-color: var(--green);
+  }
+  .week-day-card.tint-tournament {
+    background-color: rgba(212, 160, 23, 0.12);
+    border-color: rgba(212, 160, 23, 0.45);
+  }
+  .tint-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: auto;
+  }
+  .tint-check {
+    margin-top: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tint-check svg { width: 10px; height: 10px; }
+
+  .caption {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 11px;
+    margin-top: 28px;
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+</style>
+
+<div class="page-head">
+  <div class="eyebrow">TBFlog &middot; Athlete App</div>
+  <h1>Week strip options</h1>
+  <p>Four ways to replace the current status dots on the athlete home screen's week strip, using the same 7-day row and real card styling. Monday is finished, Tuesday/Wednesday/Thursday have something scheduled (Wednesday has two things), Friday/Saturday are open, Sunday just has a tournament.</p>
+</div>
+
+<div class="options">
+
+  <div class="option">
+    <div class="option-head">
+      <span class="option-letter">A</span>
+      <span class="option-title">Bigger type icons</span>
+    </div>
+    <p class="option-desc">Dots become small real icons per item - a barbell, a stopwatch, a runner, a stretch figure, a medal - at roughly 2x today's dot size. You can tell what's scheduled without tapping in.</p>
+    <div class="device">
+      <div class="week-strip">
+        <div class="week-day-card done-ring">
+          <span class="week-day-name">Mon</span><span class="week-day-number">31</span>
+          <div class="icon-row"><span class="type-icon done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Tue</span><span class="week-day-number">1</span>
+          <div class="icon-row"><span class="type-icon gym"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"></rect><rect x="20" y="9" width="3" height="6" rx="1"></rect><line x1="4" y1="12" x2="20" y2="12"></line><rect x="6" y="7" width="2" height="10" rx="1"></rect><rect x="16" y="7" width="2" height="10" rx="1"></rect></svg></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Wed</span><span class="week-day-number">2</span>
+          <div class="icon-row">
+            <span class="type-icon field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l3 2"></path><path d="M9 2h6"></path><path d="M12 2v3"></path></svg></span>
+            <span class="type-icon mobility"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>
+          </div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Thu</span><span class="week-day-number">3</span>
+          <div class="icon-row"><span class="type-icon run"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="4" r="2"></circle><path d="M10 22l2-6 3 2 2-6"></path><path d="M6 13l3-3 4 1 3-4"></path><path d="M4 22l3-5"></path></svg></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Fri</span><span class="week-day-number">4</span>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Sat</span><span class="week-day-number">5</span>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Sun</span><span class="week-day-number">6</span>
+          <div class="icon-row"><span class="type-icon tournament"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option">
+    <div class="option-head">
+      <span class="option-letter">B</span>
+      <span class="option-title">Colored status bar</span>
+    </div>
+    <p class="option-desc">No dots at all - a single bar near the bottom of the card, split into one segment per item, colored by that item's status (blue planned, green done, gold tournament). Shows count and progress, not type.</p>
+    <div class="device">
+      <div class="week-strip">
+        <div class="week-day-card done-ring">
+          <span class="week-day-name">Mon</span><span class="week-day-number">31</span>
+          <div class="status-bar-track"><span class="status-bar-seg green"></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Tue</span><span class="week-day-number">1</span>
+          <div class="status-bar-track"><span class="status-bar-seg blue"></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Wed</span><span class="week-day-number">2</span>
+          <div class="status-bar-track"><span class="status-bar-seg blue"></span><span class="status-bar-seg blue"></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Thu</span><span class="week-day-number">3</span>
+          <div class="status-bar-track"><span class="status-bar-seg blue"></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Fri</span><span class="week-day-number">4</span>
+          <div class="status-bar-track"><span class="status-bar-seg empty"></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Sat</span><span class="week-day-number">5</span>
+          <div class="status-bar-track"><span class="status-bar-seg empty"></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Sun</span><span class="week-day-number">6</span>
+          <div class="status-bar-track"><span class="status-bar-seg gold"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option">
+    <div class="option-head">
+      <span class="option-letter">C</span>
+      <span class="option-title">Tinted card background</span>
+    </div>
+    <p class="option-desc">No markers on the card at all - the whole card gets a subtle tint by status (this already happens for "today" and "done", just extended to planned days and tournaments too). Cleanest, but a day with 2 things looks the same as a day with 1.</p>
+    <div class="device">
+      <div class="week-strip">
+        <div class="week-day-card tint-done">
+          <span class="week-day-name">Mon</span><span class="week-day-number">31</span>
+          <span class="tint-check"><svg viewBox="0 0 24 24" fill="none" stroke="#0f0f1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+        </div>
+        <div class="week-day-card tint-planned">
+          <span class="week-day-name">Tue</span><span class="week-day-number">1</span>
+        </div>
+        <div class="week-day-card tint-planned">
+          <span class="week-day-name">Wed</span><span class="week-day-number">2</span>
+          <span class="tint-count">2 things</span>
+        </div>
+        <div class="week-day-card tint-planned">
+          <span class="week-day-name">Thu</span><span class="week-day-number">3</span>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Fri</span><span class="week-day-number">4</span>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Sat</span><span class="week-day-number">5</span>
+        </div>
+        <div class="week-day-card tint-tournament">
+          <span class="week-day-name">Sun</span><span class="week-day-number">6</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option">
+    <div class="option-head">
+      <span class="option-letter">D</span>
+      <span class="option-title">Icons + tinted card</span>
+    </div>
+    <p class="option-desc">Both at once: the tint says how the day's going, the icons say what's on it. Most informative of the four, and the busiest-looking.</p>
+    <div class="device">
+      <div class="week-strip">
+        <div class="week-day-card tint-done">
+          <span class="week-day-name">Mon</span><span class="week-day-number">31</span>
+          <div class="icon-row"><span class="type-icon done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></div>
+        </div>
+        <div class="week-day-card tint-planned">
+          <span class="week-day-name">Tue</span><span class="week-day-number">1</span>
+          <div class="icon-row"><span class="type-icon gym"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"></rect><rect x="20" y="9" width="3" height="6" rx="1"></rect><line x1="4" y1="12" x2="20" y2="12"></line><rect x="6" y="7" width="2" height="10" rx="1"></rect><rect x="16" y="7" width="2" height="10" rx="1"></rect></svg></span></div>
+        </div>
+        <div class="week-day-card tint-planned">
+          <span class="week-day-name">Wed</span><span class="week-day-number">2</span>
+          <div class="icon-row">
+            <span class="type-icon field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l3 2"></path><path d="M9 2h6"></path><path d="M12 2v3"></path></svg></span>
+            <span class="type-icon mobility"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>
+          </div>
+        </div>
+        <div class="week-day-card tint-planned">
+          <span class="week-day-name">Thu</span><span class="week-day-number">3</span>
+          <div class="icon-row"><span class="type-icon run"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="4" r="2"></circle><path d="M10 22l2-6 3 2 2-6"></path><path d="M6 13l3-3 4 1 3-4"></path><path d="M4 22l3-5"></path></svg></span></div>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Fri</span><span class="week-day-number">4</span>
+        </div>
+        <div class="week-day-card">
+          <span class="week-day-name">Sat</span><span class="week-day-number">5</span>
+        </div>
+        <div class="week-day-card tint-tournament">
+          <span class="week-day-name">Sun</span><span class="week-day-number">6</span>
+          <div class="icon-row"><span class="type-icon tournament"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="caption">Colors and card shape are pulled straight from athlete-app/app.css - this is a preview only, nothing here is wired up yet.</p>
