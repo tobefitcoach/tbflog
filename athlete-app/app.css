@@ -332,6 +332,11 @@ body:has(.home-screen) .athlete-app-card {
   overflow: hidden;
 }
 
+/* Instant cut between exercises on purpose, no fade - a crossfade left a
+   brief but visible moment where the incoming (still-settling) video frame
+   looked stuck/zoomed, which read as cheap. The "Other Side" transition
+   still looks great because it's masked by its own opaque interstitial
+   (see .mobility-side-transition below), completely independent of this. */
 .mobility-flow-video {
   position: absolute;
   inset: 0;
@@ -339,7 +344,6 @@ body:has(.home-screen) .athlete-app-card {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 1.1s ease;
 }
 
 .mobility-flow-video.active {
