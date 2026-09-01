@@ -97,6 +97,7 @@ let completedSessionsByDayId = {} // program_days.id -> most recently-ended work
 let mobilitySessionsByDate = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
 let tournamentsCache = [] // every upcoming+past tournaments row for this athlete, sorted by date
 let tournamentsByDate = {} // 'YYYY-MM-DD' -> tournaments row
+let formAssignmentsByDate = {} // 'YYYY-MM-DD' -> array of form_assignments rows (joined with forms(name, gate_workout))
 let restTimerInterval = null
 let mobilityTimerInterval = null
 let stretchLibraryCache = null              // stretches visible to this athlete (RLS-scoped to their coach)
@@ -1071,7 +1072,8 @@ async function loadTrainingData() {
   const [
     { data, error },
     { data: logSets, error: logError },
-    { data: sessions, error: sessionsError }
+    { data: sessions, error: sessionsError },
+    { data: formAssignments, error: formAssignmentsError }
   ] = await Promise.all([
     saveWithRetry((signal) => supabase
       .from('programs')
@@ -1091,12 +1093,24 @@ async function loadTrainingData() {
       .select('*')
       .eq('athlete_id', athlete.id)
       .abortSignal(signal)
+    ),
+    saveWithRetry((signal) => supabase
+      .from('form_assignments')
+      .select('*, forms(name, gate_workout)')
+      .eq('athlete_id', athlete.id)
+      .abortSignal(signal)
     )
   ])
 
   if (error) { console.log('Error loading training data:', error); return }
   if (logError) { console.log('Error loading logged sets:', logError); return }
   if (sessionsError) { console.log('Error loading sessions:', sessionsError); return }
+  if (formAssignmentsError) { console.log('Error loading form assignments:', formAssignmentsError) }
+
+  formAssignmentsByDate = {}
+  for (const fa of (formAssignments || [])) {
+    (formAssignmentsByDate[fa.date] ||= []).push(fa)
+  }
 
   entriesByDate = {}
   for (const program of data) {
@@ -1164,6 +1178,14 @@ function dayIsFullyLogged(entries) {
   const withExercises = entries.filter(entry => entry.day.program_exercises.length > 0)
   if (withExercises.length === 0) return false
   return withExercises.every(entry => !!completedSessionsByDayId[entry.day.id])
+}
+
+// The first not-yet-completed gate_workout form assigned to this date, or
+// null if there isn't one - a date normally has at most one, but if a
+// coach ever assigns two, the workout stays locked until every gating
+// form on that day is completed, not just one of them.
+function formsGatingDate(dateStr) {
+  return (formAssignmentsByDate[dateStr] || []).find(fa => fa.forms && fa.forms.gate_workout && !fa.completed_at) || null
 }
 
 // "12/10/8 reps @ 50kg" when only reps vary across sets, "12@40kg, 10@45kg,
@@ -1287,6 +1309,7 @@ function renderWeekView(weekStart) {
     const inProgress = !done && entries.some(entry => !!openSessionsByDayId[entry.day.id])
     const mobility = mobilitySessionsByDate[dateStr]
     const tournament = tournamentsByDate[dateStr]
+    const forms = formAssignmentsByDate[dateStr] || []
 
     // Status (done/in-progress/planned/tournament-only) tints the whole
     // card now, not just a border - mutually exclusive, most-advanced wins,
@@ -1320,6 +1343,9 @@ function renderWeekView(weekStart) {
     })
     if (mobility) icons.push('<span class="type-icon type-icon-mobility"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>')
     if (tournament) icons.push('<span class="type-icon type-icon-tournament"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>')
+    for (const fa of forms) {
+      icons.push(`<span class="type-icon ${fa.completed_at ? 'type-icon-done' : 'type-icon-form'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg></span>`)
+    }
     const visibleIcons = icons.slice(0, 4)
     const extraCount = icons.length - visibleIcons.length
 
@@ -2857,10 +2883,16 @@ function renderDayPreview(dateStr) {
 
   const isToday = dateStr === toDateStr(new Date())
   const entries = entriesByDate[dateStr] || []
+  const forms = formAssignmentsByDate[dateStr] || []
 
-  const bodyHtml = entries.length === 0
+  // Forms render first - if one of them gates the day's workout, the
+  // athlete should see it before (not below) the locked workout it's
+  // blocking
+  const formsHtml = forms.map(fa => renderFormPreviewCard(fa, dateStr)).join('')
+
+  const bodyHtml = (entries.length === 0 && forms.length === 0)
     ? '<p class="no-metrics">Rest day — nothing scheduled</p>'
-    : entries.map(entry => renderDayPreviewGroup(entry, isToday, dateStr)).join('')
+    : formsHtml + entries.map(entry => renderDayPreviewGroup(entry, isToday, dateStr)).join('')
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -2895,6 +2927,161 @@ function renderDayPreview(dateStr) {
     const moveBtn = document.getElementById('moveWorkoutBtn-' + entry.day.id)
     if (moveBtn) moveBtn.addEventListener('click', function() { openMoveWorkoutModal(entry.day.id, dateStr) })
   })
+
+  forms.forEach(fa => {
+    const fillBtn = document.getElementById('formFillBtn-' + fa.id)
+    if (fillBtn) fillBtn.addEventListener('click', function() { renderFormFill(fa, dateStr) })
+  })
+}
+
+// ---- Assigned form preview card (Fill Out / View Answers) ----
+function renderFormPreviewCard(fa, dateStr) {
+  const done = !!fa.completed_at
+  const formName = fa.forms ? fa.forms.name : 'Form'
+  return `
+    <div class="detail-group">
+      <div class="day-preview-group-header">
+        <h4 class="detail-group-title">${escapeHtml(formName)}</h4>
+        ${done ? '<span class="workout-type-badge workout-type-badge-field">Completed</span>' : ''}
+      </div>
+      ${!done && fa.forms && fa.forms.gate_workout ? '<p class="form-gate-notice"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86l-8.18 14.18A2 2 0 0 0 4 21h16a2 2 0 0 0 1.89-2.96L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg> Completing this unlocks today\'s workout</p>' : ''}
+      <button type="button" class="start-workout-btn" id="formFillBtn-${fa.id}">${done ? 'View Answers' : 'Fill Out Form'}</button>
+    </div>
+  `
+}
+
+// ==========================================================================
+// ---- FORM FILL-OUT SCREEN ----
+// Read-only once completed (the Submit button is just gone) - editing an
+// already-submitted answer isn't supported yet, same "keep v1 simple, add
+// more later" scope as everything else about forms.
+// ==========================================================================
+async function renderFormFill(fa, dateStr) {
+  pageWrap.classList.add('wide')
+  cardWrap.classList.add('wide')
+
+  const formName = fa.forms ? fa.forms.name : 'Form'
+  const done = !!fa.completed_at
+
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <button type="button" class="btn-cancel" id="formFillBackBtn">← Back</button>
+      <h2 class="day-view-date">${escapeHtml(formName)}</h2>
+    </div>
+    <div id="formFillQuestions"><p class="no-metrics">Loading...</p></div>
+    ${done ? '' : '<button type="button" class="btn-save start-workout-btn" id="formFillSubmitBtn" style="margin-top:16px">Submit</button>'}
+  `
+
+  document.getElementById('formFillBackBtn').addEventListener('click', function() {
+    renderDayPreview(dateStr)
+  })
+
+  const [{ data: questions, error }, { data: existingAnswers, error: answersError }] = await Promise.all([
+    supabase.from('form_questions').select('*').eq('form_id', fa.form_id).order('order_index'),
+    supabase.from('form_answers').select('*').eq('assignment_id', fa.id)
+  ])
+
+  if (error) { console.log(error); document.getElementById('formFillQuestions').innerHTML = '<p class="no-metrics">Something went wrong loading this form - check your connection and try again</p>'; return }
+  if (answersError) console.log(answersError)
+
+  const answersByQuestion = {}
+  for (const a of (existingAnswers || [])) answersByQuestion[a.question_id] = a
+
+  const questionsEl = document.getElementById('formFillQuestions')
+  questionsEl.innerHTML = questions.length === 0
+    ? '<p class="no-metrics">This form has no questions yet</p>'
+    : questions.map(renderFormFillQuestion).join('')
+
+  // Pre-fill existing answers via property assignment (never through
+  // innerHTML interpolation) - an athlete's own free-text answer could
+  // contain a stray " or < that would otherwise break out of the markup
+  for (const q of questions) {
+    const existing = answersByQuestion[q.id]
+    if (!existing) continue
+    const card = questionsEl.querySelector(`.form-question-card[data-question-id="${q.id}"]`)
+    if (!card) continue
+    if (q.type === 'scale_1_5') {
+      if (existing.answer_scale != null) {
+        const btn = card.querySelector(`.form-fill-scale-btn[data-value="${existing.answer_scale}"]`)
+        if (btn) btn.classList.add('selected')
+      }
+    } else {
+      const input = card.querySelector('.form-fill-answer')
+      if (input) input.value = existing.answer_text || ''
+    }
+    if (done) {
+      card.querySelectorAll('.form-fill-answer').forEach(el => { el.disabled = true })
+      card.querySelectorAll('.form-fill-scale-btn').forEach(el => { el.disabled = true })
+    }
+  }
+
+  questionsEl.querySelectorAll('.form-fill-scale-row').forEach(row => {
+    row.addEventListener('click', function(e) {
+      const btn = e.target.closest('.form-fill-scale-btn')
+      if (!btn) return
+      row.querySelectorAll('.form-fill-scale-btn').forEach(b => b.classList.remove('selected'))
+      btn.classList.add('selected')
+    })
+  })
+
+  const submitBtn = document.getElementById('formFillSubmitBtn')
+  if (submitBtn) submitBtn.addEventListener('click', function() { submitForm(fa, dateStr, questions) })
+}
+
+function renderFormFillQuestion(q) {
+  if (q.type === 'scale_1_5') {
+    return `
+      <div class="form-question-card" data-question-id="${q.id}" data-type="scale_1_5">
+        <p style="margin-bottom:10px">${escapeHtml(q.question_text)}</p>
+        <div class="form-fill-scale-row">
+          ${[1, 2, 3, 4, 5].map(n => `<button type="button" class="form-fill-scale-btn" data-value="${n}">${n}</button>`).join('')}
+        </div>
+      </div>
+    `
+  }
+  if (q.type === 'long_text') {
+    return `
+      <div class="form-question-card" data-question-id="${q.id}" data-type="long_text">
+        <p style="margin-bottom:10px">${escapeHtml(q.question_text)}</p>
+        <textarea class="form-fill-answer"></textarea>
+      </div>
+    `
+  }
+  return `
+    <div class="form-question-card" data-question-id="${q.id}" data-type="short_text">
+      <p style="margin-bottom:10px">${escapeHtml(q.question_text)}</p>
+      <input type="text" class="form-fill-answer" />
+    </div>
+  `
+}
+
+async function submitForm(fa, dateStr, questions) {
+  const btn = document.getElementById('formFillSubmitBtn')
+  btn.disabled = true
+  btn.textContent = 'Submitting...'
+
+  const rows = questions.map(q => {
+    const card = document.querySelector(`.form-question-card[data-question-id="${q.id}"]`)
+    if (q.type === 'scale_1_5') {
+      const selected = card ? card.querySelector('.form-fill-scale-btn.selected') : null
+      return { assignment_id: fa.id, question_id: q.id, answer_scale: selected ? parseInt(selected.dataset.value) : null }
+    }
+    const input = card ? card.querySelector('.form-fill-answer') : null
+    return { assignment_id: fa.id, question_id: q.id, answer_text: input ? input.value.trim() : '' }
+  })
+
+  if (rows.length > 0) {
+    const { error: answersError } = await supabase.from('form_answers').upsert(rows, { onConflict: 'assignment_id,question_id' })
+    if (answersError) { console.log(answersError); customAlert('Something went wrong saving your answers'); btn.disabled = false; btn.textContent = 'Submit'; return }
+  }
+
+  const completedAt = new Date().toISOString()
+  const { error: completeError } = await supabase.from('form_assignments').update({ completed_at: completedAt }).eq('id', fa.id)
+  if (completeError) { console.log(completeError); customAlert('Something went wrong'); btn.disabled = false; btn.textContent = 'Submit'; return }
+
+  fa.completed_at = completedAt
+  await loadTrainingData()
+  renderDayPreview(dateStr)
 }
 
 function renderDayPreviewGroup(entry, isToday, dateStr) {
@@ -2922,9 +3109,16 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
   // show on the day it was started, so forgetting to tap "End Workout"
   // meant the very next day the button just vanished with no way back in
   // short of hunting the day down manually.
+  // A form with gate_workout on, still not completed, blocks STARTING this
+  // day's workout - an already-open session is never blocked by a gate
+  // that shows up later, only the initial Start.
+  const gatingForm = !openSession ? formsGatingDate(dateStr) : null
+
   let actionButton = ''
   if (completedSession && !openSession) {
     actionButton = `<button type="button" class="start-workout-btn" id="viewSummaryBtn-${entry.day.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> View Summary</button>`
+  } else if (gatingForm && (isToday && (exercises.length > 0 || entry.program.created_by_athlete))) {
+    actionButton = `<p class="form-gate-notice"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86l-8.18 14.18A2 2 0 0 0 4 21h16a2 2 0 0 0 1.89-2.96L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg> Complete "${escapeHtml(gatingForm.forms.name)}" first to unlock this workout</p>`
   } else if (openSession || (isToday && (exercises.length > 0 || entry.program.created_by_athlete))) {
     actionButton = `<button type="button" class="start-workout-btn" id="startWorkoutBtn-${entry.day.id}">${openSession ? '▶ Continue Workout' : '▶ Start Workout'}</button>`
   }

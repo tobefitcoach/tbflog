@@ -1075,6 +1075,10 @@ body:has(.home-screen) .athlete-app-card {
   color: #1a1a2e;
 }
 
+.type-icon-form {
+  background-color: #14b8a6;
+}
+
 .type-icon-more {
   width: auto;
   min-width: 27px;

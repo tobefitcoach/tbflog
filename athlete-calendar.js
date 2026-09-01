@@ -28,6 +28,7 @@ let sessionByDayId = {} // program_days.id -> the workout_sessions row to show (
 let logSetsByPECal = {} // program_exercise_id -> array of exercise_log_sets rows, sorted by set_number
 let mobilityEntriesByDateCal = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
 let tournamentsByDateCal = {} // 'YYYY-MM-DD' -> tournaments row (athlete-added, read-only here)
+let formAssignmentsByDateCal = {} // 'YYYY-MM-DD' -> array of form_assignments rows (joined with forms(name, gate_workout))
 let calendarLoaded = false
 let currentDayDateForModal = null // date currently shown in the day-detail modal
 
@@ -152,7 +153,8 @@ async function loadCalendarMonth(year, month) {
     { data, error },
     { data: sessions, error: sessionsError },
     { data: logSets, error: logSetsError },
-    { data: tournaments, error: tournamentsError }
+    { data: tournaments, error: tournamentsError },
+    { data: formAssignments, error: formAssignmentsError }
   ] = await Promise.all([
     fetchWithRetry((signal) => supabase
       .from('programs')
@@ -178,6 +180,12 @@ async function loadCalendarMonth(year, month) {
       .select('*')
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
+    ),
+    fetchWithRetry((signal) => supabase
+      .from('form_assignments')
+      .select('*, forms(name, gate_workout), form_answers(id)')
+      .eq('athlete_id', athleteId)
+      .abortSignal(signal), 1
     )
   ])
 
@@ -185,10 +193,16 @@ async function loadCalendarMonth(year, month) {
   if (sessionsError) { console.log('Error loading sessions for calendar:', sessionsError) }
   if (logSetsError) { console.log('Error loading logged sets for calendar:', logSetsError) }
   if (tournamentsError) { console.log('Error loading tournaments for calendar:', tournamentsError) }
+  if (formAssignmentsError) { console.log('Error loading form assignments for calendar:', formAssignmentsError) }
 
   tournamentsByDateCal = {}
   for (const t of tournaments || []) {
     for (const dateStr of eachDateStrInRangeCal(t.date, t.end_date)) tournamentsByDateCal[dateStr] = t
+  }
+
+  formAssignmentsByDateCal = {}
+  for (const fa of formAssignments || []) {
+    (formAssignmentsByDateCal[fa.date] ||= []).push(fa)
   }
 
   calendarEntriesByDate = {}
@@ -332,6 +346,9 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
     })
     if (mobility) items.push({ status: 'mobility', glyph: '', label: 'Mobility', mobilitySessionId: mobility.id })
     if (tournament) items.push({ status: 'tournament', glyph: '', label: tournament.name, importance: tournament.importance })
+    for (const fa of (formAssignmentsByDateCal[dateStr] || [])) {
+      items.push({ status: fa.completed_at ? 'done' : 'form', glyph: fa.completed_at ? '✓' : '', label: (fa.forms ? fa.forms.name : 'Form'), formAssignmentId: fa.id })
+    }
 
     const visibleItems = items.slice(0, 4)
     const extraCount = items.length - visibleItems.length
@@ -369,6 +386,17 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
+      if (it.formAssignmentId) {
+        return `
+          <div class="kebab-menu calendar-dot-kebab">
+            <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
+            <div class="kebab-dropdown">
+              <button type="button" class="kebab-item" data-action="view-form" data-assignment-id="${it.formAssignmentId}">View Form</button>
+              <button type="button" class="kebab-item" data-action="delete-form" data-assignment-id="${it.formAssignmentId}">Delete Form</button>
+            </div>
+          </div>
+        `
+      }
       return `<span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="Importance ${it.importance}/5">${it.importance != null ? it.importance : it.glyph}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
@@ -398,6 +426,19 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
                 <button type="button" class="kebab-item" data-action="delete-mobility" data-session-id="${it.mobilitySessionId}">Delete Mobility Session</button>
+              </div>
+            </div>
+          </div>
+        `
+      }
+      if (it.formAssignmentId) {
+        return `
+          <div class="calendar-day-badge-row">
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-form" data-assignment-id="${it.formAssignmentId}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
+            <div class="kebab-menu calendar-badge-kebab">
+              <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
+              <div class="kebab-dropdown">
+                <button type="button" class="kebab-item" data-action="delete-form" data-assignment-id="${it.formAssignmentId}">Delete Form</button>
               </div>
             </div>
           </div>
@@ -512,6 +553,13 @@ function wireCalendarBadgeKebabs(grid) {
       return
     }
 
+    if (btn.dataset.action === 'view-form') {
+      e.stopPropagation()
+      if (btn.closest('.kebab-dropdown')) btn.closest('.kebab-dropdown').classList.remove('active')
+      openFormDetailModal(btn.dataset.assignmentId)
+      return
+    }
+
     if (btn.dataset.action === 'copy-training') {
       e.stopPropagation()
       btn.closest('.kebab-dropdown').classList.remove('active')
@@ -528,6 +576,12 @@ function wireCalendarBadgeKebabs(grid) {
     if (btn.dataset.action === 'delete-mobility') {
       e.stopPropagation()
       deleteMobilitySession(btn.dataset.sessionId)
+      return
+    }
+
+    if (btn.dataset.action === 'delete-form') {
+      e.stopPropagation()
+      deleteFormAssignment(btn.dataset.assignmentId)
       return
     }
   }, true)
@@ -629,6 +683,50 @@ function openTournamentDetailModal(dateStr) {
   document.getElementById('dayDetailContent').innerHTML = `
     ${tournamentDateRange ? `<p class="workout-preview-target">${tournamentDateRange}</p>` : ''}
     <p class="workout-preview-target">Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}</p>
+  `
+
+  document.getElementById('dayDetailModal').classList.add('active')
+}
+
+// Queried fresh (not read from formAssignmentsByDateCal) since the answers
+// aren't preloaded for the whole month - only fetched once the coach
+// actually opens one specific assignment
+async function openFormDetailModal(assignmentId) {
+  const { data: assignment, error } = await supabase
+    .from('form_assignments')
+    .select('*, forms(name, form_questions(*))')
+    .eq('id', assignmentId)
+    .single()
+
+  if (error) { console.log(error); customAlert('Something went wrong loading that form'); return }
+
+  document.getElementById('dayDetailTitle').textContent = assignment.forms ? assignment.forms.name : 'Form'
+
+  if (!assignment.completed_at) {
+    document.getElementById('dayDetailContent').innerHTML = '<p class="no-metrics">Not completed yet</p>'
+    document.getElementById('dayDetailModal').classList.add('active')
+    return
+  }
+
+  const questions = ((assignment.forms && assignment.forms.form_questions) || []).sort((a, b) => a.order_index - b.order_index)
+
+  const { data: answers, error: answersError } = await supabase.from('form_answers').select('*').eq('assignment_id', assignmentId)
+  if (answersError) console.log(answersError)
+  const answersByQuestion = {}
+  for (const a of (answers || [])) answersByQuestion[a.question_id] = a
+
+  document.getElementById('dayDetailContent').innerHTML = `
+    <p class="workout-preview-target">Completed ${new Date(assignment.completed_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
+    ${questions.map(q => {
+      const a = answersByQuestion[q.id]
+      const answerText = a ? (q.type === 'scale_1_5' ? (a.answer_scale != null ? `${a.answer_scale}/5` : '—') : (a.answer_text || '—')) : '—'
+      return `
+        <div class="form-question-card">
+          <p style="color:#aaaacc; font-size:12px; margin-bottom:4px">${escapeHtmlCal(q.question_text)}</p>
+          <p style="white-space:pre-wrap">${escapeHtmlCal(answerText)}</p>
+        </div>
+      `
+    }).join('')}
   `
 
   document.getElementById('dayDetailModal').classList.add('active')
@@ -988,6 +1086,19 @@ async function deleteMobilitySession(sessionId) {
   if (!(await customConfirm('Delete this mobility session?'))) return
 
   const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+
+  document.getElementById('dayDetailModal').classList.remove('active')
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+}
+
+// Deleting the assignment cascades to its form_answers (if any were
+// already submitted) - the form template itself is untouched, so it's
+// still there to assign again another day
+async function deleteFormAssignment(assignmentId) {
+  if (!(await customConfirm('Delete this form assignment? Any answers already submitted will be lost too.'))) return
+
+  const { error } = await supabase.from('form_assignments').delete().eq('id', assignmentId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   document.getElementById('dayDetailModal').classList.remove('active')
@@ -1361,6 +1472,7 @@ async function openDayAddTrainingModal(dateStr) {
   switchDayAddTab('workout')
   resetTrainingPreview()
   resetSectionPreviewCal()
+  resetFormPreviewCal()
 
   const data = await getTrainingsList()
   const list = document.getElementById('dayAddTrainingList')
@@ -1387,6 +1499,7 @@ async function openDayAddTrainingModal(dateStr) {
 
   await loadDayAddProgramList()
   await loadDayAddSectionListCal()
+  await loadDayAddFormListCal()
 
   document.getElementById('dayAddTrainingModal').classList.add('active')
 }
@@ -1523,14 +1636,17 @@ function switchDayAddTab(tab) {
   document.getElementById('dayAddTabWorkout').classList.toggle('active', tab === 'workout')
   document.getElementById('dayAddTabProgram').classList.toggle('active', tab === 'program')
   document.getElementById('dayAddTabSection').classList.toggle('active', tab === 'section')
+  document.getElementById('dayAddTabForm').classList.toggle('active', tab === 'form')
   document.getElementById('dayAddWorkoutPanel').classList.toggle('active', tab === 'workout')
   document.getElementById('dayAddProgramPanel').classList.toggle('active', tab === 'program')
   document.getElementById('dayAddSectionPanel').classList.toggle('active', tab === 'section')
+  document.getElementById('dayAddFormPanel').classList.toggle('active', tab === 'form')
 }
 
 document.getElementById('dayAddTabWorkout').addEventListener('click', function() { switchDayAddTab('workout') })
 document.getElementById('dayAddTabProgram').addEventListener('click', function() { switchDayAddTab('program') })
 document.getElementById('dayAddTabSection').addEventListener('click', function() { switchDayAddTab('section') })
+document.getElementById('dayAddTabForm').addEventListener('click', function() { switchDayAddTab('form') })
 
 // ==========================================================================
 // ---- PROGRAM TAB: list + preview + day-range picker ----
@@ -2315,6 +2431,106 @@ async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
   )
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
 }
+
+// ==========================================================================
+// ---- FORM TAB: list + preview + assign ----
+// Same list-then-preview pattern as the Section tab, but assigning writes a
+// form_assignments row directly - a form has no exercises to clone onto a
+// program_day, it's a separate thing entirely that the athlete fills out.
+// ==========================================================================
+let cachedFormsCal = null
+let selectedFormIdCal = null
+let selectedFormNameCal = null
+let cachedFormQuestionsCal = {} // form_id -> questions array
+
+async function getFormsListCal() {
+  if (cachedFormsCal) return cachedFormsCal
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('forms').select('*').order('name').abortSignal(signal))
+  if (error) { console.log(error); customAlert('Something went wrong loading your forms - check your connection and try again'); return null }
+  cachedFormsCal = data
+  return cachedFormsCal
+}
+
+function resetFormPreviewCal() {
+  selectedFormIdCal = null
+  selectedFormNameCal = null
+  document.getElementById('dayAddFormPreview').innerHTML = '<p class="no-metrics">Select a form to preview it</p>'
+  document.getElementById('selectFormForDayBtn').disabled = true
+}
+
+async function loadDayAddFormListCal() {
+  const data = await getFormsListCal()
+  const list = document.getElementById('dayAddFormList')
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading your Forms</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No forms saved yet - create one in Forms first</p>'
+  } else {
+    list.innerHTML = data.map(f => `
+      <div class="training-pick-row" data-id="${f.id}" data-name="${f.name}">
+        <span>${f.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewFormCal(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
+}
+
+async function previewFormCal(formId, formName) {
+  selectedFormIdCal = formId
+  selectedFormNameCal = formName
+  document.getElementById('selectFormForDayBtn').disabled = false
+
+  const preview = document.getElementById('dayAddFormPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading…</p>'
+
+  let questions = cachedFormQuestionsCal[formId]
+  if (!questions) {
+    const { data, error } = await supabase.from('form_questions').select('*').eq('form_id', formId).order('order_index')
+    if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
+    questions = data
+    cachedFormQuestionsCal[formId] = questions
+  }
+
+  if (selectedFormIdCal !== formId) return
+
+  const form = (cachedFormsCal || []).find(f => f.id === formId)
+
+  preview.innerHTML = `
+    <div class="workout-preview-header">
+      <h3>${escapeHtmlCal(formName)}</h3>
+      <span class="workout-preview-count">${questions.length} Question${questions.length === 1 ? '' : 's'}</span>
+    </div>
+    ${form && form.gate_workout ? '<p class="form-gate-notice"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86l-8.18 14.18A2 2 0 0 0 4 21h16a2 2 0 0 0 1.89-2.96L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg> Gates that day\'s workout until completed</p>' : ''}
+    ${questions.length === 0
+      ? '<p class="no-metrics">No questions in this form</p>'
+      : questions.map(q => `<div class="workout-preview-exercise"><span>${escapeHtmlCal(q.question_text) || '<em>(untitled question)</em>'}</span></div>`).join('')}
+  `
+}
+
+document.getElementById('selectFormForDayBtn').addEventListener('click', async function() {
+  if (!selectedFormIdCal) return
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Assigning...'
+
+  const { error } = await supabase.from('form_assignments').insert([{
+    coach_id: session.user.id, athlete_id: athleteId, form_id: selectedFormIdCal, date: currentDayDateForAddTraining
+  }])
+
+  if (error) { console.log(error); customAlert('Something went wrong assigning that form'); btn.disabled = false; btn.textContent = 'Assign'; return }
+
+  document.getElementById('dayAddTrainingModal').classList.remove('active')
+  btn.textContent = 'Assign'
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+})
 
 // ==========================================================================
 // ---- DURATION + EXTRA FIELD HELPERS ----

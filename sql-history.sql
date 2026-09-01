@@ -1910,3 +1910,98 @@ alter table notifications add constraint notifications_type_check
 drop policy if exists "coach creates own notifications" on notifications;
 create policy "coach creates own notifications" on notifications for insert
   with check (coach_id = (select auth.uid()));
+
+-- ==========================================================================
+-- FORMS - reusable questionnaire templates (forms + form_questions), built
+-- once in the Form Builder and assigned onto a specific athlete's specific
+-- calendar day (form_assignments) from the same "+" popup used for a
+-- Single Workout/Program/Section. Answers live in form_answers, one row
+-- per question; form_assignments.completed_at is set once every question
+-- has been answered and the athlete taps Submit.
+--
+-- gate_workout on the form itself (not the assignment) - a coach builds a
+-- "daily readiness check" form ONCE with the gate on, then assigns it to
+-- whichever days need it; the gate always behaves the same way wherever
+-- that form gets used, so it belongs on the template, not repeated per
+-- assignment. When on, the athlete app hides that day's Start/Continue
+-- Workout button behind "Complete today's form first" until
+-- form_assignments.completed_at is set for that day.
+-- ==========================================================================
+create table if not exists forms (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  name text not null,
+  gate_workout boolean not null default false,
+  created_at timestamptz not null default now()
+);
+alter table forms enable row level security;
+drop policy if exists "coach manages own forms" on forms;
+create policy "coach manages own forms" on forms for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+
+create table if not exists form_questions (
+  id uuid primary key default gen_random_uuid(),
+  form_id uuid not null references forms(id) on delete cascade,
+  order_index int not null default 0,
+  question_text text not null,
+  type text not null check (type in ('short_text', 'long_text', 'scale_1_5')),
+  created_at timestamptz not null default now()
+);
+alter table form_questions enable row level security;
+drop policy if exists "coach manages own form questions" on form_questions;
+create policy "coach manages own form questions" on form_questions for all
+  using (exists (select 1 from forms f where f.id = form_questions.form_id and f.coach_id = (select auth.uid())))
+  with check (exists (select 1 from forms f where f.id = form_questions.form_id and f.coach_id = (select auth.uid())));
+drop policy if exists "athlete views own assigned form questions" on form_questions;
+create policy "athlete views own assigned form questions" on form_questions for select
+  using (exists (
+    select 1 from form_assignments fa join athletes a on a.id = fa.athlete_id
+    where fa.form_id = form_questions.form_id and a.user_id = (select auth.uid())
+  ));
+
+create table if not exists form_assignments (
+  id uuid primary key default gen_random_uuid(),
+  coach_id uuid not null references auth.users(id),
+  athlete_id bigint not null references athletes(id) on delete cascade,
+  form_id uuid not null references forms(id) on delete cascade,
+  date date not null,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table form_assignments enable row level security;
+drop policy if exists "coach manages own form assignments" on form_assignments;
+create policy "coach manages own form assignments" on form_assignments for all
+  using (coach_id = (select auth.uid())) with check (coach_id = (select auth.uid()));
+drop policy if exists "athlete views own form assignments" on form_assignments;
+create policy "athlete views own form assignments" on form_assignments for select
+  using (exists (select 1 from athletes a where a.id = form_assignments.athlete_id and a.user_id = (select auth.uid())));
+drop policy if exists "athlete completes own form assignments" on form_assignments;
+create policy "athlete completes own form assignments" on form_assignments for update
+  using (exists (select 1 from athletes a where a.id = form_assignments.athlete_id and a.user_id = (select auth.uid())))
+  with check (exists (select 1 from athletes a where a.id = form_assignments.athlete_id and a.user_id = (select auth.uid())));
+
+create index if not exists idx_form_assignments_athlete_date on form_assignments(athlete_id, date);
+
+create table if not exists form_answers (
+  id uuid primary key default gen_random_uuid(),
+  assignment_id uuid not null references form_assignments(id) on delete cascade,
+  question_id uuid not null references form_questions(id) on delete cascade,
+  answer_text text,
+  answer_scale int check (answer_scale between 1 and 5),
+  created_at timestamptz not null default now(),
+  unique (assignment_id, question_id)
+);
+alter table form_answers enable row level security;
+drop policy if exists "coach views own athletes form answers" on form_answers;
+create policy "coach views own athletes form answers" on form_answers for select
+  using (exists (select 1 from form_assignments fa where fa.id = form_answers.assignment_id and fa.coach_id = (select auth.uid())));
+drop policy if exists "athlete manages own form answers" on form_answers;
+create policy "athlete manages own form answers" on form_answers for all
+  using (exists (
+    select 1 from form_assignments fa join athletes a on a.id = fa.athlete_id
+    where fa.id = form_answers.assignment_id and a.user_id = (select auth.uid())
+  ))
+  with check (exists (
+    select 1 from form_assignments fa join athletes a on a.id = fa.athlete_id
+    where fa.id = form_answers.assignment_id and a.user_id = (select auth.uid())
+  ));

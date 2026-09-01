@@ -980,6 +980,9 @@
 .calendar-day-badge-mobility {
   background-color: #9c6ade;
 }
+.calendar-day-badge-form {
+  background-color: #14b8a6;
+}
 
 /* Drag-to-move a workout badge to a different day - see
    wireCalendarDragToMove in athlete-calendar.js. Only badges carrying
@@ -1099,6 +1102,9 @@
 }
 .calendar-day-dot-mobility {
   background-color: #9c6ade;
+}
+.calendar-day-dot-form {
+  background-color: #14b8a6;
 }
 
 .calendar-day-dot-more {
@@ -3328,4 +3334,112 @@
   .comms-chat-pane .chat-messages {
     max-height: 50vh;
   }
+}
+
+/* ==========================================================================
+   FORMS - question cards in the Form Builder (form-builder.html), and the
+   athlete's read-only fill-out screen (athlete-app/dashboard.js's
+   renderFormFill) reuses the same classes so a question looks identical in
+   both places.
+   ========================================================================== */
+.form-question-card {
+  background-color: #1a1a2e;
+  border: 1px solid #2a2a4e;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.form-question-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.form-question-number {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: #2a2a4e;
+  color: #aaaacc;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.form-question-text {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #2a2a4e;
+  border-radius: 6px;
+  background-color: #0f0f1a;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.form-question-type {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #2a2a4e;
+  border-radius: 6px;
+  background-color: #0f0f1a;
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+/* --- Athlete's fill-out screen --- */
+.form-fill-answer {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  background-color: #0f0f1a;
+  color: #ffffff;
+  font-size: 15px;
+}
+
+textarea.form-fill-answer {
+  min-height: 100px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.form-fill-scale-row {
+  display: flex;
+  gap: 8px;
+}
+
+.form-fill-scale-btn {
+  flex: 1;
+  padding: 12px 0;
+  border: 1px solid #2a2a4e;
+  border-radius: 8px;
+  background-color: #0f0f1a;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form-fill-scale-btn.selected {
+  background-color: #4a4a8e;
+  border-color: #4a4a8e;
+}
+
+.form-gate-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 10px;
+  background-color: rgba(224, 160, 48, 0.12);
+  border: 1px solid rgba(224, 160, 48, 0.4);
+  color: #e0a030;
+  font-size: 13px;
+  margin-top: 8px;
 }

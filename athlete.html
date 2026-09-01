@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=29" />
-  <link rel="stylesheet" href="athlete.css?v=68" />
+  <link rel="stylesheet" href="athlete.css?v=69" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -47,6 +47,7 @@
             </div>
           </div>
           <a href="stretches.html" class="sidebar-link sidebar-link-icon"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>Stretch Library</a>
+          <a href="forms.html" class="sidebar-link sidebar-link-icon"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>Forms</a>
           <a href="settings.html" class="sidebar-link sidebar-link-icon"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Settings</a>
         </div>
       </nav>
@@ -1052,6 +1053,7 @@
           <button type="button" class="modal-tab-btn active" id="dayAddTabWorkout">Single Workout</button>
           <button type="button" class="modal-tab-btn" id="dayAddTabProgram">Program</button>
           <button type="button" class="modal-tab-btn" id="dayAddTabSection">Section</button>
+          <button type="button" class="modal-tab-btn" id="dayAddTabForm">Form</button>
         </div>
 
         <!-- Left: pick a saved Training - clicking one previews it on the
@@ -1130,6 +1132,28 @@
             <button class="btn-save" id="selectSectionForDayBtn" disabled>Insert</button>
           </div>
         </div>
+
+        <!-- Left: pick a Form - same list-then-preview pattern as Section,
+             just previewing questions instead of exercises. Assigning
+             writes a form_assignments row directly (no program_day
+             involved at all - forms aren't exercises). -->
+        <div class="modal-tab-panel" id="dayAddFormPanel">
+          <div class="day-add-workout-layout">
+            <div class="day-add-workout-list-col">
+              <div class="day-add-workout-list-header">
+                <span class="day-add-workout-list-title">Forms</span>
+                <a href="forms.html" target="_blank" class="btn-small-create">+ New</a>
+              </div>
+              <div class="entries-modal-body" id="dayAddFormList"></div>
+            </div>
+            <div class="day-add-workout-preview" id="dayAddFormPreview">
+              <p class="no-metrics">Select a form to preview it</p>
+            </div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
+            <button class="btn-save" id="selectFormForDayBtn" disabled>Assign</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1197,7 +1221,7 @@
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
     <script type="module" src="athlete.js?v=44"></script>
-    <script type="module" src="athlete-calendar.js?v=67"></script>
+    <script type="module" src="athlete-calendar.js?v=68"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>
