@@ -2068,13 +2068,17 @@ function renderAddWorkoutChoice() {
 // there. Logging itself is unchanged either way: actual sets as they go.
 async function startOwnStrengthWorkout() {
   const dateStr = toDateStr(new Date())
-  let dayId, created
+  let dayId
   try {
-    ({ dayId, created } = await findOrCreateSelfLoggedDay(dateStr, 'My Workout', 'gym'))
+    ({ dayId } = await findOrCreateSelfLoggedDay(dateStr, 'My Workout', 'gym'))
   } catch (err) {
     return
   }
-  if (created) notifyCoach('workout_added', `${athlete.name} added a workout`)
+  // No "workout added" notification here anymore - it fired the instant
+  // Strength was tapped, before any exercise was even logged, so the coach
+  // got two notifications (added, then completed) for what's really one
+  // action. Field/Training and Run never had this problem (they only ever
+  // notify on completion) - this brings Strength in line with those.
   await loadTrainingData()
   // Matched by day id, not just "any self-logged entry today" - today can
   // now genuinely hold more than one (see findOrCreateSelfLoggedDay), so
