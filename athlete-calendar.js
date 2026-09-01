@@ -331,7 +331,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
       return { status, glyph, typeDot, label: trainingDisplayName(entry), dayId: entry.day.id, programId: entry.program.id, isAdhoc: entry.program.is_adhoc }
     })
     if (mobility) items.push({ status: 'mobility', glyph: '', label: 'Mobility', mobilitySessionId: mobility.id })
-    if (tournament) items.push({ status: 'tournament', glyph: '', label: tournament.name })
+    if (tournament) items.push({ status: 'tournament', glyph: '', label: tournament.name, importance: tournament.importance })
 
     const visibleItems = items.slice(0, 4)
     const extraCount = items.length - visibleItems.length
@@ -369,7 +369,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
-      return `<span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="view-tournament" data-date="${dateStr}">${it.glyph}</span>`
+      return `<span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="Importance ${it.importance}/5">${it.importance != null ? it.importance : it.glyph}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
     const badgesHtml = visibleItems.map(it => {
@@ -403,7 +403,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
-      return `<span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-tournament" data-date="${dateStr}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
+      return `<span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="Importance ${it.importance}/5">${it.importance != null ? `★${it.importance} ` : ''}${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
