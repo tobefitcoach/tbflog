@@ -1218,8 +1218,11 @@ body:has(.home-screen) .athlete-app-card {
 
 /* Same play-icon overlay as .active-exercise-thumb, scaled down for this
    smaller preview size - see that rule's comment for why it's absolutely
-   positioned instead of just centered by the button's own flex layout. */
-.day-preview-thumb:not(:disabled)::before {
+   positioned instead of just centered by the button's own flex layout.
+   :not(.video-playing) drops the overlay once playInlineVideo has swapped
+   the thumbnail image for an actual playing iframe - otherwise the play
+   triangle stayed floating over the video the whole time it played. */
+.day-preview-thumb:not(:disabled):not(.video-playing)::before {
   content: '';
   position: absolute;
   top: 50%;
@@ -1232,7 +1235,7 @@ body:has(.home-screen) .athlete-app-card {
   pointer-events: none;
 }
 
-.day-preview-thumb:not(:disabled)::after {
+.day-preview-thumb:not(:disabled):not(.video-playing)::after {
   content: '';
   position: absolute;
   top: 50%;
@@ -1340,8 +1343,11 @@ body:has(.home-screen) .athlete-app-card {
    photo, nothing hinting it was tappable. Positioned absolutely instead
    of relying on the button's own flex centering, since a pseudo-element
    with real content would otherwise sit as its own flex item next to the
-   image instead of overlaid on top of it. */
-.active-exercise-thumb:not(:disabled)::before {
+   image instead of overlaid on top of it. :not(.video-playing) drops it
+   once the video is actually playing - playInlineVideo swaps the thumbnail
+   for an iframe but the button keeps this class, so without the extra
+   check the play triangle just sat there on top of the playing video. */
+.active-exercise-thumb:not(:disabled):not(.video-playing)::before {
   content: '';
   position: absolute;
   top: 50%;
@@ -1354,7 +1360,7 @@ body:has(.home-screen) .athlete-app-card {
   pointer-events: none;
 }
 
-.active-exercise-thumb:not(:disabled)::after {
+.active-exercise-thumb:not(:disabled):not(.video-playing)::after {
   content: '';
   position: absolute;
   top: 50%;

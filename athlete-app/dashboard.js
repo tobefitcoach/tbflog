@@ -1261,6 +1261,7 @@ function playInlineVideo(containerEl, url) {
   const embedUrl = getYouTubeEmbedUrl(url)
   if (!embedUrl) { window.open(url, '_blank'); return }
   containerEl.innerHTML = `<iframe src="${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`
+  containerEl.classList.add('video-playing') // hides the play-icon overlay - see CSS
 }
 
 // ==========================================================================
