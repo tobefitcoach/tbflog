@@ -614,6 +614,18 @@ function openWorkoutDetailModal(dateStr, dayId) {
   const session = sessionByDayId[entry.day.id]
   const showReview = !!session
 
+  // Same "+ Add Exercise / Add Section / Add Workout" toolkit Program
+  // Builder's day modal has (see openAddToWorkoutModal below) - only shown
+  // on the editable plan, not the read-only review, same reasoning as the
+  // Save button next to it only showing there too.
+  const addButtonsHtml = !showReview ? `
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-bottom:8px; flex-wrap:wrap">
+      <button type="button" class="btn-edit-entry" data-action="open-add-exercise" data-day-id="${entry.day.id}">+ Add Exercise</button>
+      <button type="button" class="btn-edit-entry" data-action="open-add-section" data-day-id="${entry.day.id}">Add Section</button>
+      <button type="button" class="btn-edit-entry" data-action="open-add-workout" data-day-id="${entry.day.id}">Add Workout</button>
+    </div>
+  ` : ''
+
   document.getElementById('dayDetailContent').innerHTML = `
     <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
       <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:8px">
@@ -624,11 +636,11 @@ function openWorkoutDetailModal(dateStr, dayId) {
       </div>
       ${showReview ? renderSessionSummaryCal(session) : ''}
       ${exercises.length === 0
-        ? '<p class="no-metrics">No exercises</p>'
+        ? `${addButtonsHtml}<p class="no-metrics">No exercises</p>`
         : showReview
           ? `${exercises.map(pe => renderLoggedExerciseCardCal(pe)).join('')}
              <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Edit Plan Instead</button>`
-          : `${renderExerciseListHtmlCal(exercises)}
+          : `${addButtonsHtml}${renderExerciseListHtmlCal(exercises)}
              <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">Save</button>`}
     </div>
   `
@@ -646,6 +658,240 @@ function openWorkoutDetailModal(dateStr, dayId) {
       }
     }
   }
+}
+
+// ==========================================================================
+// ---- ADD TO WORKOUT (Exercise / Section / Workout) ----
+// Same "+ Add Exercise / Add Section / Add Workout" toolkit Program
+// Builder's day modal has, reachable from an already-scheduled workout's
+// own detail popup instead of only from the empty-cell "+" (which always
+// creates a brand-new day - wrong here, this targets the day already open).
+// Section/Workout reuse the exact same list-then-preview pattern and the
+// same clone functions (cloneSectionToDayCal/cloneTrainingToDay) the
+// empty-cell flow already uses, just pointed at currentDayIdForAddToWorkout
+// directly instead of going through findOrCreateAdHocDay. After any insert,
+// the whole month reloads (same as those existing flows) and this reopens
+// the workout's own detail popup with the fresh exercise list.
+// ==========================================================================
+let currentDayIdForAddToWorkout = null
+let selectedSectionIdForWorkout = null
+let selectedSectionNameForWorkout = null
+let selectedTrainingIdForWorkout = null
+let selectedTrainingNameForWorkout = null
+let allExercisesCal = null
+
+function switchAddToWorkoutTab(tab) {
+  document.getElementById('addToWorkoutTabExercise').classList.toggle('active', tab === 'exercise')
+  document.getElementById('addToWorkoutTabSection').classList.toggle('active', tab === 'section')
+  document.getElementById('addToWorkoutTabWorkout').classList.toggle('active', tab === 'workout')
+  document.getElementById('addToWorkoutExercisePanel').classList.toggle('active', tab === 'exercise')
+  document.getElementById('addToWorkoutSectionPanel').classList.toggle('active', tab === 'section')
+  document.getElementById('addToWorkoutWorkoutPanel').classList.toggle('active', tab === 'workout')
+}
+
+document.getElementById('addToWorkoutTabExercise').addEventListener('click', function() { switchAddToWorkoutTab('exercise') })
+document.getElementById('addToWorkoutTabSection').addEventListener('click', function() { switchAddToWorkoutTab('section') })
+document.getElementById('addToWorkoutTabWorkout').addEventListener('click', function() { switchAddToWorkoutTab('workout') })
+
+async function openAddToWorkoutModal(dayId, initialTab) {
+  currentDayIdForAddToWorkout = dayId
+  switchAddToWorkoutTab(initialTab || 'exercise')
+
+  selectedSectionIdForWorkout = null
+  selectedSectionNameForWorkout = null
+  document.getElementById('addToWorkoutSectionPreview').innerHTML = '<p class="no-metrics">Select a section to preview it</p>'
+  document.getElementById('addSectionToWorkoutBtn').disabled = true
+
+  selectedTrainingIdForWorkout = null
+  selectedTrainingNameForWorkout = null
+  document.getElementById('addToWorkoutWorkoutPreview').innerHTML = '<p class="no-metrics">Select a workout to preview it</p>'
+  document.getElementById('addTrainingToWorkoutBtn').disabled = true
+
+  document.getElementById('addToWorkoutModal').classList.add('active')
+
+  await Promise.all([loadAddExerciseSelect(), loadAddSectionListForWorkout(), loadAddTrainingListForWorkout()])
+}
+
+// ---- Exercise tab: plain select, same shape as Program Builder's picker ----
+async function loadAddExerciseSelect() {
+  if (!allExercisesCal) {
+    const { data, error } = await fetchWithRetry((signal) => supabase.from('exercises').select('*').eq('archived', false).order('name').abortSignal(signal))
+    if (error) { console.log(error); customAlert('Something went wrong loading the exercise library - check your connection and try again'); return }
+    allExercisesCal = data
+  }
+  const select = document.getElementById('addToWorkoutExerciseSelect')
+  select.innerHTML = '<option value="">Choose an exercise...</option>' + allExercisesCal.map(ex => `<option value="${ex.id}">${escapeHtmlCal(ex.name)}</option>`).join('')
+}
+
+document.getElementById('addExerciseToWorkoutBtn').addEventListener('click', async function() {
+  const exerciseId = document.getElementById('addToWorkoutExerciseSelect').value
+  if (!exerciseId) { customAlert('Please choose an exercise'); return }
+
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Adding...'
+
+  const { data: existing, error: existingError } = await supabase.from('program_exercises').select('order_index').eq('day_id', currentDayIdForAddToWorkout)
+  if (existingError) { console.log(existingError); customAlert('Something went wrong'); btn.disabled = false; btn.textContent = 'Add'; return }
+  const orderIndex = existing.length ? Math.max(...existing.map(pe => pe.order_index)) + 1 : 0
+
+  const { error } = await supabase.from('program_exercises').insert([{ day_id: currentDayIdForAddToWorkout, exercise_id: exerciseId, order_index: orderIndex }])
+  if (error) { console.log(error); customAlert('Something went wrong'); btn.disabled = false; btn.textContent = 'Add'; return }
+
+  await closeAddToWorkoutAndRefresh()
+  btn.disabled = false
+  btn.textContent = 'Add'
+})
+
+// ---- Section tab: same list-then-preview pattern as the empty-cell flow ----
+async function loadAddSectionListForWorkout() {
+  const data = await getSectionsListCal()
+  const list = document.getElementById('addToWorkoutSectionList')
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Section Library</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No sections saved yet - create one in the Section Library first</p>'
+  } else {
+    list.innerHTML = data.map(s => `
+      <div class="training-pick-row" data-id="${s.id}" data-name="${s.name}">
+        <span>${s.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewSectionForWorkout(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
+}
+
+async function previewSectionForWorkout(sectionId, sectionName) {
+  selectedSectionIdForWorkout = sectionId
+  selectedSectionNameForWorkout = sectionName
+  document.getElementById('addSectionToWorkoutBtn').disabled = false
+
+  const preview = document.getElementById('addToWorkoutSectionPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading…</p>'
+
+  let exercises = cachedSectionExercisesCal[sectionId]
+  if (!exercises) {
+    const { data, error } = await supabase
+      .from('section_exercises')
+      .select('*, exercises!exercise_id(name, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+      .eq('section_id', sectionId)
+      .order('order_index')
+    if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
+    exercises = data
+    cachedSectionExercisesCal[sectionId] = exercises
+  }
+
+  if (selectedSectionIdForWorkout !== sectionId) return
+
+  preview.innerHTML = `
+    <div class="workout-preview-header">
+      <h3>${escapeHtmlCal(sectionName)}</h3>
+      <span class="workout-preview-count">${exercises.length} Exercise${exercises.length === 1 ? '' : 's'}</span>
+    </div>
+    ${exercises.length === 0
+      ? '<p class="no-metrics">No exercises in this section</p>'
+      : exercises.map(renderWorkoutPreviewExercise).join('')}
+  `
+}
+
+document.getElementById('addSectionToWorkoutBtn').addEventListener('click', async function() {
+  if (!selectedSectionIdForWorkout) return
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Adding...'
+  await cloneSectionToDayCal(selectedSectionIdForWorkout, selectedSectionNameForWorkout, currentDayIdForAddToWorkout)
+  await closeAddToWorkoutAndRefresh()
+  btn.textContent = 'Insert'
+})
+
+// ---- Workout tab: same list-then-preview pattern as the empty-cell flow ----
+async function loadAddTrainingListForWorkout() {
+  const data = await getTrainingsList()
+  const list = document.getElementById('addToWorkoutTrainingList')
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Workout Library</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No workouts saved yet - create one in the Workout Library first</p>'
+  } else {
+    list.innerHTML = data.map(t => `
+      <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
+        <span>${t.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewTrainingForWorkout(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
+}
+
+async function previewTrainingForWorkout(trainingId, trainingName) {
+  selectedTrainingIdForWorkout = trainingId
+  selectedTrainingNameForWorkout = trainingName
+  document.getElementById('addTrainingToWorkoutBtn').disabled = false
+
+  const preview = document.getElementById('addToWorkoutWorkoutPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading…</p>'
+
+  let exercises = cachedTrainingExercises[trainingId]
+  if (!exercises) {
+    const { data, error } = await supabase
+      .from('training_exercises')
+      .select('*, exercises!exercise_id(name, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+      .eq('training_id', trainingId)
+      .order('order_index')
+    if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
+    exercises = data
+    exercises.forEach(applyFieldOverridesCal)
+    cachedTrainingExercises[trainingId] = exercises
+  }
+
+  if (selectedTrainingIdForWorkout !== trainingId) return
+
+  preview.innerHTML = `
+    <div class="workout-preview-header">
+      <h3>${escapeHtmlCal(trainingName)}</h3>
+      <span class="workout-preview-count">${exercises.length} Exercise${exercises.length === 1 ? '' : 's'}</span>
+    </div>
+    ${exercises.length === 0
+      ? '<p class="no-metrics">No exercises in this workout</p>'
+      : exercises.map(renderWorkoutPreviewExercise).join('')}
+  `
+}
+
+document.getElementById('addTrainingToWorkoutBtn').addEventListener('click', async function() {
+  if (!selectedTrainingIdForWorkout) return
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Adding...'
+  await cloneTrainingToDay(selectedTrainingIdForWorkout, currentDayIdForAddToWorkout)
+  await closeAddToWorkoutAndRefresh()
+  btn.textContent = 'Insert'
+})
+
+document.getElementById('closeAddToWorkoutBtn').addEventListener('click', function() {
+  document.getElementById('addToWorkoutModal').classList.remove('active')
+})
+
+async function closeAddToWorkoutAndRefresh() {
+  const dayId = currentDayIdForAddToWorkout
+  const dateStr = currentDayDateForModal
+  document.getElementById('addToWorkoutModal').classList.remove('active')
+  await loadCalendarMonth(currentViewYear, currentViewMonth)
+  openWorkoutDetailModal(dateStr, dayId)
 }
 
 // Mobility never creates a programs/program_days row, so it's read straight
@@ -889,6 +1135,21 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
 
   if (btn.dataset.action === 'toggle-review-edit') {
     switchGroupToEditCal(btn.closest('.detail-group'))
+    return
+  }
+
+  if (btn.dataset.action === 'open-add-exercise') {
+    openAddToWorkoutModal(btn.dataset.dayId, 'exercise')
+    return
+  }
+
+  if (btn.dataset.action === 'open-add-section') {
+    openAddToWorkoutModal(btn.dataset.dayId, 'section')
+    return
+  }
+
+  if (btn.dataset.action === 'open-add-workout') {
+    openAddToWorkoutModal(btn.dataset.dayId, 'workout')
     return
   }
 
