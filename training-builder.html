@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workout Builder — TBFlog</title>
     <link rel="stylesheet" href="style.css?v=29" />
-    <link rel="stylesheet" href="athlete.css?v=69" />
+    <link rel="stylesheet" href="athlete.css?v=70" />
   </head>
   <body>
 
@@ -69,6 +69,11 @@
           <div style="display:flex; gap:12px">
             <button class="btn-profile-action" id="renameTrainingBtn">Rename</button>
             <button class="btn-profile-action" id="addSectionBtn">Add Section</button>
+            <!-- Day mode only (?dayId= instead of ?id=) - inserting a whole
+                 other Workout Library entry's exercises only makes sense
+                 onto an already-scheduled day, not into a training that IS
+                 one, so this stays hidden/shown opposite Add Section -->
+            <button class="btn-profile-action" id="addWorkoutToDayBtn" style="display:none">Add Workout</button>
             <button class="btn-save" id="saveTrainingBtn">Save</button>
           </div>
         </div>
@@ -92,7 +97,7 @@
     <!-- Rename Training Modal -->
     <div class="modal-overlay" id="renameTrainingModal">
       <div class="modal">
-        <h2>Rename Workout</h2>
+        <h2 id="renameTrainingModalTitle">Rename Workout</h2>
         <div class="form-group">
           <label>Name</label>
           <input type="text" id="renameTrainingInput" />
@@ -198,6 +203,34 @@
       </div>
     </div>
 
+    <!-- Add Workout popup - day mode only (see addWorkoutToDayBtn). Same
+         list + preview pattern as Add Section above, sourced from the
+         Workout Library instead, bulk-copying that training's exercises
+         onto this day. -->
+    <div class="modal-overlay" id="addWorkoutToDayModal">
+      <div class="modal modal-wide">
+        <div class="graph-modal-header">
+          <h2>Add Workout</h2>
+          <button class="btn-cancel" id="closeAddWorkoutToDayBtn">✕</button>
+        </div>
+        <div class="day-add-workout-layout">
+          <div class="day-add-workout-list-col">
+            <div class="day-add-workout-list-header">
+              <span class="day-add-workout-list-title">Workouts</span>
+              <a href="trainings.html" target="_blank" class="btn-small-create">+ New</a>
+            </div>
+            <div class="entries-modal-body" id="addWorkoutToDayList"></div>
+          </div>
+          <div class="day-add-workout-preview" id="addWorkoutToDayPreview">
+            <p class="no-metrics">Select a workout to preview it</p>
+          </div>
+        </div>
+        <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
+          <button class="btn-save" id="insertWorkoutToDayBtn" disabled>Insert</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Adjust Fields Modal: opened from an exercise card's ⋮ menu - sets a
          per-instance override (tracks_weight_override/is_timed_override/
          is_unilateral_override/tracks_distance_override) on THIS training's
@@ -283,7 +316,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="training-builder.js?v=37"></script>
+    <script type="module" src="training-builder.js?v=38"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

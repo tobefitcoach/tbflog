@@ -639,7 +639,7 @@ function renderExerciseCard(pe, siblingExercises) {
       </div>
       <div class="builder-exercise-notes">
         <label>Notes (visible to the athlete)</label>
-        <input type="text" class="exercise-notes-input" value="${pe.notes || ''}" placeholder="e.g. Focus on controlled tempo">
+        <textarea class="exercise-notes-input" placeholder="e.g. Focus on controlled tempo">${pe.notes || ''}</textarea>
       </div>
     </div>
   `

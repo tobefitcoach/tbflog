@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Athlete Profile</title>
     <link rel="stylesheet" href="style.css?v=29" />
-  <link rel="stylesheet" href="athlete.css?v=69" />
+  <link rel="stylesheet" href="athlete.css?v=70" />
     <!-- Pinned version (cacheable long-term, unlike "latest") + defer so
          this doesn't block the page from painting anything while it
          downloads - nothing calls Chart() until well after page load -->
@@ -1157,76 +1157,6 @@
       </div>
     </div>
 
-    <!-- Add to Workout popup: opened from a "+ Add Exercise"/"Add Section"/
-         "Add Workout" button inside an already-scheduled workout's own
-         detail popup (openWorkoutDetailModal in athlete-calendar.js), not
-         from the empty-cell "+" - this targets that specific day directly
-         instead of creating a new one. Same list-then-preview pattern as
-         the Add Workout popup above for Section/Workout; Exercise is a
-         plain picker since there's nothing to preview for a single exercise. -->
-    <div class="modal-overlay" id="addToWorkoutModal">
-      <div class="modal modal-wide">
-        <div class="graph-modal-header">
-          <h2>Add to Workout</h2>
-          <button class="btn-cancel" id="closeAddToWorkoutBtn">✕</button>
-        </div>
-
-        <div class="modal-tab-bar">
-          <button type="button" class="modal-tab-btn active" id="addToWorkoutTabExercise">Exercise</button>
-          <button type="button" class="modal-tab-btn" id="addToWorkoutTabSection">Section</button>
-          <button type="button" class="modal-tab-btn" id="addToWorkoutTabWorkout">Workout</button>
-        </div>
-
-        <div class="modal-tab-panel active" id="addToWorkoutExercisePanel">
-          <div class="form-group">
-            <label>Exercise</label>
-            <select id="addToWorkoutExerciseSelect">
-              <option value="">Choose an exercise...</option>
-            </select>
-          </div>
-          <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
-            <button class="btn-save" id="addExerciseToWorkoutBtn">Add</button>
-          </div>
-        </div>
-
-        <div class="modal-tab-panel" id="addToWorkoutSectionPanel">
-          <div class="day-add-workout-layout">
-            <div class="day-add-workout-list-col">
-              <div class="day-add-workout-list-header">
-                <span class="day-add-workout-list-title">Sections</span>
-                <a href="sections.html" target="_blank" class="btn-small-create">+ New</a>
-              </div>
-              <div class="entries-modal-body" id="addToWorkoutSectionList"></div>
-            </div>
-            <div class="day-add-workout-preview" id="addToWorkoutSectionPreview">
-              <p class="no-metrics">Select a section to preview it</p>
-            </div>
-          </div>
-          <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
-            <button class="btn-save" id="addSectionToWorkoutBtn" disabled>Insert</button>
-          </div>
-        </div>
-
-        <div class="modal-tab-panel" id="addToWorkoutWorkoutPanel">
-          <div class="day-add-workout-layout">
-            <div class="day-add-workout-list-col">
-              <div class="day-add-workout-list-header">
-                <span class="day-add-workout-list-title">Workouts</span>
-                <a href="trainings.html" target="_blank" class="btn-small-create">+ New</a>
-              </div>
-              <div class="entries-modal-body" id="addToWorkoutTrainingList"></div>
-            </div>
-            <div class="day-add-workout-preview" id="addToWorkoutWorkoutPreview">
-              <p class="no-metrics">Select a workout to preview it</p>
-            </div>
-          </div>
-          <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
-            <button class="btn-save" id="addTrainingToWorkoutBtn" disabled>Insert</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Nested on top of the Add Training modal: a paginated grid of day
          numbers (4 weeks/28 days per page) for picking where in a Program
          to start/end - see openDayPicker() in athlete-calendar.js -->
@@ -1291,7 +1221,7 @@
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
     <script type="module" src="athlete.js?v=44"></script>
-    <script type="module" src="athlete-calendar.js?v=69"></script>
+    <script type="module" src="athlete-calendar.js?v=70"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

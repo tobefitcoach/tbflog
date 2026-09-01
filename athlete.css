@@ -3102,7 +3102,8 @@
   margin-bottom: 3px;
 }
 
-.builder-exercise-notes input {
+.builder-exercise-notes input,
+.builder-exercise-notes textarea {
   width: 100%;
   background-color: #0f0f1a;
   border: 1px solid #2a2a4e;
@@ -3110,6 +3111,15 @@
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 13px;
+  font-family: inherit;
+}
+
+/* Notes can run more than one line (see exercise-notes-input) - a fixed
+   2-line default with resize left on means most notes never need to
+   scroll, but a coach who wants more room can still drag it taller */
+.builder-exercise-notes textarea {
+  min-height: 44px;
+  resize: vertical;
 }
 
 .builder-exercise-footer {

@@ -602,62 +602,59 @@ function openWorkoutDetailModal(dateStr, dayId) {
   const entry = entries.find(e => String(e.day.id) === String(dayId))
   if (!entry) return
 
+  const session = sessionByDayId[entry.day.id]
+  const showReview = !!session
+
+  // Nothing logged yet to review - go straight to the real Workout Builder
+  // (training-builder.html, embedded - see openWorkoutBuilderOverlay) for
+  // editing, instead of this popup's own separate, more limited inline
+  // editor. Only a day the athlete has already started/finished still opens
+  // this popup, to show what they actually logged.
+  if (!showReview) {
+    openWorkoutBuilderOverlay(dayId, dateStr)
+    return
+  }
+
   currentDayDateForModal = dateStr
   document.getElementById('dayDetailTitle').textContent = trainingDisplayName(entry)
 
   const exercises = entry.day.program_exercises
 
-  // Once the athlete has started (or finished) this day, show what they
-  // actually logged instead of the editable plan - that's what a coach
-  // clicking on a done/in-progress workout actually wants to see. The
-  // plan is still reachable via "Edit Plan Instead" for fixing mistakes.
-  const session = sessionByDayId[entry.day.id]
-  const showReview = !!session
-
-  // Same "+ Add Exercise / Add Section / Add Workout" toolkit Program
-  // Builder's day modal has (see openAddToWorkoutModal below) - only shown
-  // on the editable plan, not the read-only review, same reasoning as the
-  // Save button next to it only showing there too.
-  const addButtonsHtml = !showReview ? `
-    <div style="display:flex; gap:8px; justify-content:flex-end; margin-bottom:8px; flex-wrap:wrap">
-      <button type="button" class="btn-edit-entry" data-action="open-add-exercise" data-day-id="${entry.day.id}">+ Add Exercise</button>
-      <button type="button" class="btn-edit-entry" data-action="open-add-section" data-day-id="${entry.day.id}">Add Section</button>
-      <button type="button" class="btn-edit-entry" data-action="open-add-workout" data-day-id="${entry.day.id}">Add Workout</button>
-    </div>
-  ` : ''
-
   document.getElementById('dayDetailContent').innerHTML = `
-    <div class="detail-group" data-review="${showReview}" data-program-day-id="${entry.day.id}">
+    <div class="detail-group" data-review="true" data-program-day-id="${entry.day.id}">
       <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:8px">
         ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
         <select class="workout-type-select" data-action="set-workout-type" data-day-id="${entry.day.id}">
           ${Object.entries(WORKOUT_TYPE_LABELS_CAL).map(([value, text]) => `<option value="${value}" ${(entry.day.workout_type || 'gym') === value ? 'selected' : ''}>${text}</option>`).join('')}
         </select>
       </div>
-      ${showReview ? renderSessionSummaryCal(session) : ''}
+      ${renderSessionSummaryCal(session)}
       ${exercises.length === 0
-        ? `${addButtonsHtml}<p class="no-metrics">No exercises</p>`
-        : showReview
-          ? `${exercises.map(pe => renderLoggedExerciseCardCal(pe)).join('')}
-             <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Edit Plan Instead</button>`
-          : `${addButtonsHtml}${renderExerciseListHtmlCal(exercises)}
-             <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">Save</button>`}
+        ? '<p class="no-metrics">No exercises</p>'
+        : exercises.map(pe => renderLoggedExerciseCardCal(pe)).join('')}
+      <button type="button" class="unit-btn" data-action="toggle-review-edit" style="margin-top:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg> Edit Plan Instead</button>
     </div>
   `
 
   document.getElementById('dayDetailModal').classList.add('active')
+}
 
-  // innerHTML wipes any dynamically-built children, so extra field rows
-  // (built with document.createElement, not template strings) get
-  // re-populated here for every card - only editable (non-review) cards
-  // have an extra-fields container at all
-  if (!showReview) {
-    for (const pe of exercises) {
-      if (pe.extra_fields) {
-        for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRowCal(`extraFieldsSched-${pe.id}`, k, v)
-      }
-    }
-  }
+// Same training-builder.html iframe overlay the calendar's "+ New Training"
+// flow already uses (see #trainingBuilderOverlayModal/#trainingBuilderFrame
+// in athlete.html) - ?dayId= instead of ?id= puts training-builder.js into
+// "edit this scheduled day's program_exercises" mode rather than "edit a
+// Workout Library template's training_exercises" mode (see the isDayMode
+// branch throughout training-builder.js). Reused for both a still-empty day
+// and one that already has exercises, so a coach gets the exact same
+// search-the-library-and-drag / drag-to-reorder experience as building a
+// Workout Library entry, whether they're starting from scratch or adjusting
+// what's already scheduled.
+function openWorkoutBuilderOverlay(dayId, dateStr) {
+  currentDayDateForModal = dateStr
+  trainingBuilderOverlayMode = 'edit-day'
+  document.getElementById('dayDetailModal').classList.remove('active')
+  document.getElementById('trainingBuilderFrame').src = `training-builder.html?dayId=${dayId}&embed=1`
+  document.getElementById('trainingBuilderOverlayModal').classList.add('active')
 }
 
 // ==========================================================================
@@ -1039,7 +1036,7 @@ function renderScheduledExerciseCard(pe, siblingExercises) {
       </div>
       <div class="builder-exercise-notes">
         <label>Notes (visible to the athlete)</label>
-        <input type="text" class="exercise-notes-input" value="${pe.notes || ''}" placeholder="e.g. Focus on controlled tempo">
+        <textarea class="exercise-notes-input" placeholder="e.g. Focus on controlled tempo">${pe.notes || ''}</textarea>
       </div>
     </div>
   `
@@ -1134,22 +1131,8 @@ document.getElementById('dayDetailContent').addEventListener('click', async func
   }
 
   if (btn.dataset.action === 'toggle-review-edit') {
-    switchGroupToEditCal(btn.closest('.detail-group'))
-    return
-  }
-
-  if (btn.dataset.action === 'open-add-exercise') {
-    openAddToWorkoutModal(btn.dataset.dayId, 'exercise')
-    return
-  }
-
-  if (btn.dataset.action === 'open-add-section') {
-    openAddToWorkoutModal(btn.dataset.dayId, 'section')
-    return
-  }
-
-  if (btn.dataset.action === 'open-add-workout') {
-    openAddToWorkoutModal(btn.dataset.dayId, 'workout')
+    const dayId = btn.closest('.detail-group').dataset.programDayId
+    openWorkoutBuilderOverlay(dayId, currentDayDateForModal)
     return
   }
 
@@ -1609,33 +1592,6 @@ async function saveScheduledDay(groupEl) {
 
   document.getElementById('dayDetailModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
-}
-
-// Swaps one day-entry group from the read-only review (what the athlete
-// logged) into the editable plan view, for the rare case a coach needs to
-// fix a mistake in the plan after the athlete's already done the workout.
-// Local-only swap (re-reads calendarEntriesByDate already in memory) - no
-// query, no page reload.
-function switchGroupToEditCal(groupEl) {
-  const dayId = groupEl.dataset.programDayId
-  const entries = calendarEntriesByDate[currentDayDateForModal] || []
-  const entry = entries.find(e => String(e.day.id) === dayId)
-  if (!entry) return
-
-  const exercises = entry.day.program_exercises
-  groupEl.dataset.review = 'false'
-  const headerEl = groupEl.firstElementChild
-  while (headerEl.nextSibling) headerEl.nextSibling.remove()
-  headerEl.insertAdjacentHTML('afterend', exercises.length === 0
-    ? '<p class="no-metrics">No exercises</p>'
-    : `${renderExerciseListHtmlCal(exercises)}
-       <button type="button" class="btn-save" data-action="save-scheduled-day" style="margin-top:8px">Save</button>`)
-
-  for (const pe of exercises) {
-    if (pe.extra_fields) {
-      for (const [k, v] of Object.entries(pe.extra_fields)) addExtraFieldRowCal(`extraFieldsSched-${pe.id}`, k, v)
-    }
-  }
 }
 
 // Removes just this one card instead of reloading the whole month + rebuilding
@@ -2147,15 +2103,27 @@ document.getElementById('saveNewTrainingNameBtn').addEventListener('click', asyn
 
   cachedTrainings = null // force a fresh fetch so the one just created shows up
   document.getElementById('newTrainingNameModal').classList.remove('active')
+  trainingBuilderOverlayMode = 'new-training'
   document.getElementById('trainingBuilderFrame').src = `training-builder.html?id=${data[0].id}&embed=1`
   document.getElementById('trainingBuilderOverlayModal').classList.add('active')
 })
 
-document.getElementById('doneTrainingBuilderBtn').addEventListener('click', function() {
+// 'new-training': building a fresh Workout Library entry from the day-add
+// popup's "+ New" - Done goes back to that popup so the new one can be
+// selected. 'edit-day': adjusting an already-scheduled day's exercises
+// straight from its own calendar badge (see openWorkoutBuilderOverlay) -
+// Done just closes and refreshes the month, there's no popup to return to.
+let trainingBuilderOverlayMode = 'new-training'
+
+document.getElementById('doneTrainingBuilderBtn').addEventListener('click', async function() {
   document.getElementById('trainingBuilderOverlayModal').classList.remove('active')
   document.getElementById('trainingBuilderFrame').src = 'about:blank'
-  // Back to the day's training list, now including the one just built
-  openDayAddTrainingModal(currentDayDateForAddTraining)
+  if (trainingBuilderOverlayMode === 'edit-day') {
+    await loadCalendarMonth(currentViewYear, currentViewMonth)
+  } else {
+    // Back to the day's training list, now including the one just built
+    openDayAddTrainingModal(currentDayDateForAddTraining)
+  }
 })
 
 // Just closes back to the calendar month view afterward - already saw a

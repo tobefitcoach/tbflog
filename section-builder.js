@@ -635,7 +635,7 @@ function renderExerciseCard(se) {
       <div class="extra-fields-container" id="extraFields-${se.id}"></div>
       <div class="builder-exercise-notes">
         <label>Notes (visible to the athlete)</label>
-        <input type="text" class="exercise-notes-input" value="${se.notes || ''}" placeholder="e.g. Focus on controlled tempo">
+        <textarea class="exercise-notes-input" placeholder="e.g. Focus on controlled tempo">${se.notes || ''}</textarea>
       </div>
     </div>
   `

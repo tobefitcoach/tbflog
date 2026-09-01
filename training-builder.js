@@ -6,18 +6,43 @@
 // thumbnail, one row per set with its own reps/weight target, rest time,
 // notes) instead of a popup modal - mirrors the athlete's own live workout
 // screen (athlete-app/dashboard.js's renderActiveExercise/renderSetRow).
+//
+// Doubles as the editor for one already-scheduled calendar day when opened
+// with ?dayId= instead of ?id= (see openWorkoutBuilderOverlay in
+// athlete-calendar.js) - same search-the-library/drag/reorder UI either
+// way, just pointed at program_exercises for that day instead of
+// training_exercises for a Workout Library template. EXERCISE_TABLE/
+// PARENT_FIELD/parentId below are the only three things that differ
+// between the two modes; everything else in this file reads through them.
 // ==========================================================================
 import { supabase } from './coachClient.js'
 
 const params = new URLSearchParams(window.location.search)
 const trainingId = params.get('id')
+const dayId = params.get('dayId')
+const isDayMode = !!dayId
+const EXERCISE_TABLE = isDayMode ? 'program_exercises' : 'training_exercises'
+const PARENT_FIELD = isDayMode ? 'day_id' : 'training_id'
+const parentId = isDayMode ? dayId : trainingId
 
 // Loaded inside an iframe overlay (see athlete-calendar.js's "+ New
-// Training" flow) - hide the page's own header/sidebar since the overlay
-// already has its own title bar and Done button
+// Training" flow, and openWorkoutBuilderOverlay for day mode) - hide the
+// page's own header/sidebar since the overlay already has its own title
+// bar and Done button
 if (params.get('embed') === '1') {
   document.getElementById('pageHeader').style.display = 'none'
   document.getElementById('pageSidebar').style.display = 'none'
+}
+
+// Day mode gets a 4th header button, Add Workout - inserting a whole other
+// Workout Library entry's exercises only makes sense onto a scheduled day,
+// not into a training that IS one, so it's hidden outside day mode. The
+// Rename modal is repurposed to edit the day's label instead of a
+// training's name either way (see saveRenameTrainingBtn).
+if (isDayMode) {
+  document.getElementById('renameTrainingBtn').textContent = 'Rename Day'
+  document.getElementById('renameTrainingModalTitle').textContent = 'Rename Day'
+  document.getElementById('addWorkoutToDayBtn').style.display = ''
 }
 
 let allExercises = []
@@ -26,7 +51,7 @@ let allExercises = []
 // text, not a fixed list, so the chip set is generated from whatever
 // values are actually in use (see renderCategoryChips)
 let activeCategoryFilters = new Set()
-let exercisesCache = [] // last-loaded training_exercises for this training
+let exercisesCache = [] // last-loaded EXERCISE_TABLE rows for this training/day
 
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
@@ -38,9 +63,34 @@ if (!session) {
 }
 
 // ==========================================================================
-// ---- LOAD TRAINING NAME ----
+// ---- LOAD HEADING (training name, or the scheduled day's context) ----
 // ==========================================================================
 async function loadTraining() {
+  if (isDayMode) {
+    const { data, error } = await fetchWithRetry((signal) => supabase
+      .from('program_days')
+      .select('*, program_weeks(week_number, programs(name, is_adhoc))')
+      .eq('id', dayId)
+      .single()
+      .abortSignal(signal)
+    )
+
+    if (error) {
+      console.log('Error loading day:', error)
+      document.getElementById('trainingNameHeading').textContent = 'Day not found'
+      customAlert('Something went wrong loading this day - check your connection and try again')
+      return
+    }
+
+    const week = data.program_weeks
+    const program = week && week.programs
+    document.getElementById('trainingNameHeading').textContent = data.label
+      || (program && program.is_adhoc ? program.name : null)
+      || (week ? `Week ${week.week_number} — Day ${data.day_number}` : `Day ${data.day_number}`)
+    document.getElementById('trainingTypeSelect').value = data.workout_type || 'gym'
+    return
+  }
+
   const { data, error } = await fetchWithRetry((signal) => supabase
     .from('trainings')
     .select('*')
@@ -61,7 +111,7 @@ async function loadTraining() {
 }
 
 document.getElementById('trainingTypeSelect').addEventListener('change', async function() {
-  const { error } = await supabase.from('trainings').update({ workout_type: this.value }).eq('id', trainingId)
+  const { error } = await supabase.from(isDayMode ? 'program_days' : 'trainings').update({ workout_type: this.value }).eq('id', parentId)
   if (error) { console.log(error); customAlert('Something went wrong saving the workout type') }
 })
 
@@ -342,8 +392,8 @@ workoutOutlineList.addEventListener('dragend', function() {
 async function addExerciseToTraining(exerciseId) {
   const nextOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
 
-  const { data, error } = await supabase.from('training_exercises').insert([{
-    training_id: trainingId,
+  const { data, error } = await supabase.from(EXERCISE_TABLE).insert([{
+    [PARENT_FIELD]: parentId,
     exercise_id: exerciseId,
     order_index: nextOrder
   }]).select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
@@ -613,9 +663,9 @@ function applyFieldOverrides(te) {
 
 async function loadExercisesList() {
   const { data, error } = await fetchWithRetry((signal) => supabase
-    .from('training_exercises')
+    .from(EXERCISE_TABLE)
     .select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
-    .eq('training_id', trainingId)
+    .eq(PARENT_FIELD, parentId)
     .abortSignal(signal)
   )
 
@@ -711,7 +761,7 @@ function renderExerciseCard(te) {
       <div class="extra-fields-container" id="extraFields-${te.id}"></div>
       <div class="builder-exercise-notes">
         <label>Notes (visible to the athlete)</label>
-        <input type="text" class="exercise-notes-input" value="${te.notes || ''}" placeholder="e.g. Focus on controlled tempo">
+        <textarea class="exercise-notes-input" placeholder="e.g. Focus on controlled tempo">${te.notes || ''}</textarea>
       </div>
     </div>
   `
@@ -771,7 +821,7 @@ async function saveExerciseCard(teId, orderIndex) {
     superset_group_id: card.dataset.supersetGroupId || null
   }
 
-  const { error } = await supabase.from('training_exercises').update(updates).eq('id', teId)
+  const { error } = await supabase.from(EXERCISE_TABLE).update(updates).eq('id', teId)
 
   if (error) { console.log(error); return false }
   // Keeps exercisesCache in sync with what's actually saved, so any action
@@ -858,7 +908,7 @@ async function deleteExerciseRow(id) {
   const card = document.querySelector(`.builder-exercise-card[data-id="${id}"]`)
   if (card && card.dataset.supersetGroupId) removeFromSupersetGroup(id, trainingDropZone)
 
-  const { error } = await supabase.from('training_exercises').delete().eq('id', id)
+  const { error } = await supabase.from(EXERCISE_TABLE).delete().eq('id', id)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
   exercisesCache = exercisesCache.filter(te => te.id !== id)
@@ -1124,7 +1174,7 @@ document.getElementById('saveAdjustFieldsBtn').addEventListener('click', async f
     is_unilateral_override: document.getElementById('adjustFieldsIsUnilateral').checked,
     tracks_distance_override: document.getElementById('adjustFieldsTracksDistance').checked
   }
-  const { error } = await supabase.from('training_exercises').update(updates).eq('id', adjustFieldsTeId)
+  const { error } = await supabase.from(EXERCISE_TABLE).update(updates).eq('id', adjustFieldsTeId)
   if (error) { console.log(error); customAlert('Something went wrong saving those fields - try again'); return }
 
   const te = exercisesCache.find(t => t.id === adjustFieldsTeId)
@@ -1206,7 +1256,7 @@ document.getElementById('closeSetAlternativeBtn').addEventListener('click', func
 
 async function saveAlternativeExercise(teId, altExerciseId) {
   if (!teId) return
-  const { error } = await supabase.from('training_exercises').update({ alternative_exercise_id: altExerciseId }).eq('id', teId)
+  const { error } = await supabase.from(EXERCISE_TABLE).update({ alternative_exercise_id: altExerciseId }).eq('id', teId)
   if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
 
   const te = exercisesCache.find(t => t.id === teId)
@@ -1586,9 +1636,9 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
   // section together as a single block in the drag-reorder UI from now on
   const sectionInstanceId = crypto.randomUUID()
 
-  const { data: inserted, error: insertError } = await supabase.from('training_exercises').insert(
+  const { data: inserted, error: insertError } = await supabase.from(EXERCISE_TABLE).insert(
     sectionExercises.map((se, i) => ({
-      training_id: trainingId, exercise_id: se.exercise_id, order_index: baseOrder + i,
+      [PARENT_FIELD]: parentId, exercise_id: se.exercise_id, order_index: baseOrder + i,
       prescribed_sets: se.prescribed_sets, prescribed_reps: se.prescribed_reps,
       prescribed_weight: se.prescribed_weight, rest_seconds: se.rest_seconds,
       extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
@@ -1606,6 +1656,128 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
 }
 
 // ==========================================================================
+// ---- ADD WORKOUT (day mode only) - bulk-copy a whole Workout Library
+// entry's exercises onto this day, same list-then-preview pattern as Add
+// Section above, just sourced from trainings/training_exercises instead of
+// sections/section_exercises.
+// ==========================================================================
+let cachedTrainingsForDay = null
+let selectedTrainingIdForDay = null
+let selectedTrainingNameForDay = null
+
+async function getTrainingsListForDay() {
+  if (cachedTrainingsForDay) return cachedTrainingsForDay
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('trainings').select('*').order('name').abortSignal(signal))
+  if (error) { console.log(error); customAlert('Something went wrong loading your Workout Library - check your connection and try again'); return null }
+  cachedTrainingsForDay = data
+  return cachedTrainingsForDay
+}
+
+function resetWorkoutToDayPreview() {
+  selectedTrainingIdForDay = null
+  selectedTrainingNameForDay = null
+  document.getElementById('addWorkoutToDayPreview').innerHTML = '<p class="no-metrics">Select a workout to preview it</p>'
+  document.getElementById('insertWorkoutToDayBtn').disabled = true
+}
+
+document.getElementById('addWorkoutToDayBtn').addEventListener('click', async function() {
+  resetWorkoutToDayPreview()
+  const list = document.getElementById('addWorkoutToDayList')
+  const data = await getTrainingsListForDay()
+
+  if (data === null) {
+    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Workout Library</p>'
+  } else if (data.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No workouts saved yet - create one in the Workout Library first</p>'
+  } else {
+    list.innerHTML = data.map(t => `
+      <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
+        <span>${t.name}</span>
+      </div>
+    `).join('')
+
+    list.querySelectorAll('.training-pick-row').forEach(row => {
+      row.addEventListener('click', function() {
+        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+        row.classList.add('selected')
+        previewTrainingForDay(row.dataset.id, row.dataset.name)
+      })
+    })
+  }
+
+  document.getElementById('addWorkoutToDayModal').classList.add('active')
+})
+
+async function previewTrainingForDay(trainingIdForDay, name) {
+  selectedTrainingIdForDay = trainingIdForDay
+  selectedTrainingNameForDay = name
+  document.getElementById('insertWorkoutToDayBtn').disabled = false
+
+  const preview = document.getElementById('addWorkoutToDayPreview')
+  preview.innerHTML = '<p class="no-metrics">Loading...</p>'
+
+  const { data, error } = await supabase
+    .from('training_exercises')
+    .select('*, exercises!exercise_id(id, name, video_url)')
+    .eq('training_id', trainingIdForDay)
+
+  if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this workout</p>'; return }
+
+  data.sort((a, b) => a.order_index - b.order_index)
+  preview.innerHTML = data.length === 0
+    ? '<p class="no-metrics">No exercises in this workout</p>'
+    : data.map(renderSectionPreviewExercise).join('')
+}
+
+document.getElementById('insertWorkoutToDayBtn').addEventListener('click', async function() {
+  if (!selectedTrainingIdForDay) return
+  await insertTrainingIntoDayMode(selectedTrainingIdForDay, selectedTrainingNameForDay)
+})
+
+document.getElementById('closeAddWorkoutToDayBtn').addEventListener('click', function() {
+  document.getElementById('addWorkoutToDayModal').classList.remove('active')
+})
+
+async function insertTrainingIntoDayMode(trainingIdForDay, trainingName) {
+  const { data: trainingExercises, error } = await supabase.from('training_exercises').select('*').eq('training_id', trainingIdForDay)
+  if (error) { console.log(error); customAlert('Something went wrong'); return }
+  trainingExercises.sort((a, b) => a.order_index - b.order_index)
+  if (trainingExercises.length === 0) { document.getElementById('addWorkoutToDayModal').classList.remove('active'); return }
+
+  const baseOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
+
+  const groupIdMap = {}
+  const sectionInstanceMap = {}
+  for (const te of trainingExercises) {
+    if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
+    if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
+  }
+
+  const { data: inserted, error: insertError } = await supabase.from(EXERCISE_TABLE).insert(
+    trainingExercises.map((te, i) => ({
+      [PARENT_FIELD]: parentId, exercise_id: te.exercise_id, order_index: baseOrder + i,
+      prescribed_sets: te.prescribed_sets, prescribed_reps: te.prescribed_reps,
+      prescribed_weight: te.prescribed_weight, rest_seconds: te.rest_seconds,
+      extra_fields: te.extra_fields, set_targets: te.set_targets, notes: te.notes,
+      section_label: te.section_label,
+      section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
+      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
+      tracks_weight_override: te.tracks_weight_override,
+      is_timed_override: te.is_timed_override,
+      is_unilateral_override: te.is_unilateral_override,
+      tracks_distance_override: te.tracks_distance_override,
+      alternative_exercise_id: te.alternative_exercise_id
+    }))
+  ).select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+
+  exercisesCache.push(...inserted)
+  await flushAllPendingSaves()
+  renderExercisesList()
+  document.getElementById('addWorkoutToDayModal').classList.remove('active')
+}
+
+// ==========================================================================
 // ---- RENAME TRAINING ----
 // ==========================================================================
 document.getElementById('renameTrainingBtn').addEventListener('click', function() {
@@ -1619,11 +1791,16 @@ document.getElementById('cancelRenameTrainingBtn').addEventListener('click', fun
 
 document.getElementById('saveRenameTrainingBtn').addEventListener('click', async function() {
   const name = document.getElementById('renameTrainingInput').value.trim()
-  if (!name) { customAlert('Please enter a name'); return }
+  if (!isDayMode && !name) { customAlert('Please enter a name'); return }
 
-  const { error } = await supabase.from('trainings').update({ name }).eq('id', trainingId)
+  // A day's label can be cleared (falls back to "Week X — Day Y", see
+  // loadTraining) - a Workout Library training always needs a real name
+  const { error } = isDayMode
+    ? await supabase.from('program_days').update({ label: name || null }).eq('id', dayId)
+    : await supabase.from('trainings').update({ name }).eq('id', trainingId)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
-  document.getElementById('trainingNameHeading').textContent = name
+  if (isDayMode && !name) await loadTraining()
+  else document.getElementById('trainingNameHeading').textContent = name
   document.getElementById('renameTrainingModal').classList.remove('active')
 })
