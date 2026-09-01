@@ -1952,13 +1952,10 @@ drop policy if exists "coach manages own form questions" on form_questions;
 create policy "coach manages own form questions" on form_questions for all
   using (exists (select 1 from forms f where f.id = form_questions.form_id and f.coach_id = (select auth.uid())))
   with check (exists (select 1 from forms f where f.id = form_questions.form_id and f.coach_id = (select auth.uid())));
-drop policy if exists "athlete views own assigned form questions" on form_questions;
-create policy "athlete views own assigned form questions" on form_questions for select
-  using (exists (
-    select 1 from form_assignments fa join athletes a on a.id = fa.athlete_id
-    where fa.form_id = form_questions.form_id and a.user_id = (select auth.uid())
-  ));
 
+-- form_assignments has to exist before the athlete-view policy on
+-- form_questions below can reference it - created here, ahead of
+-- form_questions' second policy, instead of after it
 create table if not exists form_assignments (
   id uuid primary key default gen_random_uuid(),
   coach_id uuid not null references auth.users(id),
@@ -1981,6 +1978,13 @@ create policy "athlete completes own form assignments" on form_assignments for u
   with check (exists (select 1 from athletes a where a.id = form_assignments.athlete_id and a.user_id = (select auth.uid())));
 
 create index if not exists idx_form_assignments_athlete_date on form_assignments(athlete_id, date);
+
+drop policy if exists "athlete views own assigned form questions" on form_questions;
+create policy "athlete views own assigned form questions" on form_questions for select
+  using (exists (
+    select 1 from form_assignments fa join athletes a on a.id = fa.athlete_id
+    where fa.form_id = form_questions.form_id and a.user_id = (select auth.uid())
+  ));
 
 create table if not exists form_answers (
   id uuid primary key default gen_random_uuid(),
