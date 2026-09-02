@@ -23,6 +23,7 @@ let allTrainings = []
 let allLabels = []
 let labelLinksByTraining = {} // training_id -> Set of label_id
 let selectedLabelFilterIds = new Set()
+let trainingSearchText = ''
 
 // ==========================================================================
 // ---- LOAD TRAININGS ----
@@ -57,9 +58,12 @@ async function loadTrainings() {
 
 function applyLabelFilter() {
   const grid = document.getElementById('trainingGrid')
-  const filtered = selectedLabelFilterIds.size === 0
+  let filtered = selectedLabelFilterIds.size === 0
     ? allTrainings
     : allTrainings.filter(t => [...selectedLabelFilterIds].some(id => labelLinksByTraining[t.id]?.has(id)))
+
+  const search = trainingSearchText.trim().toLowerCase()
+  if (search) filtered = filtered.filter(t => t.name.toLowerCase().includes(search))
 
   grid.innerHTML = ''
 
@@ -68,12 +72,17 @@ function applyLabelFilter() {
     return
   }
   if (filtered.length === 0) {
-    grid.innerHTML = '<p>No workouts match that label.</p>'
+    grid.innerHTML = '<p>No workouts match your search.</p>'
     return
   }
 
   filtered.forEach(createTrainingCard)
 }
+
+document.getElementById('trainingSearchInput').addEventListener('input', function() {
+  trainingSearchText = this.value
+  applyLabelFilter()
+})
 
 function createTrainingCard(training) {
   const exerciseCount = training.training_exercises.length
