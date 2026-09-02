@@ -58,6 +58,7 @@ function createTemplateCard(template) {
       <div class="kebab-menu">
         <button class="kebab-btn" data-id="${template.id}">⋮</button>
         <div class="kebab-dropdown" id="dropdown-${template.id}">
+          <button class="kebab-item kebab-duplicate" data-id="${template.id}">Duplicate</button>
           <button class="kebab-delete" data-id="${template.id}">Delete template</button>
         </div>
       </div>
@@ -75,6 +76,11 @@ function createTemplateCard(template) {
   card.querySelector('.kebab-btn').addEventListener('click', function(e) {
     e.stopPropagation()
     document.getElementById(`dropdown-${template.id}`).classList.toggle('active')
+  })
+
+  card.querySelector('.kebab-duplicate').addEventListener('click', function(e) {
+    e.stopPropagation()
+    openDuplicateTemplateModal(template.id, template.name)
   })
 
   card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
@@ -136,4 +142,110 @@ document.getElementById('saveNewTemplateBtn').addEventListener('click', async fu
   if (weeksError) { console.log('Error creating weeks:', weeksError) } // non-fatal - the builder's own "+ Add Week" still works if this failed
 
   window.location.href = `program-builder.html?id=${data[0].id}`
+})
+
+// ==========================================================================
+// ---- DUPLICATE TEMPLATE ----
+// Clones the source template's own row plus every week/day/exercise under
+// it (fresh superset/section-instance ids, same remap pattern trainings.js's
+// duplicate uses), then jumps straight into program-builder.html for the
+// new copy. Weeks/days are created one at a time (need each one's own id
+// before its children can reference it) - exercises are batch-inserted per
+// day since nothing downstream needs to reference them individually.
+// ==========================================================================
+let duplicateSourceTemplateId = null
+
+function openDuplicateTemplateModal(templateId, templateName) {
+  duplicateSourceTemplateId = templateId
+  document.getElementById('duplicateTemplateName').value = `${templateName} (Copy)`
+  document.getElementById('duplicateTemplateModal').classList.add('active')
+}
+
+document.getElementById('cancelDuplicateTemplateBtn').addEventListener('click', function() {
+  document.getElementById('duplicateTemplateModal').classList.remove('active')
+})
+
+document.getElementById('saveDuplicateTemplateBtn').addEventListener('click', async function() {
+  const name = document.getElementById('duplicateTemplateName').value.trim()
+  if (!name) { customAlert('Please enter a name'); return }
+
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Duplicating...'
+
+  const { data: sourceWeeks, error: weeksError } = await supabase
+    .from('program_weeks')
+    .select('*, program_days(*, program_exercises(*))')
+    .eq('program_id', duplicateSourceTemplateId)
+    .order('week_number')
+
+  if (weeksError) {
+    console.log('Error loading source program:', weeksError)
+    customAlert('Something went wrong')
+    btn.disabled = false; btn.textContent = 'Duplicate & Edit'
+    return
+  }
+
+  const { data: newProgram, error: programError } = await supabase
+    .from('programs')
+    .insert([{ coach_id: session.user.id, is_template: true, athlete_id: null, name }])
+    .select()
+    .single()
+
+  if (programError) {
+    console.log('Error creating duplicate:', programError)
+    customAlert('Something went wrong')
+    btn.disabled = false; btn.textContent = 'Duplicate & Edit'
+    return
+  }
+
+  // Keyed by the ORIGINAL id, so one shared map for the whole program is
+  // fine - those originals were already unique, nothing to collide with
+  // across different days/weeks.
+  const groupIdMap = {}
+  const sectionInstanceMap = {}
+  for (const week of sourceWeeks) {
+    for (const day of week.program_days) {
+      for (const pe of day.program_exercises) {
+        if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
+        if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
+      }
+    }
+  }
+
+  for (const week of sourceWeeks) {
+    const { data: newWeek, error: weekError } = await supabase
+      .from('program_weeks')
+      .insert([{ program_id: newProgram.id, week_number: week.week_number }])
+      .select()
+      .single()
+    if (weekError) { console.log('Error copying week:', weekError); continue }
+
+    for (const day of week.program_days) {
+      const { data: newDay, error: dayError } = await supabase
+        .from('program_days')
+        .insert([{ week_id: newWeek.id, day_number: day.day_number, label: day.label, workout_type: day.workout_type }])
+        .select()
+        .single()
+      if (dayError) { console.log('Error copying day:', dayError); continue }
+      if (day.program_exercises.length === 0) continue
+
+      const { error: exercisesError } = await supabase.from('program_exercises').insert(
+        day.program_exercises.map(pe => ({
+          day_id: newDay.id, exercise_id: pe.exercise_id, order_index: pe.order_index,
+          prescribed_sets: pe.prescribed_sets, prescribed_reps: pe.prescribed_reps, prescribed_weight: pe.prescribed_weight,
+          rest_seconds: pe.rest_seconds, extra_fields: pe.extra_fields, set_targets: pe.set_targets, notes: pe.notes,
+          section_label: pe.section_label,
+          section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
+          superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
+          tracks_weight_override: pe.tracks_weight_override, is_timed_override: pe.is_timed_override,
+          is_unilateral_override: pe.is_unilateral_override, tracks_distance_override: pe.tracks_distance_override,
+          alternative_exercise_id: pe.alternative_exercise_id
+        }))
+      )
+      if (exercisesError) console.log('Error copying exercises for a day:', exercisesError)
+    }
+  }
+
+  window.location.href = `program-builder.html?id=${newProgram.id}`
 })

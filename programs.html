@@ -75,10 +75,27 @@
       </div>
     </div>
 
+    <!-- Duplicate Template Modal: pre-filled "Copy of X" name, then clones
+         the whole template (every week/day/exercise) and jumps straight
+         into editing the new copy - opened from the source card's kebab. -->
+    <div class="modal-overlay" id="duplicateTemplateModal">
+      <div class="modal">
+        <h2>Duplicate Program</h2>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="duplicateTemplateName" placeholder="e.g. Push Pull Legs - Hypertrophy (Copy)" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelDuplicateTemplateBtn">Cancel</button>
+          <button class="btn-save" id="saveDuplicateTemplateBtn">Duplicate & Edit</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="programs.js?v=5"></script>
+    <script type="module" src="programs.js?v=6"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>
