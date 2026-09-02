@@ -73,43 +73,19 @@
       </div>
     </div>
 
-    <!-- One day's exercises - opened by clicking a day cell in the grid
-         above (see openProgramDayModal() in program-builder.js). Its body
-         (#weeksList) is exactly the same day-editing markup/behavior this
-         page always had (Add Exercise, Add Section, Add Workout, drag
-         exercises, autosave, Save) - it just lives in a modal now instead
-         of being permanently inline, since only one day is ever being
-         edited at a time. -->
-    <div class="modal-overlay" id="programDayModal">
-      <div class="modal modal-wide">
+    <!-- Training Builder Overlay: clicking a filled-in day cell opens
+         training-builder.html in an iframe (?dayId=, embed=1), so a day's
+         exercises get built/edited with the real search-the-library/
+         reorder UI instead of this page's own, more limited inline editor -
+         see openWorkoutBuilderOverlay() in program-builder.js. Same
+         iframe-overlay pattern athlete-calendar.js uses for a scheduled day. -->
+    <div class="modal-overlay" id="trainingBuilderOverlayModal">
+      <div class="modal modal-large">
         <div class="graph-modal-header">
-          <h2 id="programDayModalTitle">Day</h2>
-          <div style="display:flex; align-items:center; gap:12px">
-            <select id="programDayTypeSelect" class="workout-type-select">
-              <option value="gym">Gym</option>
-              <option value="field">Field</option>
-              <option value="run">Run</option>
-            </select>
-            <button type="button" class="btn-profile-action" id="renameDayBtn">Rename</button>
-            <button class="btn-cancel" id="closeProgramDayBtn">✕</button>
-          </div>
+          <h2>Build Workout</h2>
+          <button class="btn-save" id="doneTrainingBuilderBtn">Done</button>
         </div>
-        <div id="weeksList"></div>
-      </div>
-    </div>
-
-    <!-- Rename Day Modal -->
-    <div class="modal-overlay" id="renameDayModal">
-      <div class="modal">
-        <h2>Rename Day</h2>
-        <div class="form-group">
-          <label>Label</label>
-          <input type="text" id="renameDayInput" placeholder="e.g. Upper Body" />
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelRenameDayBtn">Cancel</button>
-          <button class="btn-save" id="saveRenameDayBtn">Save</button>
-        </div>
+        <iframe id="trainingBuilderFrame" class="training-builder-frame" src="about:blank"></iframe>
       </div>
     </div>
 
@@ -204,135 +180,10 @@
       </div>
     </div>
 
-    <!-- Exercise Picker Modal: pick an existing exercise from the library,
-         or create a brand new one on the fly (opens createExerciseModal on
-         top of this) - it's added as a bare row, ready to edit inline as a
-         card right away (sets/reps/weight/rest/notes), same as dragging an
-         exercise into a Training -->
-    <div class="modal-overlay" id="exercisePickerModal">
-      <div class="modal">
-        <h2>Add Exercise</h2>
-        <div class="form-group">
-          <label>Exercise</label>
-          <select id="pickerExerciseSelect">
-            <option value="">Choose an exercise...</option>
-          </select>
-        </div>
-        <p style="text-align:center; color:#aaaacc; font-size:13px; margin: 8px 0">or</p>
-        <button class="btn-create-metric" id="createNewExerciseBtn">+ Create New Exercise</button>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelExercisePickerBtn">Cancel</button>
-          <button class="btn-save" id="saveExercisePickerBtn">Add to Day</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Create New Exercise Modal (opens on top of the picker above) -->
-    <div class="modal-overlay" id="createExerciseModal">
-      <div class="modal">
-        <h2>Create New Exercise</h2>
-        <div class="form-group">
-          <label>Name</label>
-          <input type="text" id="createExerciseName" placeholder="e.g. Romanian Deadlift" />
-        </div>
-        <div class="form-group">
-          <label>Category</label>
-          <select id="createExerciseCategory">
-            <option value="__new__">+ Add New Category</option>
-          </select>
-        </div>
-        <div class="form-group" id="createExerciseNewCategoryGroup" style="display:none">
-          <label>New Category Name</label>
-          <input type="text" id="createExerciseNewCategory" placeholder="e.g. Legs" />
-        </div>
-        <div class="form-group">
-          <label>Type</label>
-          <select id="createExerciseType">
-            <option value="weights">Weightlifting (sets, reps, weight)</option>
-            <option value="timed">Timed (sets, duration)</option>
-            <option value="plyometric">Plyometric (sets, foot contacts, intensity)</option>
-            <option value="__new__">+ Add New Type</option>
-          </select>
-        </div>
-        <div class="form-group" id="createExerciseNewTypeGroup" style="display:none">
-          <label>New Type Name</label>
-          <input type="text" id="createExerciseNewType" placeholder="e.g. Sprints" />
-        </div>
-        <div class="form-group">
-          <label>Logging Fields</label>
-          <p style="color:#aaaacc; font-size:12px; margin:-2px 0 8px">What to track when this exercise is logged - independent of Type above, so any combination works (e.g. reps AND a hold time, or a weighted timed hold).</p>
-          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Track Reps</span>
-            <span class="toggle-switch"><input type="checkbox" id="createExerciseTracksReps" checked><span class="toggle-slider"></span></span>
-          </label>
-          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Track Weight (kg)</span>
-            <span class="toggle-switch"><input type="checkbox" id="createExerciseTracksWeight" checked><span class="toggle-slider"></span></span>
-          </label>
-          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Timed</span>
-            <span class="toggle-switch"><input type="checkbox" id="createExerciseIsTimed"><span class="toggle-slider"></span></span>
-          </label>
-          <label class="bodyweight-toggle" style="margin-bottom:8px"><span>Log Each Side (unilateral)</span>
-            <span class="toggle-switch"><input type="checkbox" id="createExerciseIsUnilateral"><span class="toggle-slider"></span></span>
-          </label>
-          <label class="bodyweight-toggle"><span>Track Distance (meters)</span>
-            <span class="toggle-switch"><input type="checkbox" id="createExerciseTracksDistance"><span class="toggle-slider"></span></span>
-          </label>
-        </div>
-        <div class="form-group">
-          <label>Video Link (optional)</label>
-          <input type="url" id="createExerciseVideoUrl" placeholder="https://youtube.com/..." />
-        </div>
-        <div class="form-group">
-          <label>Instructions (optional)</label>
-          <textarea id="createExerciseInstructions" class="notes-textarea"></textarea>
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelCreateExerciseBtn">Cancel</button>
-          <button class="btn-save" id="saveCreateExerciseBtn">Create & Select</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add Section popup: list + preview, same layout pattern as the
-         calendar's "Add Workout" popup - picking a row previews it on the
-         right, Insert bulk-copies its exercises into the day. -->
-    <div class="modal-overlay" id="addSectionModal">
-      <div class="modal modal-wide">
-        <div class="graph-modal-header">
-          <h2>Add Section</h2>
-          <button class="btn-cancel" id="closeAddSectionBtn">✕</button>
-        </div>
-        <div class="day-add-workout-layout">
-          <div class="day-add-workout-list-col">
-            <div class="day-add-workout-list-header">
-              <span class="day-add-workout-list-title">Sections</span>
-              <a href="sections.html" target="_blank" class="btn-small-create">+ New</a>
-            </div>
-            <div class="entries-modal-body" id="addSectionList"></div>
-          </div>
-          <div class="day-add-workout-preview" id="addSectionPreview">
-            <p class="no-metrics">Select a section to preview it</p>
-          </div>
-        </div>
-        <div class="form-actions" style="justify-content:flex-end; margin-top:16px">
-          <button class="btn-save" id="insertSectionBtn" disabled>Insert</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Shown only while linking a superset - see updatePickingModeBar() in
-         program-builder.js -->
-    <div class="picking-mode-bar" id="pickingModeBar" style="display:none">
-      <span class="picking-mode-bar-count" id="pickingModeBarCount"></span>
-      <div class="picking-mode-bar-actions">
-        <button type="button" class="btn-cancel" id="pickingModeBarCancelBtn">Cancel</button>
-        <button type="button" class="btn-save" id="pickingModeBarFinishBtn">✓ Finish Superset</button>
-      </div>
-    </div>
-
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=39"></script>
+    <script type="module" src="program-builder.js?v=40"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>
