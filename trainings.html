@@ -81,6 +81,23 @@
       </div>
     </div>
 
+    <!-- Duplicate Training Modal: pre-filled "Copy of X" name, then clones
+         the workout + all its exercises and jumps straight into editing it -
+         opened from the source workout's kebab menu. -->
+    <div class="modal-overlay" id="duplicateTrainingModal">
+      <div class="modal">
+        <h2>Duplicate Workout</h2>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="duplicateTrainingName" placeholder="e.g. Leg Day (Copy)" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelDuplicateTrainingBtn">Cancel</button>
+          <button class="btn-save" id="saveDuplicateTrainingBtn">Duplicate & Edit</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Manage Labels Modal: tag/untag one workout with any of the coach's
          training labels - opened from that workout's kebab menu. Same
          shape as the athlete-grid one on index.html. -->
@@ -102,7 +119,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=1"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="trainings.js?v=9"></script>
+    <script type="module" src="trainings.js?v=10"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

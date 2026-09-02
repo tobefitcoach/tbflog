@@ -88,6 +88,7 @@ function createTrainingCard(training) {
       <div class="kebab-menu">
         <button class="kebab-btn" data-id="${training.id}">⋮</button>
         <div class="kebab-dropdown" id="dropdown-${training.id}">
+          <button class="kebab-item kebab-duplicate" data-id="${training.id}">Duplicate</button>
           <button class="kebab-item kebab-manage-labels" data-id="${training.id}">Manage Labels</button>
           <button class="kebab-delete" data-id="${training.id}">Delete workout</button>
         </div>
@@ -107,6 +108,11 @@ function createTrainingCard(training) {
   card.querySelector('.kebab-btn').addEventListener('click', function(e) {
     e.stopPropagation()
     document.getElementById(`dropdown-${training.id}`).classList.toggle('active')
+  })
+
+  card.querySelector('.kebab-duplicate').addEventListener('click', function(e) {
+    e.stopPropagation()
+    openDuplicateTrainingModal(training.id, training.name)
   })
 
   card.querySelector('.kebab-manage-labels').addEventListener('click', function(e) {
@@ -327,4 +333,97 @@ document.getElementById('saveNewTrainingBtn').addEventListener('click', async fu
   }
 
   window.location.href = `training-builder.html?id=${data[0].id}`
+})
+
+// ==========================================================================
+// ---- DUPLICATE TRAINING ----
+// Clones the source workout's own row (name/workout_type) plus every one of
+// its exercises (fresh superset/section-instance ids, same remap pattern
+// training-builder.js's insertTrainingIntoDayMode uses), then jumps straight
+// into training-builder.html for the new copy - same "land in the editor"
+// feel as creating a brand new workout.
+// ==========================================================================
+let duplicateSourceTrainingId = null
+
+function openDuplicateTrainingModal(trainingId, trainingName) {
+  duplicateSourceTrainingId = trainingId
+  document.getElementById('duplicateTrainingName').value = `${trainingName} (Copy)`
+  document.getElementById('duplicateTrainingModal').classList.add('active')
+}
+
+document.getElementById('cancelDuplicateTrainingBtn').addEventListener('click', function() {
+  document.getElementById('duplicateTrainingModal').classList.remove('active')
+})
+
+document.getElementById('saveDuplicateTrainingBtn').addEventListener('click', async function() {
+  const name = document.getElementById('duplicateTrainingName').value.trim()
+  if (!name) { customAlert('Please enter a name'); return }
+
+  const sourceTraining = allTrainings.find(t => t.id === duplicateSourceTrainingId)
+  const btn = this
+  btn.disabled = true
+  btn.textContent = 'Duplicating...'
+
+  const { data: sourceExercises, error: sourceError } = await supabase
+    .from('training_exercises')
+    .select('*')
+    .eq('training_id', duplicateSourceTrainingId)
+
+  if (sourceError) {
+    console.log('Error loading source exercises:', sourceError)
+    customAlert('Something went wrong')
+    btn.disabled = false; btn.textContent = 'Duplicate & Edit'
+    return
+  }
+
+  const { data: newTraining, error: insertTrainingError } = await supabase
+    .from('trainings')
+    .insert([{ coach_id: session.user.id, name, workout_type: sourceTraining.workout_type }])
+    .select()
+    .single()
+
+  if (insertTrainingError) {
+    console.log('Error creating duplicate:', insertTrainingError)
+    customAlert('Something went wrong')
+    btn.disabled = false; btn.textContent = 'Duplicate & Edit'
+    return
+  }
+
+  sourceExercises.sort((a, b) => a.order_index - b.order_index)
+
+  if (sourceExercises.length > 0) {
+    const groupIdMap = {}
+    const sectionInstanceMap = {}
+    for (const te of sourceExercises) {
+      if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
+      if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
+    }
+
+    const { error: insertExercisesError } = await supabase.from('training_exercises').insert(
+      sourceExercises.map(te => ({
+        training_id: newTraining.id, exercise_id: te.exercise_id, order_index: te.order_index,
+        prescribed_sets: te.prescribed_sets, prescribed_reps: te.prescribed_reps,
+        prescribed_weight: te.prescribed_weight, rest_seconds: te.rest_seconds,
+        extra_fields: te.extra_fields, set_targets: te.set_targets, notes: te.notes,
+        section_label: te.section_label,
+        section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
+        superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
+        tracks_weight_override: te.tracks_weight_override,
+        is_timed_override: te.is_timed_override,
+        is_unilateral_override: te.is_unilateral_override,
+        tracks_distance_override: te.tracks_distance_override,
+        alternative_exercise_id: te.alternative_exercise_id
+      }))
+    )
+
+    if (insertExercisesError) {
+      console.log('Error copying exercises:', insertExercisesError)
+      customAlert('Workout was duplicated but something went wrong copying its exercises')
+      btn.disabled = false; btn.textContent = 'Duplicate & Edit'
+      window.location.href = `training-builder.html?id=${newTraining.id}`
+      return
+    }
+  }
+
+  window.location.href = `training-builder.html?id=${newTraining.id}`
 })
