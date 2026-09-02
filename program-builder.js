@@ -1556,31 +1556,48 @@ function resetTrainingPreview() {
 async function openAddTrainingModal(dayId) {
   currentDayIdForAddTraining = dayId
   resetTrainingPreview()
-  const list = document.getElementById('addTrainingList')
+  document.getElementById('addTrainingSearchInput').value = ''
+
   const data = await getTrainingsList()
-
   if (data === null) {
-    list.innerHTML = '<p class="no-metrics">Something went wrong loading the Workout Library</p>'
+    document.getElementById('addTrainingList').innerHTML = '<p class="no-metrics">Something went wrong loading the Workout Library</p>'
   } else if (data.length === 0) {
-    list.innerHTML = '<p class="no-metrics">No workouts saved yet - create one in the Workout Library first</p>'
+    document.getElementById('addTrainingList').innerHTML = '<p class="no-metrics">No workouts saved yet - create one in the Workout Library first</p>'
   } else {
-    list.innerHTML = data.map(t => `
-      <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
-        <span>${t.name}</span>
-      </div>
-    `).join('')
-
-    list.querySelectorAll('.training-pick-row').forEach(row => {
-      row.addEventListener('click', function() {
-        list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
-        row.classList.add('selected')
-        previewTraining(row.dataset.id, row.dataset.name)
-      })
-    })
+    renderAddTrainingList('')
   }
 
   document.getElementById('addTrainingModal').classList.add('active')
 }
+
+function renderAddTrainingList(filterText) {
+  const list = document.getElementById('addTrainingList')
+  const filter = filterText.trim().toLowerCase()
+  const filtered = filter ? cachedTrainings.filter(t => t.name.toLowerCase().includes(filter)) : cachedTrainings
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<p class="no-metrics">No workouts match your search</p>'
+    return
+  }
+
+  list.innerHTML = filtered.map(t => `
+    <div class="training-pick-row" data-id="${t.id}" data-name="${t.name}">
+      <span>${t.name}</span>
+    </div>
+  `).join('')
+
+  list.querySelectorAll('.training-pick-row').forEach(row => {
+    row.addEventListener('click', function() {
+      list.querySelectorAll('.training-pick-row').forEach(r => r.classList.remove('selected'))
+      row.classList.add('selected')
+      previewTraining(row.dataset.id, row.dataset.name)
+    })
+  })
+}
+
+document.getElementById('addTrainingSearchInput').addEventListener('input', function() {
+  if (cachedTrainings) renderAddTrainingList(this.value)
+})
 
 async function previewTraining(trainingId, name) {
   selectedTrainingId = trainingId
