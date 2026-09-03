@@ -329,7 +329,14 @@ body:has(.home-screen) .athlete-app-card {
   inset: 0;
   z-index: 500;
   background-color: #0f0f1a;
-  overflow: hidden;
+  /* No overflow:hidden here on purpose - Android's WebView renders a
+     hardware-decoded <video> through a separate native surface that it
+     can't composite correctly underneath an ancestor clipping with
+     overflow:hidden, and just shows its own default gray placeholder +
+     play icon instead of the actual frames (desktop/iOS browsers don't
+     have this limitation, so it looked fine everywhere else this was
+     tested). Nothing here actually needs clipping - it's already a
+     position:fixed, full-viewport screen. */
 }
 
 /* Instant cut between exercises on purpose, no fade - a crossfade left a
@@ -343,11 +350,18 @@ body:has(.home-screen) .athlete-app-card {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
+  /* visibility, not opacity - Android's WebView renders a hardware-decoded
+     <video> through a separate native surface, and applying CSS opacity
+     directly to that element (even a static, non-animated 0/1 toggle like
+     this used to be) is a known trigger for that surface never actually
+     compositing, showing the browser's default gray placeholder instead of
+     real frames. visibility:hidden skips painting the element entirely
+     instead of blending it, which doesn't have that problem. */
+  visibility: hidden;
 }
 
 .mobility-flow-video.active {
-  opacity: 1;
+  visibility: visible;
 }
 
 /* Two-sided stretch, "other side" pass - see loadStretchIntoVideo() in
