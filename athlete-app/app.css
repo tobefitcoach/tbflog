@@ -61,6 +61,16 @@ header {
   height: 80px;
 }
 
+/* Persistent app header (outside #pageContent, so this never unmounts as
+   dashboard.js swaps screens) - logo centered on top. padding-top uses
+   env(safe-area-inset-top) so it clears the notch/Dynamic Island on real
+   devices instead of sitting under/behind it; the 20px fallback keeps the
+   original spacing on non-notched screens where that env value is 0. */
+.dashboard-header {
+  justify-content: center;
+  padding-top: max(20px, env(safe-area-inset-top, 20px));
+}
+
 /* ==========================================================================
    BOTTOM NAV
    Persistent tab bar - lives outside #pageContent in dashboard.html, so
