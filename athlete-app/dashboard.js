@@ -1807,8 +1807,13 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
   // 10-minute session and the bar is full once 10 minutes of it have
   // actually elapsed, regardless of how many stretches that turned out to be.
   let elapsedActiveSeconds = 0
+  // showOtherSideTransition's two chained setTimeouts, tracked so leaving
+  // the flow mid-transition (finishFlow) can cancel whichever is still
+  // pending instead of letting it fire later against a torn-down screen.
+  let pendingSideTransitionTimeouts = []
 
   pageContent.innerHTML = `
+    <div class="workout-active" style="display:none"></div>
     <div class="mobility-flow-screen">
       <video class="mobility-flow-video active" id="mobilityVideoA" muted playsinline loop></video>
       <video class="mobility-flow-video" id="mobilityVideoB" muted playsinline loop></video>
@@ -1867,7 +1872,11 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
   }
 
   function updateChrome() {
+    // Guards against a stray timer (see pendingSideTransitionTimeouts below)
+    // firing after the athlete has already navigated off this screen -
+    // pageContent has been replaced by then, so every element here is gone.
     const nameEl = document.getElementById('mobilityFlowName')
+    if (!nameEl) return
     const newName = queue[index].name + (queue[index].__otherSide ? ' · Other Side' : '')
     // Fade the label through instead of snapping it, so a new exercise's
     // name doesn't just jump-cut in sync with the video crossfade below
@@ -1875,7 +1884,8 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
       nameEl.style.opacity = '0'
       setTimeout(function() { nameEl.textContent = newName; nameEl.style.opacity = '1' }, 200)
     }
-    document.getElementById('mobilityFlowTime').textContent = formatTimer(remaining)
+    const timeEl = document.getElementById('mobilityFlowTime')
+    if (timeEl) timeEl.textContent = formatTimer(remaining)
     updatePrefButtons(queue[index].id)
     updateProgressBar()
   }
@@ -1922,14 +1932,17 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
     const wasPaused = paused
     paused = true
     const el = document.getElementById('mobilitySideTransition')
+    if (!el) return
     el.classList.add('active')
-    setTimeout(function() {
+    const outerTimeout = setTimeout(function() {
       onSwap()
-      setTimeout(function() {
+      const innerTimeout = setTimeout(function() {
         el.classList.remove('active')
         paused = wasPaused
       }, TRANSITION_PAUSE_MS - 1700)
+      pendingSideTransitionTimeouts.push(innerTimeout)
     }, 1700)
+    pendingSideTransitionTimeouts.push(outerTimeout)
   }
 
   function advance() {
@@ -1945,6 +1958,8 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
 
   function finishFlow() {
     clearMobilityFlowTimer()
+    pendingSideTransitionTimeouts.forEach(clearTimeout)
+    pendingSideTransitionTimeouts = []
     finishMobilitySession(startedAt, selectedAreas) // startedAt unchanged - real flow-start time, ended_at is now, however the flow actually stopped
   }
 
