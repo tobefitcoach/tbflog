@@ -58,6 +58,11 @@ header {
 .athlete-app-header {
   justify-content: center;
   padding-top: calc(env(safe-area-inset-top, 20px) + 8px);
+  padding-bottom: 12px;
+}
+
+.athlete-app-header .header-logo {
+  height: 42px;
 }
 
 /* ==========================================================================
