@@ -375,7 +375,13 @@ async function finishIntro() {
 }
 
 async function enterWeekView() {
-  document.getElementById('bottomNav').style.display = 'flex'
+  // Clears the display:none set inline in dashboard.html's markup, rather
+  // than setting an inline 'flex' - an inline style always wins over a
+  // stylesheet rule regardless of specificity, which permanently defeated
+  // the body:has(.workout-active) .bottom-nav{display:none} CSS rule below
+  // from this point on. Clearing it instead just lets that rule (and
+  // .bottom-nav's own default display:flex) govern visibility normally.
+  document.getElementById('bottomNav').style.display = ''
   document.getElementById('navStatsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
   const { data: coachProfile } = await saveWithRetry((signal) => supabase
     .from('profiles')
