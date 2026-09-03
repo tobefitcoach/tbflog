@@ -62,7 +62,7 @@ header {
 }
 
 .athlete-app-header .header-logo {
-  height: 42px;
+  height: 54px;
 }
 
 /* ==========================================================================
@@ -228,7 +228,7 @@ body:has(.home-screen) .athlete-app-page {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 36px 20px 108px;
+  padding: 56px 20px 108px;
 }
 
 /* .athlete-app-card's base rule (bordered, rounded, padded, capped at
