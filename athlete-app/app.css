@@ -55,7 +55,7 @@ header {
    here given viewport-fit=cover - an earlier "still under the camera"
    report was actually just a stale cached CSS file, not env() failing)
    plus a small fixed gap so the logo isn't flush against it. */
-.dashboard-header {
+.athlete-app-header {
   justify-content: center;
   padding-top: calc(env(safe-area-inset-top, 20px) + 8px);
 }
