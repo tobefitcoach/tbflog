@@ -6,16 +6,15 @@
 
 /* Athlete login screen only (login.html's coach header doesn't use this
    class) - logo centered on top instead of the default left-aligned/
-   space-between header, sized up a bit. 60px is a hard floor large enough
-   to clear a Dynamic Island/notch on every current iPhone by itself, since
-   env(safe-area-inset-top) isn't reliably resolving to the real inset in
-   this app's WKWebView - env() is added on top for whatever extra room it
-   does report, but nothing here depends on it working. */
+   space-between header, sized up a bit. padding-top is the real notch/
+   Dynamic Island/status-bar inset (env() does resolve correctly here given
+   viewport-fit=cover) plus a small fixed gap so the logo isn't flush
+   against it. */
 .login-header {
   flex-direction: column;
   justify-content: center;
   gap: 8px;
-  padding-top: calc(60px + env(safe-area-inset-top, 0px));
+  padding-top: calc(env(safe-area-inset-top, 20px) + 8px);
 }
 
 .login-header .header-logo {
