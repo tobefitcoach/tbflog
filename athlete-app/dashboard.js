@@ -1810,7 +1810,6 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
 
   pageContent.innerHTML = `
     <div class="mobility-flow-screen">
-      <div class="mobility-flow-progress"><div class="mobility-flow-progress-fill" id="mobilityFlowProgressFill"></div></div>
       <video class="mobility-flow-video active" id="mobilityVideoA" muted playsinline loop></video>
       <video class="mobility-flow-video" id="mobilityVideoB" muted playsinline loop></video>
       <div class="mobility-side-transition" id="mobilitySideTransition">
@@ -1819,6 +1818,13 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
           Other Side
         </span>
       </div>
+      <!-- Painted AFTER the full-bleed videos above (and BEFORE the overlay
+           content below still lays out fine, since this is absolutely
+           positioned and out of flow) - it used to be the FIRST child here,
+           which meant the opaque .active video painted right on top of it
+           and hid it completely despite the bar logic working correctly the
+           whole time. -->
+      <div class="mobility-flow-progress"><div class="mobility-flow-progress-fill" id="mobilityFlowProgressFill"></div></div>
       <div class="mobility-flow-overlay">
         <div class="mobility-flow-top">
           <button type="button" class="mobility-flow-icon-btn" id="mobilityFlowEndBtn">✕</button>

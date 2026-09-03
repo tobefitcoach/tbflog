@@ -417,7 +417,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .mobility-flow-progress {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
   height: 4px;
