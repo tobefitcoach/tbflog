@@ -57,12 +57,12 @@ header {
    plus a small fixed gap so the logo isn't flush against it. */
 .athlete-app-header {
   justify-content: center;
-  padding-top: calc(env(safe-area-inset-top, 20px) + 8px);
-  padding-bottom: 12px;
+  padding-top: calc(env(safe-area-inset-top, 20px) + 4px);
+  padding-bottom: 6px;
 }
 
 .athlete-app-header .header-logo {
-  height: 72px;
+  height: 110px;
 }
 
 /* ==========================================================================

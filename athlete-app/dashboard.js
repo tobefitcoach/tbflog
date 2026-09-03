@@ -49,16 +49,13 @@ document.getElementById('navCommsBtn').addEventListener('click', function() {
   if (athlete) renderCommunication()
 })
 
-document.getElementById('navSettingsBtn').addEventListener('click', function() {
-  if (athlete) renderSettings()
-})
-
 document.getElementById('navProfileBtn').addEventListener('click', function() {
   if (athlete) renderProfile()
 })
 
-// Tabs are sticky, not re-asserted by every screen: only the 3 tab-root
-// renderers below (renderWeekView/renderSettings/renderProfile) call this.
+// Tabs are sticky, not re-asserted by every screen: only the tab-root
+// renderers below (renderWeekView/renderWeeklyStats/renderCommunication/
+// renderProfile) call this.
 // Every other screen (Day Preview, Add Own Workout, Mobility, Tournaments,
 // the guided workout itself, ...) is only ever reached by drilling down
 // from Home, so leaving the highlight untouched while on one of those
@@ -512,11 +509,72 @@ async function sendChatMessageToCoach() {
   loadChatMessagesFromCoach()
 }
 
-async function renderSettings() {
-  setActiveBottomTab('settings')
+
+// Downscales + re-encodes as JPEG client-side before upload, regardless of
+// how big the original photo was (a phone camera photo can be several MB) -
+// a profile picture is only ever shown at avatar size, so there's no reason
+// to store or transfer more than maxSize px on the longest side. Avoids
+// needing any upload-size-limit handling entirely, the same problem the PDF
+// report's chart images ran into.
+function resizeImageFile(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(img.src)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
+    }
+    img.onerror = reject
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+// Athlete's own name + their coach's name, the settings that used to live
+// on their own separate tab (photo, weight units, weekly recap, push
+// notifications - merged in here since a 5th bottom-nav item just for
+// these didn't earn its own tab), and Log Out. Coach's name isn't already
+// loaded anywhere in this app (the athletes row only carries coach_id), so
+// it's fetched lazily here, once, the first time this tab is opened.
+async function renderProfile() {
+  setActiveBottomTab('profile')
+  pageContent.innerHTML = `
+    <div class="day-view-header">
+      <h2 class="day-view-date">Profile</h2>
+    </div>
+    <p class="no-metrics">Loading...</p>
+  `
+
   const status = await pushStatus() // local browser check only, no network - fast enough to await before the first render
   const initials = athlete.name.split(' ').map(w => w[0]).join('').toUpperCase()
+
+  if (coachName === null) {
+    const { data } = await saveWithRetry((signal) => supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', athlete.coach_id)
+      .maybeSingle()
+      .abortSignal(signal)
+    )
+    coachName = (data && data.name) || ''
+  }
+
   pageContent.innerHTML = `
+    <div class="day-view-header">
+      <h2 class="day-view-date">Profile</h2>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-info"><div class="settings-row-title">Name</div></div>
+      <span>${escapeHtml(athlete.name)}</span>
+    </div>
+    ${coachName ? `
+    <div class="settings-row">
+      <div class="settings-row-info"><div class="settings-row-title">Coach</div></div>
+      <span>${escapeHtml(coachName)}</span>
+    </div>` : ''}
     <div class="settings-row">
       <div class="settings-row-info">
         <div class="settings-row-title">Profile Photo</div>
@@ -560,12 +618,8 @@ async function renderSettings() {
       </div>
       <button type="button" class="btn-profile-action" id="pushToggleBtn">${status === 'on' ? 'Disable' : 'Enable'}</button>
     </div>
-    <button class="btn-cancel" id="backFromSettingsBtn" style="margin-top:20px">Go Back</button>
+    <button type="button" class="btn-cancel" id="profileLogoutBtn" style="margin-top:24px">Log Out</button>
   `
-
-  document.getElementById('backFromSettingsBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
 
   document.getElementById('avatarUploadBtn').addEventListener('click', function() {
     document.getElementById('avatarFileInput').click()
@@ -604,7 +658,7 @@ async function renderSettings() {
       if (error) throw error
 
       athlete.avatar_url = avatarUrl
-      renderSettings()
+      renderProfile()
     } catch (err) {
       console.log('Error uploading avatar:', err)
       customAlert('Something went wrong uploading your photo - check your connection and try again')
@@ -621,7 +675,7 @@ async function renderSettings() {
     e.target.disabled = true
     if (status === 'on') await disablePush(supabase)
     else await enablePush(supabase, session.user.id)
-    renderSettings()
+    renderProfile()
   })
 
   document.getElementById('weightUnitToggle').addEventListener('change', async function(e) {
@@ -669,70 +723,6 @@ async function renderSettings() {
       customAlert('Something went wrong saving that - try again')
     }
   })
-}
-
-// Downscales + re-encodes as JPEG client-side before upload, regardless of
-// how big the original photo was (a phone camera photo can be several MB) -
-// a profile picture is only ever shown at avatar size, so there's no reason
-// to store or transfer more than maxSize px on the longest side. Avoids
-// needing any upload-size-limit handling entirely, the same problem the PDF
-// report's chart images ran into.
-function resizeImageFile(file, maxSize) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => {
-      const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.width * scale)
-      canvas.height = Math.round(img.height * scale)
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(img.src)
-      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', 0.85)
-    }
-    img.onerror = reject
-    img.src = URL.createObjectURL(file)
-  })
-}
-
-// Athlete's own name + their coach's name, plus Log Out (moved out of the
-// old header now that it's just the logo). Coach's name isn't already
-// loaded anywhere in this app (the athletes row only carries coach_id), so
-// it's fetched lazily here, once, the first time this tab is opened.
-async function renderProfile() {
-  setActiveBottomTab('profile')
-  pageContent.innerHTML = `
-    <div class="day-view-header">
-      <h2 class="day-view-date">Profile</h2>
-    </div>
-    <p class="no-metrics">Loading...</p>
-  `
-
-  if (coachName === null) {
-    const { data } = await saveWithRetry((signal) => supabase
-      .from('profiles')
-      .select('name')
-      .eq('id', athlete.coach_id)
-      .maybeSingle()
-      .abortSignal(signal)
-    )
-    coachName = (data && data.name) || ''
-  }
-
-  pageContent.innerHTML = `
-    <div class="day-view-header">
-      <h2 class="day-view-date">Profile</h2>
-    </div>
-    <div class="settings-row">
-      <div class="settings-row-info"><div class="settings-row-title">Name</div></div>
-      <span>${escapeHtml(athlete.name)}</span>
-    </div>
-    ${coachName ? `
-    <div class="settings-row">
-      <div class="settings-row-info"><div class="settings-row-title">Coach</div></div>
-      <span>${escapeHtml(coachName)}</span>
-    </div>` : ''}
-    <button type="button" class="btn-cancel" id="profileLogoutBtn" style="margin-top:24px">Log Out</button>
-  `
 
   document.getElementById('profileLogoutBtn').addEventListener('click', async function() {
     await supabase.auth.signOut()
