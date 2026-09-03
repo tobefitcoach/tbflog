@@ -228,14 +228,28 @@ body:has(.home-screen) .athlete-app-page {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding-top: 36px;
+  padding: 36px 20px 108px;
 }
 
+/* .athlete-app-card's base rule (bordered, rounded, padded, capped at
+   480px) was built for the small centered placeholder messages (loading /
+   wrong role / waiting to be linked) - stripped back to a plain flex
+   container here since the real home screen's own pieces (day strip,
+   action tiles, Tournaments) already carry their own borders, and
+   wrapping all of them in a second outer card on top of that (plus a
+   480px cap that kept it from ever reaching the screen edges) was the
+   "boxed-in, doesn't touch the sides" look. */
 body:has(.home-screen) .athlete-app-card {
   display: flex;
   flex-direction: column;
   min-height: 0;
   width: 100%;
+  max-width: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  text-align: left;
 }
 
 .home-screen {
