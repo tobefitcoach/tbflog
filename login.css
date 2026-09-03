@@ -4,6 +4,23 @@
    .btn-save classes from style.css so it matches the rest of the app.
    ========================================================================== */
 
+/* Athlete login screen only (login.html's coach header doesn't use this
+   class) - logo centered on top instead of the default left-aligned/
+   space-between header, sized up a bit, with padding-top using
+   env(safe-area-inset-top) so it clears the notch/Dynamic Island on real
+   devices (requires viewport-fit=cover on the page's viewport meta tag,
+   otherwise that env() value is just 0) instead of sitting under it. */
+.login-header {
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding-top: max(20px, env(safe-area-inset-top, 20px));
+}
+
+.login-header .header-logo {
+  height: 80px;
+}
+
 .auth-page {
   display: flex;
   justify-content: center;

@@ -49,18 +49,6 @@ header {
   height: 60px;
 }
 
-/* Login screen only - logo centered on top instead of the default
-   left-aligned/space-between header used on the dashboard pages */
-.login-header {
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-}
-
-.login-header .header-logo {
-  height: 80px;
-}
-
 /* Persistent app header (outside #pageContent, so this never unmounts as
    dashboard.js swaps screens) - logo centered on top. padding-top uses
    env(safe-area-inset-top) so it clears the notch/Dynamic Island on real
