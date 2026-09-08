@@ -48,11 +48,11 @@
   margin-top: 20px;
   text-align: center;
   font-size: 13px;
-  color: #aaaacc;
+  color: var(--c-text-muted);
 }
 
 .auth-toggle a {
-  color: #4a4a8e;
+  color: var(--c-accent);
   text-decoration: underline;
   cursor: pointer;
   margin-left: 4px;

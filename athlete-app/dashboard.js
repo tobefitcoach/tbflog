@@ -901,7 +901,7 @@ function renderAddTournamentForm() {
     <div class="form-group">
       <label>End Date</label>
       <input type="date" id="tournamentEndDateInput" min="${toDateStr(new Date())}" />
-      <p style="color:#aaaacc; font-size:12px; margin-top:4px">Same as start date for a single-day event</p>
+      <p style="color:var(--c-text-muted); font-size:12px; margin-top:4px">Same as start date for a single-day event</p>
     </div>
     <div class="importance-picker">
       <p class="importance-picker-label">How important is this tournament?</p>
@@ -1535,7 +1535,7 @@ async function renderMobilityAreaPicker() {
       <button type="button" class="btn-cancel" id="mobilityAreaBackBtn">← Back</button>
       <h2 class="day-view-date">Daily Mobility/Stretching</h2>
     </div>
-    <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">What do you want to focus on today? Pick up to 2 - the rest of the session still flows across your whole body, these just show up more.</p>
+    <p style="color:var(--c-text-muted); font-size:13px; margin-bottom:16px">What do you want to focus on today? Pick up to 2 - the rest of the session still flows across your whole body, these just show up more.</p>
     <div class="chip-row" id="mobilityAreaChips">
       ${distinctAreas.map(a => `<button type="button" class="chip-btn" data-area="${a}">${a}</button>`).join('')}
     </div>
@@ -1584,7 +1584,7 @@ function renderMobilityPicker(selectedAreas) {
       <button type="button" class="btn-cancel" id="mobilityBackBtn">← Back</button>
       <h2 class="day-view-date">Daily Mobility/Stretching</h2>
     </div>
-    <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">Pick how long you want to stretch or work on mobility.</p>
+    <p style="color:var(--c-text-muted); font-size:13px; margin-bottom:16px">Pick how long you want to stretch or work on mobility.</p>
     <div class="duration-preset-row">
       ${presets.map(m => `<button type="button" class="duration-preset-btn" data-minutes="${m}">${m} min</button>`).join('')}
     </div>
@@ -2098,7 +2098,7 @@ function renderAddWorkoutChoice() {
       <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
       <h2 class="day-view-date">Add Own Workout</h2>
     </div>
-    <p style="color:#aaaacc; font-size:13px; margin-bottom:16px">What kind of workout did you do today?</p>
+    <p style="color:var(--c-text-muted); font-size:13px; margin-bottom:16px">What kind of workout did you do today?</p>
     <div class="home-tile-row">
       <button type="button" class="home-tile" id="addWorkoutStrengthChoice">
         <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"></rect><rect x="20" y="9" width="3" height="6" rx="1"></rect><line x1="4" y1="12" x2="20" y2="12"></line><rect x="6" y="7" width="2" height="10" rx="1"></rect><rect x="16" y="7" width="2" height="10" rx="1"></rect></svg></span>
@@ -2532,7 +2532,7 @@ function renderAddWorkoutFieldForm(type) {
         <input type="text" inputmode="numeric" class="field-duration-mm" id="fieldDurationMM" value="00" maxlength="2">
         <span class="set-time-sep">m</span>
       </div>
-      <p style="color:#aaaacc; font-size:11px; margin-top:4px">Hours and minutes - not mm:ss</p>
+      <p style="color:var(--c-text-muted); font-size:11px; margin-top:4px">Hours and minutes - not mm:ss</p>
     </div>
     <div class="rpe-picker">
       <p class="rpe-picker-label">Effort (RPE)</p>
@@ -2836,7 +2836,7 @@ function showWeeklyRecapModal(stats) {
       <div><div class="workout-summary-stat-value">${stats.totalReps}</div><div class="workout-summary-stat-label">Reps</div></div>
       <div><div class="workout-summary-stat-value">${durationText}</div><div class="workout-summary-stat-label">Time</div></div>
     </div>
-    <p style="margin-top:20px; color:#aaaacc; text-align:center">${pickRecapMessage(stats.totalWorkouts)}</p>
+    <p style="margin-top:20px; color:var(--c-text-muted); text-align:center">${pickRecapMessage(stats.totalWorkouts)}</p>
   `
   document.getElementById('weeklyRecapModal').classList.add('active')
 }
@@ -3978,7 +3978,7 @@ function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, directi
     <p class="active-exercise-progress">Workout Complete</p>
     <div class="workout-summary workout-slide">
       <h2>Nice work 💪</h2>
-      <p style="color:#aaaacc">That's every exercise. Ready to finish up?</p>
+      <p style="color:var(--c-text-muted)">That's every exercise. Ready to finish up?</p>
       <button class="btn-save start-workout-btn" id="endWorkoutBtn">End Workout</button>
     </div>
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe to go back</p>

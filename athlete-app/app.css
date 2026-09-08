@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #0f0f1a;
+  background-color: var(--c-bg);
   animation: splashOverlayOut 3s ease forwards;
 }
 
@@ -139,7 +139,7 @@ body:has(.workout-active) .bottom-nav {
 }
 
 .bottom-nav-btn.active {
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .bottom-nav-btn.active .bottom-nav-icon {
@@ -159,26 +159,26 @@ body:has(.workout-active) .bottom-nav {
   align-items: center;
   min-height: 80vh;
   padding: 40px;
-  padding-bottom: 108px; /* clears the floating .bottom-nav */
+  padding-bottom: var(--nav-clearance); /* clears the floating .bottom-nav */
 }
 
 .athlete-app-card {
-  background-color: #1a1a2e;
+  background-color: var(--c-surface);
   border-radius: 12px;
   padding: 40px;
   width: 100%;
   max-width: 480px;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   text-align: center;
 }
 
 .athlete-app-card h2 {
   margin-bottom: 16px;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .athlete-app-card p {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 14px;
   margin-bottom: 24px;
   line-height: 1.5;
@@ -195,7 +195,7 @@ body:has(.workout-active) .bottom-nav {
   display: block;
   min-height: auto;
   padding: 24px 16px;
-  padding-bottom: 108px; /* clears the floating .bottom-nav */
+  padding-bottom: var(--nav-clearance); /* clears the floating .bottom-nav */
 }
 
 .athlete-app-card.wide {
@@ -228,7 +228,7 @@ body:has(.home-screen) .athlete-app-page {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 56px 20px 108px;
+  padding: 56px 20px var(--nav-clearance);
 }
 
 /* .athlete-app-card's base rule (bordered, rounded, padded, capped at
@@ -285,7 +285,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .day-view-date {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin: 0 0 20px 0;
 }
@@ -294,7 +294,7 @@ body:has(.home-screen) .athlete-app-card {
    the coach typed instead of collapsing them, same as any plain textarea
    would render (see #coachMessageModal in dashboard.html) --- */
 .coach-message-text {
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 15px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -314,17 +314,17 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .duration-preset-btn {
-  background-color: #1a1a2e;
-  border: 1px solid #2a2a4e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 20px;
   padding: 8px 16px;
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 14px;
   cursor: pointer;
 }
 
 .duration-preset-btn:hover {
-  border-color: #4a4a8e;
+  border-color: var(--c-accent);
 }
 
 /* --- Mobility countdown --- */
@@ -338,7 +338,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .mobility-timer-label {
   font-size: 16px;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   margin-bottom: 12px;
 }
 
@@ -358,7 +358,7 @@ body:has(.home-screen) .athlete-app-card {
   position: fixed;
   inset: 0;
   z-index: 500;
-  background-color: #0f0f1a;
+  background-color: var(--c-bg);
   /* No overflow:hidden here on purpose - Android's WebView renders a
      hardware-decoded <video> through a separate native surface that it
      can't composite correctly underneath an ancestor clipping with
@@ -416,7 +416,7 @@ body:has(.home-screen) .athlete-app-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #0f0f1a;
+  background-color: var(--c-bg);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s ease;
@@ -430,7 +430,7 @@ body:has(.home-screen) .athlete-app-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 26px;
   font-weight: 800;
   letter-spacing: 0.3px;
@@ -486,7 +486,7 @@ body:has(.home-screen) .athlete-app-card {
 .mobility-flow-name {
   flex: 1;
   text-align: center;
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 18px;
   font-weight: 700;
   padding: 8px 14px;
@@ -503,7 +503,7 @@ body:has(.home-screen) .athlete-app-card {
   border-radius: 50%;
   border: none;
   background-color: rgba(0, 0, 0, 0.4);
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 17px;
   cursor: pointer;
 }
@@ -519,7 +519,7 @@ body:has(.home-screen) .athlete-app-card {
 .mobility-flow-time {
   min-width: 72px;
   text-align: center;
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 32px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -549,14 +549,14 @@ body:has(.home-screen) .athlete-app-card {
   border-radius: 22px;
   border: none;
   background-color: rgba(0, 0, 0, 0.4);
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 15px;
   cursor: pointer;
 }
 
 .exercise-log-card {
-  background-color: #1a1a2e;
-  border: 1px solid #2a2a4e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 10px;
   padding: 16px;
   margin-bottom: 16px;
@@ -573,17 +573,17 @@ body:has(.home-screen) .athlete-app-card {
 .exercise-log-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .exercise-log-target {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   white-space: nowrap;
 }
 
 .exercise-log-notes {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -604,7 +604,7 @@ body:has(.home-screen) .athlete-app-card {
 .set-label {
   width: 52px;
   flex-shrink: 0;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   display: flex;
   flex-direction: column;
@@ -648,13 +648,13 @@ body:has(.home-screen) .athlete-app-card {
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   /* Under 16px triggers iOS Safari's auto-zoom-on-focus - the exact bug
      that was making every tap/type on a phone zoom the page in */
   font-size: 16px;
-  color: #ffffff;
-  background-color: #0f0f1a;
+  color: var(--c-text);
+  background-color: var(--c-bg);
 }
 
 .set-reps-input:disabled,
@@ -671,9 +671,9 @@ body:has(.home-screen) .athlete-app-card {
   justify-content: center;
   gap: 2px;
   padding: 6px;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
-  background-color: #0f0f1a;
+  background-color: var(--c-bg);
 }
 
 /* Bumped up from a plain 16px input box to a real "digital clock" look
@@ -687,7 +687,7 @@ body:has(.home-screen) .athlete-app-card {
   min-width: 0;
   border: none;
   background: transparent;
-  color: #ffffff;
+  color: var(--c-text);
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 20px;
   font-weight: 700;
@@ -701,7 +701,7 @@ body:has(.home-screen) .athlete-app-card {
   min-width: 0;
   border: none;
   background: transparent;
-  color: #ffffff;
+  color: var(--c-text);
   /* Under 16px triggers iOS Safari's auto-zoom-on-focus */
   font-size: 16px;
   text-align: center;
@@ -714,7 +714,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .set-time-sep {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 20px;
   font-weight: 700;
@@ -723,17 +723,17 @@ body:has(.home-screen) .athlete-app-card {
 .set-unit-toggle {
   flex-shrink: 0;
   padding: 8px 10px;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   background: transparent;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   cursor: pointer;
 }
 
 .set-unit-toggle:hover {
-  border-color: #4a4a8e;
-  color: #ffffff;
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .set-unit-toggle:disabled {
@@ -745,22 +745,22 @@ body:has(.home-screen) .athlete-app-card {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   background: transparent;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 16px;
   cursor: pointer;
 }
 
 .set-check-btn:hover {
-  border-color: #4a4a8e;
-  color: #ffffff;
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .set-check-btn.checked {
   background-color: #4caf50;
   border-color: #4caf50;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 /* The check/uncheck hasn't been confirmed saved after all its retries yet -
@@ -783,12 +783,12 @@ body:has(.home-screen) .athlete-app-card {
   border-radius: 8px;
   padding: 10px 14px;
   margin-bottom: 16px;
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 13px;
 }
 
 .sync-banner-detail {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 12px;
   margin-top: 2px;
 }
@@ -797,7 +797,7 @@ body:has(.home-screen) .athlete-app-card {
   flex-shrink: 0;
   background: transparent;
   border: none;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 14px;
   cursor: pointer;
   padding: 4px;
@@ -810,8 +810,8 @@ body:has(.home-screen) .athlete-app-card {
 .add-set-btn {
   margin-top: 12px;
   background: transparent;
-  border: 1px dashed #2a2a4e;
-  color: #aaaacc;
+  border: 1px dashed var(--c-border);
+  color: var(--c-text-muted);
   border-radius: 8px;
   padding: 8px 14px;
   font-size: 13px;
@@ -819,8 +819,8 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .add-set-btn:hover {
-  border-color: #4a4a8e;
-  color: #ffffff;
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .own-add-exercise-btn {
@@ -879,13 +879,13 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .own-builder-subtitle {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin: -6px 0 14px;
 }
 
 .own-builder-section-label {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -905,10 +905,10 @@ body:has(.home-screen) .athlete-app-card {
   gap: 16px;
   position: fixed;
   left: 50%;
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  bottom: var(--nav-offset);
   transform: translateX(-50%);
-  background-color: #1a1a2e;
-  border: 1px solid #4a4a8e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-accent);
   border-radius: 36px;
   padding: 10px 12px 10px 22px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -916,7 +916,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .own-builder-start-count {
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -931,10 +931,10 @@ body:has(.home-screen) .athlete-app-card {
   gap: 20px;
   position: fixed;
   left: 50%;
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px)); /* clears the floating .bottom-nav */
+  bottom: var(--nav-offset); /* clears the floating .bottom-nav */
   transform: translateX(-50%);
-  background-color: #1a1a2e;
-  border: 1px solid #4a4a8e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-accent);
   border-radius: 36px;
   padding: 16px 26px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -942,12 +942,12 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .rest-timer-label {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 15px;
 }
 
 .rest-timer-time {
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 26px;
   font-weight: 600;
   min-width: 64px;
@@ -956,8 +956,8 @@ body:has(.home-screen) .athlete-app-card {
 
 .rest-timer-skip {
   background: transparent;
-  border: 1px solid #2a2a4e;
-  color: #aaaacc;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-muted);
   border-radius: 20px;
   padding: 10px 18px;
   font-size: 14px;
@@ -965,8 +965,8 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .rest-timer-skip:hover {
-  border-color: #4a4a8e;
-  color: #ffffff;
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 /* ==========================================================================
@@ -981,7 +981,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .welcome-header p {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin: 0;
 }
@@ -1011,8 +1011,8 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .week-day-card {
-  background-color: #1a1a2e;
-  border: 1px solid #2a2a4e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 10px;
   padding: 16px 8px;
   text-align: center;
@@ -1027,7 +1027,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .week-day-card:hover {
-  border-color: #4a4a8e;
+  border-color: var(--c-accent);
 }
 
 /* "Today" is a ring (box-shadow), not a border/background change, so it
@@ -1035,7 +1035,7 @@ body:has(.home-screen) .athlete-app-card {
    the two used to fight over the same border-color/background and today's
    own workout would silently win, hiding which card was actually today. */
 .week-day-card.today {
-  box-shadow: 0 0 0 2px #4a4a8e;
+  box-shadow: 0 0 0 2px var(--c-accent);
 }
 
 /* One status tint per card, mutually exclusive (see renderWeekView) -
@@ -1065,13 +1065,13 @@ body:has(.home-screen) .athlete-app-card {
 
 .week-day-name {
   font-size: 13px;
-  color: #aaaacc;
+  color: var(--c-text-muted);
 }
 
 .week-day-number {
   font-size: 22px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 /* Type icons replacing the old plain status dots - shape says what kind of
@@ -1090,7 +1090,7 @@ body:has(.home-screen) .athlete-app-card {
   width: 27px;
   height: 27px;
   border-radius: 50%;
-  color: #ffffff;
+  color: var(--c-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1120,7 +1120,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .type-icon-tournament {
   background-color: #d4a017;
-  color: #1a1a2e;
+  color: var(--c-surface);
 }
 
 .type-icon-form {
@@ -1133,8 +1133,8 @@ body:has(.home-screen) .athlete-app-card {
   padding: 0 7px;
   border-radius: 14px;
   background-color: transparent;
-  border: 1px solid #2a2a4e;
-  color: #aaaacc;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-muted);
   font-size: 11px;
 }
 
@@ -1153,8 +1153,8 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .home-tile {
-  background-color: #1a1a2e;
-  border: 1px solid #2a2a4e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 10px;
   padding: 20px 12px;
   display: flex;
@@ -1163,12 +1163,12 @@ body:has(.home-screen) .athlete-app-card {
   gap: 6px;
   text-align: center;
   cursor: pointer;
-  color: #ffffff;
+  color: var(--c-text);
   transition: border-color 0.2s;
 }
 
 .home-tile:hover {
-  border-color: #4a4a8e;
+  border-color: var(--c-accent);
 }
 
 .home-tile.disabled {
@@ -1184,14 +1184,14 @@ body:has(.home-screen) .athlete-app-card {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background-color: #4a4a8e;
+  background-color: var(--c-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 12px;
 }
 .home-tile-icon-chip svg {
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .home-tile-label {
@@ -1201,7 +1201,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .home-tile-sublabel {
   font-size: 11px;
-  color: #aaaacc;
+  color: var(--c-text-muted);
 }
 
 /* --- Day preview (read-only exercise list before starting a workout) --- */
@@ -1225,8 +1225,8 @@ body:has(.home-screen) .athlete-app-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  background-color: #1a1a2e;
-  border: 1px solid #2a2a4e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 10px;
@@ -1239,7 +1239,7 @@ body:has(.home-screen) .athlete-app-card {
   aspect-ratio: 16 / 9;
   border-radius: 6px;
   overflow: hidden;
-  background-color: #0f0f1a;
+  background-color: var(--c-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1289,7 +1289,7 @@ body:has(.home-screen) .athlete-app-card {
   height: 0;
   border-style: solid;
   border-width: 5px 0 5px 8px;
-  border-color: transparent transparent transparent #ffffff;
+  border-color: transparent transparent transparent var(--c-text);
   pointer-events: none;
 }
 
@@ -1299,22 +1299,22 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .day-preview-name {
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 14px;
   font-weight: 600;
 }
 
 .day-preview-target,
 .day-preview-logged {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin-top: 2px;
 }
 
 .start-workout-btn {
   width: 100%;
-  background-color: #4a4a8e;
-  color: #ffffff;
+  background-color: var(--c-accent);
+  color: var(--c-text);
   border: none;
   border-radius: 10px;
   padding: 16px;
@@ -1341,7 +1341,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .active-exercise-progress {
   flex: 1;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   text-align: center;
   margin-bottom: 0;
@@ -1358,7 +1358,7 @@ body:has(.home-screen) .athlete-app-card {
   aspect-ratio: 16 / 9;
   border-radius: 10px;
   overflow: hidden;
-  background-color: #1a1a2e;
+  background-color: var(--c-surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1417,14 +1417,14 @@ body:has(.home-screen) .athlete-app-card {
   height: 0;
   border-style: solid;
   border-width: 9px 0 9px 15px;
-  border-color: transparent transparent transparent #ffffff;
+  border-color: transparent transparent transparent var(--c-text);
   pointer-events: none;
 }
 
 .active-exercise-title {
   font-size: 20px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--c-text);
   margin-bottom: 4px;
 }
 
@@ -1452,8 +1452,8 @@ body:has(.home-screen) .athlete-app-card {
 .exercise-history-btn,
 .exercise-swap-btn {
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #2a2a4e;
-  color: #aaaacc;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-muted);
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 12px;
@@ -1463,8 +1463,8 @@ body:has(.home-screen) .athlete-app-card {
 
 .exercise-history-btn:hover,
 .exercise-swap-btn:hover {
-  border-color: #4a4a8e;
-  color: #ffffff;
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .exercise-swap-btn {
@@ -1477,7 +1477,7 @@ body:has(.home-screen) .athlete-app-card {
    above the title, not a full group header, since only one exercise (or
    superset pair) is ever visible at a time on this screen */
 .active-exercise-section-label {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1501,7 +1501,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .group-gate-desc {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin-bottom: 16px;
 }
@@ -1518,7 +1518,7 @@ body:has(.home-screen) .athlete-app-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 14px;
 }
 
@@ -1531,7 +1531,7 @@ body:has(.home-screen) .athlete-app-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #1a1a2e;
+  background-color: var(--c-surface);
   font-size: 18px;
 }
 
@@ -1546,7 +1546,7 @@ body:has(.home-screen) .athlete-app-card {
    passes undefined since a group step only ever shows one exercise */
 .set-row-exercise-label {
   display: block;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -1581,7 +1581,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .swipe-hint-arrow {
   display: inline-block;
-  color: #4a4a8e;
+  color: var(--c-accent);
   font-size: 16px;
 }
 
@@ -1619,11 +1619,11 @@ body:has(.home-screen) .athlete-app-card {
 .workout-summary-stat-value {
   font-size: 28px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .workout-summary-stat-label {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin-top: 2px;
 }
@@ -1644,10 +1644,10 @@ body:has(.home-screen) .athlete-app-card {
   align-items: center;
   width: 100%;
   background: transparent;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   padding: 10px 14px;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 14px;
   text-align: left;
   cursor: pointer;
@@ -1655,13 +1655,13 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .week-picker-row:hover {
-  border-color: #4a4a8e;
+  border-color: var(--c-accent);
   color: white;
 }
 
 .week-picker-row.selected {
-  background-color: #4a4a8e;
-  border-color: #4a4a8e;
+  background-color: var(--c-accent);
+  border-color: var(--c-accent);
   color: white;
 }
 
@@ -1674,14 +1674,14 @@ body:has(.home-screen) .athlete-app-card {
   margin-top: 4px;
   background: transparent;
   border: none;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 12px;
   cursor: pointer;
   text-decoration: underline;
 }
 
 .duration-edit-btn:hover {
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .duration-warning {
@@ -1701,18 +1701,18 @@ body:has(.home-screen) .athlete-app-card {
 .duration-edit-row input {
   width: 70px;
   padding: 8px 10px;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   /* Under 16px triggers iOS Safari's auto-zoom-on-focus, same reasoning as
      the set-reps-input/set-weight-input fields above */
   font-size: 16px;
-  color: #ffffff;
-  background-color: #0f0f1a;
+  color: var(--c-text);
+  background-color: var(--c-bg);
   text-align: center;
 }
 
 .duration-edit-row span {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
 }
 
@@ -1723,7 +1723,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .rpe-picker-label {
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 14px;
   margin-bottom: 10px;
 }
@@ -1739,26 +1739,26 @@ body:has(.home-screen) .athlete-app-card {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   background: transparent;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 14px;
   cursor: pointer;
 }
 
 .rpe-btn:hover {
-  border-color: #4a4a8e;
-  color: #ffffff;
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .rpe-btn.selected {
-  background-color: #4a4a8e;
-  border-color: #4a4a8e;
-  color: #ffffff;
+  background-color: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .rpe-picker-hint {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 11px;
   margin-top: 8px;
 }
@@ -1772,7 +1772,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .importance-picker-label {
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 14px;
   margin-bottom: 10px;
 }
@@ -1788,26 +1788,26 @@ body:has(.home-screen) .athlete-app-card {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   background: transparent;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 15px;
   cursor: pointer;
 }
 
 .importance-btn:hover {
   border-color: #d4a017;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .importance-btn.selected {
   background-color: #d4a017;
   border-color: #d4a017;
-  color: #1a1a2e;
+  color: var(--c-surface);
 }
 
 .importance-picker-hint {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 12px;
   margin-top: 10px;
 }
@@ -1823,8 +1823,8 @@ body:has(.home-screen) .athlete-app-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  background-color: #1a1a2e;
-  border: 1px solid #2a2a4e;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 10px;
   padding: 12px 14px;
 }
@@ -1839,12 +1839,12 @@ body:has(.home-screen) .athlete-app-card {
 .tournament-list-name {
   font-weight: 600;
   font-size: 14px;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 .tournament-list-date {
   font-size: 12px;
-  color: #aaaacc;
+  color: var(--c-text-muted);
 }
 
 .tournament-list-badge {
@@ -1867,11 +1867,11 @@ body:has(.home-screen) .athlete-app-card {
 .rpe-flag-followup {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #2a2a4e;
+  border-top: 1px solid var(--c-border);
 }
 
 .rpe-flag-question {
-  color: #ffffff;
+  color: var(--c-text);
   font-size: 13px;
   margin-bottom: 10px;
 }
@@ -1886,22 +1886,22 @@ body:has(.home-screen) .athlete-app-card {
 .rpe-flag-choice-btn {
   padding: 8px 14px;
   border-radius: 20px;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   background: transparent;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   cursor: pointer;
 }
 
 .rpe-flag-choice-btn:hover {
-  border-color: #4a4a8e;
-  color: #ffffff;
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .rpe-flag-choice-btn.selected {
-  background-color: #4a4a8e;
-  border-color: #4a4a8e;
-  color: #ffffff;
+  background-color: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-text);
 }
 
 .rpe-flag-note-row {
@@ -1911,7 +1911,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .rpe-flag-note-row label {
   display: block;
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 12px;
   margin-bottom: 6px;
 }
@@ -1919,11 +1919,11 @@ body:has(.home-screen) .athlete-app-card {
 .rpe-flag-note-row textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #2a2a4e;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   font-size: 16px;
-  color: #ffffff;
-  background-color: #0f0f1a;
+  color: var(--c-text);
+  background-color: var(--c-bg);
   font-family: inherit;
   resize: vertical;
 }
@@ -1952,7 +1952,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .plyo-load-line {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 12px;
   margin: 0 0 8px;
 }
@@ -1966,7 +1966,7 @@ body:has(.home-screen) .athlete-app-card {
 
 .summary-exercise-row {
   padding: 12px 0;
-  border-bottom: 1px solid #2a2a4e;
+  border-bottom: 1px solid var(--c-border);
 }
 
 .summary-exercise-row:last-child {
@@ -1980,7 +1980,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .summary-exercise-sets {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 13px;
   margin: 0;
 }
@@ -2028,7 +2028,7 @@ body:has(.home-screen) .athlete-app-card {
 
   .athlete-app-page.wide {
     padding: 16px 12px;
-    padding-bottom: 108px; /* clears the floating .bottom-nav - the shorthand above resets it */
+    padding-bottom: var(--nav-clearance); /* clears the floating .bottom-nav - the shorthand above resets it */
   }
 
   .athlete-app-card.wide {
@@ -2102,11 +2102,11 @@ body:has(.home-screen) .athlete-app-card {
 
 .unit-toggle-switch span {
   font-size: 13px;
-  color: #aaaacc;
+  color: var(--c-text-muted);
 }
 
 .unit-toggle-switch span.active {
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 /* First-time app intro (see enterAppMaybeIntro()/renderIntroStep() in
@@ -2139,7 +2139,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .intro-body {
-  color: #aaaacc;
+  color: var(--c-text-muted);
   font-size: 14px;
   line-height: 1.5;
   max-width: 340px;
@@ -2156,11 +2156,11 @@ body:has(.home-screen) .athlete-app-card {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #2a2a4e;
+  background-color: var(--c-border);
 }
 
 .intro-dot.active {
-  background-color: #4a4a8e;
+  background-color: var(--c-accent);
 }
 
 .intro-actions {
