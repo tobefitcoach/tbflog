@@ -3,6 +3,41 @@
    ========================================================================== */
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
+/* ==========================================================================
+   DESIGN TOKENS
+   Named here rather than reintroduced per-value - every value below is
+   byte-identical to the literal it replaces across style.css/athlete.css/
+   app.css/login.css, so defining them changes nothing on its own. Only the
+   six colours that already dominate the app (by grep count) and the two
+   floating-nav-clearance magic numbers (previously duplicated across five
+   separate rules, so a nav height change meant hunting all five by hand)
+   are tokenised - the ~20 one-off accent/chart colours are left alone.
+   ========================================================================== */
+:root {
+  --c-bg: #0f0f1a;
+  --c-surface: #1a1a2e;
+  --c-border: #2a2a4e;
+  --c-text: #ffffff;
+  --c-text-muted: #aaaacc;
+  --c-accent: #4a4a8e;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+
+  --nav-clearance: 108px;
+  --nav-offset: calc(84px + env(safe-area-inset-bottom, 0px));
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 20px;
+}
+
 * {
   margin: 0;
   padding: 0;
