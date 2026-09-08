@@ -37,7 +37,7 @@ header {
 }
 
 .header-logo {
-  height: 42px;
+  height: 18px;
   width: auto;
   display: block;
 }
@@ -897,7 +897,7 @@ header {
   }
 
   .header-logo {
-    height: 36px;
+    height: 16px;
   }
 
   .modal {

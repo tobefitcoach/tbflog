@@ -46,7 +46,7 @@ header {
 }
 
 .header-logo {
-  height: 60px;
+  height: 26px;
 }
 
 /* Persistent app header (outside #pageContent, so this never unmounts as
@@ -62,7 +62,7 @@ header {
 }
 
 .athlete-app-header .header-logo {
-  height: 110px;
+  height: 48px;
 }
 
 /* ==========================================================================
@@ -2023,7 +2023,7 @@ body:has(.home-screen) .athlete-app-card {
   }
 
   .header-logo {
-    height: 56px;
+    height: 24px;
   }
 
   .athlete-app-page.wide {
