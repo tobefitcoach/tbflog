@@ -67,6 +67,20 @@ function setActiveBottomTab(tab) {
   })
 }
 
+// Runs at the top of every screen renderer. Previously each one only cleared
+// the rest timer, so leaving a mobility screen any way other than its own
+// Cancel/Finish button (tapping Home, say) left its interval ticking against
+// a torn-down DOM and silently dropped the session. Clearing all three
+// unconditionally is safe: the two rest-timer completion paths capture
+// restTimerOnDone into a local before calling clearRestTimer (see the comment
+// above restTimerOnDone), so this never fires a group step's auto-advance.
+function teardownScreen() {
+  clearRestTimer()
+  clearMobilityTimer()
+  clearMobilityFlowTimer()
+  if (swipeCleanup) { swipeCleanup(); swipeCleanup = null }
+}
+
 document.getElementById('weeklyRecapCloseBtn').addEventListener('click', function() {
   document.getElementById('weeklyRecapModal').classList.remove('active')
   // Chained rather than both firing at app-entry independently - two
@@ -1265,7 +1279,7 @@ function playInlineVideo(containerEl, url) {
 // ==========================================================================
 function renderWeekView(weekStart) {
   setActiveBottomTab('home')
-  clearRestTimer()
+  teardownScreen()
   currentWeekStart = weekStart
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
@@ -2189,7 +2203,7 @@ function wireExercisePicker(searchInputEl, listEl, library, onPick) {
 // upfront planning - that's renderOwnWorkoutBuilder below, used instead for
 // the very first exercise of a fresh (or emptied-back-to-zero) day.
 async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -2254,7 +2268,7 @@ function getRecentlyLoggedExercises(library, limit) {
 // go, so backing out here leaves no trace. Once started, it's the exact
 // same renderActiveExercise flow as a coach-built workout.
 async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -2906,7 +2920,7 @@ function renderWeeklyStatsBody(weekStart) {
 // ---- DAY PREVIEW (read-only, no logging inputs) ----
 // ==========================================================================
 function renderDayPreview(dateStr) {
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -3457,7 +3471,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
     return
   }
 
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -3543,7 +3557,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 // automatically. See buildGroupSteps for the exact step order.
 // ==========================================================================
 function renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction) {
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -3599,7 +3613,7 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
 }
 
 function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction) {
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -3955,7 +3969,7 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
 // only place "End Workout" lives now, instead of a persistent link on
 // every slide
 function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, direction) {
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
@@ -4147,7 +4161,7 @@ async function finishWorkout(entry, session) {
 }
 
 function renderWorkoutSummary(finishedSession, entry) {
-  clearRestTimer()
+  teardownScreen()
   pageWrap.classList.add('wide')
   cardWrap.classList.add('wide')
 
