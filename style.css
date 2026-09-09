@@ -521,6 +521,19 @@ header {
   color: var(--c-text);
   background-color: var(--c-bg);
 }
+
+/* WKWebView's native type="date" widget doesn't reliably shrink to a
+   percentage width the way every other input here does - left alone it
+   renders at its own internal content width and overflows straight past
+   the card edge (seen on the Add Tournament date fields, but every
+   type="date" field in both apps shares this same .form-group rule).
+   max-width/min-width force it back inside its container regardless of
+   whatever width its internal date-picker shadow DOM wants. */
+.form-group input[type="date"] {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
  
  
 /* --- Cancel / Save buttons at the bottom of a modal --- */
