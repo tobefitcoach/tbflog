@@ -615,7 +615,7 @@ function resizeImageFile(file, maxSize) {
 // loaded anywhere in this app (the athletes row only carries coach_id), so
 // it's fetched lazily here, once, the first time this tab is opened.
 async function renderProfile() {
-  nav.enter('profile', {}, { root: true, tab: 'profile' })
+  const myToken = nav.enter('profile', {}, { root: true, tab: 'profile' })
   pageContent.innerHTML = `
     <div class="day-view-header">
       <h2 class="day-view-date">Profile</h2>
@@ -636,6 +636,12 @@ async function renderProfile() {
     )
     coachName = (data && data.name) || ''
   }
+
+  // Unlike renderCommunication (guarded by #chatMessages existence),
+  // nothing below checks whether Profile is still the visible screen -
+  // without this, navigating away during either await above would still
+  // land this render on top of whatever screen the athlete is actually on.
+  if (!nav.isCurrent(myToken)) return
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -1582,10 +1588,11 @@ function wireSyncBanner(onDone) {
 //     finishMobilitySession)
 // ==========================================================================
 async function renderMobilityAreaPicker() {
-  nav.enter('mobilityAreas', {})
+  const myToken = nav.enter('mobilityAreas', {})
   pageContent.innerHTML = '<p>Loading...</p>'
 
   const [stretches] = await Promise.all([loadStretchLibrary(), loadAthleteStretchPreferences()])
+  if (!nav.isCurrent(myToken)) return
 
   if (stretches.length === 0) {
     renderMobilityPicker([]) // nothing filmed yet - straight to the plain duration picker + blank timer
@@ -2271,7 +2278,7 @@ function wireExercisePicker(searchInputEl, listEl, library, onPick) {
 // upfront planning - that's renderOwnWorkoutBuilder below, used instead for
 // the very first exercise of a fresh (or emptied-back-to-zero) day.
 async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
-  nav.enter('ownAddExercise', { entry, dateStr, sessionPromise, returnIndex })
+  const myToken = nav.enter('ownAddExercise', { entry, dateStr, sessionPromise, returnIndex })
   teardownScreen()
 
   pageContent.innerHTML = `
@@ -2292,6 +2299,7 @@ async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, retur
 
   const library = await loadExerciseLibrary()
   if (library === null) return
+  if (!nav.isCurrent(myToken)) return // navigated away while the library loaded - #ownAddExerciseSearchInput is gone
 
   wireExercisePicker(
     document.getElementById('ownAddExerciseSearchInput'),
@@ -2335,7 +2343,7 @@ function getRecentlyLoggedExercises(library, limit) {
 // go, so backing out here leaves no trace. Once started, it's the exact
 // same renderActiveExercise flow as a coach-built workout.
 async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
-  nav.enter('ownBuilder', { entry, dateStr, sessionPromise }, { collapse: true })
+  const myToken = nav.enter('ownBuilder', { entry, dateStr, sessionPromise }, { collapse: true })
   teardownScreen()
 
   const selected = new Map() // exercise_id -> exercise object, insertion-ordered
@@ -2358,6 +2366,7 @@ async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
 
   const library = await loadExerciseLibrary()
   if (library === null) return
+  if (!nav.isCurrent(myToken)) return // navigated away while the library loaded - #ownBuilderCategoryChips is gone
 
   const categories = [...new Set(library.map(ex => ex.category).filter(c => c && c.trim()))].sort()
   document.getElementById('ownBuilderCategoryChips').innerHTML = categories.map(cat =>
@@ -3079,7 +3088,7 @@ function renderFormPreviewCard(fa, dateStr) {
 // more later" scope as everything else about forms.
 // ==========================================================================
 async function renderFormFill(fa, dateStr) {
-  nav.enter('formFill', { fa, dateStr })
+  const myToken = nav.enter('formFill', { fa, dateStr })
 
   const formName = fa.forms ? fa.forms.name : 'Form'
   const done = !!fa.completed_at
@@ -3099,6 +3108,7 @@ async function renderFormFill(fa, dateStr) {
     supabase.from('form_questions').select('*').eq('form_id', fa.form_id).order('order_index'),
     supabase.from('form_answers').select('*').eq('assignment_id', fa.id)
   ])
+  if (!nav.isCurrent(myToken)) return // navigated away while the form loaded - #formFillQuestions is gone
 
   if (error) { console.log(error); document.getElementById('formFillQuestions').innerHTML = '<p class="no-metrics">Something went wrong loading this form - check your connection and try again</p>'; return }
   if (answersError) console.log(answersError)

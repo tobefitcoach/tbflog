@@ -43,6 +43,25 @@ let suppressNextPop = false
 let pendingAfterPop = null // {name, args, tab} - set by popTo, consumed by the next popstate
 let guardBusy = false
 
+// Bumped on every single screen entry, forward or replayed - see enter()
+// below. Several renderers (renderCommunication, renderProfile,
+// renderMobilityAreaPicker, renderFormFill, renderOwnWorkoutAddExercise,
+// renderOwnWorkoutBuilder) paint a loading shell, await a Supabase round
+// trip, then paint the real content - if the athlete navigates away during
+// that await (always possible; now more reachable via a back gesture),
+// the stale response landing afterward would overwrite whatever screen is
+// actually showing by then. A renderer captures enter()'s return value and
+// checks isCurrent(token) after each await before touching the DOM again.
+let generation = 0
+
+export function token() {
+  return generation
+}
+
+export function isCurrent(t) {
+  return t === generation
+}
+
 function currentFrame() {
   return cursor >= 0 ? frames[cursor] : null
 }
@@ -64,8 +83,12 @@ function announce(frame) {
 // Called from the top of every routable renderer. Does nothing but
 // bookkeeping - the renderer's own body runs exactly as it always has,
 // whether this was a normal forward call or a replay driven by popstate.
+// Returns the current generation token (see above) - async renderers
+// capture it and check isCurrent(token) after each await.
 export function enter(name, args, opts = {}) {
-  if (replaying) return // popstate is already driving this render; don't re-push what it just replayed
+  generation++
+  const myToken = generation
+  if (replaying) return myToken // popstate is already driving this render; don't re-push what it just replayed
   const cur = currentFrame()
 
   if (opts.root) {
@@ -79,7 +102,7 @@ export function enter(name, args, opts = {}) {
     cursor = 0
     history.replaceState({ nav: EPOCH, i: 0 }, '', location.href)
     announce(frames[0])
-    return
+    return myToken
   }
 
   if (opts.popTo) {
@@ -93,7 +116,7 @@ export function enter(name, args, opts = {}) {
     if (targetIdx !== -1 && targetIdx < cursor) {
       pendingAfterPop = { name, args, tab: resolveTab(opts, frames[targetIdx]) }
       history.go(targetIdx - cursor)
-      return
+      return myToken
     }
     // Target not found behind us (e.g. summary reopened straight from Day
     // Preview's "View Summary", never having entered a workout this
@@ -112,6 +135,7 @@ export function enter(name, args, opts = {}) {
     history.pushState({ nav: EPOCH, i: cursor }, '', location.href)
   }
   announce(frames[cursor])
+  return myToken
 }
 
 async function onPopState(e) {
