@@ -16,6 +16,7 @@
 // ==========================================================================
 import { supabase } from './athleteClient.js'
 import { pushStatus, enablePush, disablePush, sendPush } from '../push.js'
+import * as nav from './nav.js'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')
@@ -66,6 +67,58 @@ function setActiveBottomTab(tab) {
     btn.classList.toggle('active', btn.dataset.tab === tab)
   })
 }
+
+// ==========================================================================
+// ---- NAVIGATION HISTORY (shadow mode) ----
+// Gives every screen a real history entry (see nav.js for why) without yet
+// changing how anything gets THERE - every on-screen "<- Back" button and
+// nav-bar tap still calls its target renderer directly, exactly as before.
+// nav.enter() is called from the top of each of the 21 routable renderers
+// below; ROUTES is what lets a popstate (today: a real browser's back
+// button: eventually, Android hardware back / iOS edge-swipe once that's
+// wired up in a later pass) replay the right one. Function declarations are
+// hoisted, so referencing them here before their own definitions further
+// down the file is fine - by the time nav.init() actually runs, they all
+// already exist.
+//
+// The 4 pre-app states (wrong role / waiting to be linked / complete
+// profile / intro) are deliberately NOT routed - they render before this
+// point in the app's lifecycle is even reachable, and there's nothing
+// meaningful for back to do on any of them yet.
+//
+// "workout" is one route name backed by 4 different renderers
+// (renderActiveExercise/GroupGate/GroupStep/EndOfWorkoutSlide) - each is
+// just a different way of showing "the guided workout, right now", so
+// collapse:true at every one of their call sites keeps swiping through a
+// whole workout to a single history entry. args.variant says which to
+// replay.
+const ROUTES = {
+  home:             a => renderWeekView(a.weekStart),
+  stats:            () => renderWeeklyStats(),
+  chat:             () => renderCommunication(),
+  profile:          () => renderProfile(),
+  dayPreview:       a => renderDayPreview(a.dateStr),
+  formFill:         a => renderFormFill(a.fa, a.dateStr),
+  tournaments:      () => renderTournaments(),
+  addTournament:    () => renderAddTournamentForm(),
+  mobilityAreas:    () => renderMobilityAreaPicker(),
+  mobilityPicker:   a => renderMobilityPicker(a.selectedAreas),
+  mobilityTimer:    a => renderMobilityTimer(a.totalSeconds),
+  mobilityFlow:     a => renderMobilityFlow(a.queue, a.totalSeconds, a.selectedAreas),
+  addWorkoutChoice: () => renderAddWorkoutChoice(),
+  addWorkoutField:  a => renderAddWorkoutFieldForm(a.type),
+  ownBuilder:       a => renderOwnWorkoutBuilder(a.entry, a.dateStr, a.sessionPromise),
+  ownAddExercise:   a => renderOwnWorkoutAddExercise(a.entry, a.dateStr, a.sessionPromise, a.returnIndex),
+  workout: a => {
+    if (a.variant === 'groupGate') renderGroupGate(a.entry, a.dateStr, a.slides, a.index, a.sessionPromise, a.direction)
+    else if (a.variant === 'groupStep') renderGroupStep(a.entry, a.dateStr, a.slides, a.index, a.sessionPromise, a.steps, a.stepIndex, a.direction)
+    else if (a.variant === 'endOfWorkout') renderEndOfWorkoutSlide(a.entry, a.dateStr, a.slides, a.sessionPromise, a.direction)
+    else renderActiveExercise(a.entry, a.dateStr, a.slides, a.index, a.sessionPromise, a.direction)
+  },
+  workoutSummary: a => renderWorkoutSummary(a.session, a.entry),
+}
+
+nav.init(ROUTES, function(frame) { setActiveBottomTab(frame.tab) })
 
 // Runs at the top of every screen renderer. Previously each one only cleared
 // the rest timer, so leaving a mobility screen any way other than its own
@@ -440,7 +493,7 @@ function pushStatusDesc(status) {
 // same poll-on-open convention as the rest of this file (no live
 // subscription). Renders any message with pdf_url set as an attachment link.
 async function renderCommunication() {
-  setActiveBottomTab('communication')
+  nav.enter('chat', {}, { root: true, tab: 'communication' })
   pageContent.innerHTML = `
     <div class="day-view-header">
       <h2 class="day-view-date">Chat with your coach</h2>
@@ -562,7 +615,7 @@ function resizeImageFile(file, maxSize) {
 // loaded anywhere in this app (the athletes row only carries coach_id), so
 // it's fetched lazily here, once, the first time this tab is opened.
 async function renderProfile() {
-  setActiveBottomTab('profile')
+  nav.enter('profile', {}, { root: true, tab: 'profile' })
   pageContent.innerHTML = `
     <div class="day-view-header">
       <h2 class="day-view-date">Profile</h2>
@@ -840,6 +893,7 @@ async function loadTournaments() {
 }
 
 function renderTournaments() {
+  nav.enter('tournaments', {})
   const todayStr = toDateStr(new Date())
   // A multi-day tournament that's already started but hasn't finished yet
   // still belongs in "upcoming" - filtering on end_date, not date, keeps
@@ -891,6 +945,7 @@ function renderTournaments() {
 }
 
 function renderAddTournamentForm() {
+  nav.enter('addTournament', {})
   let selectedImportance = null
 
   pageContent.innerHTML = `
@@ -1286,7 +1341,7 @@ function playInlineVideo(containerEl, url) {
 // ---- WEEK VIEW (default landing) ----
 // ==========================================================================
 function renderWeekView(weekStart) {
-  setActiveBottomTab('home')
+  nav.enter('home', { weekStart }, { root: true, tab: 'home' })
   teardownScreen()
   currentWeekStart = weekStart
   // Only screen that ever needs to clear .centered: it's the sole landing
@@ -1529,6 +1584,7 @@ function wireSyncBanner(onDone) {
 //     finishMobilitySession)
 // ==========================================================================
 async function renderMobilityAreaPicker() {
+  nav.enter('mobilityAreas', {})
   pageContent.innerHTML = '<p>Loading...</p>'
 
   const [stretches] = await Promise.all([loadStretchLibrary(), loadAthleteStretchPreferences()])
@@ -1584,6 +1640,7 @@ async function renderMobilityAreaPicker() {
 }
 
 function renderMobilityPicker(selectedAreas) {
+  nav.enter('mobilityPicker', { selectedAreas })
 
   const presets = [10, 15, 20]
   const hasLibrary = stretchLibraryCache && stretchLibraryCache.length > 0
@@ -1624,6 +1681,12 @@ function renderMobilityPicker(selectedAreas) {
 }
 
 function renderMobilityTimer(totalSeconds) {
+  nav.enter('mobilityTimer', { totalSeconds }, {
+    // Writes nothing until finishMobilitySession - unlike a workout (durable
+    // pending queue, safe to back out of silently), leaving here mid-count
+    // loses the whole session, so this is the one screen worth asking first.
+    guard: () => customConfirm("End this mobility session? Your progress so far won't be saved.")
+  })
   const startedAt = new Date()
   let remaining = totalSeconds
 
@@ -1813,6 +1876,10 @@ async function startMobilityFlow(selectedAreas, totalSeconds) {
 // never the video's own length or its 'ended' event - which is what lets a
 // short clip (loop="true") cover a longer hold.
 function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
+  nav.enter('mobilityFlow', { queue, totalSeconds, selectedAreas }, {
+    collapse: true,
+    guard: () => customConfirm("End this mobility session? Your progress so far won't be saved.")
+  })
 
   const startedAt = new Date()
   let index = 0
@@ -2097,6 +2164,7 @@ async function loadExerciseLibrary() {
 }
 
 function renderAddWorkoutChoice() {
+  nav.enter('addWorkoutChoice', {})
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -2208,6 +2276,7 @@ function wireExercisePicker(searchInputEl, listEl, library, onPick) {
 // upfront planning - that's renderOwnWorkoutBuilder below, used instead for
 // the very first exercise of a fresh (or emptied-back-to-zero) day.
 async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
+  nav.enter('ownAddExercise', { entry, dateStr, sessionPromise, returnIndex })
   teardownScreen()
 
   pageContent.innerHTML = `
@@ -2271,6 +2340,7 @@ function getRecentlyLoggedExercises(library, limit) {
 // go, so backing out here leaves no trace. Once started, it's the exact
 // same renderActiveExercise flow as a coach-built workout.
 async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
+  nav.enter('ownBuilder', { entry, dateStr, sessionPromise }, { collapse: true })
   teardownScreen()
 
   const selected = new Map() // exercise_id -> exercise object, insertion-ordered
@@ -2501,6 +2571,7 @@ async function findOrCreateSelfLoggedDay(dateStr, name, workoutType) {
 // shape for both, just a different title/placeholder/default activity name
 // and the `type` ('field' or 'run') that ends up on the program_days row ----
 function renderAddWorkoutFieldForm(type) {
+  nav.enter('addWorkoutField', { type })
 
   const presets = [20, 30, 45, 60, 90]
   let selectedRpe = null
@@ -2849,7 +2920,7 @@ function showWeeklyRecapModal(stats) {
 // selection, re-render just the body in place on each pick.
 // ==========================================================================
 function renderWeeklyStats() {
-  setActiveBottomTab('stats')
+  nav.enter('stats', {}, { root: true, tab: 'stats' })
   const thisMonday = startOfWeek(new Date())
 
   pageContent.innerHTML = `
@@ -2919,6 +2990,7 @@ function renderWeeklyStatsBody(weekStart) {
 // ---- DAY PREVIEW (read-only, no logging inputs) ----
 // ==========================================================================
 function renderDayPreview(dateStr) {
+  nav.enter('dayPreview', { dateStr })
   teardownScreen()
 
   const isToday = dateStr === toDateStr(new Date())
@@ -2998,6 +3070,7 @@ function renderFormPreviewCard(fa, dateStr) {
 // more later" scope as everything else about forms.
 // ==========================================================================
 async function renderFormFill(fa, dateStr) {
+  nav.enter('formFill', { fa, dateStr })
 
   const formName = fa.forms ? fa.forms.name : 'Form'
   const done = !!fa.completed_at
@@ -3466,6 +3539,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
     return
   }
 
+  nav.enter('workout', { variant: 'activeExercise', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true })
   teardownScreen()
 
   const isLast = index === slides.length - 1
@@ -3550,6 +3624,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 // automatically. See buildGroupSteps for the exact step order.
 // ==========================================================================
 function renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction) {
+  nav.enter('workout', { variant: 'groupGate', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true })
   teardownScreen()
 
   const slide = slides[index]
@@ -3604,6 +3679,7 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
 }
 
 function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction) {
+  nav.enter('workout', { variant: 'groupStep', entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction }, { collapse: true })
   teardownScreen()
 
   const slide = slides[index]
@@ -3958,6 +4034,7 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
 // only place "End Workout" lives now, instead of a persistent link on
 // every slide
 function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, direction) {
+  nav.enter('workout', { variant: 'endOfWorkout', entry, dateStr, slides, sessionPromise, direction }, { collapse: true })
   teardownScreen()
 
   pageContent.innerHTML = `
@@ -4148,6 +4225,13 @@ async function finishWorkout(entry, session) {
 }
 
 function renderWorkoutSummary(finishedSession, entry) {
+  // popTo collapses any 'workout' frame(s) sitting between here and Day
+  // Preview - reached from finishWorkout(), the workout already ended, so
+  // back must land on Day Preview, not re-enter it. Reached directly from a
+  // completed Day Preview's "View Summary" instead, the current frame IS
+  // already dayPreview, so this is a no-op push right on top of it, same
+  // as any other drill-down.
+  nav.enter('workoutSummary', { session: finishedSession, entry }, { popTo: 'dayPreview' })
   teardownScreen()
 
   const durationMs = new Date(finishedSession.ended_at) - new Date(finishedSession.started_at)
