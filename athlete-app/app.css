@@ -722,6 +722,23 @@ body:has(.home-screen) .athlete-app-card {
   font-weight: 700;
 }
 
+/* Reps + time + weight together (set-row-crowded, added when the JS
+   `crowded` flag is true): splitting the row three ways with equal flex:1
+   shares was squeezing .set-time-input below the width its own two digit
+   inputs need, silently clipping "00:00" down to unreadable half-digits.
+   Pinning it to its natural content width (flex-shrink:0) fixes that -
+   .set-reps-input/.set-weight-input stay flex:1 and simply absorb whatever
+   width is left, which they can do fine since they only ever show a short
+   number. */
+.set-row-crowded .set-time-input {
+  flex: 0 0 auto;
+}
+
+.set-row-crowded .set-time-mm,
+.set-row-crowded .set-time-ss {
+  flex-shrink: 0;
+}
+
 .set-unit-toggle {
   flex-shrink: 0;
   padding: 8px 10px;

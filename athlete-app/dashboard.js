@@ -4828,7 +4828,7 @@ function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksWeight, 
   const distanceVal = draft && draft.distance !== undefined ? draft.distance : (logged ? (logged.actual_distance != null ? logged.actual_distance : '') : ((target && target.distance != null) ? target.distance : ''))
 
   return `
-    <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
+    <div class="set-row ${checked ? 'completed' : ''} ${crowded ? 'set-row-crowded' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
       <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
       ${tracksReps ? `<input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>` : ''}
       ${isTimed ? `
