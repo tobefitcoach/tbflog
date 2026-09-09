@@ -156,6 +156,16 @@ let logSetsByPE = {} // program_exercise_id -> array of exercise_log_sets rows, 
 // a set the instant it's actually checked (see checkSet), since the real
 // saved value takes over as the source of truth at that point.
 let draftSetValues = {}
+// pe.id -> how many athlete-added extra sets (beyond pe.prescribed_sets)
+// currently exist for that exercise. Same reason as draftSetValues above:
+// renderSingleSlideBody rebuilds its rows from pe.prescribed_sets/loggedSets
+// alone every time a slide re-renders, so an added-but-not-yet-logged set
+// used to vanish (along with anything typed into it) the moment the
+// athlete swiped to another exercise and back. Kept in sync with the DOM
+// on every add/remove (see addSetRow and the remove-set handler) rather
+// than just incremented/decremented, so removing a non-last extra row
+// still leaves the count matching reality.
+let extraSetCountByPE = {}
 let openSessionsByDayId = {} // program_days.id -> in-progress workout_sessions row (ended_at is null)
 let completedSessionsByDayId = {} // program_days.id -> most recently-ended workout_sessions row
 let mobilitySessionsByDate = {} // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
@@ -3884,7 +3894,7 @@ function renderSingleSlideBody(pe, isSelfLogged) {
   const thumb = getYouTubeThumbnail(videoUrl)
 
   const loggedSets = logSetsByPE[pe.id] || []
-  const rowCount = Math.max(pe.prescribed_sets || 1, loggedSets.length)
+  const rowCount = Math.max(pe.prescribed_sets || 1, loggedSets.length, (pe.prescribed_sets || 0) + (extraSetCountByPE[pe.id] || 0))
   let rowsHtml = ''
   for (let setNumber = 1; setNumber <= rowCount; setNumber++) {
     const logged = loggedSets.find(s => s.set_number === setNumber)
@@ -4922,10 +4932,10 @@ function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) {
     } else if (btn.dataset.action === 'remove-set') {
       delete draftSetValues[`${peId}-${row.dataset.setNumber}`]
       row.remove()
-      if (onExerciseEmptied) {
-        const remaining = document.getElementById(containerId).querySelectorAll(`.set-row[data-pe-id="${peId}"]`).length
-        if (remaining === 0) onExerciseEmptied(peId)
-      }
+      const remaining = document.getElementById(containerId).querySelectorAll(`.set-row[data-pe-id="${peId}"]`).length
+      const pe = findPE(peId)
+      if (pe) extraSetCountByPE[peId] = Math.max(0, remaining - (pe.prescribed_sets || 0))
+      if (onExerciseEmptied && remaining === 0) onExerciseEmptied(peId)
     }
   })
 
@@ -5000,6 +5010,7 @@ function addSetRow(peId) {
   const lastOwnRow = ownRows[ownRows.length - 1]
   if (lastOwnRow) lastOwnRow.insertAdjacentHTML('afterend', html)
   else rowsContainer.insertAdjacentHTML('beforeend', html)
+  extraSetCountByPE[peId] = Math.max(0, nextNumber - (pe.prescribed_sets || 0))
 }
 
 // Optimistic UI: the row flips to "checked" instantly, and logSetsByPE
