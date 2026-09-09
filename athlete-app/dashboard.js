@@ -2998,10 +2998,9 @@ function renderDayPreview(dateStr) {
     : formsHtml + entries.map(entry => renderDayPreviewGroup(entry, isToday, dateStr)).join('')
 
   pageContent.innerHTML = `
-    <div class="workout-active" style="display:none"></div>
     <div class="day-view-header">
+      <button class="btn-cancel" id="backToWeekBtn">← Back</button>
       <h2>${isToday ? 'Today' : formatDisplayDate(dateStr)}</h2>
-      <button class="btn-cancel" id="backToWeekBtn">Go Back</button>
     </div>
     ${isToday ? `<p class="day-view-date">${formatDisplayDate(dateStr)}</p>` : ''}
     ${renderSyncBannerHtml(loadPendingQueue().length)}
