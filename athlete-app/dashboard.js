@@ -922,9 +922,7 @@ function renderTournaments() {
     `}
   `
 
-  document.getElementById('backFromTournamentsBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
+  document.getElementById('backFromTournamentsBtn').addEventListener('click', nav.back)
   document.getElementById('addTournamentBtn').addEventListener('click', renderAddTournamentForm)
 
   document.querySelectorAll('.tournament-list-delete-btn').forEach(btn => {
@@ -976,7 +974,7 @@ function renderAddTournamentForm() {
     <button type="button" class="btn-save start-workout-btn" id="saveTournamentBtn" style="margin-top:20px">Save Tournament</button>
   `
 
-  document.getElementById('cancelAddTournamentBtn').addEventListener('click', renderTournaments)
+  document.getElementById('cancelAddTournamentBtn').addEventListener('click', nav.back)
 
   // Picking a start date auto-fills the end date to match (the common
   // single-day case needs no extra tap) - it only re-syncs when the end
@@ -1610,9 +1608,7 @@ async function renderMobilityAreaPicker() {
     <button type="button" class="btn-save start-workout-btn" id="mobilityAreaNextBtn" style="margin-top:16px">Next →</button>
   `
 
-  document.getElementById('mobilityAreaBackBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
+  document.getElementById('mobilityAreaBackBtn').addEventListener('click', nav.back)
 
   function refreshChipStates() {
     document.querySelectorAll('#mobilityAreaChips .chip-btn').forEach(btn => {
@@ -1661,10 +1657,11 @@ function renderMobilityPicker(selectedAreas) {
     <button type="button" class="btn-save start-workout-btn" id="mobilityStartBtn" style="margin-top:16px">▶ Start</button>
   `
 
-  document.getElementById('mobilityBackBtn').addEventListener('click', function() {
-    if (hasLibrary) renderMobilityAreaPicker()
-    else renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
+  // nav.back() reproduces the old hasLibrary branch for free: the actual
+  // previous frame is 'mobilityAreas' when this screen was reached through
+  // the area picker, or 'home' directly when the no-library path skipped
+  // straight here (see the top of renderMobilityAreaPicker).
+  document.getElementById('mobilityBackBtn').addEventListener('click', nav.back)
 
   document.querySelectorAll('.duration-preset-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -2188,9 +2185,7 @@ function renderAddWorkoutChoice() {
     </div>
   `
 
-  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
+  document.getElementById('addWorkoutBackBtn').addEventListener('click', nav.back)
   document.getElementById('addWorkoutStrengthChoice').addEventListener('click', function() {
     startOwnStrengthWorkout()
   })
@@ -2359,9 +2354,7 @@ async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
     <div class="own-builder-start-bar" id="ownBuilderStartBar"></div>
   `
 
-  document.getElementById('ownBuilderBackBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
+  document.getElementById('ownBuilderBackBtn').addEventListener('click', nav.back)
 
   const library = await loadExerciseLibrary()
   if (library === null) return
@@ -2618,9 +2611,7 @@ function renderAddWorkoutFieldForm(type) {
     <button type="button" class="btn-save start-workout-btn" id="fieldSaveBtn" style="margin-top:16px">Save</button>
   `
 
-  document.getElementById('addWorkoutBackBtn').addEventListener('click', function() {
-    renderAddWorkoutChoice()
-  })
+  document.getElementById('addWorkoutBackBtn').addEventListener('click', nav.back)
 
   document.querySelectorAll('.duration-preset-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -3017,9 +3008,7 @@ function renderDayPreview(dateStr) {
     <div id="dayPreviewBody">${bodyHtml}</div>
   `
 
-  document.getElementById('backToWeekBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
+  document.getElementById('backToWeekBtn').addEventListener('click', nav.back)
 
   wireSyncBanner(function() { renderDayPreview(dateStr) })
 
@@ -3084,9 +3073,7 @@ async function renderFormFill(fa, dateStr) {
     ${done ? '' : '<button type="button" class="btn-save start-workout-btn" id="formFillSubmitBtn" style="margin-top:16px">Submit</button>'}
   `
 
-  document.getElementById('formFillBackBtn').addEventListener('click', function() {
-    renderDayPreview(dateStr)
-  })
+  document.getElementById('formFillBackBtn').addEventListener('click', nav.back)
 
   const [{ data: questions, error }, { data: existingAnswers, error: answersError }] = await Promise.all([
     supabase.from('form_questions').select('*').eq('form_id', fa.form_id).order('order_index'),

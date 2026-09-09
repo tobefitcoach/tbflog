@@ -134,7 +134,7 @@ async function onPopState(e) {
     const frame = setFrame(cursor, p.name, p.args, { tab: p.tab }, frames[cursor])
     history.replaceState({ nav: EPOCH, i: cursor }, '', location.href)
     replaying = true
-    ROUTES[frame.name](frame.args)
+    await ROUTES[frame.name](frame.args)
     replaying = false
     announce(frame)
     return
@@ -159,7 +159,17 @@ async function onPopState(e) {
   const frame = frames[cursor]
   if (!frame) return
   replaying = true
-  ROUTES[frame.name](frame.args)
+  // Awaited, not fire-and-forget: several routes (renderCommunication,
+  // renderProfile, renderMobilityAreaPicker, renderFormFill,
+  // renderOwnWorkoutAddExercise) are async and paint a loading shell before
+  // their first await. Resetting `replaying` synchronously right after the
+  // call - rather than after the promise settles - would let anything a
+  // route does past its own first await (renderMobilityAreaPicker's
+  // "no stretch library filmed yet" branch redirects into renderMobilityPicker
+  // after an await, for one) run with replaying already false, so ITS
+  // nav.enter() would think it's a normal forward navigation and push a
+  // second, spurious history entry on top of the one already being replayed.
+  await ROUTES[frame.name](frame.args)
   replaying = false
   announce(frame)
 }
@@ -174,4 +184,14 @@ export function init(routes, onChange) {
   ROUTES = routes
   onFrameChange = onChange || null
   window.addEventListener('popstate', onPopState)
+}
+
+// What every on-screen "<- Back" button calls now, instead of hardcoding
+// its destination renderer. cursor > 0 is guaranteed for all of them in
+// practice - only the 4 tab roots sit at cursor 0, and none of them render
+// a back button - but the check costs nothing and makes "nothing to go
+// back to" a silent no-op rather than an inconsistent history.back() on an
+// empty stack.
+export function back() {
+  if (cursor > 0) history.back()
 }
