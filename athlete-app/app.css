@@ -2173,3 +2173,37 @@ body:has(.home-screen) .athlete-app-card {
   display: flex;
   gap: 12px;
 }
+
+/* --- Delete Account (Profile screen) ---
+   Same #ff4444 destructive red used by .btn-delete-metric/.btn-delete-measurement
+   elsewhere, but always shown in that color (not just on hover) since this
+   action is permanent and irreversible - it should read as dangerous before
+   it's tapped, not just after. */
+.profile-danger-zone {
+  margin-top: var(--s-6);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--c-border);
+}
+
+.profile-danger-desc {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: var(--s-3);
+}
+
+.btn-delete-account {
+  width: 100%;
+  background-color: transparent;
+  border: 1px solid #ff4444;
+  color: #ff4444;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-delete-account:hover {
+  background-color: #ff4444;
+  color: white;
+}

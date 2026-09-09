@@ -700,6 +700,11 @@ async function renderProfile() {
       <button type="button" class="btn-profile-action" id="pushToggleBtn">${status === 'on' ? 'Disable' : 'Enable'}</button>
     </div>
     <button type="button" class="btn-cancel" id="profileLogoutBtn" style="margin-top:24px">Log Out</button>
+
+    <div class="profile-danger-zone">
+      <div class="profile-danger-desc">Permanently deletes your account, training history, messages and photos. This can't be undone.</div>
+      <button type="button" class="btn-delete-account" id="deleteAccountBtn">Delete Account</button>
+    </div>
   `
 
   document.getElementById('avatarUploadBtn').addEventListener('click', function() {
@@ -806,6 +811,27 @@ async function renderProfile() {
   })
 
   document.getElementById('profileLogoutBtn').addEventListener('click', async function() {
+    await supabase.auth.signOut()
+    window.location.href = 'index.html'
+  })
+
+  document.getElementById('deleteAccountBtn').addEventListener('click', async function(e) {
+    const ok = await customConfirm("Delete your account? This permanently erases your training history, messages and photos and can't be undone.")
+    if (!ok) return
+
+    e.target.disabled = true
+    e.target.textContent = 'Deleting...'
+
+    const { data, error } = await supabase.functions.invoke('delete-account')
+
+    if (error || data?.error) {
+      console.log('Error deleting account:', error || data.error)
+      customAlert("Something went wrong deleting your account - check your connection and try again, or email tobefitcoach@gmail.com")
+      e.target.disabled = false
+      e.target.textContent = 'Delete Account'
+      return
+    }
+
     await supabase.auth.signOut()
     window.location.href = 'index.html'
   })
