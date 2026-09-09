@@ -69,7 +69,10 @@
         <div class="calendar-weekday-header program-day-header">
           <span>Day 1</span><span>Day 2</span><span>Day 3</span><span>Day 4</span><span>Day 5</span><span>Day 6</span><span>Day 7</span>
         </div>
-        <div id="programWeeksGrid"></div>
+        <div id="programWeeksGridWrap" style="position:relative">
+          <div id="programWeeksGrid"></div>
+          <div class="copy-drop-label" id="copyDropLabel"></div>
+        </div>
       </div>
     </div>
 
@@ -89,51 +92,16 @@
       </div>
     </div>
 
-    <!-- Copy Day Modal: reachable from the ⋮ menu on a filled grid cell -
-         picks a target week + day (1-7), always appends onto whatever's
-         already there rather than overwriting it -->
-    <div class="modal-overlay" id="copyProgramDayModal">
-      <div class="modal">
-        <h2>Copy to Another Day</h2>
-        <div class="form-group">
-          <label>Week</label>
-          <select id="copyDayWeekSelect"></select>
-        </div>
-        <div class="form-group">
-          <label>Day</label>
-          <select id="copyDayDaySelect">
-            <option value="1">Day 1</option>
-            <option value="2">Day 2</option>
-            <option value="3">Day 3</option>
-            <option value="4">Day 4</option>
-            <option value="5">Day 5</option>
-            <option value="6">Day 6</option>
-            <option value="7">Day 7</option>
-          </select>
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelCopyProgramDayBtn">Cancel</button>
-          <button class="btn-save" id="saveCopyProgramDayBtn">Copy</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Copy Week Modal: reachable from the copy icon on a week heading -
-         copies all 7 days at once onto another existing week in this
-         template, appending onto whatever's already on each target day -->
-    <div class="modal-overlay" id="copyWeekModal">
-      <div class="modal">
-        <h2>Copy Week</h2>
-        <div class="form-group">
-          <label>Copy to</label>
-          <select id="copyWeekTarget"></select>
-          <p class="no-metrics" id="copyWeekEmptyMsg" style="display:none">Add another week first to copy into it.</p>
-        </div>
-        <div class="form-actions">
-          <button class="btn-cancel" id="cancelCopyWeekBtn">Cancel</button>
-          <button class="btn-save" id="saveCopyWeekBtn">Copy</button>
-        </div>
-      </div>
+    <!-- Copy Day/Week: arm-then-click, same pattern as the coach's calendar
+         (see athlete-calendar.js's wireCalendarCopyArming) instead of a
+         modal asking which week/day to pick - the grid itself becomes the
+         target picker once armed (see wireProgramGridCopyArming in
+         program-builder.js). This bar just shows what's being copied and
+         offers a way out; #copyDropLabel (next to #programWeeksGrid below)
+         is the floating "Drop Here"/"Drop Week Here" hover label. -->
+    <div class="copy-armed-bar" id="copyArmedBar">
+      <span id="copyArmedBarText"></span>
+      <button type="button" class="unit-btn" id="copyArmedCancelBtn">Cancel</button>
     </div>
 
     <!-- Add Workout popup: list + preview, same layout pattern as the
@@ -183,7 +151,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=2"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="program-builder.js?v=40"></script>
+    <script type="module" src="program-builder.js?v=41"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

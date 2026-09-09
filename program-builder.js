@@ -226,7 +226,7 @@ document.getElementById('programWeeksGrid').addEventListener('click', async func
   if (deleteBtn) { await deleteWeek(deleteBtn.dataset.weekId); return }
 
   const copyWeekBtn = e.target.closest('[data-action="copy-week"]')
-  if (copyWeekBtn) { openCopyWeekModal(copyWeekBtn.dataset.weekId); return }
+  if (copyWeekBtn) { armCopyWeek(copyWeekBtn.dataset.weekId); return }
 
   // Kebab (⋮) actions on a day cell's badge - each stops propagation so it
   // never also triggers the cell's own click (open-day), same reasoning as
@@ -245,7 +245,7 @@ document.getElementById('programWeeksGrid').addEventListener('click', async func
   if (copyDayBtn) {
     e.stopPropagation()
     copyDayBtn.closest('.kebab-dropdown').classList.remove('active')
-    openCopyProgramDayModal(copyDayBtn.dataset.dayId)
+    armCopyDay(copyDayBtn.dataset.dayId)
     return
   }
 
@@ -624,89 +624,162 @@ async function cloneProgramDayExercises(sourceDay, targetDay) {
   }
 }
 
-let copyDaySourceId = null
+// ==========================================================================
+// ---- COPY A FULL WEEK, or one day onto another (copy icon on a week
+// heading, and "Copy to another day" on a filled cell's ⋮ menu) ----
+// Arm-then-click, same pattern as the coach's calendar (see
+// athlete-calendar.js's wireCalendarCopyArming) instead of a modal asking
+// which week/day to pick: arming shows a floating bar and the grid itself
+// becomes the target picker - hovering highlights the day (day mode) or
+// whole week (week mode) under the cursor with a "Drop Here"/"Drop Week
+// Here" label, and clicking commits it there.
+// ==========================================================================
+let copyArmedMode = null // 'day' | 'week' | null
+let copyArmedSourceDayId = null // day mode
+let copyArmedSourceWeekId = null // week mode
+let copyArmedHoverKey = null // last-highlighted week id (week mode) or "weekId-dayNumber" (day mode), so hover updates only touch the DOM when it actually changes
 
-function openCopyProgramDayModal(dayId) {
-  copyDaySourceId = dayId
-  const weekSelect = document.getElementById('copyDayWeekSelect')
-  weekSelect.innerHTML = weeksCache.map(w => `<option value="${w.id}">Week ${w.week_number}</option>`).join('')
-  document.getElementById('copyDayDaySelect').value = '1'
-  document.getElementById('copyProgramDayModal').classList.add('active')
+function armCopyDay(dayId) {
+  const day = findDay(dayId)
+  const name = day ? (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`) : 'this day'
+  copyArmedMode = 'day'
+  copyArmedSourceDayId = dayId
+  copyArmedSourceWeekId = null
+  copyArmedHoverKey = null
+  showCopyArmedBar(`Copying "${name}" — click a day below to copy it there`)
 }
 
-document.getElementById('cancelCopyProgramDayBtn').addEventListener('click', function() {
-  document.getElementById('copyProgramDayModal').classList.remove('active')
+function armCopyWeek(weekId) {
+  const week = findWeek(weekId)
+  copyArmedMode = 'week'
+  copyArmedSourceWeekId = weekId
+  copyArmedSourceDayId = null
+  copyArmedHoverKey = null
+  showCopyArmedBar(`Copying Week ${week ? week.week_number : ''} — click a week below to copy it there`)
+}
+
+function disarmCopy() {
+  copyArmedMode = null
+  copyArmedSourceDayId = null
+  copyArmedSourceWeekId = null
+  copyArmedHoverKey = null
+  document.getElementById('copyArmedBar').classList.remove('active')
+  clearCopyHoverHighlight()
+}
+
+function showCopyArmedBar(text) {
+  document.getElementById('copyArmedBarText').textContent = text
+  document.getElementById('copyArmedBar').classList.add('active')
+}
+
+document.getElementById('copyArmedCancelBtn').addEventListener('click', disarmCopy)
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && copyArmedMode) disarmCopy()
 })
 
-document.getElementById('saveCopyProgramDayBtn').addEventListener('click', async function() {
-  const sourceDay = findDay(copyDaySourceId)
-  if (!sourceDay) return
-  const targetWeekId = document.getElementById('copyDayWeekSelect').value
-  const targetDayNumber = parseInt(document.getElementById('copyDayDaySelect').value)
+function clearCopyHoverHighlight() {
+  document.querySelectorAll('#programWeeksGrid .calendar-day.copy-target-hover').forEach(el => el.classList.remove('copy-target-hover'))
+  document.getElementById('copyDropLabel').classList.remove('active')
+}
 
-  const btn = this
-  btn.disabled = true
-  btn.textContent = 'Copying...'
+function positionCopyDropLabel(cellEls, text) {
+  const wrap = document.getElementById('programWeeksGridWrap')
+  const wrapRect = wrap.getBoundingClientRect()
+  const rects = [...cellEls].map(el => el.getBoundingClientRect())
+  const left = Math.min(...rects.map(r => r.left)) - wrapRect.left
+  const right = Math.max(...rects.map(r => r.right)) - wrapRect.left
+  const top = Math.min(...rects.map(r => r.top)) - wrapRect.top
+  const bottom = Math.max(...rects.map(r => r.bottom)) - wrapRect.top
+  const label = document.getElementById('copyDropLabel')
+  label.style.left = `${(left + right) / 2}px`
+  label.style.top = `${(top + bottom) / 2}px`
+  label.textContent = text
+  label.classList.add('active')
+}
+
+function updateCopyHoverHighlight(cellEl) {
+  if (!copyArmedMode || !cellEl) { clearCopyHoverHighlight(); copyArmedHoverKey = null; return }
+
+  if (copyArmedMode === 'week') {
+    const weekId = cellEl.dataset.weekId
+    if (weekId === copyArmedHoverKey) return
+    copyArmedHoverKey = weekId
+    document.querySelectorAll('#programWeeksGrid .calendar-day.copy-target-hover').forEach(el => el.classList.remove('copy-target-hover'))
+    if (weekId === copyArmedSourceWeekId) { clearCopyHoverHighlight(); return }
+    const rowCells = document.querySelectorAll(`#programWeeksGrid .calendar-day[data-week-id="${weekId}"]`)
+    rowCells.forEach(el => el.classList.add('copy-target-hover'))
+    positionCopyDropLabel(rowCells, 'Drop Week Here')
+  } else {
+    const key = `${cellEl.dataset.weekId}-${cellEl.dataset.dayNumber}`
+    if (key === copyArmedHoverKey) return
+    copyArmedHoverKey = key
+    document.querySelectorAll('#programWeeksGrid .calendar-day.copy-target-hover').forEach(el => el.classList.remove('copy-target-hover'))
+    cellEl.classList.add('copy-target-hover')
+    positionCopyDropLabel([cellEl], 'Drop Here')
+  }
+}
+
+async function performCopyDay(sourceDayId, targetWeekId, targetDayNumber) {
+  const sourceDay = findDay(sourceDayId)
+  if (!sourceDay) return
   const targetDay = await findOrCreateProgramDay(targetWeekId, targetDayNumber)
   if (targetDay) await cloneProgramDayExercises(sourceDay, targetDay)
-  btn.disabled = false
-  btn.textContent = 'Copy'
-
-  document.getElementById('copyProgramDayModal').classList.remove('active')
   renderWeekNav()
-})
-
-// ==========================================================================
-// ---- COPY A FULL WEEK ----
-// ==========================================================================
-let copyWeekSourceId = null
-
-function openCopyWeekModal(weekId) {
-  copyWeekSourceId = weekId
-  const otherWeeks = weeksCache.filter(w => w.id !== weekId)
-  const select = document.getElementById('copyWeekTarget')
-  const emptyMsg = document.getElementById('copyWeekEmptyMsg')
-  const saveBtn = document.getElementById('saveCopyWeekBtn')
-
-  if (otherWeeks.length === 0) {
-    select.style.display = 'none'
-    emptyMsg.style.display = 'block'
-    saveBtn.disabled = true
-  } else {
-    select.style.display = ''
-    emptyMsg.style.display = 'none'
-    saveBtn.disabled = false
-    select.innerHTML = otherWeeks.map(w => `<option value="${w.id}">Week ${w.week_number}</option>`).join('')
-  }
-
-  document.getElementById('copyWeekModal').classList.add('active')
 }
 
-document.getElementById('cancelCopyWeekBtn').addEventListener('click', function() {
-  document.getElementById('copyWeekModal').classList.remove('active')
-})
-
-document.getElementById('saveCopyWeekBtn').addEventListener('click', async function() {
-  const targetWeekId = document.getElementById('copyWeekTarget').value
-  if (!targetWeekId) return
-  const sourceWeek = findWeek(copyWeekSourceId)
+async function performCopyWeek(sourceWeekId, targetWeekId) {
+  const sourceWeek = findWeek(sourceWeekId)
   const targetWeek = findWeek(targetWeekId)
   if (!sourceWeek || !targetWeek) return
-
-  const btn = this
-  btn.disabled = true
-  btn.textContent = 'Copying...'
   for (let dayNumber = 1; dayNumber <= 7; dayNumber++) {
     const sourceDay = sourceWeek.program_days.find(d => d.day_number === dayNumber)
     if (!sourceDay || (!sourceDay.label && sourceDay.program_exercises.length === 0)) continue
     const targetDay = await findOrCreateProgramDay(targetWeek.id, dayNumber)
     if (targetDay) await cloneProgramDayExercises(sourceDay, targetDay)
   }
-  btn.disabled = false
-  btn.textContent = 'Copy'
-
-  document.getElementById('copyWeekModal').classList.remove('active')
   renderWeekNav()
+}
+
+// Capture-phase, same reasoning as athlete-calendar.js's own
+// wireCalendarCopyArming: while a copy is armed, this needs to swallow a
+// click on a day cell (including a kebab/add-button click inside one)
+// before the existing bubble-phase listener above ever sees it and treats
+// it as open-day/toggle-kebab/quick-add instead of "drop it here".
+function wireProgramGridCopyArming(grid) {
+  grid.addEventListener('mousemove', function(e) {
+    if (!copyArmedMode) return
+    updateCopyHoverHighlight(e.target.closest('.calendar-day'))
+  })
+  grid.addEventListener('mouseleave', function() {
+    if (!copyArmedMode) return
+    copyArmedHoverKey = null
+    clearCopyHoverHighlight()
+  })
+
+  grid.addEventListener('click', async function(e) {
+    if (!copyArmedMode) return
+    const cell = e.target.closest('.calendar-day')
+    if (!cell) return
+    e.stopImmediatePropagation()
+    e.preventDefault()
+
+    if (copyArmedMode === 'week') {
+      const targetWeekId = cell.dataset.weekId
+      const sourceWeekId = copyArmedSourceWeekId
+      disarmCopy()
+      if (targetWeekId === sourceWeekId) return
+      await performCopyWeek(sourceWeekId, targetWeekId)
+    } else {
+      const targetWeekId = cell.dataset.weekId
+      const targetDayNumber = parseInt(cell.dataset.dayNumber)
+      const sourceDayId = copyArmedSourceDayId
+      disarmCopy()
+      await performCopyDay(sourceDayId, targetWeekId, targetDayNumber)
+    }
+  }, true)
+}
+
+wireProgramGridCopyArming(document.getElementById('programWeeksGrid'))
 })
 
 // ==========================================================================
