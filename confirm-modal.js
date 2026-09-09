@@ -20,7 +20,7 @@ overlay.innerHTML = `
   <div class="modal" style="max-width:420px">
     <p id="customConfirmMessage" style="color:#ffffff; font-size:15px; line-height:1.5; margin:0; white-space:pre-line"></p>
     <div class="form-actions">
-      <button type="button" class="btn-cancel" id="customConfirmCancelBtn">Cancel</button>
+      <button type="button" class="btn-cancel" id="customConfirmCancelBtn" data-modal-dismiss>Cancel</button>
       <button type="button" class="btn-save" id="customConfirmOkBtn">OK</button>
     </div>
   </div>

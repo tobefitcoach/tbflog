@@ -49,7 +49,7 @@
         <h2>Last Week's Recap</h2>
         <div id="weeklyRecapBody"></div>
         <div class="form-actions" style="justify-content:flex-end; margin-top:24px">
-          <button class="btn-save" id="weeklyRecapCloseBtn">Nice!</button>
+          <button class="btn-save" id="weeklyRecapCloseBtn" data-modal-dismiss>Nice!</button>
         </div>
       </div>
     </div>
@@ -76,7 +76,7 @@
       <div class="modal">
         <div class="graph-modal-header">
           <h2 id="exerciseHistoryTitle">History</h2>
-          <button type="button" class="btn-cancel" id="closeExerciseHistoryBtn">✕</button>
+          <button type="button" class="btn-cancel" id="closeExerciseHistoryBtn" data-modal-dismiss>✕</button>
         </div>
         <div class="graph-time-filters" id="exerciseHistoryTimeFilters" style="margin: 4px 0 16px">
           <button type="button" class="time-filter-btn" data-months="1">1M</button>
@@ -95,7 +95,7 @@
       <div class="modal">
         <div class="graph-modal-header">
           <h2>Swap Exercise</h2>
-          <button type="button" class="btn-cancel" id="closeExerciseSwapBtn">✕</button>
+          <button type="button" class="btn-cancel" id="closeExerciseSwapBtn" data-modal-dismiss>✕</button>
         </div>
         <input type="text" id="exerciseSwapSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
         <div id="exerciseSwapList"></div>
@@ -109,7 +109,7 @@
       <div class="modal">
         <div class="graph-modal-header">
           <h2>Move Workout</h2>
-          <button type="button" class="btn-cancel" id="closeMoveWorkoutBtn">✕</button>
+          <button type="button" class="btn-cancel" id="closeMoveWorkoutBtn" data-modal-dismiss>✕</button>
         </div>
         <div class="form-group">
           <label>New Date</label>
@@ -170,8 +170,8 @@
     </nav>
 
     <script type="module" src="../loading-bar.js?v=1"></script>
-    <script type="module" src="../confirm-modal.js?v=1"></script>
+    <script type="module" src="../confirm-modal.js?v=2"></script>
     <script type="module" src="../network-retry.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=131"></script>
+    <script type="module" src="dashboard.js?v=132"></script>
   </body>
 </html>

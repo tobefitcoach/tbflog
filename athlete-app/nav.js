@@ -198,6 +198,46 @@ async function onPopState(e) {
   announce(frame)
 }
 
+// Closes the topmost open modal by clicking its tagged dismiss control,
+// rather than by tracking modals as history frames of their own - they
+// open from async callbacks (maybeShowWeeklyRecap chains into
+// maybeShowOnOpenMessages, customConfirm can stack on top of another
+// modal), which would make a history-entry-per-modal model fragile. If the
+// active modal has no [data-modal-dismiss] at all, it's forced closed
+// directly instead - #coachMessageContinueBtn is deliberately left
+// untagged in its before_workout case (see showCoachMessagesModal) because
+// its click handler also starts the workout, which back must not trigger.
+function closeTopModal() {
+  const overlays = document.querySelectorAll('.modal-overlay.active')
+  const top = overlays[overlays.length - 1]
+  if (!top) return false
+  const dismissBtn = top.querySelector('[data-modal-dismiss]')
+  if (dismissBtn) dismissBtn.click()
+  else top.classList.remove('active')
+  return true
+}
+
+function exitApp() {
+  // Calling nativeCallback directly, not navigator.app.exitApp() -
+  // native-bridge.js only defines the latter once cap.Plugins.App exists,
+  // which needs @capacitor/core's registerPlugin - this app talks to the
+  // injected bridge directly and never imports that.
+  window.Capacitor?.nativeCallback?.('App', 'exitApp', {})
+}
+
+// Policy for Android's hardware back button (and, if wired the same way
+// later, any other "hardware back" source): modals first, then unwind the
+// current screen's own history, then treat the 4 tab roots as one flat
+// level (any secondary tab -> Home) before finally exiting. Never reachable
+// without @capacitor/app installed and a native rebuild - see init() below.
+function handleHardwareBack() {
+  if (closeTopModal()) return
+  if (cursor > 0) { history.back(); return }
+  const cur = currentFrame()
+  if (cur && cur.tab !== 'home') { ROUTES.home({}); return }
+  exitApp()
+}
+
 // Called once from dashboard.js after every renderer it needs to replay is
 // defined. routes: {name: (args) => void}. onChange: (frame) => void, fired
 // whenever a frame becomes current - forward navigation and replay alike -
@@ -208,6 +248,13 @@ export function init(routes, onChange) {
   ROUTES = routes
   onFrameChange = onChange || null
   window.addEventListener('popstate', onPopState)
+  // Safe no-op on plain web and on any native binary built before this
+  // plugin was added (window.Capacitor may not even exist there, or may
+  // exist without 'App' registered) - optional chaining throughout means
+  // this line does nothing until @capacitor/app is installed AND the app
+  // is rebuilt, at which point it activates with no further change needed
+  // here or in dashboard.js.
+  window.Capacitor?.addListener?.('App', 'backButton', handleHardwareBack)
 }
 
 // What every on-screen "<- Back" button calls now, instead of hardcoding

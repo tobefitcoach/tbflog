@@ -1344,7 +1344,7 @@ function playInlineVideo(containerEl, url) {
 // ==========================================================================
 // ---- WEEK VIEW (default landing) ----
 // ==========================================================================
-function renderWeekView(weekStart) {
+function renderWeekView(weekStart = startOfWeek(new Date())) {
   nav.enter('home', { weekStart }, { root: true, tab: 'home' })
   teardownScreen()
   currentWeekStart = weekStart
@@ -2813,11 +2813,19 @@ function showCoachMessagesModal(messages, onContinue) {
     .map(m => `<p class="coach-message-text">${escapeHtml(m.message)}</p>`)
     .join('')
   document.getElementById('coachMessageModal').classList.add('active')
-  document.getElementById('coachMessageContinueBtn').textContent = onContinue ? 'Continue' : 'Got it'
+  const continueBtn = document.getElementById('coachMessageContinueBtn')
+  continueBtn.textContent = onContinue ? 'Continue' : 'Got it'
+  // Only a plain dismiss in the on_open case - tagged so hardware
+  // back/closeTopModal() can safely click it. Untagged in the
+  // before_workout case, since that click also starts the workout: back
+  // should just close the modal (see closeTopModal's fallback), never
+  // trigger onContinue by proxy.
+  if (onContinue) continueBtn.removeAttribute('data-modal-dismiss')
+  else continueBtn.setAttribute('data-modal-dismiss', '')
   // Overwriting .onclick (not addEventListener) means each show cleanly
   // replaces the previous one instead of listeners piling up across a
   // long-lived session with several messages shown over time
-  document.getElementById('coachMessageContinueBtn').onclick = function() {
+  continueBtn.onclick = function() {
     document.getElementById('coachMessageModal').classList.remove('active')
     if (onContinue) onContinue()
   }
