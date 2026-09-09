@@ -105,6 +105,31 @@ body:has(.workout-active) .bottom-nav {
   display: none;
 }
 
+/* Same fix as body:has(.home-screen) below: locking the body to the
+   viewport height and letting only the inner page scroll means a workout
+   screen that fits on screen truly can't scroll at all (no WKWebView
+   rubber-band "give" when there's nothing to scroll to) - it can only
+   scroll once an exercise has enough sets that its card genuinely
+   overflows the available height. */
+body:has(.workout-active) {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+body:has(.workout-active) header {
+  flex-shrink: 0;
+}
+
+body:has(.workout-active) .athlete-app-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .bottom-nav-btn {
   flex: 1;
   display: flex;
@@ -916,7 +941,10 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 /* Same fixed-above-the-bottom-nav treatment as .rest-timer-bar, so it stays
-   reachable while scrolling a long exercise list without covering the nav */
+   reachable while scrolling a long exercise list without covering the nav.
+   renderOwnWorkoutBuilder also sets .workout-active, so like the rest timer
+   this only ever shows while the bottom nav is hidden - same fix, sit at
+   the nav's own resting distance instead of the distance meant to clear it. */
 .own-builder-start-bar {
   display: none;
   align-items: center;
@@ -924,7 +952,7 @@ body:has(.home-screen) .athlete-app-card {
   gap: 16px;
   position: fixed;
   left: 50%;
-  bottom: var(--nav-offset);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   background-color: var(--c-surface);
   border: 1px solid var(--c-accent);
@@ -942,7 +970,12 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 /* Fixed to the bottom of the screen so it stays visible while scrolling
-   through a long list of exercises */
+   through a long list of exercises. bottom: var(--nav-offset) clears the
+   floating .bottom-nav - but the rest timer only ever shows mid-workout,
+   which is exactly when body:has(.workout-active) .bottom-nav above hides
+   that nav, so the timer was floating in the empty gap left behind
+   instead of sitting where the (invisible) nav would have been. Sitting
+   at the same resting distance as .bottom-nav itself fixes that. */
 .rest-timer-bar {
   display: none;
   align-items: center;
@@ -950,7 +983,7 @@ body:has(.home-screen) .athlete-app-card {
   gap: 20px;
   position: fixed;
   left: 50%;
-  bottom: var(--nav-offset); /* clears the floating .bottom-nav */
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   background-color: var(--c-surface);
   border: 1px solid var(--c-accent);
