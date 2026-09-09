@@ -2913,38 +2913,45 @@ function showWeeklyRecapModal(stats) {
 function renderWeeklyStats() {
   nav.enter('stats', {}, { root: true, tab: 'stats' })
   const thisMonday = startOfWeek(new Date())
+  // How many weeks back from "this week" the stepper is currently showing -
+  // 0..7, same 8-week window the old scrollable list offered (This Week
+  // through 7 Weeks Ago), just one row instead of eight. No back button
+  // here: this is a bottom-nav tab root, same as Home/Chat/Profile - the
+  // nav bar is already how you leave it.
+  let weeksBack = 0
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button class="btn-cancel" id="backFromWeeklyStatsBtn">← Back</button>
-      <h2 class="day-view-date">Weekly Stats</h2>
+      <h2 class="day-view-date">Stats</h2>
     </div>
-    <div class="week-picker-list" id="weeklyStatsWeekList">
-      ${Array.from({ length: 8 }, (_, i) => {
-        const ws = addDays(thisMonday, -7 * i)
-        const label = i === 0 ? 'This Week' : i === 1 ? 'Last Week' : `${i} Weeks Ago`
-        return `<button type="button" class="week-picker-row ${i === 0 ? 'selected' : ''}" data-week-start="${toDateStr(ws)}">
-          <span class="week-picker-label">${label}</span>
-          <span class="week-picker-range">${formatShortDate(ws)} – ${formatShortDate(addDays(ws, 6))}</span>
-        </button>`
-      }).join('')}
+    <div class="week-nav-row">
+      <button class="btn-cancel" id="statsWeekPrevBtn">← Prev</button>
+      <h3 id="statsWeekRangeLabel"></h3>
+      <button class="btn-cancel" id="statsWeekNextBtn" disabled>Next →</button>
     </div>
     <div id="weeklyStatsBody"></div>
   `
 
-  document.getElementById('backFromWeeklyStatsBtn').addEventListener('click', function() {
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  function renderCurrentWeek() {
+    const ws = addDays(thisMonday, -7 * weeksBack)
+    document.getElementById('statsWeekRangeLabel').textContent = `${formatShortDate(ws)} – ${formatShortDate(addDays(ws, 6))}`
+    document.getElementById('statsWeekPrevBtn').disabled = weeksBack >= 7
+    document.getElementById('statsWeekNextBtn').disabled = weeksBack <= 0
+    renderWeeklyStatsBody(ws)
+  }
+
+  document.getElementById('statsWeekPrevBtn').addEventListener('click', function() {
+    if (weeksBack >= 7) return
+    weeksBack++
+    renderCurrentWeek()
+  })
+  document.getElementById('statsWeekNextBtn').addEventListener('click', function() {
+    if (weeksBack <= 0) return
+    weeksBack--
+    renderCurrentWeek()
   })
 
-  document.getElementById('weeklyStatsWeekList').addEventListener('click', function(e) {
-    const btn = e.target.closest('.week-picker-row')
-    if (!btn) return
-    document.querySelectorAll('#weeklyStatsWeekList .week-picker-row').forEach(b => b.classList.remove('selected'))
-    btn.classList.add('selected')
-    renderWeeklyStatsBody(parseDateStr(btn.dataset.weekStart))
-  })
-
-  renderWeeklyStatsBody(thisMonday)
+  renderCurrentWeek()
 }
 
 // Weight-based badges (Volume/Weight/Est. 1RM) convert kg -> the athlete's
@@ -2960,19 +2967,33 @@ function renderWeeklyStatsBody(weekStart) {
   const durationMin = Math.round(stats.totalDurationMs / 60000)
   const durationText = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : `${durationMin}m`
 
+  const tiles = [
+    { value: `${stats.scheduledCompletedCount} / ${stats.scheduledCount}`, label: 'Workouts' },
+    ...(stats.hasVolumeData ? [{ value: `${Math.round(formatWeight(stats.totalVolume, athlete.weight_unit))}${athlete.weight_unit || 'kg'}`, label: 'Volume' }] : []),
+    { value: durationText, label: 'Training Time' },
+    { value: `${stats.prEvents.length}`, label: 'PRs' },
+  ]
+
   document.getElementById('weeklyStatsBody').innerHTML = `
-    <div class="workout-summary-stats" style="flex-wrap:wrap; gap:20px">
-      <div><div class="workout-summary-stat-value">${stats.scheduledCompletedCount} / ${stats.scheduledCount}</div><div class="workout-summary-stat-label">Workouts</div></div>
-      ${stats.hasVolumeData ? `<div><div class="workout-summary-stat-value">${Math.round(formatWeight(stats.totalVolume, athlete.weight_unit))}${athlete.weight_unit || 'kg'}</div><div class="workout-summary-stat-label">Volume</div></div>` : ''}
-      <div><div class="workout-summary-stat-value">${durationText}</div><div class="workout-summary-stat-label">Training Time</div></div>
-      <div><div class="workout-summary-stat-value">${stats.prEvents.length}</div><div class="workout-summary-stat-label">PRs</div></div>
+    <div class="stats-grid">
+      ${tiles.map(t => `
+        <div class="stats-grid-tile">
+          <div class="workout-summary-stat-value">${t.value}</div>
+          <div class="workout-summary-stat-label">${t.label}</div>
+        </div>
+      `).join('')}
     </div>
-    ${stats.prEvents.length ? `<div class="summary-exercise-list" style="margin-top:20px">${stats.prEvents.map(e => `
-      <div class="summary-exercise-row">
-        <div class="summary-exercise-name"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${e.exerciseName}</div>
-        ${e.badges.map(b => `<p class="summary-exercise-sets">${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</p>`).join('')}
+    ${stats.prEvents.length ? `
+      <div class="stats-section">
+        <p class="stats-section-title">Personal Records</p>
+        <div class="summary-exercise-list">${stats.prEvents.map(e => `
+          <div class="summary-exercise-row">
+            <div class="summary-exercise-name"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${e.exerciseName}</div>
+            ${e.badges.map(b => `<p class="summary-exercise-sets">${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</p>`).join('')}
+          </div>
+        `).join('')}</div>
       </div>
-    `).join('')}</div>` : ''}
+    ` : ''}
     ${stats.scheduledCount === 0 && stats.totalWorkouts === 0 ? '<p class="no-metrics" style="margin-top:16px">Nothing logged this week</p>' : ''}
   `
 }
