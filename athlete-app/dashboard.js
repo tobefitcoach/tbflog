@@ -4781,20 +4781,20 @@ function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksWeight, 
   const setType = target && target.type && target.type !== 'main' ? target.type : null
   const typeLabel = setType === 'warmup' ? 'Warmup' : setType === 'failure' ? 'Failure' : ''
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
-  const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
+  // Reps + time + weight together means 3 flex:1 inputs competing for
+  // whatever's left after the fixed-width label/unit-toggle/check-button -
+  // tight enough on a phone that the full "reps each side" placeholder was
+  // getting cut off mid-word. Dropping to just "reps" when crowded isn't
+  // losing information: isUnilateral already gets its own "Each Side"
+  // badge right next to the Set N label on the same row.
+  const crowded = tracksReps && isTimed && tracksWeight
+  const repsPlaceholder = 'reps' + (isUnilateral && !crowded ? ' each side' : '')
   const { mm, ss } = parseTimeToParts(durationVal)
   const tracksDistance = pe.exercises && pe.exercises.tracks_distance
   const distanceVal = draft && draft.distance !== undefined ? draft.distance : (logged ? (logged.actual_distance != null ? logged.actual_distance : '') : ((target && target.distance != null) ? target.distance : ''))
-  // Reps + time + weight together means 3 flex:1 inputs competing for
-  // whatever's left after the fixed-width label/unit-toggle/check-button -
-  // on a phone that's ~60-70px each, enough for "kg" but not for a reps
-  // placeholder like "reps each side" (see .set-row-crowded in app.css,
-  // which wraps the time input onto its own line instead of splitting the
-  // row three ways).
-  const crowded = tracksReps && isTimed && tracksWeight
 
   return `
-    <div class="set-row ${checked ? 'completed' : ''} ${crowded ? 'set-row-crowded' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
+    <div class="set-row ${checked ? 'completed' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
       <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
       ${tracksReps ? `<input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>` : ''}
       ${isTimed ? `

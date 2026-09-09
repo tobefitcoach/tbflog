@@ -677,23 +677,6 @@ body:has(.home-screen) .athlete-app-card {
   background-color: var(--c-bg);
 }
 
-/* Reps + time + weight all on one row means 3 flex:1 inputs splitting
-   whatever's left after the fixed-width label/toggle/check button - too
-   tight on a phone for a reps placeholder like "reps each side" to stay
-   legible. Wrapping just the time input onto its own line (order pushes
-   it after every other flex child regardless of DOM position; flex-basis
-   100% is what actually forces the line break) leaves reps and weight
-   each a full line to themselves, same as any 2-field row already gets. */
-.set-row.set-row-crowded {
-  flex-wrap: wrap;
-}
-
-.set-row-crowded .set-time-input {
-  order: 1;
-  flex: 0 0 100%;
-  justify-content: flex-start;
-  margin-left: 60px; /* clears the 52px label + row gap, lining up under the reps input instead of the label */
-}
 
 /* Bumped up from a plain 16px input box to a real "digital clock" look
    (bigger, bold, monospace digits) so a timed set reads as a timer at a
