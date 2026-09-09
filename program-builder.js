@@ -780,7 +780,6 @@ function wireProgramGridCopyArming(grid) {
 }
 
 wireProgramGridCopyArming(document.getElementById('programWeeksGrid'))
-})
 
 // ==========================================================================
 // ---- RENAME TEMPLATE ----
