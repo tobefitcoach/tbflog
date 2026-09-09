@@ -646,7 +646,7 @@ function armCopyDay(dayId) {
   copyArmedSourceDayId = dayId
   copyArmedSourceWeekId = null
   copyArmedHoverKey = null
-  showCopyArmedBar(`Copying "${name}" — click a day below to copy it there`)
+  showCopyArmedBar(`Copying "${name}" — click a day below to copy it there (hold Shift to paste onto more than one)`)
 }
 
 function armCopyWeek(weekId) {
@@ -655,7 +655,7 @@ function armCopyWeek(weekId) {
   copyArmedSourceWeekId = weekId
   copyArmedSourceDayId = null
   copyArmedHoverKey = null
-  showCopyArmedBar(`Copying Week ${week ? week.week_number : ''} — click a week below to copy it there`)
+  showCopyArmedBar(`Copying Week ${week ? week.week_number : ''} — click a week below to copy it there (hold Shift to paste onto more than one)`)
 }
 
 function disarmCopy() {
@@ -763,17 +763,26 @@ function wireProgramGridCopyArming(grid) {
     e.stopImmediatePropagation()
     e.preventDefault()
 
+    // Holding Shift pastes without disarming, so a coach copying one day
+    // onto several others (or one week onto several) can just keep
+    // shift-clicking targets instead of re-arming from scratch each time.
+    // renderWeekNav() below rebuilds the grid from fresh HTML, wiping any
+    // .copy-target-hover class along with it - clearing copyArmedHoverKey
+    // forces the very next mousemove to re-highlight immediately instead
+    // of the old highlight just staying gone until the mouse happens to move.
+    const keepArmed = e.shiftKey
+
     if (copyArmedMode === 'week') {
       const targetWeekId = cell.dataset.weekId
       const sourceWeekId = copyArmedSourceWeekId
-      disarmCopy()
+      if (keepArmed) { copyArmedHoverKey = null } else { disarmCopy() }
       if (targetWeekId === sourceWeekId) return
       await performCopyWeek(sourceWeekId, targetWeekId)
     } else {
       const targetWeekId = cell.dataset.weekId
       const targetDayNumber = parseInt(cell.dataset.dayNumber)
       const sourceDayId = copyArmedSourceDayId
-      disarmCopy()
+      if (keepArmed) { copyArmedHoverKey = null } else { disarmCopy() }
       await performCopyDay(sourceDayId, targetWeekId, targetDayNumber)
     }
   }, true)

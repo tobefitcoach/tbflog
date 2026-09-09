@@ -2051,7 +2051,7 @@ function armCopyWeek(mondayStr) {
   copyArmedSourceDayId = null
   copyArmedSourceName = null
   copyArmedHoverKey = null
-  showCopyArmedBar(`Copying week of ${formatShortDateCal(mondayStr)} — click a week on the calendar to copy it there`)
+  showCopyArmedBar(`Copying week of ${formatShortDateCal(mondayStr)} — click a week on the calendar to copy it there (hold Shift to paste onto more than one)`)
 }
 
 function armCopyWorkout(dayId, name) {
@@ -2060,7 +2060,7 @@ function armCopyWorkout(dayId, name) {
   copyArmedSourceName = name
   copyArmedSourceMonday = null
   copyArmedHoverKey = null
-  showCopyArmedBar(`Copying "${name}" — click a day on the calendar to copy it there`)
+  showCopyArmedBar(`Copying "${name}" — click a day on the calendar to copy it there (hold Shift to paste onto more than one)`)
 }
 
 function disarmCopy() {
@@ -2178,17 +2178,27 @@ function wireCalendarCopyArming(grid) {
     e.stopImmediatePropagation()
     e.preventDefault()
 
+    // Holding Shift pastes without disarming, so copying one day onto
+    // several others (or one week onto several) is just repeated
+    // shift-clicks instead of re-arming from scratch each time.
+    // loadCalendarMonth/the week-copy path both redraw the grid from fresh
+    // HTML, wiping any .copy-target-hover class along with it - clearing
+    // copyArmedHoverKey forces the very next mousemove to re-highlight
+    // immediately instead of the old highlight just staying gone until the
+    // mouse happens to move.
+    const keepArmed = e.shiftKey
+
     if (copyArmedMode === 'week') {
       const targetMonday = cell.dataset.weekMonday
       const sourceMonday = copyArmedSourceMonday
-      disarmCopy()
+      if (keepArmed) { copyArmedHoverKey = null } else { disarmCopy() }
       if (targetMonday === sourceMonday) return
       await performCopyWeek(sourceMonday, targetMonday)
     } else {
       const targetDate = cell.dataset.date
       const sourceDayId = copyArmedSourceDayId
       const sourceName = copyArmedSourceName
-      disarmCopy()
+      if (keepArmed) { copyArmedHoverKey = null } else { disarmCopy() }
       await cloneDayToDate(sourceDayId, sourceName, targetDate)
       await loadCalendarMonth(currentViewYear, currentViewMonth)
     }
