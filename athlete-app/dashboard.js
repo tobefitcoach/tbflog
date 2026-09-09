@@ -1445,9 +1445,17 @@ function renderWeekView(weekStart = startOfWeek(new Date())) {
     // shape stops mattering as much as the progress does, so every entry
     // switches to a shared check/play glyph instead (matches the color the
     // card itself is tinted).
+    // Per-entry, not the day-level done/inProgress above - those two are an
+    // all-or-nothing verdict for the whole day, which is right for the
+    // card's own tint but was wrong here: on a day with two workouts, one
+    // finished and one not, the day-level `done` is false, and that false
+    // was getting applied to BOTH icons, hiding the checkmark on the one
+    // that was actually completed.
     const icons = badgeEntries.map(entry => {
-      if (done) return `<span class="type-icon type-icon-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>`
-      if (inProgress) return `<span class="type-icon type-icon-in-progress"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"></polygon></svg></span>`
+      const entryDone = !!completedSessionsByDayId[entry.day.id]
+      const entryInProgress = !entryDone && !!openSessionsByDayId[entry.day.id]
+      if (entryDone) return `<span class="type-icon type-icon-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>`
+      if (entryInProgress) return `<span class="type-icon type-icon-in-progress"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"></polygon></svg></span>`
       return `<span class="type-icon type-icon-planned">${WORKOUT_TYPE_ICON_SVG[entry.day.workout_type] || WORKOUT_TYPE_ICON_SVG.gym}</span>`
     })
     if (mobility) icons.push('<span class="type-icon type-icon-mobility"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg></span>')
