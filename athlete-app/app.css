@@ -153,22 +153,44 @@ body:has(.workout-active) .bottom-nav {
    inside .athlete-app-card change, via dashboard.js
    ========================================================================== */
 
+/* Base is what every real screen gets - renderWeekView (the landing screen
+   for the whole app) adds .wide unconditionally, and nothing in dashboard.js
+   ever removes it, so from the first real screen onward every one of the 21
+   routable screens was always ".wide" and could never fall back to this
+   rule. .centered below is the true opt-in now, used only by the 4 pre-app
+   states (wrong role / waiting to be linked / complete profile / intro)
+   that render before enterWeekView() ever runs. */
 .athlete-app-page {
+  display: block;
+  min-height: auto;
+  padding: 24px 16px;
+  padding-bottom: var(--nav-clearance); /* clears the floating .bottom-nav */
+}
+
+.athlete-app-page.centered {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 80vh;
   padding: 40px;
-  padding-bottom: var(--nav-clearance); /* clears the floating .bottom-nav */
+  padding-bottom: var(--nav-clearance);
 }
 
 .athlete-app-card {
   background-color: var(--c-surface);
   border-radius: 12px;
-  padding: 40px;
+  padding: 24px;
   width: 100%;
-  max-width: 480px;
+  max-width: 720px;
+  margin: 0 auto;
   border: 1px solid var(--c-border);
+  text-align: left;
+}
+
+.athlete-app-card.centered {
+  padding: 40px;
+  max-width: 480px;
+  margin: 0;
   text-align: center;
 }
 
@@ -182,27 +204,6 @@ body:has(.workout-active) .bottom-nav {
   font-size: 14px;
   margin-bottom: 24px;
   line-height: 1.5;
-}
-
-/* ==========================================================================
-   TODAY / DAY / CALENDAR VIEWS
-   Once there's a real training to show, dashboard.js switches the page and
-   card wrappers to ".wide" - the placeholder states above stay narrow and
-   centered, but a day of exercises with per-set logging needs real width
-   and left-aligned text.
-   ========================================================================== */
-.athlete-app-page.wide {
-  display: block;
-  min-height: auto;
-  padding: 24px 16px;
-  padding-bottom: var(--nav-clearance); /* clears the floating .bottom-nav */
-}
-
-.athlete-app-card.wide {
-  max-width: 720px;
-  margin: 0 auto;
-  text-align: left;
-  padding: 24px;
 }
 
 /* ==========================================================================
@@ -2026,12 +2027,15 @@ body:has(.home-screen) .athlete-app-card {
     height: 24px;
   }
 
-  .athlete-app-page.wide {
+  /* :not(.centered) keeps this scoped to the real (formerly ".wide") screens,
+     same as before the .wide collapse - the 4 pre-app states still want
+     their full 40px padding even on a narrow viewport. */
+  .athlete-app-page:not(.centered) {
     padding: 16px 12px;
     padding-bottom: var(--nav-clearance); /* clears the floating .bottom-nav - the shorthand above resets it */
   }
 
-  .athlete-app-card.wide {
+  .athlete-app-card:not(.centered) {
     padding: 16px;
   }
 

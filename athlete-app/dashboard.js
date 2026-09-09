@@ -199,6 +199,8 @@ async function checkAccountState() {
 }
 
 function renderWrongRole() {
+  pageWrap.classList.add('centered')
+  cardWrap.classList.add('centered')
   pageContent.innerHTML = `
     <h2>Wrong login</h2>
     <p>This is the athlete login, and this account isn't set up as an athlete. If you're a coach, use the main TBFlog login instead.</p>
@@ -211,6 +213,8 @@ function renderWrongRole() {
 }
 
 function renderWaitingToBeLinked() {
+  pageWrap.classList.add('centered')
+  cardWrap.classList.add('centered')
   pageContent.innerHTML = `
     <h2>Almost there</h2>
     <p>Your coach hasn't linked your account yet. Once they've added your email to your athlete profile, click below to try again.</p>
@@ -229,6 +233,8 @@ function renderWaitingToBeLinked() {
 // athletes row directly. No skip option: this is the one moment the
 // athlete's own answer is authoritative, so it isn't optional.
 function renderCompleteProfilePrompt() {
+  pageWrap.classList.add('centered')
+  cardWrap.classList.add('centered')
   pageContent.innerHTML = `
     <h2>Welcome, ${athlete.name}!</h2>
     <p>Let's finish setting up your account. Confirm your details below and set a password so you can log back in directly next time, without needing another email link.</p>
@@ -341,6 +347,8 @@ async function enterAppMaybeIntro() {
 }
 
 function renderIntroStep() {
+  pageWrap.classList.add('centered')
+  cardWrap.classList.add('centered')
   const step = introSteps[introStepIndex]
   const isFirst = introStepIndex === 0
   const isLast = introStepIndex === introSteps.length - 1
@@ -1281,8 +1289,13 @@ function renderWeekView(weekStart) {
   setActiveBottomTab('home')
   teardownScreen()
   currentWeekStart = weekStart
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
+  // Only screen that ever needs to clear .centered: it's the sole landing
+  // point for the real app (see enterWeekView), reached either fresh or,
+  // via renderWaitingToBeLinked's Try Again button, straight from a
+  // .centered pre-app screen in the same page load - nothing else in the
+  // real app ever sets .centered, so nothing else needs to clear it.
+  pageWrap.classList.remove('centered')
+  cardWrap.classList.remove('centered')
 
   // Next should stay enabled all the way back up from any past week, not
   // just when weekStart happens to be exactly today's week - it only locks
@@ -1516,8 +1529,6 @@ function wireSyncBanner(onDone) {
 //     finishMobilitySession)
 // ==========================================================================
 async function renderMobilityAreaPicker() {
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
   pageContent.innerHTML = '<p>Loading...</p>'
 
   const [stretches] = await Promise.all([loadStretchLibrary(), loadAthleteStretchPreferences()])
@@ -1573,8 +1584,6 @@ async function renderMobilityAreaPicker() {
 }
 
 function renderMobilityPicker(selectedAreas) {
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const presets = [10, 15, 20]
   const hasLibrary = stretchLibraryCache && stretchLibraryCache.length > 0
@@ -1804,8 +1813,6 @@ async function startMobilityFlow(selectedAreas, totalSeconds) {
 // never the video's own length or its 'ended' event - which is what lets a
 // short clip (loop="true") cover a longer hold.
 function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const startedAt = new Date()
   let index = 0
@@ -2090,8 +2097,6 @@ async function loadExerciseLibrary() {
 }
 
 function renderAddWorkoutChoice() {
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -2204,8 +2209,6 @@ function wireExercisePicker(searchInputEl, listEl, library, onPick) {
 // the very first exercise of a fresh (or emptied-back-to-zero) day.
 async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -2269,8 +2272,6 @@ function getRecentlyLoggedExercises(library, limit) {
 // same renderActiveExercise flow as a coach-built workout.
 async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const selected = new Map() // exercise_id -> exercise object, insertion-ordered
   const activeCategoryFilters = new Set()
@@ -2500,8 +2501,6 @@ async function findOrCreateSelfLoggedDay(dateStr, name, workoutType) {
 // shape for both, just a different title/placeholder/default activity name
 // and the `type` ('field' or 'run') that ends up on the program_days row ----
 function renderAddWorkoutFieldForm(type) {
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const presets = [20, 30, 45, 60, 90]
   let selectedRpe = null
@@ -2921,8 +2920,6 @@ function renderWeeklyStatsBody(weekStart) {
 // ==========================================================================
 function renderDayPreview(dateStr) {
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const isToday = dateStr === toDateStr(new Date())
   const entries = entriesByDate[dateStr] || []
@@ -3001,8 +2998,6 @@ function renderFormPreviewCard(fa, dateStr) {
 // more later" scope as everything else about forms.
 // ==========================================================================
 async function renderFormFill(fa, dateStr) {
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const formName = fa.forms ? fa.forms.name : 'Form'
   const done = !!fa.completed_at
@@ -3472,8 +3467,6 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   }
 
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const isLast = index === slides.length - 1
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
@@ -3558,8 +3551,6 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 // ==========================================================================
 function renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction) {
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const slide = slides[index]
   currentSlideContext = slide
@@ -3614,8 +3605,6 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
 
 function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction) {
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const slide = slides[index]
   const { pe, round } = steps[stepIndex]
@@ -3970,8 +3959,6 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
 // every slide
 function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, direction) {
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -4162,8 +4149,6 @@ async function finishWorkout(entry, session) {
 
 function renderWorkoutSummary(finishedSession, entry) {
   teardownScreen()
-  pageWrap.classList.add('wide')
-  cardWrap.classList.add('wide')
 
   const durationMs = new Date(finishedSession.ended_at) - new Date(finishedSession.started_at)
   const durationMin = Math.floor(durationMs / 60000)
