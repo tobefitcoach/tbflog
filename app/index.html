@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>TBFlog</title>
+    <link rel="stylesheet" href="../style.css?v=31" />
+    <style>
+      /* Small enough it doesn't need its own stylesheet file. This page
+         never stays on screen long enough for a coach/athlete visual
+         refresh to matter - it exists to redirect, not to be looked at. */
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--c-bg);
+      }
+      .router-logo {
+        width: min(50vw, 220px);
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <img src="../logo.png?v=2" alt="" class="router-logo" />
+    <script type="module" src="index.js?v=1"></script>
+  </body>
+</html>
