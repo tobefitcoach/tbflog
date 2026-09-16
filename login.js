@@ -21,7 +21,7 @@ const authToggleLink = document.getElementById('authToggleLink')
 // Already logged in? Skip straight to the dashboard instead of showing the form
 const { data: { session } } = await supabase.auth.getSession()
 if (session) {
-  window.location.href = 'index.html'
+  window.location.href = 'app/index.html'
 }
 
 function showMessage(text, isSuccess) {
@@ -76,6 +76,6 @@ authSubmitBtn.addEventListener('click', async function() {
   } else {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { showMessage(error.message); return }
-    window.location.href = 'index.html'
+    window.location.href = 'app/index.html'
   }
 })
