@@ -1,0 +1,195 @@
+/* ==========================================================================
+   COACH APP SHELL
+   The coach equivalent of athlete-app/app.css, and deliberately much
+   smaller than it. The coach SPA reuses the sidebar/nav that style.css
+   already defines (including its @media (max-width: 768px) floating bottom
+   pill, added during the athlete redesign) rather than inventing a second
+   nav system - so this file only has to cover what's genuinely new: the
+   splash screen, the safe-area-aware header, and the scrolling page
+   wrapper that every screen mounts into.
+   Keeping it small is a performance requirement, not just tidiness: this
+   stylesheet is on the critical path for first paint, so anything that
+   belongs to one specific screen goes in coach-app/css/ and is injected by
+   that screen instead (see Part D of the plan).
+   ========================================================================== */
+
+/* ==========================================================================
+   SPLASH SCREEN
+   Byte-identical behaviour to the athlete app's - pure CSS, no JS: the
+   animation itself hides the overlay (opacity 0 + visibility hidden) at
+   the 3s mark, so it stops blocking clicks with no timer or cleanup code.
+   ========================================================================== */
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--c-bg);
+  animation: splashOverlayOut 3s ease forwards;
+}
+
+.splash-logo {
+  width: min(70vw, 320px);
+  animation: splashLogoPop 3s ease forwards;
+}
+
+@keyframes splashLogoPop {
+  0% { opacity: 0; transform: scale(0.82); }
+  22% { opacity: 1; transform: scale(1); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+@keyframes splashOverlayOut {
+  0% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still covers the screen for the same 3s (so the app doesn't flash
+     half-loaded content), just without the pop/scale movement. */
+  .splash-logo { animation: none; opacity: 1; }
+}
+
+/* ==========================================================================
+   HEADER
+   The fix for the single most visible native bug on the coach side today:
+   none of the 14 existing coach pages set viewport-fit=cover, so
+   env(safe-area-inset-*) resolves to 0 on all of them and the shared
+   `header` rule in style.css (padding: 12px 32px, no inset) puts the logo
+   underneath the notch / Dynamic Island on every iPhone.
+   dashboard.html sets viewport-fit=cover, which makes env() resolve for
+   real, and this adds the top inset the athlete app's .athlete-app-header
+   has had all along.
+   ========================================================================== */
+.coach-app-header {
+  padding-top: calc(env(safe-area-inset-top, 20px) + 4px);
+  padding-bottom: 8px;
+}
+
+.coach-app-header .header-logo {
+  height: 30px;
+}
+
+/* The right-hand cluster (page title + logged-in email). On a phone there
+   is no room for it beside the logo, and letting it shrink wraps the text
+   mid-word, so it drops to its own line as a whole unit instead. */
+.coach-app-header .header-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.coach-app-header .header-meta p {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.coach-app-header .header-email {
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   PAGE WRAPPER
+   Every screen module mounts into #pageContent, which lives inside this.
+   The equivalent of the athlete app's .athlete-app-page, but it sits next
+   to the sidebar inside .app-layout on desktop rather than being the only
+   thing on the page - so the nav clearance it needs is bottom padding on
+   phones only (where the nav becomes a floating pill) and nothing on
+   desktop (where the nav is a side column).
+   ========================================================================== */
+.coach-app-page {
+  flex: 1;
+  min-width: 0; /* lets long tables/cards shrink instead of forcing the layout wider than the screen */
+  padding: var(--s-6) var(--s-5);
+}
+
+@media (max-width: 768px) {
+  .coach-app-page {
+    padding: var(--s-5) var(--s-4);
+    /* Clears style.css's floating bottom nav pill. style.css already sets
+       `body { padding-bottom: 88px }` at this breakpoint for the
+       multi-page coach site; the SPA's body doesn't scroll (only this
+       wrapper does), so the clearance has to live here instead. */
+    padding-bottom: var(--nav-clearance);
+  }
+}
+
+/* ==========================================================================
+   SCREEN TRANSITION
+   The whole point of the SPA: swapping screens should not flash. A short
+   fade-in on the mounted content reads as a deliberate transition rather
+   than a repaint, and costs nothing since it's compositor-only.
+   ========================================================================== */
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.screen-enter {
+  animation: screenIn 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter { animation: none; }
+}
+
+/* ==========================================================================
+   SCREEN HEADER
+   One shell for every drill-down screen, promoted from the athlete app's
+   .day-view-header convention: back is always first, always left, always
+   the same glyph. Tab roots never render one.
+   ========================================================================== */
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+}
+
+.screen-header .btn-back {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  font-size: 18px;
+  line-height: 1;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.screen-header .btn-back:hover {
+  background-color: var(--c-surface);
+}
+
+.screen-header .screen-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   LOADING / EMPTY STATES
+   .skeleton-bar and .athlete-card-skeleton already live in style.css and
+   are reused as-is. This is just the generic centred message every screen
+   falls back to for an error or an empty list.
+   ========================================================================== */
+.screen-message {
+  text-align: center;
+  color: var(--c-text-muted);
+  padding: var(--s-10) var(--s-5);
+}
+
+.screen-message h2 {
+  color: var(--c-text);
+  margin-bottom: var(--s-3);
+}

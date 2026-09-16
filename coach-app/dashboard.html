@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) resolve to
+         real values instead of 0. None of the 14 original coach pages set
+         it, which is why the header sat under the Dynamic Island and the
+         floating nav pill sat in the home-indicator strip on every iPhone.
+         See .coach-app-header in app.css. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Coach — TBFlog</title>
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0d0d1a" />
+    <link rel="stylesheet" href="../style.css?v=31" />
+    <link rel="stylesheet" href="../athlete.css?v=70" />
+    <link rel="stylesheet" href="app.css?v=1" />
+    <!-- Supabase's ESM build on jsDelivr is not bundled: importing
+         supabase-js fans out into 8 more modules, and the browser can't
+         discover them until supabase-js itself has downloaded and parsed.
+         Measured cold on a throttled mobile connection, that waterfall cost
+         1,069ms of a 2,195ms startup - roughly half, spent entirely on
+         round-trip latency rather than bytes (it's only ~73KB gzipped).
+         Declaring them here lets all 9 fetch in parallel immediately.
+         These are hints, not imports - if the pinned supabase-js version in
+         coachClient.js changes, update this list to match; a stale entry is
+         harmless (an unused preload warning) but buys nothing. -->
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/auth-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/postgrest-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/realtime-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/storage-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/functions-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/phoenix@0.4.5/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/iceberg-js@0.8.1/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/tslib@2.8.1/+esm" />
+
+    <!-- NOTE: no <link> to css/athlete-detail.css or css/builders.css here,
+         and there must never be one. Those are injected by the screens that
+         need them (see Part D of the plan) - a <link> here would silently
+         put 20KB of screen-specific CSS back on the critical path. -->
+  </head>
+  <body>
+
+    <!-- Covers the screen for exactly 3s on every app open, logo animating
+         in then out, so the coach sees a branded moment instead of an empty
+         shell while the session check and first screen resolve. Pure CSS -
+         the animation hides it itself, no JS teardown needed. -->
+    <div class="splash-screen" id="splashScreen" aria-hidden="true">
+      <img src="../logo.png?v=2" alt="" class="splash-logo" />
+    </div>
+
+    <header class="coach-app-header">
+      <a href="#" class="header-logo-link" data-route="athletes"><img src="../logo.png?v=2" alt="TBFlog" class="header-logo"></a>
+      <div class="header-meta" id="headerActions">
+        <p id="pageTitle">Coach</p>
+        <p class="header-email" id="loggedInAs"></p>
+      </div>
+    </header>
+
+    <div class="app-layout">
+
+      <!-- Same .sidebar structure, classes and collapse behaviour as the
+           multi-page coach site, so style.css's existing desktop side
+           column AND its @media (max-width: 768px) floating bottom pill
+           both apply with no new CSS.
+           Two differences from the original: every item carries a
+           data-route instead of an href (there are no separate documents to
+           navigate to anymore - dashboard.js intercepts these), and the six
+           top-level items are consolidated into four tab roots, with the
+           four libraries plus Stretches and Forms grouped under Library.
+           Six was too many for a bottom bar; these six are all "content the
+           coach authors", so they group cleanly. -->
+      <nav class="sidebar" id="pageSidebar">
+        <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
+        <div class="sidebar-links" id="sidebarLinks">
+
+          <div class="sidebar-item-hover" id="athletesNavItem">
+            <a href="#" class="sidebar-link sidebar-link-icon active" data-route="athletes" data-tab="athletes"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Athletes</a>
+            <div class="sidebar-submenu" id="athleteStatusFilter">
+              <a href="#" data-route="athletes" data-status="active">Active</a>
+              <a href="#" data-route="athletes" data-status="pending">Pending</a>
+              <a href="#" data-route="athletes" data-status="offline">Offline</a>
+              <a href="#" data-route="athletes" data-status="archived">Archived</a>
+            </div>
+          </div>
+
+          <a href="#" class="sidebar-link sidebar-link-icon" data-route="communication" data-tab="communication"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Chat</a>
+
+          <div class="sidebar-item-hover">
+            <span class="sidebar-link sidebar-link-icon"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>Library</span>
+            <div class="sidebar-submenu">
+              <a href="#" data-route="exercises">Exercise Library</a>
+              <a href="#" data-route="sections">Section Library</a>
+              <a href="#" data-route="trainings">Workout Library</a>
+              <a href="#" data-route="programs">Program Library</a>
+              <a href="#" data-route="stretches">Stretch Library</a>
+              <a href="#" data-route="forms">Forms</a>
+            </div>
+          </div>
+
+          <a href="#" class="sidebar-link sidebar-link-icon" data-route="settings" data-tab="settings"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Settings</a>
+
+        </div>
+      </nav>
+
+      <!-- Every screen module mounts into #pageContent. It lives inside
+           .coach-app-page, which never unmounts - so the header, sidebar
+           and any shared modal below all survive every screen swap. -->
+      <div class="coach-app-page">
+        <div id="pageContent">
+          <div class="skeleton-bar" style="width:40%; height:26px; margin-bottom:24px"></div>
+          <div class="skeleton-bar" style="height:64px; margin-bottom:12px"></div>
+          <div class="skeleton-bar" style="height:64px; margin-bottom:12px"></div>
+          <div class="skeleton-bar" style="height:64px"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <script type="module" src="../loading-bar.js?v=1"></script>
+    <script type="module" src="../confirm-modal.js?v=2"></script>
+    <script type="module" src="../network-retry.js?v=1"></script>
+    <script type="module" src="dashboard.js?v=1"></script>
+  </body>
+</html>

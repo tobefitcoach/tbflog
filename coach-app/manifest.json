@@ -1,0 +1,13 @@
+{
+  "name": "TBFlog Coach",
+  "short_name": "TBFlog Coach",
+  "start_url": "dashboard.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0d0d1a",
+  "theme_color": "#0d0d1a",
+  "icons": [
+    { "src": "../athlete-app/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "../athlete-app/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
