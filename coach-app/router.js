@@ -30,9 +30,9 @@ export const ROUTES = {
   stretches:        () => import('./screens/stretches.js'),
   forms:            () => import('./screens/forms.js'),
   settings:         () => import('./screens/settings.js'),
-  'program-builder':() => import('./screens/_placeholder.js'),
-  'section-builder':() => import('./screens/_placeholder.js'),
-  'form-builder':   () => import('./screens/_placeholder.js'),
+  'program-builder':() => import('./screens/program-builder.js'),
+  'section-builder':() => import('./screens/section-builder.js'),
+  'form-builder':   () => import('./screens/form-builder.js'),
   // Wraps the unchanged repo-root training-builder.html in a full-bleed
   // iframe (Phase 5). Reached from the Workout Library and from a day in
   // the calendar/program builder, which already used it as an overlay.
