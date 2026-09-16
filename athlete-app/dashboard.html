@@ -7,7 +7,12 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0d0d1a" />
     <link rel="stylesheet" href="../style.css?v=31" />
-    <link rel="stylesheet" href="../athlete.css?v=70" />
+    <!-- Was ../athlete.css (77KB, shared with the coach site) - 52% of
+         that file was coach-only rules this app never used. Replaced with
+         just this app's actual subset (shared rules + athlete-app-only
+         ones) - see athlete-shared.css's own header and Part D of the
+         coach-app rebuild plan. -->
+    <link rel="stylesheet" href="../athlete-shared.css?v=1" />
     <link rel="stylesheet" href="app.css?v=78" />
 
     <!-- Supabase's ESM build on jsDelivr is not bundled: importing

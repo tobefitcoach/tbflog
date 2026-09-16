@@ -12,7 +12,11 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0d0d1a" />
     <link rel="stylesheet" href="../style.css?v=31" />
-    <link rel="stylesheet" href="../athlete.css?v=70" />
+    <!-- Was ../athlete.css (77KB) - split by consumer, see Part D of the
+         plan. coach-core.css is the ~55KB every coach screen needs;
+         athlete-detail.css and css/builders.css are injected by their own
+         screens on first mount via lazy-css.js, not loaded here. -->
+    <link rel="stylesheet" href="css/coach-core.css?v=1" />
     <link rel="stylesheet" href="app.css?v=1" />
     <!-- Supabase's ESM build on jsDelivr is not bundled: importing
          supabase-js fans out into 8 more modules, and the browser can't

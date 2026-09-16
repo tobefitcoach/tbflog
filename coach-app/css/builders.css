@@ -1,0 +1,247 @@
+/* ==========================================================================
+   BUILDER SCREENS CSS
+   Lazy-loaded by the 3 builder screens (program/section/form) on first mount.
+   Auto-derived from athlete.css by classifying each rule against which
+   source files actually reference its class names (including a fallback
+   for classes built as template-literal suffixes, e.g. "status-${s}").
+   Anything ambiguous or unmatched was folded into coach-core.css rather
+   than dropped, since a wrongly-excluded rule breaks a screen silently
+   while a wrongly-included one only costs a few bytes.
+   athlete.css itself is untouched - the old root pages keep loading it
+   exactly as before. Only the new coach-app/athlete-app entry points
+   switch to these derived files.
+   ========================================================================== */
+
+
+
+.exercise-library-panel h3 {
+  font-size: 14px;
+  color: var(--c-text);
+  margin-bottom: 12px;
+}
+
+
+.exercise-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+
+.training-builder-main {
+  flex: 1;
+  min-width: 0;
+}
+
+
+.workout-outline-panel h3 {
+  font-size: 14px;
+  color: var(--c-text);
+  margin-bottom: 4px;
+}
+
+
+.workout-outline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+
+.workout-outline-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background-color: var(--c-surface);
+  cursor: grab;
+}
+
+
+.workout-outline-item:active {
+  cursor: grabbing;
+}
+
+
+.workout-outline-num {
+  flex-shrink: 0;
+  min-width: 16px;
+  color: #666699;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+.workout-outline-name {
+  min-width: 0;
+  color: var(--c-text);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.week-page-nav h3 {
+  min-width: 140px;
+  text-align: center;
+}
+
+
+.program-week-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+
+.program-week-heading h4 {
+  margin: 0;
+}
+
+
+.program-week-delete {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  color: var(--c-text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+
+.program-week-delete:hover {
+  background-color: #c0466e33;
+  color: #c0466e;
+}
+
+
+.program-week-copy {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  color: var(--c-text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+
+.program-week-copy:hover {
+  background-color: #4a4a8e33;
+  color: var(--c-accent);
+}
+
+
+.program-day-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+
+/* Field name is picked from a library now, not typed per row (see
+   openExtraFieldPicker in the builder JS), so it renders as a fixed label
+   instead of a second input - half the width of the old two-input row. */
+.extra-field-label {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 10px 12px;
+  background-color: #22223a;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--c-text-muted);
+}
+
+
+.calendar-day-badge-planned {
+  background-color: #3b82f6;
+}
+
+
+.builder-kebab-btn {
+  background: none;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 15px;
+  color: var(--c-text-muted);
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+
+.builder-kebab-btn:hover {
+  opacity: 1;
+  border-color: var(--c-accent);
+  color: white;
+}
+
+
+.form-question-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+
+.form-question-number {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: var(--c-border);
+  color: var(--c-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+
+.form-question-text {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  font-size: 14px;
+}
+
+
+.form-question-type {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background-color: var(--c-bg);
+  color: var(--c-text-muted);
+  font-size: 13px;
+}

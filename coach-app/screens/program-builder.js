@@ -29,6 +29,7 @@
 import { supabase } from '../../coachClient.js'
 import * as nav from '../nav.js'
 import { go } from '../router.js'
+import { ensureCss } from '../lazy-css.js'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -152,6 +153,7 @@ let onDocClickKebab = null
 let onDocKeydown = null
 
 export async function mount(container, params, token) {
+  ensureCss('css/builders.css?v=1')
   root = container
   programId = params.id
   container.innerHTML = TEMPLATE

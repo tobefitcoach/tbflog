@@ -1,0 +1,1011 @@
+/* ==========================================================================
+   ATHLETE-DETAIL SCREEN CSS
+   Lazy-loaded only by coach-app/screens/athlete-detail.js on first mount.
+   Auto-derived from athlete.css by classifying each rule against which
+   source files actually reference its class names (including a fallback
+   for classes built as template-literal suffixes, e.g. "status-${s}").
+   Anything ambiguous or unmatched was folded into coach-core.css rather
+   than dropped, since a wrongly-excluded rule breaks a screen silently
+   while a wrongly-included one only costs a few bytes.
+   athlete.css itself is untouched - the old root pages keep loading it
+   exactly as before. Only the new coach-app/athlete-app entry points
+   switch to these derived files.
+   ========================================================================== */
+
+
+
+.tab-btn {
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--c-text-muted);
+  padding: 12px 4px;
+  margin-bottom: -1px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+
+.tab-btn:hover {
+  color: white;
+}
+
+
+.tab-panel {
+  display: none;
+}
+
+
+.modal-tab-btn {
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--c-text-muted);
+  padding: 10px 4px;
+  margin-bottom: -1px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+
+.modal-tab-btn:hover {
+  color: white;
+}
+
+
+.modal-tab-panel {
+  display: none;
+}
+
+
+.calendar-toolbar h3 {
+  min-width: 140px;
+  text-align: center;
+}
+
+
+.calendar-grid {
+  display: grid;
+  /* minmax(0, 1fr), not a bare 1fr - an implicit 1fr track won't shrink
+     below its content's unwrapped width, so one day with a wide child can
+     silently blow that column out wider than its 6 neighbors */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+
+.calendar-week-gutter-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.calendar-week-copy-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  color: var(--c-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+
+.calendar-week-copy-btn:hover {
+  background-color: #4a4a8e33;
+  color: var(--c-accent);
+}
+
+
+.workout-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+
+.workout-preview-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--c-text);
+}
+
+
+.workout-preview-count {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+
+.status-dot-progress {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ff9800;
+  vertical-align: 1px;
+}
+
+
+/* One row of the Program preview - just a day number + label/exercise
+   count (no thumbnails), since a full program can be 100+ days long */
+.program-preview-day-row {
+  display: flex;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--c-border);
+  font-size: 13px;
+}
+
+
+.program-preview-day-row:first-of-type {
+  border-top: none;
+}
+
+
+.program-preview-day-num {
+  color: var(--c-accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+
+.program-preview-day-label {
+  color: var(--c-text-muted);
+}
+
+
+/* "Schedule from Day X -> Day Y" row under the Program list/preview -
+   each field opens dayPickerModal instead of being a real date input,
+   since the actual calendar date is already fixed (the day you clicked) */
+.day-range-row {
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+
+.day-range-caption {
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+
+.day-range-field {
+  background-color: var(--c-bg);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+
+.day-range-field:hover {
+  border-color: var(--c-accent);
+}
+
+
+.day-range-arrow {
+  color: var(--c-text-muted);
+}
+
+
+/* ---- Day Picker modal - a paginated grid of day numbers ---- */
+.day-picker-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+
+.day-picker-nav span {
+  color: var(--c-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+
+.day-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+
+.day-picker-cell {
+  background-color: transparent;
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  padding: 10px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+
+.day-picker-cell:hover {
+  border-color: var(--c-accent);
+}
+
+
+.calendar-day-outside {
+  opacity: 0.35;
+}
+
+
+.calendar-day-today {
+  border-color: var(--c-accent);
+  background-color: rgba(74, 74, 142, 0.15);
+}
+
+
+.calendar-day-number {
+  font-size: 13px;
+  color: var(--c-text-muted);
+}
+
+
+.calendar-day-badge-more {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--c-text-muted);
+}
+
+
+/* Mobile's dot version of the same kebab - the dot itself is the tap
+   target (data-action="toggle-kebab" straight on the span, see
+   renderCalendarGrid's dotsHtml), since there's no room next to a 12px dot
+   for a separate ⋮ button. The padding/negative-margin trick below grows
+   the actual tappable area well past the dot's tiny visual size without
+   shifting any surrounding layout. */
+.calendar-dot-kebab {
+  display: inline-flex;
+  padding: 6px;
+  margin: -6px;
+  cursor: pointer;
+}
+
+
+.calendar-day-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #3b82f6;
+  color: var(--c-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.calendar-day-dot-in-progress {
+  background-color: #ff9800;
+}
+
+.calendar-day-dot-done {
+  background-color: #4caf50;
+}
+
+.calendar-day-dot-tournament {
+  background-color: #d4a017;
+}
+
+.calendar-day-dot-mobility {
+  background-color: #9c6ade;
+}
+
+.calendar-day-dot-form {
+  background-color: #14b8a6;
+}
+
+
+.calendar-day-dot-more {
+  width: auto;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--c-text-muted);
+  font-size: 8px;
+}
+
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  background-color: var(--c-surface);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  margin-bottom: 32px;
+  border: 1px solid var(--c-border);
+}
+
+
+/* Left side of header: avatar initials + name/info text */
+.profile-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+
+/* Right side of header: bodyweight mini-graph */
+.profile-right {
+  flex: 1;
+  max-width: 300px;
+}
+
+
+.bodyweight-label {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  margin-bottom: 8px;
+}
+
+
+.bodyweight-graph-area {
+  height: 100px;
+  position: relative;
+}
+
+
+/* Placeholder text shown when there's no bodyweight data yet */
+.no-bodyweight-data {
+  color: var(--c-accent);
+  font-size: 12px;
+  text-align: center;
+  padding-top: 30px;
+}
+
+
+
+/* --- Profile header content: avatar circle + name/info text --- */
+.profile-initials {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: var(--c-accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+
+.profile-info h2 {
+  font-size: 24px;
+  color: var(--c-text);
+  margin-bottom: 8px;
+}
+
+
+.profile-info p {
+  color: var(--c-text-muted);
+  font-size: 14px;
+}
+
+
+.metrics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+
+.metrics-header h3 {
+  font-size: 18px;
+  color: var(--c-text);
+}
+
+
+/* 3-column grid of metric cards, collapsing to 1 column on mobile */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+
+
+/* ==========================================================================
+   INDIVIDUAL METRIC CARD
+   A single card showing a metric's latest value, mini-graph, and history
+   ========================================================================== */
+
+.metric-item {
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 20px;
+  background-color: var(--c-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+
+.athlete-status-badge.status-active {
+  background-color: rgba(76, 217, 100, 0.15);
+  color: #4cd964;
+}
+
+
+.athlete-status-badge.status-pending {
+  background-color: rgba(255, 204, 0, 0.15);
+  color: #ffcc00;
+}
+
+
+.athlete-status-badge.status-offline {
+  background-color: rgba(170, 170, 204, 0.12);
+  color: var(--c-text-muted);
+}
+
+
+.athlete-status-badge.status-archived {
+  background-color: transparent;
+  border: 1px dashed #4a4a6e;
+  color: #7a7a9e;
+}
+
+
+.pain-flag-note {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+
+.pain-report-row {
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+
+.pain-report-meta {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+
+.pain-report-note {
+  color: var(--c-text);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+
+.activity-row:last-child {
+  border-bottom: none;
+}
+
+
+.activity-icon-chip {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--c-border);
+  color: var(--c-text-muted);
+}
+
+
+.activity-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--c-text);
+  font-size: 13px;
+}
+
+
+.activity-date {
+  flex-shrink: 0;
+  color: var(--c-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+
+.metric-latest {
+  font-size: 13px;
+  color: var(--c-text-muted);
+  margin-bottom: 12px;
+}
+
+
+/* Mini chart area inside a metric card (click to open full graph modal) */
+.metric-graph-area {
+  height: 140px;
+  max-height: 140px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+
+.metric-graph-area:hover {
+  opacity: 0.8;
+}
+
+
+.metric-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+
+.metric-item-header h4 {
+  font-size: 16px;
+  color: var(--c-text);
+}
+
+
+/* "Record" button to log a new value for this metric */
+.btn-record {
+  background-color: var(--c-accent);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+
+.btn-record:hover {
+  background-color: #5a5aae;
+}
+
+
+
+/* --- Delete buttons for metrics / individual measurements --- */
+.btn-delete-metric {
+  background-color: transparent;
+  border: 1px solid var(--c-accent);
+  color: var(--c-text-muted);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+
+.btn-delete-metric:hover {
+  background-color: #ff4444;
+  border-color: #ff4444;
+  color: white;
+}
+
+
+/* Row holding the time-range filters on the left and the bodyweight overlay
+   toggle on the right - wraps instead of overflowing when both don't fit on
+   one line (narrow phone screens: 5 filter buttons alone can eat the whole
+   modal width, which used to just push the toggle off past the edge) */
+.graph-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  row-gap: 10px;
+  margin-bottom: 24px;
+}
+
+
+/* Total km run for the selected time filter (Zone 2 metrics only) */
+.graph-period-stat {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin: 0 0 16px;
+}
+
+
+.graph-granularity-note {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  text-align: center;
+  margin: 10px 0 0;
+}
+
+
+/* Main chart canvas area inside the modal */
+.graph-container {
+  position: relative;
+  height: 350px;
+}
+
+
+.mini-graph-container:hover {
+  opacity: 0.8;
+}
+
+
+/* Small hint text like "click to view full graph" */
+.graph-hint {
+  font-size: 11px;
+  color: var(--c-accent);
+  margin-top: 4px;
+  text-align: right;
+}
+
+
+
+/* ==========================================================================
+   ENTRIES TABLE
+   Table used in the "all entries" / history modal for a metric
+   ========================================================================== */
+
+.entries-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+
+.entries-table th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--c-text-muted);
+  padding: 10px 8px;
+  border-bottom: 2px solid var(--c-border);
+}
+
+
+.entries-table td {
+  padding: 12px 8px;
+  font-size: 13px;
+  color: var(--c-text);
+  border-bottom: 1px solid var(--c-border);
+  vertical-align: middle;
+  line-height: 1.5;
+}
+
+
+.entries-table tr:last-child td {
+  border-bottom: none;
+}
+
+
+/* Edit button shown on each row of the entries table */
+.btn-edit-entry {
+  background-color: transparent;
+  border: 1px solid var(--c-accent);
+  color: var(--c-text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+
+.btn-edit-entry:hover {
+  background-color: var(--c-accent);
+  color: white;
+}
+
+
+.profile-header {
+  cursor: pointer;
+}
+
+
+.profile-header:hover {
+  opacity: 0.9;
+}
+
+
+/* --- Shared layout for the 4 stats-bar detail modals (PRs, Metrics tracked,
+   Total entries, Last updated): category groups (reuse .category-title),
+   each containing one block per metric with a list of label/value rows --- */
+.detail-category {
+  margin-bottom: 28px;
+}
+
+
+/* --- Pagination controls at the bottom of the "Last updated" detail modal --- */
+.pagination-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--c-border);
+}
+
+
+.pagination-btn {
+  background-color: transparent;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-muted);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+
+.pagination-btn:hover {
+  border-color: var(--c-accent);
+  color: white;
+}
+
+
+.pagination-label {
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+
+.stat-item {
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+
+/* Stat tiles that open a modal on click (currently just the PRs tile) */
+.stat-item-clickable {
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+
+.stat-item-clickable:hover {
+  border-color: var(--c-accent);
+}
+
+
+/* ACWR > 1.5 - same red already used for delete buttons/warnings elsewhere */
+.stat-risk-badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;
+  color: #ff4444;
+  background-color: rgba(255, 68, 68, 0.15);
+}
+
+
+.stat-insufficient-note {
+  color: #e0a030;
+  font-size: 12px;
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+
+/* Training stats (3 cards) share a row 50/50 with Recent Activity on the
+   Overview tab, instead of Recent Activity taking the full width below them */
+.overview-top-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 32px;
+}
+
+
+.overview-top-split .stats-bar {
+  margin-bottom: 0;
+}
+
+
+
+/* ==========================================================================
+   ATHLETE NOTES
+   Dated notes log in the middle column of the profile header, between the
+   avatar/info on the left and the bodyweight graph on the right. Mirrors
+   the Bodyweight pattern: a "latest entry" preview here, full dated
+   history + edit/delete in the "View all" modal
+   ========================================================================== */
+
+.profile-notes {
+  flex: 1;
+  max-width: 300px;
+}
+
+
+.btn-save-notes {
+  background-color: var(--c-accent);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+
+.btn-save-notes:hover {
+  background-color: #5a5aae;
+}
+
+
+/* Most recent note shown directly in the header - same left-border-card
+   look as a .note-entry so it visibly reads as "the latest entry in the
+   log", not a one-off text block */
+.latest-note-preview {
+  min-height: 80px;
+  background-color: #14142a;
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+
+.latest-note-preview.no-notes {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+}
+
+
+.latest-note-date {
+  font-size: 12px;
+  color: white;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+
+.latest-note-text {
+  font-size: 13px;
+  color: #ddddee;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+
+/* One entry in the "All Notes" list modal - styled as its own card with a
+   left timeline bar, so a run of dated entries reads as a log instead of
+   blending into one block of text (each just used to be a thin
+   border-bottom divider - hard to tell entries apart at a glance) */
+.note-entry {
+  background-color: #14142a;
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-accent);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+
+.note-entry:last-child {
+  margin-bottom: 0;
+}
+
+
+.note-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+
+.note-entry-date {
+  font-size: 13px;
+  color: white;
+  font-weight: 700;
+}
+
+
+.note-entry-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #ddddee;
+  white-space: pre-wrap;
+}
+
+
+.category-title {
+  font-size: 14px;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+
+
+/* ==========================================================================
+   METRIC CHANGE INDICATORS
+   Colored +/- text showing how a metric changed (up = green, down = red, etc.)
+   ========================================================================== */
+
+.metric-change {
+  font-size: 12px;
+}
+
+
+.metric-change.positive {
+  color: #4caf50;
+}
+
+
+.metric-change.negative {
+  color: #f44336;
+}
+
+
+
+/* ==========================================================================
+   "EXPLAIN CHANGE" BREAKDOWN
+   Modal/section that breaks down how a change value was calculated
+   ========================================================================== */
+
+.change-explain-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 14px;
+}
+
+
+.change-explain-row:last-child {
+  border-bottom: none;
+}
+
+
+.change-explain-label {
+  color: var(--c-text-muted);
+}
+
+
+.change-explain-value {
+  color: var(--c-text);
+  font-weight: bold;
+}
+
+
+/* Final computed result, highlighted at the bottom of the breakdown */
+.change-explain-result {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: var(--c-bg);
+  text-align: center;
+  font-size: 14px;
+}

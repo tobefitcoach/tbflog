@@ -22,6 +22,7 @@
 import { supabase } from '../../coachClient.js'
 import * as nav from '../nav.js'
 import { go } from '../router.js'
+import { ensureCss } from '../lazy-css.js'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -73,6 +74,7 @@ let questionsCache = []
 let autosaveTimers = {}
 
 export async function mount(container, params, token) {
+  ensureCss('css/builders.css?v=1')
   root = container
   formId = params.id
   container.innerHTML = TEMPLATE

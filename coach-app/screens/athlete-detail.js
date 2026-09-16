@@ -90,6 +90,7 @@ import * as nav from '../nav.js'
 import { go } from '../router.js'
 import { coachId } from '../session.js'
 import { loadChartJs, loadJsPdf } from '../vendor.js'
+import { ensureCss } from '../lazy-css.js'
 
 // Shown for however long the initial athlete-row fetch takes - same
 // "skeleton, not a blank screen" convention as athletes.js/trainings.js.
@@ -1496,6 +1497,7 @@ let onDocKeydownCal = null // Escape disarms an in-progress calendar copy
 // ---- MOUNT / UNMOUNT ----
 // ==========================================================================
 export async function mount(container, params, token) {
+  ensureCss('css/athlete-detail.css?v=1')
   root = container
   mountToken = token
   athleteId = params.id
