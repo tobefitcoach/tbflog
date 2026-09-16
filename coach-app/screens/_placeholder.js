@@ -21,11 +21,11 @@
 //              coach navigated away during a slow query, the response must
 //              not repaint over whatever screen is showing now.
 //
-// Screens do NOT call nav.enter themselves - dashboard.js's renderScreen
+// Screens do NOT call nav.enter themselves - router.js's renderScreen
 // does that centrally before calling mount. Screens DO call nav.back()
 // from their own "← Back" buttons.
 //
-// Delete this file once the last route in dashboard.js's ROUTES table
+// Delete this file once the last route in router.js's ROUTES table
 // points at a real screen.
 // ==========================================================================
 import * as nav from '../nav.js'
@@ -37,7 +37,7 @@ const COMING_IN = {
   athletes: 'Phase 3', communication: 'Phase 3',
   'athlete-detail': 'Phase 4',
   'program-builder': 'Phase 5', 'section-builder': 'Phase 5',
-  'form-builder': 'Phase 5',
+  'form-builder': 'Phase 5', 'training-builder': 'Phase 5',
 }
 
 // Module-level, so unmount can clear it. A screen that sets an interval and

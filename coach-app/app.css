@@ -177,6 +177,115 @@
   text-overflow: ellipsis;
 }
 
+/* Sits under a .dashboard-header to explain what the screen is for. The
+   multi-page site wrote this as an inline style on each page
+   (color/font-size/negative top margin, repeated verbatim); it's a class
+   here so the seven library screens can't drift apart. */
+.screen-subtitle {
+  color: var(--c-text-muted);
+  font-size: 13px;
+  margin-top: -16px;
+  margin-bottom: var(--s-6);
+}
+
+/* ==========================================================================
+   SETTINGS ROWS
+   .settings-row / -title / -desc and .detail-group-title already live in
+   athlete.css and are reused as-is. These four only exist to replace the
+   inline style="..." strings the multi-page settings.html carried on its
+   icons, number input and unit label - same values, just not repeated in
+   markup where they can't be kept consistent.
+   ========================================================================== */
+.settings-row-icon {
+  vertical-align: -2px;
+  margin-right: 5px;
+}
+
+.settings-row-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-number-input {
+  width: 56px;
+  text-align: center;
+  padding: var(--s-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  font-size: 14px;
+}
+
+.settings-row-unit {
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   SHARED SCREEN BITS
+   Each of these replaces an inline style="..." string that the multi-page
+   site repeated across several pages. Same values, now in one place.
+   ========================================================================== */
+
+/* The cluster of buttons on the right of a .dashboard-header (filter +
+   primary action), e.g. the Workout Library's "Filter by Label" + "New". */
+.header-actions-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* A small icon sitting inline before a button's label. */
+.btn-inline-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+/* Muted one-liner directly under a modal's <h2>. */
+.modal-subtitle {
+  color: var(--c-text-muted);
+  font-size: 13px;
+  margin-top: -8px;
+}
+
+/* Muted explanatory text inside a .form-group, under its label. */
+.form-group-hint {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  margin: -2px 0 8px;
+}
+
+/* A category heading with its own kebab menu pushed to the right. */
+.category-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s-4);
+}
+
+/* Filter chips on the left, a single action button pinned right. */
+.filter-chips-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: var(--s-4);
+}
+
+/* The accent-coloured type/duration line on a library card. */
+.exercise-type-line {
+  color: var(--c-accent);
+  margin-bottom: var(--s-1);
+}
+
+.stretch-video-preview {
+  width: 100%;
+  max-width: 280px;
+  border-radius: var(--r-sm);
+  margin-bottom: var(--s-2);
+}
+
 /* ==========================================================================
    LOADING / EMPTY STATES
    .skeleton-bar and .athlete-card-skeleton already live in style.css and
