@@ -237,12 +237,20 @@ async function sendChatMessage() {
   const message = input.value.trim()
   if (!message || !selectedAthlete) return
 
+  // Captured up front, not read again after the await below. selectedAthlete
+  // is module-level and mutable - if the coach clicks a different athlete
+  // row while this insert is in flight, the module-level variable now
+  // points at THAT athlete by the time execution resumes. Without this
+  // capture, the push notification a few lines down would go to whoever is
+  // newly selected, not whoever this message was actually sent to.
+  const targetAthlete = selectedAthlete
+
   input.value = ''
   input.disabled = true
 
   const { error } = await supabase.from('chat_messages').insert([{
     coach_id: coachId(),
-    athlete_id: selectedAthlete.id,
+    athlete_id: targetAthlete.id,
     sender: 'coach',
     message
   }])
@@ -257,13 +265,17 @@ async function sendChatMessage() {
     return
   }
 
-  if (selectedAthlete.user_id) {
+  if (targetAthlete.user_id) {
     // One directory up: this app lives at coach-app/dashboard.html, so
     // 'athlete-app/...' resolved against it would point at
     // coach-app/athlete-app/..., which doesn't exist.
     const url = new URL('../athlete-app/dashboard.html', window.location.href).href
-    sendPush(supabase, selectedAthlete.user_id, 'TBFlog', message, url) // not awaited
+    sendPush(supabase, targetAthlete.user_id, 'TBFlog', message, url) // not awaited
   }
 
+  // Reloads the CURRENTLY selected athlete's thread (selectCommsAthlete
+  // already does this on switch), which is correct even if the coach
+  // switched rows mid-send - this refresh is "make sure what's on screen
+  // is current", not "show the result of the send I just did".
   loadChatMessages()
 }

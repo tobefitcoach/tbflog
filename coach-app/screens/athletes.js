@@ -211,6 +211,16 @@ let selectedLabelFilterIds = new Set()
 let manageLabelsAthleteId = null
 
 let onDocClickFilter = null
+// Not present in the original script.js - every other library screen
+// (forms/sections/trainings/programs/stretches) has an outside-click
+// listener that closes an open kebab dropdown, but the Athletes list never
+// did. On the multi-page site that gap was invisible: any navigation
+// destroyed the whole document, which incidentally closed the dropdown
+// too. In the SPA nothing destroys the screen between clicks, so a left-
+// open dropdown would sit there until another kebab was tapped or the grid
+// repainted. Added here for consistency with its five siblings - see
+// trainings.js for the identical pattern.
+let onDocClickKebab = null
 
 export async function mount(container, params, token) {
   root = container
@@ -241,7 +251,9 @@ export function unmount() {
   // away on every navigation. Here it must be removed by hand, or every
   // visit to this screen adds another live listener.
   if (onDocClickFilter) document.removeEventListener('click', onDocClickFilter)
+  if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
   onDocClickFilter = null
+  onDocClickKebab = null
   root = null
   mountToken = null
   allAthletes = []
@@ -617,13 +629,18 @@ function applyFilters() {
 // was already in the document. Called once per mount, after TEMPLATE is in.
 // ==========================================================================
 function bindEvents() {
-  // Outside click closes the label filter dropdown (same pattern as the
-  // kebab dropdowns). The screen's only document-level listener - tracked
-  // so unmount() can take it back off.
+  // Outside click closes the label filter dropdown.
   onDocClickFilter = function(e) {
     if (!e.target.closest('#labelFilter')) root?.querySelector('#labelFilterDropdown')?.classList.remove('active')
   }
   document.addEventListener('click', onDocClickFilter)
+
+  // Outside click closes any open kebab dropdown - see the onDocClickKebab
+  // declaration above for why this didn't exist in the original.
+  onDocClickKebab = function() {
+    root?.querySelectorAll('.athlete-grid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
+  }
+  document.addEventListener('click', onDocClickKebab)
 
   root.querySelector('#athleteSearchInput').addEventListener('input', function(e) {
     currentSearchQuery = e.target.value
