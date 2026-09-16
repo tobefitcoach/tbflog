@@ -6,6 +6,30 @@
     <title>Athlete Login — TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=31" />
     <link rel="stylesheet" href="../login.css?v=4" />
+
+    <!-- Supabase's ESM build on jsDelivr is not bundled: importing
+         supabase-js fans out into 8 more modules, and the browser cannot
+         discover them until supabase-js itself has downloaded and parsed,
+         so they arrive as a 9-deep waterfall of round trips rather than in
+         parallel. Measured cold on a throttled mobile connection, that
+         chain didn't even START until ~610ms in and ran to ~1650ms - for
+         only ~73KB gzipped, so it's almost entirely latency, not bytes.
+         Declaring them here lets all 9 fetch at once, immediately.
+         These are hints, not imports - they change nothing about what the
+         app loads, only when. If the pinned supabase-js version in
+         athleteClient.js changes, update this list to match; a stale entry
+         is harmless (an unused-preload console warning) but buys nothing.
+         The coach app carries the identical block - see
+         coach-app/dashboard.html. -->
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/auth-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/postgrest-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/realtime-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/storage-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/functions-js@2.112.0/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/phoenix@0.4.5/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/iceberg-js@0.8.1/+esm" />
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/tslib@2.8.1/+esm" />
   </head>
   <body>
 
