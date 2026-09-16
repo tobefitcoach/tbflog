@@ -20,9 +20,9 @@ import * as nav from './nav.js'
 // swapped for its real screen one line at a time, so a screen can land and
 // be verified without touching anything else here.
 export const ROUTES = {
-  athletes:         () => import('./screens/_placeholder.js'),
+  athletes:         () => import('./screens/athletes.js'),
   'athlete-detail': () => import('./screens/_placeholder.js'),
-  communication:    () => import('./screens/_placeholder.js'),
+  communication:    () => import('./screens/communication.js'),
   exercises:        () => import('./screens/exercises.js'),
   sections:         () => import('./screens/sections.js'),
   trainings:        () => import('./screens/trainings.js'),

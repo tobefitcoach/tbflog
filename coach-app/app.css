@@ -286,6 +286,59 @@
   margin-bottom: var(--s-2);
 }
 
+/* The avatar + status/pain/label badge cluster on the left of an athlete
+   card's .card-top, wrapping onto a second line when there are several. */
+.card-badge-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+/* Classes folded out of athlete.html's 87 inline style="..." strings during
+   the Phase 4 conversion. The ones worth naming were the 13 hardcoded
+   #aaaacc (now the muted-text token) and the layout rows repeated across
+   the four tabs; genuine one-offs like flex:1 stayed inline. */
+.panel-subtitle {
+  color: var(--c-text-muted);
+  font-size: 13px;
+  margin-top: -8px;
+  margin-bottom: var(--s-4);
+}
+
+.text-muted { color: var(--c-text-muted); }
+
+.text-muted-sm {
+  color: var(--c-text-muted);
+  font-size: 12px;
+}
+
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s-2);
+}
+
+.row-8 { display: flex; gap: var(--s-2); }
+
+.row-8-center {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.row-10-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-actions-end {
+  justify-content: flex-end;
+  margin-top: var(--s-4);
+}
+
 /* ==========================================================================
    LOADING / EMPTY STATES
    .skeleton-bar and .athlete-card-skeleton already live in style.css and
