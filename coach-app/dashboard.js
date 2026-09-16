@@ -19,6 +19,7 @@
 import { supabase } from '../coachClient.js'
 import { setSession } from './session.js'
 import { go, initRouter, prefetchLikelyNext, currentRouteName, TAB_FOR_ROUTE } from './router.js'
+import { initBell } from './bell.js'
 
 const pageContent = document.getElementById('pageContent')
 const pageTitle = document.getElementById('pageTitle')
@@ -138,6 +139,7 @@ async function start() {
 
   initSidebar()
   initRouter({ content: pageContent, title: pageTitle, onFrameChange: syncNavHighlight })
+  initBell() // chrome, not a screen - initialized once here, no unmount (see bell.js header comment)
 
   await go('athletes', {})
   prefetchLikelyNext()
