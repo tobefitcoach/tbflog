@@ -21,7 +21,7 @@ import * as nav from './nav.js'
 // be verified without touching anything else here.
 export const ROUTES = {
   athletes:         () => import('./screens/athletes.js'),
-  'athlete-detail': () => import('./screens/_placeholder.js'),
+  'athlete-detail': () => import('./screens/athlete-detail.js'),
   communication:    () => import('./screens/communication.js'),
   exercises:        () => import('./screens/exercises.js'),
   sections:         () => import('./screens/sections.js'),
