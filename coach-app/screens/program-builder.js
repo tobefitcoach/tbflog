@@ -407,6 +407,9 @@ async function loadWeeks(token) {
 
   if (error) { console.log('Error loading weeks:', error); customAlert('Something went wrong loading this program - check your connection and try again'); return }
 
+  // TEMP DEBUG - diagnosing "programs show empty inside" - remove once found
+  customAlert('DEBUG ' + data.length + ' weeks: ' + data.map(w => 'w' + w.week_number + '=' + (w.program_days ? w.program_days.length : 'null') + 'days').join(', '))
+
   data.sort((a, b) => a.week_number - b.week_number)
   data.forEach(week => {
     week.program_days.sort((a, b) => a.day_number - b.day_number)
