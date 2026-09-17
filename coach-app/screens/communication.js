@@ -324,7 +324,15 @@ function selectCommsAthlete(athlete, opts = {}) {
   renderCommsAthleteList() // re-render so the newly-selected row highlights
 
   if (isMobileWidth()) {
-    if (pushHistory) nav.enter('communication', { id: athlete.id }, { tab: 'communication' })
+    // nav.enter() bumps its own generation counter and returns the new
+    // current token - mountToken MUST be updated to it, or every
+    // isCurrent(mountToken) check from here on (inside loadChatMessages
+    // etc.) compares against a now-stale token and silently no-ops,
+    // which is exactly what left the chat pane stuck on "Loading...":
+    // the message fetch completed, isCurrent() said "not current
+    // anymore" even though this is still the one and only mounted
+    // screen instance, and the render never happened.
+    if (pushHistory) mountToken = nav.enter('communication', { id: athlete.id }, { tab: 'communication' })
     root.querySelector('#commsLayout').classList.add('chat-open')
   }
 
