@@ -1009,3 +1009,73 @@
   text-align: center;
   font-size: 14px;
 }
+
+
+/* ==========================================================================
+   MOBILE (max-width: 768px)
+   This screen's mobile overrides used to live in coach-core.css, but every
+   base rule they're overriding (.overview-top-split, .metrics-grid,
+   .profile-header, .profile-right/.profile-notes, .calendar-week-copy-btn,
+   .calendar-day-number, .calendar-day-dot, .calendar-day-dot-more) is
+   defined right here in this file - and lazy-css.js always injects this
+   stylesheet's <link> at the END of <head>, AFTER coach-core.css, the very
+   first time this screen mounts. That makes this file's own unconditional
+   rules win the cascade over any same-specificity override sitting in
+   coach-core.css, media query or not, since later-in-the-cascade beats
+   earlier at equal specificity. The two most visible casualties: on an
+   actual phone, Overview's Training Stats/Recent Activity split never
+   collapsed to one column (Recent Activity was squeezed into a ~57px
+   sliver, forcing the whole page to scroll horizontally - verified with a
+   real 390px-wide render, not just read off the CSS), and the Metrics tab
+   kept 3 grid columns instead of 1. Keeping every mobile override for this
+   screen's own classes in this file, after its base rules, is what
+   actually guarantees they win - see coach-core.css's own comments at each
+   removed rule for where these moved from.
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .overview-top-split {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    gap: 20px;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0 0 24px 0;
+  }
+
+  .profile-right,
+  .profile-notes {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .calendar-week-copy-btn {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+  }
+
+  .calendar-day-number {
+    font-size: 11px;
+  }
+
+  .calendar-day-dot {
+    width: 12px;
+    height: 12px;
+    font-size: 7px;
+  }
+
+  .calendar-day-dot-more {
+    min-width: 12px;
+    padding: 0 3px;
+    font-size: 6px;
+  }
+}

@@ -829,22 +829,18 @@
 
 
 
-/* --- Responsive: profile header on small screens (stack instead of row) --- */
-@media (max-width: 768px) {
-  .profile-header {
-    flex-direction: column;
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0 0 24px 0;
-  }
-
-  .profile-right,
-  .profile-notes {
-    max-width: 100%;
-    width: 100%;
-  }
-}
+/* --- Responsive: profile header on small screens (stack instead of row) ---
+   Moved to athlete-detail.css's own @media block (see there): .profile-header/
+   .profile-right/.profile-notes are all defined (unconditionally) in
+   athlete-detail.css, which lazy-css.js always appends to <head> AFTER this
+   stylesheet - so a same-specificity override living here, in coach-core.css,
+   was silently losing the cascade to that later, unconditional base rule on
+   every phone-width load. Real bug, found by checking computed styles in a
+   real browser, not just reading the CSS: .profile-header kept its desktop
+   background/border/shadow/padding and .profile-right/.profile-notes stayed
+   capped at max-width:300px instead of expanding full-width. Same fix
+   applies to every other rule below tagged "moved to athlete-detail.css" or
+   "moved to builders.css". */
 
 
 
@@ -869,11 +865,9 @@
 }
 
 
-@media (max-width: 768px) {
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-}
+/* .metrics-grid's mobile column collapse moved to athlete-detail.css - same
+   cascade-order bug as the comment above .profile-header: the base
+   .metrics-grid rule lives in athlete-detail.css, loaded after this file. */
 
 
 /* Exercise Library cards (exercises.html) - auto-fill instead of a fixed
@@ -1694,11 +1688,12 @@
 }
 
 
-@media (max-width: 768px) {
-  .overview-top-split {
-    grid-template-columns: 1fr;
-  }
-}
+/* .overview-top-split's mobile column collapse moved to athlete-detail.css -
+   same cascade-order bug (base rule is defined there, loaded after this
+   file - see the comment above .profile-header). This was the one that
+   surfaced as an actual horizontal-overflow bug: Recent Activity got
+   squeezed into a ~57px sliver next to Training Stats instead of the two
+   stacking, verified with a real 390px-wide render. */
 
 
 /* Textarea used inside the Add/Edit Note modals */
@@ -1755,10 +1750,10 @@
     padding: 16px;
   }
 
-  .profile-header {
-    flex-direction: column;
-    gap: 20px;
-  }
+  /* .profile-header's mobile stack (flex-direction/gap) moved to
+     athlete-detail.css, alongside the rest of its mobile rule - see the
+     comment above the old .profile-header block near the top of this
+     file for why (cascade-order bug, base rule lives in athlete-detail.css). */
 
   .stats-bar {
     flex-wrap: wrap;
@@ -1779,9 +1774,11 @@
     padding: 16px;
   }
 
-  .exercise-library-list {
-    max-height: 180px;
-  }
+  /* .exercise-library-list's max-height moved to builders.css - its base
+     rule (max-height: calc(100vh - 260px)) lives there, loaded after this
+     file by lazy-css.js, so this override was silently losing the cascade
+     (same bug as .profile-header above). Verified: computed max-height
+     stayed at the desktop calc() instead of collapsing to 180px. */
 
   /* Same treatment as the Exercise Library panel above - a fixed 200px
      right column doesn't fit a phone, so it becomes a horizontal strip */
@@ -1792,9 +1789,8 @@
     padding: 16px;
   }
 
-  .workout-outline-list {
-    max-height: 140px;
-  }
+  /* .workout-outline-list's max-height moved to builders.css - same reason
+     as .exercise-library-list just above. */
 
   /* Calendar: still needs all 7 columns (one per weekday), just smaller */
   .calendar-day {
@@ -1811,15 +1807,12 @@
     grid-template-columns: 16px repeat(7, minmax(0, 1fr));
   }
 
-  .calendar-week-copy-btn {
-    width: 16px;
-    height: 16px;
-    font-size: 10px;
-  }
-
-  .calendar-day-number {
-    font-size: 11px;
-  }
+  /* .calendar-week-copy-btn, .calendar-day-number, .calendar-day-dot and
+     .calendar-day-dot-more's mobile shrink all moved to athlete-detail.css -
+     their base rules live there (loaded after this file by lazy-css.js), so
+     these overrides were silently losing the cascade the same way
+     .profile-header was (see that comment above). Verified via computed
+     style: all four stayed at desktop size at 390px width before this. */
 
   /* Phone-width flip: dots instead of full-name badges - a day column is
      too narrow here for real names without the height/width blowout dots
@@ -1830,18 +1823,6 @@
 
   .calendar-day-badges {
     display: none;
-  }
-
-  .calendar-day-dot {
-    width: 12px;
-    height: 12px;
-    font-size: 7px;
-  }
-
-  .calendar-day-dot-more {
-    min-width: 12px;
-    padding: 0 3px;
-    font-size: 6px;
   }
 
   .calendar-weekday-header span {
@@ -1929,7 +1910,12 @@
    only ever being able to auto-finalize at the 4-exercise cap */
 .picking-mode-bar {
   position: fixed;
-  bottom: 24px;
+  /* Unlike .bottom-nav/.rest-timer-bar, this didn't account for the home-
+     indicator strip on notched iPhones - found during the mobile layout
+     audit, flagged as needing a human call since it couldn't be confirmed
+     headlessly (no real safe-area inset to simulate), but the fix is the
+     same already-proven pattern those two use, so applying it directly. */
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -1969,7 +1955,9 @@
    to chat), same visual family as .picking-mode-bar but self-dismissing */
 .toast-notice {
   position: fixed;
-  bottom: 24px;
+  /* Same home-indicator gap as .picking-mode-bar just above - see its
+     comment. */
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%) translateY(12px);
   z-index: 600;

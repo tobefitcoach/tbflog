@@ -70,6 +70,18 @@ header {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--c-border);
+  /* Same fix as .coach-app-header/.athlete-app-header (see the coach-app
+     rebuild): this bare header has safe-area padding above but was never
+     pinned in place, so on any of the pages that still use it directly
+     (login.html, training-builder.html) with enough content to scroll,
+     the header scrolls away and whatever's left at y=0 renders straight
+     under the status bar/notch again - the exact same bug, just never
+     ported to these standalone pages. Verified with a real scroll test:
+     the header's top tracked the scroll offset instead of staying at 0
+     before this. */
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-logo-link {

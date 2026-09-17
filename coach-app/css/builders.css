@@ -245,3 +245,28 @@
   color: var(--c-text-muted);
   font-size: 13px;
 }
+
+
+/* ==========================================================================
+   MOBILE (max-width: 768px)
+   .exercise-library-list/.workout-outline-list's mobile max-height caps used
+   to live in coach-core.css, but their base rules (max-height: calc(100vh -
+   260px)) are right here, and lazy-css.js always injects this stylesheet's
+   <link> AFTER coach-core.css the first time a builder screen mounts - so
+   coach-core.css's same-specificity override was silently losing the
+   cascade to this file's later, unconditional base rule on every phone-
+   width load (same bug as athlete-detail.css's own mobile block - see its
+   comment for the full explanation). Verified: computed max-height stayed
+   at the desktop calc() instead of collapsing to 180px/140px, which left
+   the Exercise Library list eating most of the viewport height above the
+   actual workout outline on a phone. */
+
+@media (max-width: 768px) {
+  .exercise-library-list {
+    max-height: 180px;
+  }
+
+  .workout-outline-list {
+    max-height: 140px;
+  }
+}
