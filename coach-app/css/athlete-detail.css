@@ -771,6 +771,13 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+  /* Grid items default to min-width:auto, which refuses to shrink below
+     the content's own natural width (a bold "26,864kg" value, say) - that
+     forces the whole grid wider than its container instead of letting the
+     browser actually compress the column, which is what was silently
+     causing stats-bar rows to overflow sideways on narrow screens even
+     when the column-count math looked right on paper. */
+  min-width: 0;
 }
 
 

@@ -1759,6 +1759,20 @@
     flex-wrap: wrap;
   }
 
+  /* #overviewStatsBar's own unconditional 3-column rule above (an ID
+     selector) outranks .stats-bar's 2-column mobile rule regardless of
+     media query - ID specificity always beats class specificity, whether
+     or not the class rule's condition matches. That's a different bug
+     mechanism than the load-order one fixed elsewhere in this file, same
+     symptom: the override existed, looked correct, and silently never
+     applied. 3 real stat cards (a wide bold number + a two-line label
+     each) don't fit meaningfully 3-across on a phone even with min-width:0
+     on .stat-item, so this stacks to 1 column rather than trying to also
+     fit 2. Needs the #id to actually win against the desktop #id rule. */
+  #overviewStatsBar {
+    grid-template-columns: 1fr;
+  }
+
   .tab-bar {
     overflow-x: auto;
     white-space: nowrap;

@@ -45,9 +45,29 @@
   font-family: 'Manrope', Arial, sans-serif;
 }
  
+/* Structural safety net, not a patch for one bug: this app should never be
+   able to scroll sideways, period - regardless of whether some component
+   somewhere is too wide (found and fixed 3 separate, differently-caused
+   instances of that today alone: a cascade load-order bug, a missing
+   sticky-position, and an ID selector beating a class-based mobile media
+   query). Rather than keep finding these one screenshot at a time, this
+   makes the page physically unable to scroll horizontally no matter what
+   any individual rule does wrong, now or in the future. overflow-y is left
+   unset (not "hidden") - per spec, an element with overflow-x:hidden and no
+   explicit overflow-y computes overflow-y as auto, so vertical scrolling is
+   completely unaffected. This does not fix an overflowing element's own
+   internal look (text can still get cramped) - it only guarantees the PAGE
+   itself can't be scrolled sideways to reveal it. */
+html {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   background-color: var(--c-bg);
   color: var(--c-text);
+  overflow-x: hidden;
+  max-width: 100%;
 }
  
  
