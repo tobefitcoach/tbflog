@@ -2,7 +2,8 @@
 // WORKOUT LIBRARY — screen
 // Converted from the repo-root trainings.js + the .dashboard block of
 // trainings.html. Lists the coach's reusable single-day workouts, with
-// label filtering, search, duplicate and per-workout label management.
+// label filtering, workout-type filtering, search, duplicate and
+// per-workout label management.
 //
 // This screen registers TWO document-level click listeners (one closes the
 // kebab dropdowns, one closes the label-filter dropdown). Both are tracked
@@ -35,7 +36,10 @@ const TEMPLATE = `
     </div>
   </div>
   <p class="screen-subtitle" style="margin-bottom:16px">A workout is a flat list of exercises — build once, then drop it onto any athlete's calendar.</p>
-  <input type="text" id="trainingSearchInput" class="exercise-search-input" placeholder="Search workouts..." style="margin-bottom:16px" />
+  <input type="text" id="trainingSearchInput" class="exercise-search-input" placeholder="Search workouts..." style="margin-bottom:10px" />
+  <div class="filter-chips-row">
+    <div class="chip-row" id="trainingTypeFilterChips"></div>
+  </div>
   <div class="athlete-grid" id="trainingGrid"></div>
 
   <div class="modal-overlay" id="newTrainingModal">
@@ -94,6 +98,7 @@ let allTrainings = []
 let allLabels = []
 let labelLinksByTraining = {} // training_id -> Set of label_id
 let selectedLabelFilterIds = new Set()
+let selectedTypeFilters = new Set()
 let trainingSearchText = ''
 let manageLabelsTrainingId = null
 let duplicateSourceTrainingId = null
@@ -109,7 +114,8 @@ export async function mount(container, params, token) {
   container.innerHTML = TEMPLATE
   bindEvents()
   renderLabelFilterList()
-  applyLabelFilter()
+  renderTypeFilterChips()
+  applyFilters()
 }
 
 export function unmount() {
@@ -122,6 +128,7 @@ export function unmount() {
   allLabels = []
   labelLinksByTraining = {}
   selectedLabelFilterIds = new Set()
+  selectedTypeFilters = new Set()
   trainingSearchText = ''
   manageLabelsTrainingId = null
   duplicateSourceTrainingId = null
@@ -165,7 +172,7 @@ async function reloadAndRepaint() {
   if (!(await loadTrainings())) return
   if (!root) return
   renderLabelFilterList()
-  applyLabelFilter()
+  applyFilters()
 }
 
 function bindEvents() {
@@ -181,7 +188,17 @@ function bindEvents() {
 
   root.querySelector('#trainingSearchInput').addEventListener('input', function() {
     trainingSearchText = this.value
-    applyLabelFilter()
+    applyFilters()
+  })
+
+  root.querySelector('#trainingTypeFilterChips').addEventListener('click', function(e) {
+    const btn = e.target.closest('.chip-btn')
+    if (!btn) return
+    const type = btn.dataset.type
+    if (selectedTypeFilters.has(type)) selectedTypeFilters.delete(type)
+    else selectedTypeFilters.add(type)
+    btn.classList.toggle('selected')
+    applyFilters()
   })
 
   root.querySelector('#labelFilterBtn').addEventListener('click', function(e) {
@@ -235,11 +252,25 @@ function bindEvents() {
   root.querySelector('#saveDuplicateTrainingBtn').addEventListener('click', onDuplicateTraining)
 }
 
-function applyLabelFilter() {
+// Fixed 3-value enum (WORKOUT_TYPE_LABELS), unlike the label filter's
+// open-ended list - always shows all 3 chips regardless of what's
+// currently in the library, same reasoning athletes.js uses for its
+// Active/Pending/Offline/Archived status chips.
+function renderTypeFilterChips() {
+  root.querySelector('#trainingTypeFilterChips').innerHTML = Object.entries(WORKOUT_TYPE_LABELS).map(([type, label]) =>
+    `<button type="button" class="chip-btn ${selectedTypeFilters.has(type) ? 'selected' : ''}" data-type="${type}">${label}</button>`
+  ).join('')
+}
+
+function applyFilters() {
   const grid = root.querySelector('#trainingGrid')
   let filtered = selectedLabelFilterIds.size === 0
     ? allTrainings
     : allTrainings.filter(t => [...selectedLabelFilterIds].some(id => labelLinksByTraining[t.id]?.has(id)))
+
+  if (selectedTypeFilters.size > 0) {
+    filtered = filtered.filter(t => selectedTypeFilters.has(t.workout_type || 'gym'))
+  }
 
   const search = trainingSearchText.trim().toLowerCase()
   if (search) filtered = filtered.filter(t => t.name.toLowerCase().includes(search))
@@ -251,7 +282,7 @@ function applyLabelFilter() {
     return
   }
   if (filtered.length === 0) {
-    grid.innerHTML = '<p>No workouts match your search.</p>'
+    grid.innerHTML = '<p>No workouts match your filters.</p>'
     return
   }
 
@@ -321,7 +352,7 @@ function createTrainingCard(training) {
 
     allTrainings = allTrainings.filter(t => t.id !== training.id)
     renderLabelFilterList()
-    applyLabelFilter()
+    applyFilters()
   })
 
   return card
@@ -357,7 +388,7 @@ function renderLabelFilterList() {
     cb.addEventListener('change', function() {
       if (cb.checked) selectedLabelFilterIds.add(cb.dataset.labelId)
       else selectedLabelFilterIds.delete(cb.dataset.labelId)
-      applyLabelFilter()
+      applyFilters()
     })
   })
 
@@ -430,7 +461,7 @@ async function toggleTrainingLabel(trainingId, labelId, checked) {
 
   (labelLinksByTraining[trainingId] ||= new Set())[checked ? 'add' : 'delete'](labelId)
   renderLabelFilterList()
-  applyLabelFilter()
+  applyFilters()
 }
 
 // ==========================================================================
