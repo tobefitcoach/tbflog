@@ -1,6 +1,6 @@
 {
-  "name": "TBFlog",
-  "short_name": "TBFlog",
+  "name": "Tobe-Fit",
+  "short_name": "Tobe-Fit",
   "start_url": "dashboard.html",
   "scope": ".",
   "display": "standalone",

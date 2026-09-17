@@ -54,7 +54,7 @@ export async function pushStatus() {
 
 export async function enablePush(supabase, userId) {
   if (isIosNotInstalled()) {
-    customAlert('On iPhone, first add TBFlog to your Home Screen (Share button → Add to Home Screen), then open it from there and try again.')
+    customAlert('On iPhone, first add Tobe-Fit to your Home Screen (Share button → Add to Home Screen), then open it from there and try again.')
     return false
   }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {

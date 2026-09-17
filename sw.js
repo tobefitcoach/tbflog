@@ -7,11 +7,11 @@
 // ==========================================================================
 
 self.addEventListener('push', function(event) {
-  let payload = { title: 'TBFlog', body: '' }
+  let payload = { title: 'Tobe-Fit', body: '' }
   try { payload = event.data.json() } catch (e) { /* no/invalid payload - use defaults */ }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title || 'TBFlog', {
+    self.registration.showNotification(payload.title || 'Tobe-Fit', {
       body: payload.body || '',
       // No leading slash - resolves relative to this file's own location
       // (the repo root), correctly regardless of what subpath the site is

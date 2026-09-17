@@ -267,7 +267,7 @@ function renderWrongRole() {
   cardWrap.classList.add('centered')
   pageContent.innerHTML = `
     <h2>Wrong login</h2>
-    <p>This is the athlete login, and this account isn't set up as an athlete. If you're a coach, use the main TBFlog login instead.</p>
+    <p>This is the athlete login, and this account isn't set up as an athlete. If you're a coach, use the main Tobe-Fit login instead.</p>
     <button class="btn-save" id="signOutBtn">Sign Out</button>
   `
   document.getElementById('signOutBtn').addEventListener('click', async function() {
@@ -905,7 +905,7 @@ async function notifyCoach(type, message) {
   // this athlete's profile page, same as before
   const targetPage = type === 'chat_message' ? 'communication.html' : 'athlete.html'
   const url = new URL(`../${targetPage}?id=${athlete.id}`, window.location.href).href
-  sendPush(supabase, athlete.coach_id, 'TBFlog', message, url) // not awaited, same as the insert above
+  sendPush(supabase, athlete.coach_id, 'Tobe-Fit', message, url) // not awaited, same as the insert above
 }
 
 // tracks_weight/is_timed/is_unilateral/tracks_distance normally come

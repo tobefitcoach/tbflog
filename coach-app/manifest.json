@@ -1,6 +1,6 @@
 {
-  "name": "TBFlog Coach",
-  "short_name": "TBFlog Coach",
+  "name": "Tobe-Fit Coach",
+  "short_name": "Tobe-Fit Coach",
   "start_url": "dashboard.html",
   "scope": ".",
   "display": "standalone",

@@ -4690,7 +4690,7 @@ function paintAthleteHeader() {
     `${data.gender} · ${age} years old · ${data.height}cm`
   updateStatusUI(data)
 
-  document.title = `${data.name} — TBFlog`
+  document.title = `${data.name} — Tobe-Fit`
   root.querySelector('#athleteDetailScreenTitle').textContent = data.name
 
   // Settings tab - populated here (not lazily) since it's just these
@@ -7843,7 +7843,7 @@ function computePlyoSection(cache, range) {
   }
 }
 
-// Loads an image from this same origin (the TBFlog logo) and re-draws it
+// Loads an image from this same origin (the Tobe-Fit logo) and re-draws it
 // onto a canvas so it can be embedded in the PDF as a data URL - resolves
 // null on any failure so a broken/slow logo load never blocks the report
 function loadImageAsDataUrl(url) {
@@ -8235,7 +8235,7 @@ async function shareReportWithAthlete(doc, periodLabel) {
 
     if (currentAthlete.user_id) {
       const url = new URL('../athlete-app/dashboard.html', window.location.href).href
-      sendPush(supabase, currentAthlete.user_id, 'TBFlog', 'Your coach shared a progress report', url) // not awaited
+      sendPush(supabase, currentAthlete.user_id, 'Tobe-Fit', 'Your coach shared a progress report', url) // not awaited
     }
 
     if (!root) return

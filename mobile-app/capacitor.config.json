@@ -1,6 +1,6 @@
 {
   "appId": "com.tobefitcoach.tbflog",
-  "appName": "TBFlog",
+  "appName": "Tobe-Fit",
   "webDir": "www",
   "server": {
     "url": "https://tobefitcoach.github.io/tbflog/app/",

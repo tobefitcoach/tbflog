@@ -270,7 +270,7 @@ async function sendChatMessage() {
     // 'athlete-app/...' resolved against it would point at
     // coach-app/athlete-app/..., which doesn't exist.
     const url = new URL('../athlete-app/dashboard.html', window.location.href).href
-    sendPush(supabase, targetAthlete.user_id, 'TBFlog', message, url) // not awaited
+    sendPush(supabase, targetAthlete.user_id, 'Tobe-Fit', message, url) // not awaited
   }
 
   // Reloads the CURRENTLY selected athlete's thread (selectCommsAthlete
