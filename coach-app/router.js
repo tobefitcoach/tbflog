@@ -16,9 +16,6 @@
 import * as nav from './nav.js'
 
 // name -> () => Promise<{ mount(container, params, token), unmount?() }>
-// Routes still pointing at _placeholder.js are not yet converted; each is
-// swapped for its real screen one line at a time, so a screen can land and
-// be verified without touching anything else here.
 export const ROUTES = {
   athletes:         () => import('./screens/athletes.js'),
   'athlete-detail': () => import('./screens/athlete-detail.js'),
@@ -36,7 +33,7 @@ export const ROUTES = {
   // Wraps the unchanged repo-root training-builder.html in a full-bleed
   // iframe (Phase 5). Reached from the Workout Library and from a day in
   // the calendar/program builder, which already used it as an overlay.
-  'training-builder': () => import('./screens/_placeholder.js'),
+  'training-builder': () => import('./screens/training-builder.js'),
 }
 
 // Which of the 4 tab roots each route lights up. Drill-downs inherit their

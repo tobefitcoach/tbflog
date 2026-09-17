@@ -15,6 +15,7 @@
 // separate mini-app with its own Supabase client (see athleteClient.js).
 // ==========================================================================
 import { supabase } from './athleteClient.js'
+import { supabase as coachSupabase } from '../coachClient.js'
 import { pushStatus, enablePush, disablePush, sendPush } from '../push.js'
 import * as nav from './nav.js'
 
@@ -633,7 +634,15 @@ async function renderProfile() {
     <p class="no-metrics">Loading...</p>
   `
 
-  const status = await pushStatus() // local browser check only, no network - fast enough to await before the first render
+  // pushStatus is local-only (no network); the coach-session check is a
+  // localStorage read under coachClient.js's own key, not a login - see
+  // coach-app/screens/settings.js's matching "Athlete Account" row for the
+  // other direction of this same shortcut.
+  const [status, coachAccountSession] = await Promise.all([
+    pushStatus(),
+    coachSupabase.auth.getSession(),
+  ])
+  const coachAccountLinked = !!coachAccountSession?.data?.session
   const initials = athlete.name.split(' ').map(w => w[0]).join('').toUpperCase()
 
   if (coachName === null) {
@@ -709,6 +718,14 @@ async function renderProfile() {
       </div>
       <button type="button" class="btn-profile-action" id="pushToggleBtn">${status === 'on' ? 'Disable' : 'Enable'}</button>
     </div>
+    ${coachAccountLinked ? `
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">Coach Account</div>
+        <div class="settings-row-desc">Linked - jump to your coaching dashboard any time</div>
+      </div>
+      <button type="button" class="btn-profile-action" id="coachAccountBtn">Switch to Coach View</button>
+    </div>` : ''}
     <button type="button" class="btn-cancel" id="profileLogoutBtn" style="margin-top:24px">Log Out</button>
 
     <div class="profile-danger-zone">
@@ -824,6 +841,12 @@ async function renderProfile() {
     await supabase.auth.signOut()
     window.location.href = 'index.html'
   })
+
+  if (coachAccountLinked) {
+    document.getElementById('coachAccountBtn').addEventListener('click', function() {
+      window.location.href = '../coach-app/dashboard.html'
+    })
+  }
 
   document.getElementById('deleteAccountBtn').addEventListener('click', async function(e) {
     const ok = await customConfirm("Delete your account? This permanently erases your training history, messages and photos and can't be undone.")

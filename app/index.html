@@ -5,13 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>TBFlog</title>
     <link rel="stylesheet" href="../style.css?v=31" />
+    <link rel="stylesheet" href="../login.css?v=4" />
     <style>
       /* Small enough it doesn't need its own stylesheet file. This page
          never stays on screen long enough for a coach/athlete visual
-         refresh to matter - it exists to redirect, not to be looked at. */
-      body {
-        margin: 0;
-        min-height: 100vh;
+         refresh to matter for the common case (a cached role or a live
+         session redirect same-tick) - only a genuinely fresh visitor with
+         neither sees more than this splash. */
+      body { margin: 0; background-color: var(--c-bg); }
+      .router-splash {
+        position: fixed;
+        inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -24,7 +28,34 @@
     </style>
   </head>
   <body>
-    <img src="../logo.png?v=2" alt="" class="router-logo" />
-    <script type="module" src="index.js?v=1"></script>
+    <div class="router-splash" id="routerSplash">
+      <img src="../logo.png?v=2" alt="" class="router-logo" />
+    </div>
+
+    <!-- Shown only when route() in index.js finds no cached role and no
+         live session under either client - a brand new visitor on a fresh
+         device/browser, or one who cleared storage. Hidden by default so
+         it never flashes in front of the (far more common) same-tick
+         redirect. An athlete arriving via their coach's personal invite
+         link (buildInviteLink(), in coach-app/screens/athlete-detail.js)
+         skips this entirely - that link points straight at
+         athlete-app/index.html. -->
+    <div id="roleChooser" hidden>
+      <header class="login-header">
+        <img src="../logo.png?v=2" alt="TBFlog" class="header-logo">
+        <p>Welcome</p>
+      </header>
+      <div class="auth-page">
+        <div class="modal auth-card">
+          <h2>Continue as...</h2>
+          <div class="form-actions" style="flex-direction:column; align-items:stretch; gap:12px">
+            <button type="button" class="btn-save" id="chooseCoachBtn" style="width:100%">I'm a Coach</button>
+            <button type="button" class="btn-cancel" id="chooseAthleteBtn" style="width:100%">I'm an Athlete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="index.js?v=2"></script>
   </body>
 </html>

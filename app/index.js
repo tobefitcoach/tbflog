@@ -13,10 +13,9 @@
 // both clients have to be asked, since either, neither, or (a coach also
 // testing the athlete app on the same device) even both could be populated.
 //
-// Not yet wired into anything live: capacitor.config.json still points at
-// athlete-app directly, and nothing at the repo root links here. This page
-// works standalone and is being verified in isolation before it becomes
-// the thing capacitor.config.json (and eventually the site root) points at.
+// This IS the thing both the site root (index.html) and
+// mobile-app/capacitor.config.json's server.url point at now - a
+// session-less visitor lands here first on every platform.
 // ==========================================================================
 import { supabase as coachSupabase } from '../coachClient.js'
 import { supabase as athleteSupabase } from '../athlete-app/athleteClient.js'
@@ -77,11 +76,21 @@ async function route() {
   // No usable session under either client - a brand new visitor, a
   // logged-out one, or someone whose profile row doesn't match either
   // client's session (shouldn't happen, but falling through here rather
-  // than throwing is the safe default). Lands on the coach login, exactly
-  // where the site root has always sent a session-less visitor today.
-  // Athletes never need this page for their first login - they arrive via
-  // the direct invite link their coach sends (buildInviteLink(), in
-  // coach-app/screens/athlete-detail.js), which points straight at
-  // athlete-app/index.html and is untouched by any of this.
-  location.replace('../login.html')
+  // than throwing is the safe default). A returning athlete on a fresh
+  // device (reinstalled, cleared storage) has no way to know they need
+  // athlete-app/index.html specifically, so rather than assuming coach and
+  // sending everyone to the coach login, ask.
+  showChooser()
 }
+
+function showChooser() {
+  document.getElementById('routerSplash').hidden = true
+  document.getElementById('roleChooser').hidden = false
+}
+
+document.getElementById('chooseCoachBtn').addEventListener('click', function() {
+  location.href = '../login.html'
+})
+document.getElementById('chooseAthleteBtn').addEventListener('click', function() {
+  location.href = '../athlete-app/index.html'
+})

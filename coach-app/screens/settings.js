@@ -12,6 +12,7 @@
 // of waterfall this rewrite exists to remove.
 // ==========================================================================
 import { supabase } from '../../coachClient.js'
+import { supabase as athleteSupabase } from '../../athlete-app/athleteClient.js'
 import { pushStatus, enablePush, disablePush } from '../../push.js'
 import * as nav from '../nav.js'
 import { coachId } from '../session.js'
@@ -52,6 +53,13 @@ const TEMPLATE = `
   <h3 class="detail-group-title" style="margin-top:32px">Account</h3>
   <div class="settings-row">
     <div class="settings-row-info">
+      <div class="settings-row-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="settings-row-icon"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg>Athlete Account</div>
+      <div class="settings-row-desc" id="athleteAccountDesc">Checking...</div>
+    </div>
+    <button type="button" class="btn-profile-action" id="athleteAccountBtn" disabled>...</button>
+  </div>
+  <div class="settings-row">
+    <div class="settings-row-info">
       <div class="settings-row-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="settings-row-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Log Out</div>
       <div class="settings-row-desc">Sign out of this device</div>
     </div>
@@ -62,6 +70,7 @@ const TEMPLATE = `
 let root = null
 let currentStatus = null
 let mobilityEnabled = true
+let athleteAccountLinked = false
 
 function pushStatusDesc(status) {
   if (status === 'on') return 'On - get notified even when the app is closed'
@@ -91,13 +100,29 @@ function paintMobilityRow() {
   btn.disabled = false
 }
 
+// A coach who also trains under their own account can link it here so the
+// two stay one tap apart instead of needing a second sign-in every time -
+// see athlete-app/dashboard.js's Profile tab for the matching link back.
+// coachClient.js and athleteClient.js use separate localStorage keys by
+// design (see either file's header), so both sessions genuinely coexist in
+// this browser/app - this is just a shortcut between two sessions that
+// already exist, never a second credential check.
+function paintAthleteAccountRow() {
+  root.querySelector('#athleteAccountDesc').textContent = athleteAccountLinked
+    ? 'Linked - jump to your own training log any time'
+    : "Also train yourself? Link your athlete account to switch between them in one tap"
+  const btn = root.querySelector('#athleteAccountBtn')
+  btn.textContent = athleteAccountLinked ? 'Switch to Athlete View' : '+ Add Athlete Account'
+  btn.disabled = false
+}
+
 export async function mount(container, params, token) {
   root = container
   container.innerHTML = TEMPLATE
   bindEvents()
 
-  // All three reads at once. The original awaited them in sequence.
-  const [status, profile] = await Promise.all([
+  // All four reads at once. The original awaited them in sequence.
+  const [status, profile, athleteSession] = await Promise.all([
     pushStatus(),
     window.fetchWithRetry((signal) => supabase
       .from('profiles')
@@ -106,6 +131,7 @@ export async function mount(container, params, token) {
       .single()
       .abortSignal(signal)
     ),
+    athleteSupabase.auth.getSession(),
   ])
   if (!nav.isCurrent(token)) return
 
@@ -115,6 +141,9 @@ export async function mount(container, params, token) {
   mobilityEnabled = row ? row.mobility_enabled !== false : true
   paintMobilityRow()
   root.querySelector('#lowTrainingsWarningInput').value = row ? (row.low_trainings_warning_days ?? 7) : 7
+
+  athleteAccountLinked = !!athleteSession?.data?.session
+  paintAthleteAccountRow()
 }
 
 export function unmount() {
@@ -126,6 +155,14 @@ function bindEvents() {
   root.querySelector('#logoutBtn').addEventListener('click', async function() {
     await supabase.auth.signOut()
     window.location.href = '../login.html'
+  })
+
+  root.querySelector('#athleteAccountBtn').addEventListener('click', function() {
+    // Linked: athleteClient's session is already sitting there, so this is
+    // a same-tick jump, not a login. Not linked: the athlete login form,
+    // same as any other first-time athlete sign-in - signing in there only
+    // ever touches athleteClient's session, this coach session is untouched.
+    window.location.href = athleteAccountLinked ? '../athlete-app/dashboard.html' : '../athlete-app/index.html'
   })
 
   root.querySelector('#pushToggleBtn').addEventListener('click', async function(e) {
