@@ -13,6 +13,14 @@
          session redirect same-tick) - only a genuinely fresh visitor with
          neither sees more than this splash. */
       body { margin: 0; background-color: var(--c-bg); }
+      /* .router-splash's own `display: flex` below is an author-stylesheet
+         rule, which beats the browser's built-in `[hidden]{display:none}`
+         default regardless of specificity (author origin always outranks
+         user-agent origin in the cascade) - so JS setting .hidden = true on
+         it would silently do nothing without this. Real bug, not
+         hypothetical: this is exactly why the splash never went away and
+         the app looked stuck on the logo. */
+      [hidden] { display: none !important; }
       .router-splash {
         position: fixed;
         inset: 0;
