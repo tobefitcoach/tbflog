@@ -2461,8 +2461,12 @@
 
 /* ==========================================================================
    COMMUNICATION INBOX (communication.html/communication.js) - two-pane
-   layout: athlete list on the left, the selected conversation (reusing
-   .chat-messages/.chat-input-row above) on the right.
+   layout on desktop: athlete list on the left, the selected conversation
+   (reusing .chat-messages/.chat-input-row above) on the right. Below
+   769px this becomes a full-screen push instead (see the media query at
+   the bottom, and the screen module's header comment for why) - the
+   .comms-athlete-row-* / .comms-chat-back-btn / .chat-bubble-actions /
+   .chat-editing-banner rules below exist only for that mobile redesign.
    ========================================================================== */
 .comms-layout {
   display: flex;
@@ -2475,9 +2479,25 @@
 .comms-athlete-list {
   width: 260px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   border-right: 1px solid var(--c-border);
   padding-right: 12px;
+}
+
+
+.comms-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  /* Under 16px triggers iOS Safari's auto-zoom-on-focus */
+  font-size: 16px;
+  color: var(--c-text);
+  background-color: var(--c-bg);
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 
@@ -2516,9 +2536,45 @@
 }
 
 
-.comms-athlete-name {
+/* Wraps the name+time line and the preview line so both can ellipsis
+   independently - the row itself is a flex row (avatar, this, badge), this
+   is a flex column inside it. */
+.comms-athlete-row-text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+
+.comms-athlete-row-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+
+.comms-athlete-name {
   font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+
+.comms-athlete-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+
+
+.comms-athlete-preview {
+  font-size: 12.5px;
+  color: var(--c-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2557,15 +2613,111 @@
 
 
 .comms-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--c-border);
   margin-bottom: 12px;
 }
 
 
+/* Only rendered/shown on mobile - the desktop two-pane layout has both
+   panes visible at once, so there's nothing to "back" out of. Hidden here
+   unconditionally and re-shown by the (max-width:768px) block below,
+   rather than the module never rendering it on desktop, so the same
+   markup works at both sizes if the viewport is resized/rotated. */
+.comms-chat-back-btn {
+  display: none;
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  font-size: 18px;
+  line-height: 1;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+
+.comms-chat-header h3 {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 .comms-chat-pane .chat-messages {
   flex: 1;
   max-height: none;
+}
+
+
+/* Tap target for the coach's own bubbles to reveal Edit/Delete - see
+   wireBubbleActions in communication.js. Hidden until .open, which JS
+   toggles on click (there's no hover on a phone to reveal these with). */
+.chat-bubble-mine {
+  cursor: pointer;
+}
+
+
+.chat-bubble-actions {
+  display: none;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+
+.chat-bubble-actions.open {
+  display: flex;
+}
+
+
+.chat-bubble-action-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.85;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+
+.chat-bubble-action-delete {
+  color: #ffb3b3;
+}
+
+
+.chat-editing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--c-text-muted);
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+
+.chat-editing-banner button {
+  background: transparent;
+  border: none;
+  color: var(--c-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
 }
 
 
@@ -2577,15 +2729,61 @@
 
   .comms-athlete-list {
     width: 100%;
-    max-height: 240px;
     border-right: none;
-    border-bottom: 1px solid var(--c-border);
     padding-right: 0;
-    padding-bottom: 12px;
   }
 
+  /* Full-screen push: only one of the two panes is visible at a time,
+     toggled by selectCommsAthlete()/the back button adding or leaving
+     .chat-open on #commsLayout. */
+  .comms-layout:not(.chat-open) .comms-chat-pane {
+    display: none;
+  }
+
+  .comms-layout.chat-open .comms-athlete-list {
+    display: none;
+  }
+
+  .comms-chat-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* No longer a nested scroll box fighting the page's own scroll (that
+     was the "have to scroll twice" complaint) - the whole screen scrolls
+     as one now that this pane is the only thing on screen. Bottom padding
+     clears the fixed input row below (see .chat-input-row here) so the
+     last message is never hidden underneath it. */
   .comms-chat-pane .chat-messages {
-    max-height: 50vh;
+    max-height: none;
+    overflow-y: visible;
+    padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* position:fixed, NOT sticky - a short conversation (the common case:
+     most threads don't fill a whole screen) doesn't scroll at all, and
+     sticky only holds an element at its offset while there's room to move
+     it there within its own containing block. On a short page that pulls
+     it UP off its natural position and it ends up overlapping the last
+     message instead of sitting below it (caught by screenshotting a
+     3-message test fixture - looked fine on a long thread, broken on a
+     short one). Fixed anchors to the real viewport regardless of content
+     length, so it's always exactly 84px above the floating nav pill - same
+     84px constant .sidebar-item-hover.open's submenu uses for the pill's
+     own height + gap. left/right match .dashboard's own 20px padding so
+     the bar lines up with the rest of the page content. */
+  .comms-chat-pane .chat-input-row {
+    position: fixed;
+    left: 20px;
+    right: 20px;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    z-index: 150;
+    background-color: var(--c-bg);
+    padding: 8px;
+    margin: 0;
+    border: 1px solid var(--c-border);
+    border-radius: 24px;
   }
 }
 
