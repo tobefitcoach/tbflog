@@ -1848,12 +1848,21 @@
 
   /* Phone-width flip: dots instead of full-name badges - a day column is
      too narrow here for real names without the height/width blowout dots
-     were built to avoid (see the comment in renderCalendarGrid()) */
+     were built to avoid (see the comment in renderCalendarGrid()). Scoped
+     to #calendarGrid (the real athlete calendar) specifically - NOT a bare
+     .calendar-day-badges, because Program Builder's #programWeeksGrid
+     reuses the exact same .calendar-day/.calendar-day-badges classes for
+     its own week/day grid (see renderProgramDayCell in program-builder.js)
+     but has no dots fallback of its own. An unscoped rule here hid every
+     program day's badge on mobile - the day genuinely had a workout on it,
+     the grid cell just rendered nothing but the "+" button, indistinguishable
+     from a truly empty day. Found by comparing a debug dump of the loaded
+     data (real labels/exercise counts) against the empty-looking grid. */
   .calendar-day-dots {
     display: flex;
   }
 
-  .calendar-day-badges {
+  #calendarGrid .calendar-day-badges {
     display: none;
   }
 

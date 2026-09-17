@@ -407,13 +407,6 @@ async function loadWeeks(token) {
 
   if (error) { console.log('Error loading weeks:', error); customAlert('Something went wrong loading this program - check your connection and try again'); return }
 
-  // TEMP DEBUG 2 - which weeks actually have content, across the WHOLE
-  // program (not just the first page) - remove once found
-  customAlert('DEBUG all weeks: ' + data.map(w => {
-    const withContent = (w.program_days || []).filter(d => d.label || (d.program_exercises && d.program_exercises.length > 0))
-    return 'w' + w.week_number + '(' + (w.program_days ? w.program_days.length : 0) + 'd,' + withContent.length + 'filled)'
-  }).join(' '))
-
   data.sort((a, b) => a.week_number - b.week_number)
   data.forEach(week => {
     week.program_days.sort((a, b) => a.day_number - b.day_number)
