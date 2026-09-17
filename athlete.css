@@ -33,6 +33,25 @@
   margin-bottom: 12px;
 }
 
+/* Head row (title + the mobile-only expand toggle) and body (everything
+   else) are split so the mobile collapse below only has to hide/show one
+   element - see .library-toggle-btn/.exercise-library-body in the
+   (max-width:768px) block. */
+.exercise-library-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.exercise-library-panel-head h3 {
+  margin-bottom: 0;
+}
+
+.library-toggle-btn {
+  display: none;
+}
+
 .exercise-search-input {
   width: 100%;
   padding: 8px 12px;
@@ -102,9 +121,38 @@
 }
 
 .exercise-lib-name {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   color: var(--c-text);
   line-height: 1.3;
+}
+
+/* Tap-to-add - the only way to add an exercise on a touch device, since
+   native HTML5 drag-and-drop (the card's own draggable="true", for a
+   mouse) never fires from a touch gesture at all. Visible at all sizes
+   (not just mobile): it's a strictly additive, quicker alternative to
+   dragging on desktop too. See the click handler in training-builder.js. */
+.exercise-lib-add-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--c-accent);
+  color: white;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.exercise-lib-add-btn:hover {
+  background-color: #5a5aae;
+}
+
+.exercise-lib-add-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .training-builder-main {
@@ -2599,30 +2647,83 @@
   }
 
   /* Exercise Library panel (Training Builder) - a fixed 280px side column
-     makes no sense on a phone, so it becomes a shorter horizontal strip
-     above the training's exercise list instead */
+     makes no sense on a phone, so it becomes a horizontal strip. It also
+     starts COLLAPSED here (see .exercise-library-body/.library-toggle-btn
+     below): a full search box + category chips + scrollable list, always
+     expanded, used to sit ABOVE the workout itself - a coach opening a
+     day they'd already built had to scroll past their entire library
+     just to see what was on it. Desktop is untouched; this whole
+     collapse only exists inside this media query. */
   .exercise-library-panel {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid var(--c-border);
-    padding: 16px;
+    padding: 12px 16px;
+  }
+
+  .exercise-library-panel-head {
+    margin-bottom: 0;
+  }
+
+  .exercise-library-panel-head h3 {
+    font-size: 13px;
+  }
+
+  .library-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--c-accent);
+    background: transparent;
+    color: var(--c-text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .exercise-library-body {
+    display: none;
+    margin-top: 12px;
+  }
+
+  .exercise-library-panel.expanded .exercise-library-body {
+    display: block;
+  }
+
+  /* Flips to "Close" once expanded, so the same button that opened the
+     panel closes it again instead of leaving the coach to hunt for a
+     separate close control */
+  .exercise-library-panel.expanded .library-toggle-btn {
+    background-color: var(--c-accent);
+    color: white;
   }
 
   .exercise-library-list {
-    max-height: 180px;
+    max-height: 40vh;
   }
 
   /* Same treatment as the Exercise Library panel above - a fixed 200px
-     right column doesn't fit a phone, so it becomes a horizontal strip */
+     right column doesn't fit a phone, so it becomes a horizontal strip.
+     Left expanded (not collapsed like the library above) since it's a
+     glanceable summary of the workout the coach is actively looking at,
+     not a secondary tool - but shrunk down since reordering by dragging
+     these rows doesn't work on touch (see outlineOrderHint in
+     training-builder.js), so it's read-only here and doesn't need as
+     much room as the library search did. */
   .workout-outline-panel {
     width: 100%;
     border-left: none;
     border-top: 1px solid var(--c-border);
-    padding: 16px;
+    padding: 12px 16px;
+  }
+
+  .workout-outline-panel h3 {
+    font-size: 13px;
   }
 
   .workout-outline-list {
-    max-height: 140px;
+    max-height: 110px;
   }
 
   /* Calendar: still needs all 7 columns (one per weekday), just smaller */

@@ -191,6 +191,7 @@ function renderLibraryPanel() {
           ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="exercise-lib-thumb-placeholder"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
         </div>
         <span class="exercise-lib-name">${ex.name}</span>
+        <button type="button" class="exercise-lib-add-btn" data-id="${ex.id}" aria-label="Add ${ex.name.replace(/"/g, '&quot;')}">+</button>
       </div>
     `
   }).join('')
@@ -203,6 +204,40 @@ document.getElementById('exerciseLibraryList').addEventListener('dragstart', fun
   const card = e.target.closest('.exercise-lib-card')
   if (!card) return
   e.dataTransfer.setData('text/plain', card.dataset.id)
+})
+
+// ---- Tap-to-add: the "+" on each library card (native HTML5 drag-and-drop,
+// above, never fires from a touch gesture at all - there was previously no
+// way to add an exercise to a workout from a phone). Reuses the exact same
+// addExerciseToTraining() the drop handler calls, so both paths end up
+// identical - same insert, same card render, same outline update. ----
+document.getElementById('exerciseLibraryList').addEventListener('click', async function(e) {
+  const btn = e.target.closest('.exercise-lib-add-btn')
+  if (!btn) return
+  btn.disabled = true
+  await addExerciseToTraining(btn.dataset.id)
+  // The card list re-renders on filter/search, not on add, so the button
+  // just needs re-enabling here rather than being torn down - a quick
+  // checkmark flash confirms the tap actually did something, since there's
+  // no drop animation to notice like there is on desktop.
+  btn.disabled = false
+  btn.textContent = '✓'
+  setTimeout(function() { btn.textContent = '+' }, 700)
+})
+
+// Reordering the outline/card list is still mouse-drag only (see this
+// file's header comment on scope) - touch devices get "Order shown below"
+// instead of a "Drag to reorder" hint that can't actually be acted on.
+if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  const hint = document.getElementById('outlineOrderHint')
+  if (hint) hint.textContent = 'Order shown below'
+}
+
+// Mobile-only collapse (see the (max-width:768px) block in athlete.css) -
+// desktop's CSS keeps .exercise-library-body visible regardless of this
+// class, so this listener is harmless to leave wired there too.
+document.getElementById('libraryToggleBtn').addEventListener('click', function() {
+  document.getElementById('exerciseLibraryPanel').classList.toggle('expanded')
 })
 
 const trainingDropZone = document.getElementById('trainingExercisesList')
