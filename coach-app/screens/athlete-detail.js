@@ -1452,8 +1452,9 @@ let cachedTemplateDays = {} // template_id -> { days, totalWeeks }
 let dayPickerTarget = null // 'start' | 'end'
 let dayPickerPage = 0
 
-// ---- Arm-and-drop copying ----
+// ---- Arm-and-drop copying (and, via copyArmedIsMove, moving) ----
 let copyArmedMode = null // 'week' | 'workout' | null
+let copyArmedIsMove = false // true = relocate the source day instead of cloning it; only ever paired with copyArmedMode 'workout'
 let copyArmedSourceDayId = null
 let copyArmedSourceName = null
 let copyArmedSourceMonday = null
@@ -1647,6 +1648,7 @@ export function unmount() {
   dayPickerPage = 0
 
   copyArmedMode = null
+  copyArmedIsMove = false
   copyArmedSourceDayId = null
   copyArmedSourceName = null
   copyArmedSourceMonday = null
@@ -2057,6 +2059,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
             <div class="kebab-dropdown">
               <button type="button" class="kebab-item" data-action="view-workout" data-program-day-id="${it.dayId}" data-date="${dateStr}">View Workout</button>
               <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
+              <button type="button" class="kebab-item" data-action="move-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Move to another day</button>
               <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
             </div>
           </div>
@@ -2099,6 +2102,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
                 <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
+                <button type="button" class="kebab-item" data-action="move-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Move to another day</button>
                 <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
               </div>
             </div>
@@ -2253,6 +2257,13 @@ function wireCalendarBadgeKebabs(grid) {
       e.stopPropagation()
       btn.closest('.kebab-dropdown').classList.remove('active')
       armCopyWorkout(btn.dataset.programDayId, btn.dataset.name)
+      return
+    }
+
+    if (btn.dataset.action === 'move-training') {
+      e.stopPropagation()
+      btn.closest('.kebab-dropdown').classList.remove('active')
+      armMoveWorkout(btn.dataset.programDayId, btn.dataset.name)
       return
     }
 
@@ -3420,6 +3431,7 @@ async function findOrCreateAdHocDay(dateStr, name) {
 // ==========================================================================
 function armCopyWeek(mondayStr) {
   copyArmedMode = 'week'
+  copyArmedIsMove = false // guards against re-arming week-copy while a workout-move was left armed
   copyArmedSourceMonday = mondayStr
   copyArmedSourceDayId = null
   copyArmedSourceName = null
@@ -3429,6 +3441,7 @@ function armCopyWeek(mondayStr) {
 
 function armCopyWorkout(dayId, name) {
   copyArmedMode = 'workout'
+  copyArmedIsMove = false
   copyArmedSourceDayId = dayId
   copyArmedSourceName = name
   copyArmedSourceMonday = null
@@ -3436,8 +3449,27 @@ function armCopyWorkout(dayId, name) {
   showCopyArmedBar(`Copying "${name}" — click a day on the calendar to copy it there (hold Shift to paste onto more than one)`)
 }
 
+// Same arm-then-tap targeting as armCopyWorkout (mousemove highlight,
+// click-a-cell-to-commit, Escape to back out) - the only real fix this
+// needed for a phone, since the existing move path (wireCalendarDragToMove
+// above) is honest native drag-and-drop, which doesn't fire from touch at
+// all. copyArmedIsMove is what tells wireCalendarCopyArming's click
+// handler to call moveWorkoutToDate instead of cloneDayToDate - moving
+// somewhere doesn't make sense to repeat, so Shift-to-keep-armed is
+// ignored here even though the bar reuses the same commit path.
+function armMoveWorkout(dayId, name) {
+  copyArmedMode = 'workout'
+  copyArmedIsMove = true
+  copyArmedSourceDayId = dayId
+  copyArmedSourceName = name
+  copyArmedSourceMonday = null
+  copyArmedHoverKey = null
+  showCopyArmedBar(`Moving "${name}" — click a day on the calendar to move it there`)
+}
+
 function disarmCopy() {
   copyArmedMode = null
+  copyArmedIsMove = false
   copyArmedSourceDayId = null
   copyArmedSourceName = null
   copyArmedSourceMonday = null
@@ -3562,6 +3594,11 @@ function wireCalendarCopyArming(grid) {
       if (keepArmed) { copyArmedHoverKey = null } else { disarmCopy() }
       if (targetMonday === sourceMonday) return
       await performCopyWeek(sourceMonday, targetMonday)
+    } else if (copyArmedIsMove) {
+      const targetDate = cell.dataset.date
+      const sourceDayId = copyArmedSourceDayId
+      disarmCopy()
+      await moveWorkoutToDate(sourceDayId, targetDate) // already reloads the month grid itself, same as the drag-to-move path above
     } else {
       const targetDate = cell.dataset.date
       const sourceDayId = copyArmedSourceDayId
