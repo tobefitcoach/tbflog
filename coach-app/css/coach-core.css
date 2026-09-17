@@ -1765,12 +1765,30 @@
      or not the class rule's condition matches. That's a different bug
      mechanism than the load-order one fixed elsewhere in this file, same
      symptom: the override existed, looked correct, and silently never
-     applied. 3 real stat cards (a wide bold number + a two-line label
-     each) don't fit meaningfully 3-across on a phone even with min-width:0
-     on .stat-item, so this stacks to 1 column rather than trying to also
-     fit 2. Needs the #id to actually win against the desktop #id rule. */
+     applied. Needs the #id to actually win against the desktop #id rule.
+     Stays 3-across (not stacked) per the user's own call after seeing the
+     stacked version take up too much vertical space - shrunk to fit
+     instead: smaller gap/padding/font sizes than the desktop cards, and
+     the label is allowed to wrap to 2 lines rather than force its card
+     wider (min-width:0 on .stat-item, set earlier, is what makes that
+     safe instead of another overflow). */
   #overviewStatsBar {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  #overviewStatsBar .stat-item {
+    padding: 10px 4px;
+  }
+
+  #overviewStatsBar .stat-value {
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+
+  #overviewStatsBar .stat-label {
+    font-size: 9px;
+    line-height: 1.25;
   }
 
   .tab-bar {
