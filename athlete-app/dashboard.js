@@ -477,6 +477,11 @@ async function enterWeekView() {
   await loadTrainingData()
   await loadTournaments()
   await loadCoachMessages()
+  refreshChatNavBadge()
+  setInterval(refreshChatNavBadge, 45000)
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') refreshChatNavBadge()
+  })
   renderWeekView(startOfWeek(new Date()))
   // Only one modal-overlay should ever be active at once - if the recap
   // actually shows, its own close button chains into
@@ -495,6 +500,23 @@ function pushStatusDesc(status) {
   if (status === 'denied') return 'Blocked in your browser settings - re-enable notifications for this site to turn this on'
   if (status === 'unsupported') return "This browser doesn't support push notifications"
   return 'Get notified even when the app is closed'
+}
+
+// Small red dot on the Chat tab, mirroring the coach app's own (see
+// coach-app/bell.js's refreshChatBadge) - same chat_messages/read_at
+// convention, just sender='coach' since this is the other side of the
+// same conversation. No existing polling engine on this side (the athlete
+// app has no bell.js equivalent), so this owns its own interval/
+// visibilitychange pair, started once from enterWeekView().
+async function refreshChatNavBadge() {
+  const { count, error } = await supabase
+    .from('chat_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('sender', 'coach')
+    .is('read_at', null)
+  if (error) { console.log(error); return }
+  const dot = document.getElementById('chatNavBadge')
+  if (dot) dot.style.display = count > 0 ? '' : 'none'
 }
 
 // Chat with this athlete's own coach - real persistent history
@@ -547,6 +569,7 @@ async function loadChatMessagesFromCoach() {
   const unreadIds = data.filter(m => m.sender === 'coach' && !m.read_at).map(m => m.id)
   if (unreadIds.length > 0) {
     await supabase.from('chat_messages').update({ read_at: new Date().toISOString() }).in('id', unreadIds)
+    refreshChatNavBadge()
   }
 }
 
