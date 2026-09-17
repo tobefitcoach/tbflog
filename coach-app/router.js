@@ -26,7 +26,7 @@
 // ==========================================================================
 import * as nav from './nav.js'
 
-const SCREENS_V = 2
+const SCREENS_V = 3
 
 // name -> () => Promise<{ mount(container, params, token), unmount?() }>
 export const ROUTES = {
