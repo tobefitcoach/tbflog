@@ -4447,7 +4447,13 @@ function renderWorkoutSummary(finishedSession, entry) {
     </div>
 
     <div class="summary-exercise-list">${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}</div>
-    <button class="btn-save start-workout-btn" id="summaryDoneBtn">Done</button>
+    <!-- Disabled until an RPE is picked (see wireSummaryRpePicker) - Training
+         Load/ACWR/Monotony/Strain are computed entirely from session_rpe
+         (see loadOverviewStats), and with no validation here it was too easy
+         to tap straight past an optional rating and never notice those
+         numbers had gone permanently blank. Already-rated sessions
+         (revisiting a past day's summary) start enabled as normal. -->
+    <button class="btn-save start-workout-btn" id="summaryDoneBtn" ${finishedSession.session_rpe ? '' : 'disabled'}>Done</button>
   `
 
   document.getElementById('summaryDoneBtn').addEventListener('click', async function() {
@@ -4487,6 +4493,8 @@ function wireSummaryRpePicker(session) {
     btn.classList.add('selected')
     session.session_rpe = rpe
     document.getElementById('rpePickerHint').textContent = RPE_DESCRIPTIONS[rpe]
+    const doneBtn = document.getElementById('summaryDoneBtn')
+    if (doneBtn) doneBtn.disabled = false
 
     const followup = document.getElementById('rpeFlagFollowup')
     if (followup) followup.style.display = rpe >= 9 ? 'block' : 'none'
