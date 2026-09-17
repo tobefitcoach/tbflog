@@ -59,6 +59,16 @@ header {
   justify-content: center;
   padding-top: calc(env(safe-area-inset-top, 20px) + 4px);
   padding-bottom: 6px;
+  /* Same fix as the coach app's .coach-app-header (see its own comment) -
+     the scroll-lock below only applies body:has(.workout-active), so on
+     every other screen the body scrolls normally and this header would
+     scroll away, leaving nothing to keep reserving the status-bar/notch
+     area on a long screen (a full week view, a long chat, etc). Sticky
+     keeps it pinned regardless of scroll position or which mode the body
+     is in. */
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .athlete-app-header .header-logo {

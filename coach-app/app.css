@@ -68,6 +68,20 @@
 .coach-app-header {
   padding-top: calc(env(safe-area-inset-top, 20px) + 4px);
   padding-bottom: 8px;
+  /* Without this, the safe-area padding above only protects the status
+     bar strip while scrolled to the very top - the app has no scroll
+     containment (nothing makes the body itself non-scrolling, unlike the
+     athlete app's workout-active special case), so on any screen tall
+     enough to scroll, the header scrolls away with everything else and
+     whatever's now at y=0 renders straight under the status bar/notch.
+     Sticky keeps this header (and the safe-area padding baked into it)
+     pinned at the top regardless of scroll position - real bug, found on
+     a live athlete-detail screen with enough content to scroll. z-index
+     matches the header's own internal dropdowns (bell panel etc., see
+     style.css) so they still layer correctly above it. */
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .coach-app-header .header-logo {
