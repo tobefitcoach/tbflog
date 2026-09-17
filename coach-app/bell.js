@@ -60,12 +60,32 @@ export function initBell() {
   })
 
   refreshBadge()
-  refreshTimer = setInterval(refreshBadge, 45000)
+  refreshChatBadge()
+  refreshTimer = setInterval(function() { refreshBadge(); refreshChatBadge() }, 45000)
   document.addEventListener('visibilitychange', onVisibilityChange)
 }
 
 function onVisibilityChange() {
-  if (document.visibilityState === 'visible') refreshBadge()
+  if (document.visibilityState === 'visible') { refreshBadge(); refreshChatBadge() }
+}
+
+// The sidebar's Chat tab gets its own small red dot - separate from the
+// bell's general notification badge above, and driven by chat_messages
+// itself (the same table/read_at convention communication.js's own
+// per-athlete unread badges use) rather than the notifications log, so it
+// reflects actual unread messages and clears the moment a conversation is
+// opened - not just when the bell panel happens to be opened. Exported so
+// communication.js can call it right after marking a conversation read,
+// instead of waiting up to 45s for the next poll.
+export async function refreshChatBadge() {
+  const { count, error } = await supabase
+    .from('chat_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('sender', 'athlete')
+    .is('read_at', null)
+  if (error) { console.log(error); return }
+  const dot = document.getElementById('chatNavBadge')
+  if (dot) dot.style.display = count > 0 ? '' : 'none'
 }
 
 async function refreshBadge() {

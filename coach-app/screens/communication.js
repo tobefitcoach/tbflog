@@ -34,6 +34,7 @@ import { supabase } from '../../coachClient.js'
 import { sendPush } from '../../push.js'
 import * as nav from '../nav.js'
 import { coachId } from '../session.js'
+import { refreshChatBadge } from '../bell.js'
 
 // Two-pane inbox: athlete list on the left, the selected athlete's full
 // chat_messages history + a send box on the right - see
@@ -213,6 +214,7 @@ async function loadChatMessages() {
     if (!nav.isCurrent(mountToken) || !root) return
     delete unreadCountByAthlete[selectedAthlete.id]
     renderCommsAthleteList()
+    refreshChatBadge()
   }
 }
 

@@ -187,6 +187,31 @@ header {
   flex-shrink: 0;
 }
 
+/* Wraps just the icon (not the whole link) so the dot below anchors to the
+   icon's own corner whether the link lays out as a row (desktop sidebar)
+   or a column (mobile bottom pill, see the .sidebar-link-icon flex-
+   direction switch further down) - no separate mobile rule needed. */
+.sidebar-icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Coach app only, currently just the Chat nav item (#chatNavBadge in
+   coach-app/dashboard.html) - toggled by bell.js's refreshChatBadge(),
+   same red as .notification-bell-badge/.comms-unread-badge. A plain dot
+   rather than a count: this is "you have something new," the actual
+   count already lives on the Chat screen itself once opened. */
+.nav-unread-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #ff4444;
+  border: 1.5px solid var(--c-surface);
+}
+
 .sidebar-item-hover {
   position: relative;
 }
