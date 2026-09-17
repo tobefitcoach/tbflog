@@ -3562,6 +3562,37 @@ function wireCalendarCopyArming(grid) {
     clearCopyHoverHighlight()
   })
 
+  // Touch has no hover, so the preview above never showed on a phone -
+  // tapping to commit already worked fine (that's a real click event, not
+  // dependent on hover state), this was only ever missing the preview
+  // itself. touchmove's own e.target is always the element the touch
+  // STARTED on, not the one currently under the finger, unlike a mouse's -
+  // elementFromPoint at the live touch point is what mousemove gets for
+  // free. preventDefault stops the page scrolling while dragging a finger
+  // across the grid to preview a target before lifting to commit.
+  grid.addEventListener('touchmove', function(e) {
+    if (!copyArmedMode) return
+    const touch = e.touches[0]
+    if (!touch) return
+    e.preventDefault()
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    updateCopyHoverHighlight(el ? el.closest('.calendar-day') : null)
+  }, { passive: false })
+  // Mirrors mouseleave's cleanup - if the finger lifts somewhere that
+  // isn't a valid target (dragged off the grid entirely), the click
+  // handler below never fires (no .calendar-day to find) so nothing else
+  // would otherwise clear the stale highlight.
+  grid.addEventListener('touchend', function(e) {
+    if (!copyArmedMode) return
+    const touch = e.changedTouches[0]
+    if (!touch) return
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    if (!el || !el.closest('.calendar-day')) {
+      copyArmedHoverKey = null
+      clearCopyHoverHighlight()
+    }
+  })
+
   grid.addEventListener('click', async function(e) {
     const armBtn = e.target.closest('[data-action="arm-copy-week"]')
     if (armBtn) {
