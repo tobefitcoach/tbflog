@@ -241,13 +241,14 @@ header {
    count already lives on the Chat screen itself once opened. */
 .nav-unread-dot {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 9px;
-  height: 9px;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background-color: #ff4444;
-  border: 1.5px solid var(--c-surface);
+  border: 2px solid var(--c-surface);
+  box-shadow: 0 0 0 1px #ff4444;
 }
 
 .sidebar-item-hover {
