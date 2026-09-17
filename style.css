@@ -60,6 +60,12 @@ header {
   background-color: var(--c-surface);
   color: white;
   padding: 12px 32px;
+  /* Same fix as .coach-app-header/.athlete-app-header (see the coach-app
+     rebuild): without this, this bare header sits under the notch/Dynamic
+     Island on any page that still uses it directly - login.html,
+     training-builder.html. Those pages also need viewport-fit=cover in
+     their own <meta name="viewport">, or env() here just resolves to 0. */
+  padding-top: calc(env(safe-area-inset-top, 12px) + 4px);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -951,6 +957,13 @@ header {
     flex-wrap: wrap;
     gap: 12px;
     padding: 10px 16px;
+    /* This mobile-breakpoint rule runs AFTER the base header rule above
+       and resets padding wholesale, which was silently wiping out that
+       rule's safe-area padding-top right at the exact width phones
+       actually use it at - the bug the user found. Same calc() as the
+       base rule, just with this breakpoint's own 10px as the fallback
+       instead of the base rule's 12px. */
+    padding-top: calc(env(safe-area-inset-top, 10px) + 4px);
   }
 
   /* The header's right-hand cluster (title/email/bell, inline-styled per-

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Privacy Policy - Tobe-Fit</title>
     <link rel="stylesheet" href="style.css?v=31" />
     <style>
@@ -10,6 +10,11 @@
         max-width: 760px;
         margin: 0 auto;
         padding: var(--s-6) var(--s-5) var(--s-10);
+        /* No <header> on this page to carry the usual safe-area fix (see
+           style.css's own header rule), so it goes directly on the top of
+           this wrapper instead - same reasoning, this page has no dedicated
+           shell either. */
+        padding-top: calc(env(safe-area-inset-top, var(--s-6)) + 4px);
       }
       .policy-wrap h1 {
         font-size: 26px;
