@@ -2830,3 +2830,46 @@
   font-size: 13px;
   margin-top: 8px;
 }
+
+
+/* ==========================================================================
+   WORKOUT BUILDER OVERLAY (.modal-large)
+   Only two things use .modal-large: the calendar's day overlay
+   (athlete-detail.js) and Program Builder's (program-builder.js). Both embed
+   the same training-builder.html the Workout Library route does, so they get
+   the same shell: no 40px .modal padding boxing the iframe in, and a slim
+   title bar instead of a 40px-inset heading, so the builder's own sticky
+   panels line up with the overlay edge exactly as they do on the route.
+   The width cap is the real fix - .modal-large's 1200px max-width gave the
+   builder ~1120px of iframe whether the coach was on a 1440px laptop or a
+   2560px monitor. It now scales with the screen like the route does.
+   ========================================================================== */
+.modal.modal-large {
+  padding: 0;
+  overflow: hidden;
+}
+
+.modal-large .graph-modal-header {
+  flex-shrink: 0;
+  margin-bottom: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--c-border);
+  background-color: var(--c-surface);
+}
+
+.modal-large .graph-modal-header h2 {
+  margin-bottom: 0;
+  font-size: 16px;
+}
+
+.modal-large .training-builder-frame {
+  border-radius: 0;
+}
+
+@media (min-width: 769px) {
+  .modal-overlay .modal.modal-large {
+    width: 96vw;
+    max-width: min(1800px, 96vw);
+    height: 94vh;
+  }
+}
