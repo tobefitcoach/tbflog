@@ -153,7 +153,7 @@ let onDocClickKebab = null
 let onDocKeydown = null
 
 export async function mount(container, params, token) {
-  ensureCss('css/builders.css?v=2')
+  ensureCss('css/builders.css?v=3')
   root = container
   programId = params.id
   container.innerHTML = TEMPLATE

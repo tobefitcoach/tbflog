@@ -125,6 +125,18 @@
   padding: var(--s-6) var(--s-5);
 }
 
+/* The sidebar's round collapse tab (style.css .sidebar-toggle-btn) is 48px
+   wide and sticks 32px out of the sidebar into this area, at the height of
+   the first heading - with the normal 20px padding it covered the first
+   letter of every screen's title ("Your Athletes" read "our Athletes").
+   40px clears it, whether the sidebar is open or collapsed. Desktop only:
+   on a phone the nav is a bottom bar and there is no tab. */
+@media (min-width: 769px) {
+  .coach-app-page {
+    padding-left: var(--s-10);
+  }
+}
+
 @media (max-width: 768px) {
   .coach-app-page {
     padding: var(--s-5) var(--s-4);

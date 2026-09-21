@@ -268,7 +268,7 @@ let editingExerciseId = null
 let onDocClickKebab = null
 
 export async function mount(container, params, token) {
-  ensureCss('css/builders.css?v=2')
+  ensureCss('css/builders.css?v=3')
   root = container
   sectionId = params.id
   container.innerHTML = TEMPLATE

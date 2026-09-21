@@ -1,0 +1,256 @@
+/* ==========================================================================
+   COACH DASHBOARD (screens/stats.js)
+   Lazy-loaded by that screen on first mount, like builders.css. Only uses
+   the shared tokens (--c-*, --s-*, --r-*) so it follows any theme change.
+   ========================================================================== */
+
+.cd-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+}
+
+.cd-custom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.cd-custom[hidden] {
+  display: none;
+}
+
+.cd-custom input[type="date"] {
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  /* 16px stops iOS Safari zooming the page on focus */
+  font-size: 16px;
+  color-scheme: dark;
+}
+
+.cd-custom-sep,
+.cd-range-label {
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+/* ---- Stat tiles ---------------------------------------------------------- */
+/* Fixed columns (not auto-fit) so the 2 mobility tiles stay the same width
+   as the 4 training tiles above them instead of stretching to fill the row */
+.cd-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+  margin-bottom: var(--s-6);
+}
+
+@media (max-width: 1100px) {
+  .cd-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.cd-tile,
+.cd-attn-tile {
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: var(--s-5);
+  min-width: 0;
+}
+
+.cd-tile-label {
+  display: block;
+  color: var(--c-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cd-tile-value,
+.cd-attn-value {
+  display: block;
+  margin: var(--s-2) 0 var(--s-1);
+  color: var(--c-text);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.cd-tile-sub {
+  display: block;
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+.cd-tile-delta {
+  margin-top: var(--s-3);
+  min-height: 18px;
+  font-size: 12px;
+}
+
+.cd-delta {
+  font-weight: 700;
+}
+
+.cd-delta-up { color: #5fd08a; }
+.cd-delta-down { color: #ff7a7a; }
+.cd-delta-flat { color: var(--c-text-muted); }
+
+.cd-delta-vs {
+  color: var(--c-text-muted);
+}
+
+.cd-tile-error {
+  grid-column: 1 / -1;
+}
+
+/* ---- Needs attention ----------------------------------------------------- */
+.cd-section-title {
+  margin-top: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+.cd-tiles-attn {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.cd-attn-tile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: default;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.cd-attn-tile:not(:disabled) {
+  cursor: pointer;
+}
+
+.cd-attn-alert {
+  border-color: #c98a2b;
+}
+
+.cd-attn-alert .cd-attn-value {
+  color: #f2b04a;
+}
+
+.cd-attn-alert:hover,
+.cd-attn-alert:focus-visible {
+  background-color: #22223d;
+  border-color: #f2b04a;
+  outline: none;
+}
+
+.cd-attn-clear .cd-attn-value {
+  color: #5fd08a;
+}
+
+/* ---- Lists inside the two popups ----------------------------------------- */
+.cd-modal-sub {
+  margin: calc(-1 * var(--s-3)) 0 var(--s-4);
+  color: var(--c-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cd-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.cd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background-color: var(--c-bg);
+}
+
+.cd-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.cd-row-name {
+  color: var(--c-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cd-row-meta {
+  margin-top: 2px;
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+.cd-row-note {
+  margin-top: var(--s-2);
+  color: var(--c-text);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cd-row-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.cd-tag {
+  display: inline-block;
+  margin-left: var(--s-2);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cd-tag-pain { background-color: #ff7a7a26; color: #ff9a9a; }
+.cd-tag-heavy { background-color: #f2b04a26; color: #f2b04a; }
+.cd-tag-under { background-color: #6ab0ff26; color: #8fc4ff; }
+
+@media (max-width: 768px) {
+  .cd-tiles,
+  .cd-tiles-attn {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-3);
+  }
+
+  .cd-tile,
+  .cd-attn-tile {
+    padding: var(--s-4);
+  }
+
+  .cd-tile-value,
+  .cd-attn-value {
+    font-size: 26px;
+  }
+
+  .cd-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cd-row-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 420px) {
+  .cd-tiles,
+  .cd-tiles-attn {
+    grid-template-columns: 1fr;
+  }
+}

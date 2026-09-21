@@ -26,10 +26,11 @@
 // ==========================================================================
 import * as nav from './nav.js'
 
-const SCREENS_V = 6
+const SCREENS_V = 9
 
 // name -> () => Promise<{ mount(container, params, token), unmount?() }>
 export const ROUTES = {
+  stats:            () => import(`./screens/stats.js?v=${SCREENS_V}`),
   athletes:         () => import(`./screens/athletes.js?v=${SCREENS_V}`),
   'athlete-detail': () => import(`./screens/athlete-detail.js?v=${SCREENS_V}`),
   communication:    () => import(`./screens/communication.js?v=${SCREENS_V}`),
@@ -54,6 +55,7 @@ export const ROUTES = {
 // than leaving whatever tab was last tapped lit while showing something
 // else - the exact bug the athlete app had before its redesign.
 export const TAB_FOR_ROUTE = {
+  stats: 'stats',
   athletes: 'athletes',
   'athlete-detail': 'athletes',
   communication: 'communication',
@@ -85,11 +87,12 @@ export const TAB_FOR_ROUTE = {
 // Deliberately absent: athlete-detail and the three builders. Those are
 // genuine drill-downs and must push, so back returns where you came from.
 const TAB_ROOTS = new Set([
-  'athletes', 'communication', 'settings',
+  'stats', 'athletes', 'communication', 'settings',
   'exercises', 'sections', 'trainings', 'programs', 'stretches', 'forms',
 ])
 
 const SCREEN_TITLES = {
+  stats: 'Dashboard',
   athletes: 'Athletes',
   'athlete-detail': 'Athlete',
   communication: 'Chat',

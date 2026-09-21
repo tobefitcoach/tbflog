@@ -308,7 +308,7 @@
 @media (min-width: 769px) {
   .tb-route {
     height: var(--tb-route-h, calc(100vh - 64px));
-    margin: calc(-1 * var(--s-6)) calc(-1 * var(--s-5));
+    margin: calc(-1 * var(--s-6)) calc(-1 * var(--s-5)) calc(-1 * var(--s-6)) calc(-1 * var(--s-10));
   }
 
   .tb-route-bar {

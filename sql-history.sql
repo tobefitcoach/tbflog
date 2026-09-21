@@ -2043,3 +2043,161 @@ drop trigger if exists training_exercises_touch_parent on training_exercises;
 create trigger training_exercises_touch_parent
   after insert or update or delete on training_exercises
   for each row execute function public.touch_training_updated_at();
+
+
+-- ==========================================================================
+-- Coach Dashboard: roster-wide completion rate.
+-- Same rule as the per-athlete Overview tab (athlete-detail.js
+-- loadOverviewStats -> completionRate): a scheduled workout counts as
+-- completed when at least half its prescribed sets were logged as done
+-- (sets past the prescribed number and unfinished sets are ignored; a
+-- missing/0 prescribed_sets counts as 1; workouts with no exercises are
+-- skipped; today's workout only counts once it's actually done).
+-- Done in the database because the Dashboard offers windows up to "All
+-- time" - doing this in the browser would mean downloading every logged set
+-- for every athlete. Returns one row per athlete so the app can leave out
+-- archived / not-yet-linked athletes itself.
+-- SECURITY INVOKER (the default) on purpose: it runs with the caller's own
+-- row-level security, so a coach only ever counts their own athletes' data.
+-- p_today is passed in by the app (the coach's local date) rather than read
+-- from the server clock, so "today" matches what the coach sees.
+-- Safe to re-run (create or replace). No tables change.
+-- ==========================================================================
+create or replace function public.coach_completion_stats(p_start date, p_end date, p_today date)
+returns table (athlete_id bigint, scheduled bigint, completed bigint)
+language sql
+stable
+set search_path = public
+as $$
+  with days as (
+    select d.id as day_id, p.athlete_id,
+           coalesce(d.date_override, p.start_date + ((w.week_number - 1) * 7 + (d.day_number - 1))) as dt
+    from programs p
+    join program_weeks w on w.program_id = p.id
+    join program_days d on d.week_id = w.id
+    where p.is_template = false
+  ),
+  day_sets as (
+    select pe.day_id,
+           sum(coalesce(nullif(pe.prescribed_sets, 0), 1)) as total_sets,
+           sum(least(
+             (select count(*) from exercise_log_sets l
+               where l.program_exercise_id = pe.id
+                 and l.completed_at is not null
+                 and l.set_number <= coalesce(nullif(pe.prescribed_sets, 0), 1)),
+             coalesce(nullif(pe.prescribed_sets, 0), 1)
+           )) as done_sets
+    from program_exercises pe
+    group by pe.day_id
+  ),
+  scored as (
+    select days.athlete_id, days.dt,
+           (s.done_sets::numeric / s.total_sets) >= 0.5 as done
+    from days
+    join day_sets s on s.day_id = days.day_id
+  )
+  select scored.athlete_id,
+         count(*) as scheduled,
+         count(*) filter (where scored.done) as completed
+  from scored
+  where scored.dt is not null
+    and (p_start is null or scored.dt >= p_start)
+    and scored.dt <= least(p_end, p_today)
+    and (scored.dt < p_today or scored.done)
+  group by scored.athlete_id
+$$;
+
+
+-- ==========================================================================
+-- Coach-added tournaments. On a call an athlete mentions upcoming
+-- tournaments; the coach can now put them straight on the athlete's
+-- calendar (coach Calendar tab -> "+" on a day -> Tournament), so the
+-- athlete opens their calendar and it's already there.
+-- The coach also rates how important it is (1-5), and the ATHLETE MUST NOT
+-- SEE that rating. An athlete can read every column of their own
+-- tournaments row, so hiding it in the UI alone would still hand it to
+-- anyone looking at the network calls. So the rating is kept out of that
+-- row entirely: coach-added rows have importance = null (enforced by the
+-- tournaments_rating_owner check) and the coach's rating lives in
+-- tournament_coach_ratings, which only the athlete's coach has any policy
+-- on - athletes get no access at all. The athlete sees the tournament
+-- itself (name + dates) on their calendar, just no stars.
+-- Athlete-added tournaments are unchanged (athlete's own 1-5 rating stays
+-- on the row, visible to both, as before). The athlete's old catch-all
+-- policy is split so they can still add/edit/delete their own tournaments
+-- but not the ones their coach added; the coach can add tournaments and
+-- delete the ones they added, never an athlete's own.
+-- coach_add_tournament() creates the row and the rating in one call so a
+-- dropped connection can't leave one without the other; it runs as the
+-- caller (SECURITY INVOKER), so the policies below still decide who may.
+-- Safe to re-run. Existing tournaments are untouched.
+-- ==========================================================================
+alter table tournaments add column if not exists created_by_coach boolean not null default false;
+
+-- Coach-added rows carry NO rating on this table (the athlete can read every
+-- column of their own row) - it lives in tournament_coach_ratings below.
+-- Athlete-added rows still need theirs. The check ties the two together so a
+-- coach's rating can never end up on a row the athlete can read.
+alter table tournaments alter column importance drop not null;
+alter table tournaments drop constraint if exists tournaments_rating_owner;
+alter table tournaments add constraint tournaments_rating_owner
+  check ((created_by_coach and importance is null) or (not created_by_coach and importance is not null));
+
+create table if not exists tournament_coach_ratings (
+  tournament_id uuid primary key references tournaments(id) on delete cascade,
+  importance int not null check (importance between 1 and 5),
+  created_at timestamptz not null default now()
+);
+alter table tournament_coach_ratings enable row level security;
+
+drop policy if exists "coach manages own athletes' tournament ratings" on tournament_coach_ratings;
+create policy "coach manages own athletes' tournament ratings" on tournament_coach_ratings for all
+  using (exists (select 1 from tournaments t where t.id = tournament_coach_ratings.tournament_id and is_own_athlete_as_coach(t.athlete_id)))
+  with check (exists (select 1 from tournaments t where t.id = tournament_coach_ratings.tournament_id and is_own_athlete_as_coach(t.athlete_id)));
+
+-- The athlete's old catch-all policy is split so they can still add/edit/delete
+-- their own tournaments but never the ones their coach added.
+drop policy if exists "athlete manages own tournaments" on tournaments;
+drop policy if exists "athlete views own tournaments" on tournaments;
+create policy "athlete views own tournaments" on tournaments for select
+  using (is_own_athlete_as_athlete(athlete_id));
+drop policy if exists "athlete adds own tournaments" on tournaments;
+create policy "athlete adds own tournaments" on tournaments for insert
+  with check (is_own_athlete_as_athlete(athlete_id) and not created_by_coach);
+drop policy if exists "athlete edits own tournaments" on tournaments;
+create policy "athlete edits own tournaments" on tournaments for update
+  using (is_own_athlete_as_athlete(athlete_id) and not created_by_coach)
+  with check (is_own_athlete_as_athlete(athlete_id) and not created_by_coach);
+drop policy if exists "athlete deletes own tournaments" on tournaments;
+create policy "athlete deletes own tournaments" on tournaments for delete
+  using (is_own_athlete_as_athlete(athlete_id) and not created_by_coach);
+
+drop policy if exists "coach adds tournaments for own athletes" on tournaments;
+create policy "coach adds tournaments for own athletes" on tournaments for insert
+  with check (is_own_athlete_as_coach(athlete_id) and created_by_coach);
+drop policy if exists "coach deletes tournaments they added" on tournaments;
+create policy "coach deletes tournaments they added" on tournaments for delete
+  using (is_own_athlete_as_coach(athlete_id) and created_by_coach);
+
+-- One call creates the tournament and the coach's private rating together.
+-- SECURITY INVOKER (the default): runs as the coach, so the policies above
+-- decide whether they may add it - nothing here bypasses them.
+create or replace function public.coach_add_tournament(
+  p_athlete_id bigint, p_name text, p_date date, p_end_date date, p_importance int
+) returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  insert into tournaments (athlete_id, name, date, end_date, importance, created_by_coach)
+  values (p_athlete_id, btrim(p_name), p_date, p_end_date, null, true)
+  returning id into v_id;
+
+  insert into tournament_coach_ratings (tournament_id, importance)
+  values (v_id, p_importance);
+
+  return v_id;
+end;
+$$;

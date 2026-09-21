@@ -17,7 +17,7 @@
          athlete-detail.css and css/builders.css are injected by their own
          screens on first mount via lazy-css.js, not loaded here. -->
     <link rel="stylesheet" href="css/coach-core.css?v=3" />
-    <link rel="stylesheet" href="app.css?v=1" />
+    <link rel="stylesheet" href="app.css?v=2" />
     <!-- Supabase's ESM build on jsDelivr is not bundled: importing
          supabase-js fans out into 8 more modules, and the browser can't
          discover them until supabase-js itself has downloaded and parsed.
@@ -77,6 +77,8 @@
       <nav class="sidebar" id="pageSidebar">
         <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">‹</button>
         <div class="sidebar-links" id="sidebarLinks">
+
+          <a href="#" class="sidebar-link sidebar-link-icon" data-route="stats" data-tab="stats"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>Dashboard</a>
 
           <div class="sidebar-item-hover" id="athletesNavItem">
             <a href="#" class="sidebar-link sidebar-link-icon active" data-route="athletes" data-tab="athletes"><svg class="sidebar-link-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Athletes</a>

@@ -46,7 +46,7 @@ function sizeToViewport() {
 
 export async function mount(container, params, token) {
   root = container
-  ensureCss('css/builders.css?v=2')
+  ensureCss('css/builders.css?v=3')
   root.innerHTML = TEMPLATE
 
   root.querySelector('#trainingBuilderRouteBackBtn').addEventListener('click', function() {
