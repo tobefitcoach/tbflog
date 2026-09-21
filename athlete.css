@@ -3554,3 +3554,114 @@ textarea.form-fill-answer {
   font-size: 13px;
   margin-top: 8px;
 }
+
+/* ==========================================================================
+   WORKOUT BUILDER — DESKTOP LAYOUT (embed mode only)
+   The builder is always shown inside an iframe (Workout Library route, the
+   calendar's day overlay, Program Builder), so that iframe's viewport IS
+   the working area. On desktop this pins the Exercise Library (left) and
+   Exercise Order (right) in frame with position:sticky - the exercise list
+   in the middle is the only thing that scrolls - and keeps the header row
+   (name + Rename / Add Section / Save) stuck to the top so Save is never a
+   long scroll away on a big workout.
+   Every width is fluid (clamp/vw), not a fixed pixel count, because this
+   has to fit several different monitors: side panels grow with the screen
+   up to a cap, and on very wide screens the whole trio is capped and
+   centered instead of stretching the exercise cards edge to edge.
+   Gated on body.tb-embed (set by training-builder.js) so the standalone
+   training-builder.html page and every phone layout are untouched.
+   ========================================================================== */
+@media (min-width: 769px) {
+  body.tb-embed {
+    --tb-gutter: clamp(16px, 2.2vw, 36px);
+    /* style.css's body { overflow-x: hidden } turns body into its own
+       scroll container (overflow-y computes to auto), and position:sticky
+       pins to the nearest scroll container - body never scrolls (the
+       window does), so the panels below would scroll away with the page.
+       clip still blocks sideways scrolling without becoming one. */
+    overflow-x: clip;
+  }
+
+  body.tb-embed .app-layout {
+    justify-content: center;
+  }
+
+  body.tb-embed .exercise-library-panel,
+  body.tb-embed .workout-outline-panel {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 14px;
+    overflow: hidden;
+  }
+
+  body.tb-embed .exercise-library-panel {
+    width: clamp(240px, 19vw, 340px);
+  }
+
+  body.tb-embed .workout-outline-panel {
+    width: clamp(220px, 16vw, 300px);
+  }
+
+  /* Search / chips / Create stay put; only the list itself scrolls, and it
+     takes whatever height is left instead of a guessed calc(100vh - 260px) */
+  body.tb-embed .exercise-library-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.tb-embed .exercise-search-input,
+  body.tb-embed .exercise-library-panel .btn-create-metric {
+    flex-shrink: 0;
+  }
+
+  body.tb-embed .exercise-library-body .chip-row {
+    flex-shrink: 0;
+    max-height: 84px;
+    overflow-y: auto;
+  }
+
+  body.tb-embed .exercise-library-list,
+  body.tb-embed .workout-outline-list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  body.tb-embed .training-builder-main {
+    flex: 1 1 0;
+    max-width: 1100px;
+    padding: 0 var(--tb-gutter) 40px;
+  }
+
+  body.tb-embed .training-builder-main .dashboard-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin: 0 calc(-1 * var(--tb-gutter)) 16px;
+    padding: 12px var(--tb-gutter);
+    background-color: var(--c-bg);
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  body.tb-embed .training-builder-main .dashboard-header h2 {
+    margin-bottom: 0;
+  }
+
+  body.tb-embed .training-empty-hint {
+    margin: 0 0 12px;
+  }
+}
+
+.training-empty-hint {
+  color: #aaaacc;
+  font-size: 13px;
+  margin-top: -16px;
+  margin-bottom: 16px;
+}

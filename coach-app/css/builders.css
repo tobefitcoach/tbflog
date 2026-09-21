@@ -270,3 +270,57 @@
     max-height: 140px;
   }
 }
+
+
+/* ==========================================================================
+   WORKOUT BUILDER ROUTE (screens/training-builder.js)
+   The builder page fills the space under the header instead of sitting in a
+   padded .modal-large box (which nested it inside two layers of padding
+   before the iframe's own page padding started). Phones keep a plain 92vh
+   frame; desktop bleeds out to the page edges (cancelling .coach-app-page's
+   padding) and takes its exact height from --tb-route-h, which the screen
+   sets from the live viewport so it fits every monitor and window size.
+   ========================================================================== */
+.tb-route {
+  display: flex;
+  flex-direction: column;
+  height: 92vh;
+}
+
+.tb-route-bar {
+  margin-bottom: var(--s-2);
+}
+
+.tb-route-bar-label {
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+.tb-route-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--c-bg);
+}
+
+@media (min-width: 769px) {
+  .tb-route {
+    height: var(--tb-route-h, calc(100vh - 64px));
+    margin: calc(-1 * var(--s-6)) calc(-1 * var(--s-5));
+  }
+
+  .tb-route-bar {
+    margin-bottom: 0;
+    /* Left padding clears the sidebar's ‹ collapse tab, which straddles
+       the sidebar's edge and would otherwise sit on top of the back button */
+    padding: var(--s-2) var(--s-5) var(--s-2) 40px;
+    border-bottom: 1px solid var(--c-border);
+    background-color: var(--c-surface);
+  }
+
+  .tb-route-frame {
+    border-radius: 0;
+  }
+}

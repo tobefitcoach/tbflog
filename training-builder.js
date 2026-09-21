@@ -30,6 +30,7 @@ const parentId = isDayMode ? dayId : trainingId
 // page's own header/sidebar since the overlay already has its own title
 // bar and Done button
 if (params.get('embed') === '1') {
+  document.body.classList.add('tb-embed')
   document.getElementById('pageHeader').style.display = 'none'
   document.getElementById('pageSidebar').style.display = 'none'
 }
