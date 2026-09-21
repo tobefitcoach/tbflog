@@ -1918,6 +1918,11 @@ body:has(.home-screen) .athlete-app-card {
   white-space: nowrap;
 }
 
+.tournament-list-badge-coach {
+  color: var(--c-text-muted);
+  font-weight: 500;
+}
+
 .tournament-list-delete-btn {
   background: transparent;
   border: none;

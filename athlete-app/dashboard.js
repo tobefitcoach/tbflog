@@ -900,6 +900,11 @@ async function renderProfile() {
 // mechanic as the RPE picker above. Visible on this athlete's own week
 // strip (renderWeekView) and, read-only, on the coach's month calendar
 // (athlete-calendar.js) - both read from the same tournaments table.
+// A coach can also add a tournament for the athlete (created_by_coach).
+// Those show here like any other, but with NO importance rating - the
+// coach's rating is private and is never even sent to this app (it lives in
+// tournament_coach_ratings, which athletes can't read; the row's own
+// importance is null) - and the athlete can't edit or delete them.
 // ==========================================================================
 
 // Only used for user-entered free text rendered via innerHTML (a
@@ -1002,8 +1007,10 @@ function renderTournaments() {
               <span class="tournament-list-name">${escapeHtml(t.name)}</span>
               <span class="tournament-list-date">${formatTournamentDateRange(t)}</span>
             </div>
+            ${t.created_by_coach ? `
+            <span class="tournament-list-badge tournament-list-badge-coach">Added by your coach</span>` : `
             <span class="tournament-list-badge">⭐ ${t.importance}/5</span>
-            <button type="button" class="tournament-list-delete-btn" data-id="${t.id}" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+            <button type="button" class="tournament-list-delete-btn" data-id="${t.id}" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`}
           </div>
         `).join('')}
       </div>

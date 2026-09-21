@@ -1126,7 +1126,7 @@ const TEMPLATE = `
     <div class="modal-overlay" id="dayAddTrainingModal">
       <div class="modal modal-wide">
         <div class="graph-modal-header">
-          <h2 id="dayAddTrainingTitle">Add Workout</h2>
+          <h2 id="dayAddTrainingTitle">Add to Calendar</h2>
           <button class="btn-cancel" id="closeDayAddTrainingBtn" data-modal-dismiss>✕</button>
         </div>
 
@@ -1135,6 +1135,7 @@ const TEMPLATE = `
           <button type="button" class="modal-tab-btn" id="dayAddTabProgram">Program</button>
           <button type="button" class="modal-tab-btn" id="dayAddTabSection">Section</button>
           <button type="button" class="modal-tab-btn" id="dayAddTabForm">Form</button>
+          <button type="button" class="modal-tab-btn" id="dayAddTabTournament">Tournament</button>
         </div>
 
         <!-- Left: pick a saved Training - clicking one previews it on the
@@ -1233,6 +1234,42 @@ const TEMPLATE = `
           </div>
           <div class="form-actions form-actions-end">
             <button class="btn-save" id="selectFormForDayBtn" disabled>Assign</button>
+          </div>
+        </div>
+
+        <!-- Put a tournament the athlete mentioned (say, on a call) straight
+             on their calendar - it shows up for them right away. Same fields
+             as the athlete's own Add Tournament form (name, dates, 1-5
+             importance) but the rating is coach-only: it's stored in
+             tournament_coach_ratings, which the athlete has no access to at
+             all (see sql-history.sql), and saved with the
+             coach_add_tournament() database function in one call. -->
+        <div class="modal-tab-panel" id="dayAddTournamentPanel">
+          <p class="coach-tournament-intro">Add a tournament your athlete mentioned - it appears on their calendar straight away.</p>
+          <div class="form-group">
+            <label for="coachTournamentName">Tournament name</label>
+            <input type="text" id="coachTournamentName" placeholder="e.g. State Championships" maxlength="80" />
+          </div>
+          <div class="coach-tournament-dates">
+            <div class="form-group">
+              <label for="coachTournamentStart">Start date</label>
+              <input type="date" id="coachTournamentStart" />
+            </div>
+            <div class="form-group">
+              <label for="coachTournamentEnd">End date</label>
+              <input type="date" id="coachTournamentEnd" />
+            </div>
+          </div>
+          <div class="coach-importance-picker">
+            <p class="coach-importance-label">How important is this tournament?</p>
+            <div class="coach-importance-row">
+              ${[1, 2, 3, 4, 5].map(n => `<button type="button" class="coach-importance-btn" data-importance="${n}">${n}</button>`).join('')}
+            </div>
+            <p class="coach-importance-hint" id="coachTournamentImportanceHint">Tap a number to see what it means</p>
+            <p class="coach-tournament-private"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Only you can see this rating - your athlete just sees the tournament and its dates.</p>
+          </div>
+          <div class="form-actions form-actions-end">
+            <button class="btn-save" id="saveCoachTournamentBtn">Add Tournament</button>
           </div>
         </div>
       </div>
@@ -1498,7 +1535,7 @@ let onDocKeydownCal = null // Escape disarms an in-progress calendar copy
 // ---- MOUNT / UNMOUNT ----
 // ==========================================================================
 export async function mount(container, params, token) {
-  ensureCss('css/athlete-detail.css?v=1')
+  ensureCss('css/athlete-detail.css?v=2')
   root = container
   mountToken = token
   athleteId = params.id
@@ -1817,9 +1854,9 @@ function trainingDisplayName(entry) {
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 // Same 1-5 scale/anchors as TOURNAMENT_IMPORTANCE_DESCRIPTIONS in the
-// athlete app's dashboard.js (where the athlete actually picks the
-// rating) - duplicated here since this is coach-only, read-only display
-// of the same tournaments table.
+// athlete app's dashboard.js (where the athlete picks their own rating) -
+// duplicated here, and used both to display an athlete-added tournament's
+// rating and for the coach's own picker when adding one (Tournament tab).
 const TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL = {
   1: 'Not important at all - just for fun or experience',
   2: 'Low priority - a tune-up event',
@@ -1883,6 +1920,24 @@ async function loadCalendarMonth(year, month) {
   if (logSetsError) { console.log('Error loading logged sets for calendar:', logSetsError) }
   if (tournamentsError) { console.log('Error loading tournaments for calendar:', tournamentsError) }
   if (formAssignmentsError) { console.log('Error loading form assignments for calendar:', formAssignmentsError) }
+
+  // A coach-added tournament carries no rating on its own row (the athlete
+  // can read that row) - the coach's private rating is in
+  // tournament_coach_ratings. Fetched separately, and only when there's
+  // something to look up, so a problem there (or the table not existing
+  // yet) can't take the athlete's own tournaments off the calendar.
+  const coachAddedTournaments = (tournaments || []).filter(t => t.created_by_coach)
+  if (coachAddedTournaments.length > 0) {
+    const { data: ratings, error: ratingsError } = await window.fetchWithRetry((signal) => supabase
+      .from('tournament_coach_ratings')
+      .select('tournament_id, importance')
+      .in('tournament_id', coachAddedTournaments.map(t => t.id))
+      .abortSignal(signal), 1
+    )
+    if (ratingsError) console.log('Error loading tournament ratings:', ratingsError)
+    const ratingById = Object.fromEntries((ratings || []).map(r => [r.tournament_id, r.importance]))
+    for (const t of coachAddedTournaments) t.importance = ratingById[t.id] ?? null
+  }
 
   tournamentsByDateCal = {}
   for (const t of tournaments || []) {
@@ -2087,7 +2142,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
-      return `<span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="Importance ${it.importance}/5">${it.importance != null ? it.importance : it.glyph}</span>`
+      return `<span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="${it.importance != null ? `Importance ${it.importance}/5` : 'Tournament'}">${it.importance != null ? it.importance : it.glyph}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-dot calendar-day-dot-more">+${extraCount}</span>` : '')
     const badgesHtml = visibleItems.map(it => {
@@ -2135,7 +2190,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
-      return `<span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="Importance ${it.importance}/5">${it.importance != null ? `★${it.importance} ` : ''}${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
+      return `<span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="${it.importance != null ? `Importance ${it.importance}/5` : 'Tournament'}">${it.importance != null ? `★${it.importance} ` : ''}${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
@@ -2391,10 +2446,36 @@ function openTournamentDetailModal(dateStr) {
     ? `${formatShortDateCal(tournament.date)} – ${formatShortDateCal(tournament.end_date)}`
     : null
 
+  const addedByCoach = !!tournament.created_by_coach
+  const ratingLine = tournament.importance != null
+    ? `Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}`
+    : 'Importance rating unavailable'
+
   root.querySelector('#dayDetailContent').innerHTML = `
     ${tournamentDateRange ? `<p class="workout-preview-target">${tournamentDateRange}</p>` : ''}
-    <p class="workout-preview-target">Importance ${tournament.importance}/5 — ${TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[tournament.importance]}</p>
+    <p class="workout-preview-target">${ratingLine}</p>
+    <p class="coach-tournament-origin">${addedByCoach
+      ? 'Added by you. Your athlete can see this tournament on their calendar, but not your rating.'
+      : 'Added by the athlete, with their own rating.'}</p>
+    ${addedByCoach ? `<div class="form-actions form-actions-end"><button type="button" class="btn-cancel" id="deleteCoachTournamentBtn">Delete Tournament</button></div>` : ''}
   `
+
+  if (addedByCoach) {
+    root.querySelector('#deleteCoachTournamentBtn').addEventListener('click', async function() {
+      if (!(await customConfirm(`Delete "${tournament.name}" from ${currentAthlete?.name || 'the athlete'}'s calendar?`))) return
+      const { error } = await window.fetchWithRetry((signal) => supabase
+        .from('tournaments')
+        .delete()
+        .eq('id', tournament.id)
+        .abortSignal(signal)
+      )
+      if (!root) return
+      if (error) { console.log(error); customAlert('Something went wrong deleting that - try again'); return }
+      root.querySelector('#dayDetailModal').classList.remove('active')
+      await loadCalendarMonth(currentViewYear, currentViewMonth)
+      showToast('Tournament deleted')
+    })
+  }
 
   root.querySelector('#dayDetailModal').classList.add('active')
 }
@@ -2943,11 +3024,12 @@ async function getProgramTemplates() {
 // once in this session (e.g. clicking back and forth between two rows).
 async function openDayAddTrainingModal(dateStr) {
   currentDayDateForAddTraining = dateStr
-  root.querySelector('#dayAddTrainingTitle').textContent = 'Add Workout — ' + formatDisplayDateCal(dateStr)
+  root.querySelector('#dayAddTrainingTitle').textContent = 'Add to Calendar — ' + formatDisplayDateCal(dateStr)
   switchDayAddTab('workout')
   resetTrainingPreview()
   resetSectionPreviewCal()
   resetFormPreviewCal()
+  resetCoachTournamentForm(dateStr)
 
   const data = await getTrainingsList()
   const list = root.querySelector('#dayAddTrainingList')
@@ -3098,15 +3180,94 @@ function getYouTubeThumbnailCal(url) {
   return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
 }
 
+// ---- TOURNAMENT TAB ------------------------------------------------------
+// The start/end dates are pre-filled with the day whose "+" was clicked, so
+// "she said the 14th" is one click on the 14th and a name. Picking a start
+// date pulls the end date along with it unless the coach already set a later
+// one (same behaviour as the athlete's own form).
+let coachTournamentImportance = null
+
+function resetCoachTournamentForm(dateStr) {
+  root.querySelector('#coachTournamentName').value = ''
+  root.querySelector('#coachTournamentStart').value = dateStr
+  const endInput = root.querySelector('#coachTournamentEnd')
+  endInput.value = dateStr
+  endInput.min = dateStr
+  coachTournamentImportance = null
+  root.querySelectorAll('.coach-importance-btn').forEach(b => b.classList.remove('selected'))
+  root.querySelector('#coachTournamentImportanceHint').textContent = 'Tap a number to see what it means'
+}
+
+function wireCoachTournamentForm() {
+  const startInput = root.querySelector('#coachTournamentStart')
+  const endInput = root.querySelector('#coachTournamentEnd')
+
+  startInput.addEventListener('change', function() {
+    endInput.min = startInput.value
+    if (!endInput.value || endInput.value < startInput.value) endInput.value = startInput.value
+  })
+
+  root.querySelectorAll('.coach-importance-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      root.querySelectorAll('.coach-importance-btn').forEach(b => b.classList.remove('selected'))
+      btn.classList.add('selected')
+      coachTournamentImportance = parseInt(btn.dataset.importance)
+      root.querySelector('#coachTournamentImportanceHint').textContent = TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL[coachTournamentImportance]
+    })
+  })
+
+  root.querySelector('#saveCoachTournamentBtn').addEventListener('click', async function() {
+    const btn = this
+    const name = root.querySelector('#coachTournamentName').value.trim()
+    const date = startInput.value
+    const endDate = endInput.value || date
+    if (!name) { customAlert('Please enter a name for this tournament'); return }
+    if (!date) { customAlert('Please pick a start date'); return }
+    if (endDate < date) { customAlert("End date can't be before the start date"); return }
+    if (!coachTournamentImportance) { customAlert('Please rate how important this tournament is'); return }
+
+    btn.disabled = true
+    btn.textContent = 'Adding...'
+
+    // One attempt only (no retry): this inserts a row, so a retry after a
+    // dropped response could add the same tournament twice
+    const { error } = await window.fetchWithRetry((signal) => supabase
+      .rpc('coach_add_tournament', {
+        p_athlete_id: athleteId, p_name: name, p_date: date, p_end_date: endDate, p_importance: coachTournamentImportance
+      })
+      .abortSignal(signal), 1
+    )
+
+    if (!root) return
+    btn.disabled = false
+    btn.textContent = 'Add Tournament'
+
+    if (error) {
+      console.log('Error adding tournament:', error)
+      // PGRST202 = the database function isn't installed yet
+      customAlert(error.code === 'PGRST202'
+        ? 'Tournaments need a one-time database update first - run the newest block in sql-history.sql.'
+        : 'Something went wrong adding that tournament - try again')
+      return
+    }
+
+    root.querySelector('#dayAddTrainingModal').classList.remove('active')
+    await loadCalendarMonth(currentViewYear, currentViewMonth)
+    showToast(`Added ${name} to the calendar`)
+  })
+}
+
 function switchDayAddTab(tab) {
   root.querySelector('#dayAddTabWorkout').classList.toggle('active', tab === 'workout')
   root.querySelector('#dayAddTabProgram').classList.toggle('active', tab === 'program')
   root.querySelector('#dayAddTabSection').classList.toggle('active', tab === 'section')
   root.querySelector('#dayAddTabForm').classList.toggle('active', tab === 'form')
+  root.querySelector('#dayAddTabTournament').classList.toggle('active', tab === 'tournament')
   root.querySelector('#dayAddWorkoutPanel').classList.toggle('active', tab === 'workout')
   root.querySelector('#dayAddProgramPanel').classList.toggle('active', tab === 'program')
   root.querySelector('#dayAddSectionPanel').classList.toggle('active', tab === 'section')
   root.querySelector('#dayAddFormPanel').classList.toggle('active', tab === 'form')
+  root.querySelector('#dayAddTournamentPanel').classList.toggle('active', tab === 'tournament')
 }
 
 // ==========================================================================
@@ -4486,6 +4647,8 @@ function bindCalendarStaticEvents() {
   root.querySelector('#dayAddTabProgram').addEventListener('click', function() { switchDayAddTab('program') })
   root.querySelector('#dayAddTabSection').addEventListener('click', function() { switchDayAddTab('section') })
   root.querySelector('#dayAddTabForm').addEventListener('click', function() { switchDayAddTab('form') })
+  root.querySelector('#dayAddTabTournament').addEventListener('click', function() { switchDayAddTab('tournament') })
+  wireCoachTournamentForm()
 
   root.querySelector('#programStartDayField').addEventListener('click', function() { openDayPicker('start') })
   root.querySelector('#programEndDayField').addEventListener('click', function() { openDayPicker('end') })
