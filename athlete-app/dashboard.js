@@ -173,6 +173,7 @@ let mobilitySessionsByDate = {} // 'YYYY-MM-DD' -> workout_sessions row with ses
 let tournamentsCache = [] // every upcoming+past tournaments row for this athlete, sorted by date
 let tournamentsByDate = {} // 'YYYY-MM-DD' -> tournaments row
 let formAssignmentsByDate = {} // 'YYYY-MM-DD' -> array of form_assignments rows (joined with forms(name, gate_workout))
+let latestBodyweightRow = null // { date, weight } for this athlete's most recent bodyweight entry, or null - refreshed by loadLatestBodyweight()
 let restTimerInterval = null
 let mobilityTimerInterval = null
 let stretchLibraryCache = null              // stretches visible to this athlete (RLS-scoped to their coach)
@@ -482,6 +483,7 @@ async function enterWeekView() {
   coachMobilityEnabled = coachProfile ? coachProfile.mobility_enabled !== false : true
   await loadTrainingData()
   await loadTournaments()
+  await loadLatestBodyweight()
   await loadCoachMessages()
   refreshChatNavBadge()
   setInterval(refreshChatNavBadge, 45000)
@@ -667,21 +669,12 @@ async function renderProfile() {
   // localStorage read under coachClient.js's own key, not a login - see
   // coach-app/screens/settings.js's matching "Athlete Account" row for the
   // other direction of this same shortcut.
-  const [status, coachAccountSession, latestBodyweight] = await Promise.all([
+  const [status, coachAccountSession] = await Promise.all([
     pushStatus(),
     coachSupabase.auth.getSession(),
-    saveWithRetry((signal) => supabase
-      .from('bodyweight')
-      .select('date, weight')
-      .eq('athlete_id', athlete.id)
-      .order('date', { ascending: false })
-      .limit(1)
-      .abortSignal(signal)
-    ),
   ])
   const coachAccountLinked = !!coachAccountSession?.data?.session
   const initials = athlete.name.split(' ').map(w => w[0]).join('').toUpperCase()
-  const latestBWRow = latestBodyweight?.data?.[0] || null
 
   if (coachName === null) {
     const { data } = await saveWithRetry((signal) => supabase
@@ -738,13 +731,6 @@ async function renderProfile() {
         </label>
         <span class="${athlete.weight_unit === 'lbs' ? 'active' : ''}">lbs</span>
       </div>
-    </div>
-    <div class="settings-row">
-      <div class="settings-row-info">
-        <div class="settings-row-title">Bodyweight</div>
-        <div class="settings-row-desc">${latestBWRow ? `Last logged: ${formatWeight(latestBWRow.weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'} · ${formatShortDate(parseDateStr(latestBWRow.date))}` : 'No entries yet'}</div>
-      </div>
-      <button type="button" class="btn-profile-action" id="logWeightBtn">Log Weight</button>
     </div>
     <div class="settings-row">
       <div class="settings-row-info">
@@ -834,10 +820,6 @@ async function renderProfile() {
     if (status === 'on') await disablePush(supabase)
     else await enablePush(supabase, session.user.id)
     renderProfile()
-  })
-
-  document.getElementById('logWeightBtn').addEventListener('click', function() {
-    openLogWeightModal()
   })
 
   document.getElementById('weightUnitToggle').addEventListener('change', async function(e) {
@@ -1015,6 +997,23 @@ async function loadTournaments() {
   for (const t of tournamentsCache) {
     for (const dateStr of eachDateStrInRange(t.date, t.end_date)) tournamentsByDate[dateStr] = t
   }
+}
+
+// Just the single most recent entry - enough for the Log Weight tile's
+// sublabel on Home. The same `bodyweight` table the coach's "Log weight"
+// button on the athlete profile writes to (see athlete-detail.js), so an
+// entry logged from either side shows up for the other immediately.
+async function loadLatestBodyweight() {
+  const { data, error } = await saveWithRetry((signal) => supabase
+    .from('bodyweight')
+    .select('date, weight')
+    .eq('athlete_id', athlete.id)
+    .order('date', { ascending: false })
+    .limit(1)
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); return }
+  latestBodyweightRow = (data && data[0]) || null
 }
 
 function renderTournaments() {
@@ -1607,6 +1606,35 @@ function renderWeekView(weekStart = startOfWeek(new Date())) {
 
   const pendingCount = loadPendingQueue().length
 
+  // Built as a list rather than fixed rows so it always packs 2-per-row no
+  // matter which optional tiles (Mobility/Tournaments) are on for this
+  // athlete - Log Weight is last, always on, and lands next to Tournaments
+  // when both are showing. If the total comes out odd, the trailing tile
+  // spans the full row instead of leaving an empty half-row next to it.
+  const homeTiles = [
+    `<button type="button" class="home-tile ${athlete.can_self_log_workouts ? '' : 'disabled'}" id="addOwnWorkoutTile">
+      <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+      <span class="home-tile-label">Add Own Workout</span>
+      ${athlete.can_self_log_workouts ? '' : '<span class="home-tile-sublabel">Ask your coach to enable this</span>'}
+    </button>`,
+    ...(showMobility ? [`<button type="button" class="home-tile" id="mobilityTile">
+      <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v5"></path><path d="M12 8l-5 5"></path><path d="M12 8l5 5"></path><path d="M12 11l-3 9"></path><path d="M12 11l3 9"></path></svg></span>
+      <span class="home-tile-label">Daily Mobility/Stretching</span>
+    </button>`] : []),
+    ...(showTournaments ? [`<button type="button" class="home-tile" id="tournamentsTile">
+      <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>
+      <span class="home-tile-label">Tournaments</span>
+    </button>`] : []),
+    `<button type="button" class="home-tile" id="logWeightTile">
+      <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"></line><path d="M5 7l-3 7a4 4 0 0 0 8 0z"></path><path d="M19 7l-3 7a4 4 0 0 0 8 0z"></path><path d="M5 7h14"></path><path d="M12 3l4 4M12 3l-4 4"></path></svg></span>
+      <span class="home-tile-label">Log Weight</span>
+      ${latestBodyweightRow ? `<span class="home-tile-sublabel">${formatWeight(latestBodyweightRow.weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'} · ${formatShortDate(parseDateStr(latestBodyweightRow.date))}</span>` : ''}
+    </button>`,
+  ]
+  if (homeTiles.length % 2 === 1) {
+    homeTiles[homeTiles.length - 1] = homeTiles[homeTiles.length - 1].replace('class="home-tile', 'class="home-tile home-tile-wide')
+  }
+
   // .home-screen fills the space between the header and bottom nav exactly
   // (see the body:has(.home-screen) rules in app.css) - unlike every other
   // screen in this app, Home doesn't scroll, so the week strip grows to
@@ -1625,25 +1653,7 @@ function renderWeekView(weekStart = startOfWeek(new Date())) {
         <button class="btn-cancel" id="weekNextBtn" ${nextEnabled ? '' : 'disabled'}>Next →</button>
       </div>
       <div class="week-strip">${cardsHtml}</div>
-      <div class="home-tile-row ${showMobility ? '' : 'home-tile-row-single'}">
-        <button type="button" class="home-tile ${athlete.can_self_log_workouts ? '' : 'disabled'}" id="addOwnWorkoutTile">
-          <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
-          <span class="home-tile-label">Add Own Workout</span>
-          ${athlete.can_self_log_workouts ? '' : '<span class="home-tile-sublabel">Ask your coach to enable this</span>'}
-        </button>
-        ${showMobility ? `
-        <button type="button" class="home-tile" id="mobilityTile">
-          <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v5"></path><path d="M12 8l-5 5"></path><path d="M12 8l5 5"></path><path d="M12 11l-3 9"></path><path d="M12 11l3 9"></path></svg></span>
-          <span class="home-tile-label">Daily Mobility/Stretching</span>
-        </button>` : ''}
-      </div>
-      ${showTournaments ? `
-      <div class="home-tile-row home-tile-row-single">
-        <button type="button" class="home-tile" id="tournamentsTile">
-          <span class="home-tile-icon-chip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>
-          <span class="home-tile-label">Tournaments</span>
-        </button>
-      </div>` : ''}
+      <div class="home-tile-row">${homeTiles.join('')}</div>
     </div>
   `
 
@@ -1675,6 +1685,9 @@ function renderWeekView(weekStart = startOfWeek(new Date())) {
       renderTournaments()
     })
   }
+  document.getElementById('logWeightTile').addEventListener('click', function() {
+    openLogWeightModal()
+  })
 
   wireSyncBanner(function() { renderWeekView(weekStart) })
 }
@@ -3592,11 +3605,11 @@ document.getElementById('saveMoveWorkoutBtn').addEventListener('click', async fu
   renderWeekView(startOfWeek(parseDateStr(newDate)))
 })
 
-// Log a bodyweight entry from Profile - writes straight to the same
-// `bodyweight` table the coach's "Log weight" button uses (see
+// Log a bodyweight entry from the Log Weight tile on Home - writes straight
+// to the same `bodyweight` table the coach's "Log weight" button uses (see
 // athlete-detail.js's bindBodyweightEvents), so it shows up identically on
 // both sides. Always stored in kg, typed in whatever unit the athlete has
-// picked for Weight units (see the toggle above).
+// picked in Profile > Weight units.
 function openLogWeightModal() {
   document.getElementById('logWeightDate').valueAsDate = new Date()
   document.getElementById('logWeightValue').value = ''
@@ -3627,7 +3640,8 @@ document.getElementById('saveLogWeightBtn').addEventListener('click', async func
   if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
 
   document.getElementById('logWeightModal').classList.remove('active')
-  renderProfile()
+  await loadLatestBodyweight()
+  renderWeekView(currentWeekStart)
 })
 
 // ==========================================================================

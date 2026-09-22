@@ -1201,8 +1201,11 @@ body:has(.home-screen) .athlete-app-card {
   font-size: 11px;
 }
 
-/* --- Home screen tiles: Add Own Workout / Daily Mobility, below the week
-   strip. Same tap-target weight as .start-workout-btn, just side by side. --- */
+/* --- Home screen tiles: Add Own Workout / Daily Mobility / Tournaments /
+   Log Weight, below the week strip. One shared 2-column grid - which tiles
+   show varies per athlete (Mobility/Tournaments are opt-in), so the exact
+   count isn't fixed; see the homeTiles array in renderWeekView(). Same
+   tap-target weight as .start-workout-btn, just side by side. --- */
 .home-tile-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1210,9 +1213,10 @@ body:has(.home-screen) .athlete-app-card {
   margin-top: 20px;
 }
 
-.home-tile-row-single {
-  grid-template-columns: 1fr;
-  margin-top: 12px;
+/* Applied to the last tile when the total count is odd, so a leftover tile
+   spans the full row instead of leaving an empty half-row beside it. */
+.home-tile-wide {
+  grid-column: 1 / -1;
 }
 
 .home-tile {
