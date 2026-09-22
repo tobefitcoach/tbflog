@@ -1284,21 +1284,96 @@ body:has(.home-screen) .athlete-app-card {
   flex-shrink: 0;
 }
 
+/* Shown above the day's cards only when there's more than one - see
+   renderDayPreview's multiWorkoutNoticeHtml */
+.day-preview-count {
+  color: var(--c-text-muted);
+  font-size: 13px;
+  margin: -4px 0 14px;
+}
+
+/* Collapsed-by-default summary for one workout's exercise list - tapping it
+   toggles .day-preview-exercises-detail below (see the data-toggle-exercises
+   handler in renderDayPreview). A plain full-width button, not a card
+   itself, so it reads as part of the header area rather than another box
+   stacked on top of the real exercise list. */
+.day-preview-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--c-border);
+  padding: 14px 0 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.day-preview-stats {
+  display: flex;
+  flex: 1;
+  justify-content: space-around;
+}
+
+.day-preview-stat {
+  text-align: center;
+}
+
+.day-preview-stat-value {
+  color: var(--c-text);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.day-preview-stat-label {
+  color: var(--c-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.day-preview-summary-chevron {
+  flex-shrink: 0;
+  color: var(--c-text-muted);
+  transition: transform 0.2s;
+}
+
+.day-preview-summary-row.expanded .day-preview-summary-chevron {
+  transform: rotate(180deg);
+}
+
+/* display:none (not max-height/overflow tricks) - a collapsed workout's
+   exercises take zero layout space, which is the entire point: a second
+   workout that day sits right under this row instead of a screen away. */
+.day-preview-exercises-detail {
+  display: none;
+  padding-top: 4px;
+}
+
+.day-preview-exercises-detail.expanded {
+  display: block;
+}
+
 .day-preview-exercise {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   background-color: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
 }
 
 .day-preview-thumb {
   position: relative; /* anchors the play-icon overlay below */
   flex-shrink: 0;
-  width: 72px;
+  width: 56px;
   aspect-ratio: 16 / 9;
   border-radius: 6px;
   overflow: hidden;
@@ -1335,8 +1410,8 @@ body:has(.home-screen) .athlete-app-card {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background-color: rgba(0, 0, 0, 0.55);
   pointer-events: none;
@@ -1347,11 +1422,11 @@ body:has(.home-screen) .athlete-app-card {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-40%, -50%);
+  transform: translate(-38%, -50%);
   width: 0;
   height: 0;
   border-style: solid;
-  border-width: 5px 0 5px 8px;
+  border-width: 4px 0 4px 6px;
   border-color: transparent transparent transparent var(--c-text);
   pointer-events: none;
 }
@@ -2150,10 +2225,6 @@ body:has(.home-screen) .athlete-app-card {
     min-width: 18px;
     padding: 0 5px;
     font-size: 9px;
-  }
-
-  .day-preview-thumb {
-    width: 56px;
   }
 
   .workout-summary-stats {

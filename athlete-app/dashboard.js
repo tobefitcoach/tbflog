@@ -1396,6 +1396,38 @@ function formatSetTargets(setTargets, isTimed, tracksWeight, tracksDistance) {
   return text
 }
 
+// ==========================================================================
+// ---- WORKOUT SUMMARY (collapsed day-preview card) ----
+// The day preview used to render every exercise in full (video thumbnail +
+// target) the instant a day was opened - for an 8-exercise workout that's
+// well over a screen's worth of scrolling before the athlete has decided
+// whether to even start it, and a second workout that day was pushed
+// entirely below the fold with no hint it existed. Each workout now shows
+// as a compact card (name, exercise/set count, an estimated duration) with
+// the full list one tap away - see the day-preview-summary-row/
+// day-preview-exercises-detail toggle in renderDayPreviewGroup below.
+// ==========================================================================
+
+// No duration is stored anywhere for a not-yet-done workout - this is a
+// rough estimate (a set plus its rest, at a normal pace) purely so the
+// summary card can say something more useful than just a set count.
+// Rounded to the nearest 5 minutes so it visibly reads as an estimate
+// rather than a precise number nobody actually measured.
+function estimateWorkoutMinutes(setCount) {
+  return Math.max(5, Math.round((setCount * 2.5) / 5) * 5)
+}
+
+// set_targets (one row per actual set, set in Workout Builder) wins when
+// present - prescribed_sets is only the fallback for an exercise that's
+// never had its sets individually edited, same convention as targetLine().
+function summarizeWorkout(exercises) {
+  let setCount = 0
+  for (const pe of exercises) {
+    setCount += (pe.set_targets && pe.set_targets.length) ? pe.set_targets.length : (pe.prescribed_sets || 1)
+  }
+  return { exerciseCount: exercises.length, setCount, estMinutes: estimateWorkoutMinutes(setCount) }
+}
+
 function targetLine(pe) {
   const isTimed = pe.exercises && pe.exercises.is_timed
   const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
@@ -3140,9 +3172,17 @@ function renderDayPreview(dateStr) {
   // blocking
   const formsHtml = forms.map(fa => renderFormPreviewCard(fa, dateStr)).join('')
 
+  // A flag, not a scroll hint - each card below is collapsed by default
+  // (see renderDayPreviewGroup), so a second workout is already visible
+  // without scrolling; this just confirms there's more than one before the
+  // athlete starts reading either card.
+  const multiWorkoutNoticeHtml = entries.length > 1
+    ? `<p class="day-preview-count">${entries.length} workouts today</p>`
+    : ''
+
   const bodyHtml = (entries.length === 0 && forms.length === 0)
     ? '<p class="no-metrics">Rest day — nothing scheduled</p>'
-    : formsHtml + entries.map(entry => renderDayPreviewGroup(entry, isToday, dateStr)).join('')
+    : formsHtml + multiWorkoutNoticeHtml + entries.map(entry => renderDayPreviewGroup(entry, isToday, dateStr)).join('')
 
   pageContent.innerHTML = `
     <div class="day-view-header">
@@ -3160,7 +3200,20 @@ function renderDayPreview(dateStr) {
 
   document.getElementById('dayPreviewBody').addEventListener('click', function(e) {
     const thumbBtn = e.target.closest('[data-video-url]')
-    if (thumbBtn) playInlineVideo(thumbBtn, thumbBtn.dataset.videoUrl)
+    if (thumbBtn) { playInlineVideo(thumbBtn, thumbBtn.dataset.videoUrl); return }
+
+    // Expands/collapses one workout's exercise list in place - every card
+    // starts collapsed (see renderDayPreviewGroup), so this is the only way
+    // to reach it. Toggling a class rather than re-rendering means the
+    // video-playing state of any already-expanded card elsewhere on the
+    // page survives the click.
+    const toggleBtn = e.target.closest('[data-toggle-exercises]')
+    if (toggleBtn) {
+      const detail = document.getElementById('exercisesDetail-' + toggleBtn.dataset.toggleExercises)
+      const expanded = detail.classList.toggle('expanded')
+      toggleBtn.classList.toggle('expanded', expanded)
+      toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false')
+    }
   })
 
   entries.forEach(entry => {
@@ -3382,6 +3435,35 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
     exercisesHtml += renderDayPreviewExercise(pe, showLoggedValues)
   }
 
+  // A self-logged Field/Training entry has zero program_exercises by design
+  // (see saveFieldTraining) - no list to summarize or expand, so the
+  // summary row/toggle is skipped entirely rather than showing "0
+  // exercises · 0 sets" over an empty expandable area.
+  // Same big-number/small-label tile the post-workout summary screen uses
+  // (.workout-summary-stat-value/-label) - reused here at a smaller scale
+  // rather than inventing a second "stat" visual language for one card.
+  const summary = summarizeWorkout(exercises)
+  const summaryHtml = exercises.length === 0 ? '' : `
+      <button type="button" class="day-preview-summary-row" data-toggle-exercises="${entry.day.id}" aria-expanded="false">
+        <div class="day-preview-stats">
+          <div class="day-preview-stat">
+            <div class="day-preview-stat-value">${summary.exerciseCount}</div>
+            <div class="day-preview-stat-label">Exercises</div>
+          </div>
+          <div class="day-preview-stat">
+            <div class="day-preview-stat-value">${summary.setCount}</div>
+            <div class="day-preview-stat-label">Sets</div>
+          </div>
+          <div class="day-preview-stat">
+            <div class="day-preview-stat-value">~${summary.estMinutes}m</div>
+            <div class="day-preview-stat-label">Duration</div>
+          </div>
+        </div>
+        <svg class="day-preview-summary-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="day-preview-exercises-detail" id="exercisesDetail-${entry.day.id}">${exercisesHtml}</div>
+  `
+
   return `
     <div class="detail-group">
       <div class="day-preview-group-header">
@@ -3391,7 +3473,7 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
           ${athlete.can_reschedule_workouts ? `<button type="button" class="exercise-history-btn day-preview-move-btn" id="moveWorkoutBtn-${entry.day.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Move</button>` : ''}
         </div>
       </div>
-      ${exercisesHtml}
+      ${summaryHtml}
       ${actionButton}
     </div>
   `
