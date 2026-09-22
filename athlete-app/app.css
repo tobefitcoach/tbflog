@@ -1386,6 +1386,33 @@ body:has(.home-screen) .athlete-app-card {
   padding: 0;
 }
 
+/* Same 56px-wide column .day-preview-thumb occupies, for any exercise with
+   no video - see renderDayPreviewExercise's thumbHtml comment for why this
+   replaced a disabled, do-nothing gray box. The badge itself is sized on
+   its own (not stretched to fill the column) so it reads as a plain order
+   number, not a smaller video thumbnail standing in for a missing video. */
+.day-preview-index {
+  flex-shrink: 0;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-preview-index-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--c-bg);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .day-preview-thumb img,
 .day-preview-thumb iframe {
   width: 100%;
@@ -1442,11 +1469,28 @@ body:has(.home-screen) .athlete-app-card {
   font-weight: 600;
 }
 
-.day-preview-target,
-.day-preview-logged {
+.day-preview-target {
   color: var(--c-text-muted);
   font-size: 13px;
   margin-top: 2px;
+}
+
+/* Replaces the target line once something's actually logged (see
+   hasLoggedData in renderDayPreviewExercise) - the same green
+   workout-type-badge-field/pain-flag "done" rows already use, so a logged
+   set reads as a small success rather than just more gray text. */
+.day-preview-logged {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #7fdc82;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.day-preview-logged svg {
+  flex-shrink: 0;
 }
 
 .start-workout-btn {
@@ -2101,9 +2145,13 @@ body:has(.home-screen) .athlete-app-card {
   margin: 0 0 8px;
 }
 
-/* --- Post-workout summary breakdown: one compact row per exercise instead
-   of a full set-by-set list, so a multi-exercise workout fits on one
-   screen without scrolling --- */
+/* --- Post-workout summary breakdown: one row per exercise, each with its
+   own set-by-set list (.detail-list/.detail-row, shared with the read-only
+   Exercise History modal) - this is the one screen in the app meant to
+   show everything logged, so it scrolls on a long workout rather than
+   compacting to a single "N sets" line the way it once did. Day Preview's
+   own exercise list (renderDayPreviewExercise) is the glanceable one -
+   see its header comment. --- */
 .summary-exercise-list {
   margin-top: 20px;
 }

@@ -3427,12 +3427,14 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
   // reuses the same .builder-section-header class the coach's builders use
   let exercisesHtml = ''
   let lastLabel
+  let exerciseIndex = 0
   for (const pe of exercises) {
     if (pe.section_label !== lastLabel) {
       if (pe.section_label) exercisesHtml += `<div class="builder-section-header">${pe.section_label}</div>`
       lastLabel = pe.section_label
     }
-    exercisesHtml += renderDayPreviewExercise(pe, showLoggedValues)
+    exerciseIndex++
+    exercisesHtml += renderDayPreviewExercise(pe, showLoggedValues, exerciseIndex)
   }
 
   // A self-logged Field/Training entry has zero program_exercises by design
@@ -3479,32 +3481,51 @@ function renderDayPreviewGroup(entry, isToday, dateStr) {
   `
 }
 
-function renderDayPreviewExercise(pe, showLogged) {
-  const isTimed = pe.exercises && pe.exercises.is_timed
-  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+function renderDayPreviewExercise(pe, showLogged, index) {
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
   const target = targetLine(pe)
 
-  let loggedText = ''
+  // Day Preview is meant to stay a quick, glanceable overview - it used to
+  // list every logged set's actual reps/weight run together on one line
+  // ("8 reps @ 80kg, 8 reps @ 80kg, ..."), which for an 8-set exercise was
+  // no shorter than the full workout. That level of detail now lives one
+  // tap away on View Summary (see its per-set breakdown, renderWorkoutSummary)
+  // - here, a done exercise just needs to say so.
+  let doneCount = 0
+  let totalCount = 0
   if (showLogged) {
-    const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
-    loggedText = sets.map(s => {
-      const repsPart = isTimed ? formatTimedReps(s.actual_reps) : `${s.actual_reps || '-'} reps`
-      const weightPart = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, athlete.weight_unit) + (athlete.weight_unit || 'kg') : ''
-      return repsPart + weightPart
-    }).join(', ')
+    doneCount = (logSetsByPE[pe.id] || []).filter(s => s.completed_at).length
+    totalCount = (pe.set_targets && pe.set_targets.length) ? pe.set_targets.length : (pe.prescribed_sets || 1)
   }
+
+  // Target only shows as a fallback if this exercise was skipped entirely
+  // (showLogged true, nothing logged) so the athlete can still see what was
+  // scheduled.
+  const hasLoggedData = showLogged && doneCount > 0
+  const loggedText = doneCount >= totalCount ? 'Completed' : `${doneCount} of ${totalCount} set${totalCount === 1 ? '' : 's'}`
+
+  // A plain numbered badge instead of a dead, unclickable gray box for any
+  // exercise with no video - that box used to carry the same visual weight
+  // as a real (tappable) video thumbnail while doing nothing when tapped.
+  // Same 56px-wide column as .day-preview-thumb either way, so exercise
+  // names still line up whether or not a given row has a video.
+  const thumbHtml = videoUrl
+    ? `<button type="button" class="day-preview-thumb" data-video-url="${videoUrl}">
+        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="day-preview-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
+      </button>`
+    : `<div class="day-preview-index"><span class="day-preview-index-badge">${index}</span></div>`
+
+  const infoLineHtml = hasLoggedData
+    ? `<div class="day-preview-logged"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> ${loggedText}</div>`
+    : (target ? `<div class="day-preview-target">${target}</div>` : '')
 
   return `
     <div class="day-preview-exercise">
-      <button type="button" class="day-preview-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
-        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="day-preview-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
-      </button>
+      ${thumbHtml}
       <div class="day-preview-info">
         <div class="day-preview-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
-        ${target ? `<div class="day-preview-target">Target: ${target}</div>` : ''}
-        ${loggedText ? `<div class="day-preview-logged">Logged: ${loggedText}</div>` : ''}
+        ${infoLineHtml}
       </div>
     </div>
   `
@@ -4491,12 +4512,40 @@ function renderWorkoutSummary(finishedSession, entry) {
     const plyoMultiplier = { low: 1, moderate: 1.5, high: 2 }[pe.exercises && pe.exercises.intensity_tier] || 1
     const plyoLoad = isPlyo ? (pe.exercises.foot_contacts || 0) * plyoMultiplier * sets.length : null
 
+    // One row per set with a thin divider between them (.detail-row/
+    // .detail-list), not a single "N sets" count - this is the screen that
+    // now carries the full detail Day Preview's expand used to show (see
+    // its own comment). Same reps/duration/weight/distance formatting as
+    // the read-only Exercise History modal (renderExerciseHistoryBody) and
+    // the same tracks*/isTimed derivation exerciseActionButtonsHtml uses,
+    // so a set reads identically wherever it's shown in this app.
+    const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
+    const isTimed = pe.exercises && pe.exercises.is_timed
+    const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+    const tracksDistance = pe.exercises && pe.exercises.tracks_distance
+    const setsHtml = sets.map(s => {
+      const repsParts = []
+      if (tracksReps) repsParts.push(`${s.actual_reps || '-'} reps`)
+      if (isTimed) {
+        const durationSource = s.actual_duration != null ? s.actual_duration : (!tracksReps ? s.actual_reps : null)
+        if (durationSource != null) repsParts.push(formatTimedReps(durationSource))
+      }
+      const repsText = repsParts.join(' · ')
+      // The unit THIS set was actually logged in (falls back to kg for
+      // older rows saved before weight_unit existed), not the athlete's
+      // current default - same reasoning as Exercise History.
+      const setUnit = s.weight_unit || 'kg'
+      const weightText = tracksWeight && s.actual_weight != null ? ' @ ' + formatWeight(s.actual_weight, setUnit) + setUnit : ''
+      const distanceText = tracksDistance && s.actual_distance != null ? ` · ${s.actual_distance}m` : ''
+      return `<li class="detail-row"><span>Set ${s.set_number}</span><span class="detail-row-value">${repsText}${weightText}${distanceText}</span></li>`
+    }).join('')
+
     return `
       <div class="summary-exercise-row">
         <div class="summary-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
         <div class="pr-badges" id="prBadges-${pe.id}"></div>
         ${plyoLoad != null ? `<p class="plyo-load-line">Plyo Load: ${Math.round(plyoLoad)}</p>` : ''}
-        <p class="summary-exercise-sets">${sets.length} set${sets.length === 1 ? '' : 's'}</p>
+        <ul class="detail-list">${setsHtml}</ul>
       </div>
     `
   }).join('')
