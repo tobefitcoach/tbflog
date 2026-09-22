@@ -154,7 +154,12 @@ export function unmount() {
 function bindEvents() {
   root.querySelector('#logoutBtn').addEventListener('click', async function() {
     await supabase.auth.signOut()
-    window.location.href = '../login.html'
+    // Forget which role this browser/device was routed as last time, so the
+    // app root (app/index.js) asks again instead of silently sending the
+    // next visit straight back to the coach side - see that file's header
+    // comment for the cache this clears.
+    localStorage.removeItem('tbflog-known-role')
+    window.location.href = '../../app/index.html'
   })
 
   root.querySelector('#athleteAccountBtn').addEventListener('click', function() {

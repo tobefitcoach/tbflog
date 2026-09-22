@@ -272,7 +272,13 @@ function renderWrongRole() {
   `
   document.getElementById('signOutBtn').addEventListener('click', async function() {
     await supabase.auth.signOut()
-    window.location.href = 'index.html'
+    // Same role-cache clear as the other 2 sign-out sites below - see their
+    // comment (and app/index.js's header) for why. Sent to the chooser
+    // rather than back to the athlete login, since this screen exists
+    // because the signed-in account ISN'T an athlete - reloading the
+    // athlete login would just show the exact same message again.
+    localStorage.removeItem('tbflog-known-role')
+    window.location.href = '../app/index.html'
   })
 }
 
@@ -862,7 +868,11 @@ async function renderProfile() {
 
   document.getElementById('profileLogoutBtn').addEventListener('click', async function() {
     await supabase.auth.signOut()
-    window.location.href = 'index.html'
+    // See renderWrongRole's identical 2 lines above for why this clears the
+    // cached role and goes to the chooser instead of straight back to the
+    // athlete login.
+    localStorage.removeItem('tbflog-known-role')
+    window.location.href = '../app/index.html'
   })
 
   if (coachAccountLinked) {
@@ -888,8 +898,10 @@ async function renderProfile() {
       return
     }
 
+    // Same role-cache clear as the other 2 sign-out sites above.
     await supabase.auth.signOut()
-    window.location.href = 'index.html'
+    localStorage.removeItem('tbflog-known-role')
+    window.location.href = '../app/index.html'
   })
 }
 

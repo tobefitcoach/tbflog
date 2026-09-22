@@ -123,9 +123,37 @@
 
     </div>
 
+    <!-- CACHE-BUSTING FOR THE MODULE GRAPH. GitHub Pages sends max-age=600, so
+         a browser (and above all the native app's WKWebView) can keep using a
+         cached copy of a script for 10 minutes or far longer. This page's own
+         HTML is fresh, but every import inside dashboard.js is written without
+         a ?v=, so a release could arrive half-updated: a new sidebar link with
+         an old router that doesn't know its route ("Dashboard does nothing"),
+         or a new screen with an old shared module. This import map rewrites
+         those imports to versioned URLs from ONE place, whichever file
+         imports them. Bump APP_V below (all seven lines AND dashboard.js?v=)
+         whenever any of these shared coach-app modules changes. Screens have
+         their own version, SCREENS_V in router.js. The keys are relative, so
+         they resolve on Pages, locally and in the native app alike. A browser
+         without import-map support just ignores this and behaves as before.
+         APP_V = 2 -->
+    <script type="importmap">
+    {
+      "imports": {
+        "./router.js": "./router.js?v=2",
+        "./nav.js": "./nav.js?v=2",
+        "./session.js": "./session.js?v=2",
+        "./bell.js": "./bell.js?v=2",
+        "./lazy-css.js": "./lazy-css.js?v=2",
+        "./vendor.js": "./vendor.js?v=2",
+        "./stats-calc.js": "./stats-calc.js?v=2"
+      }
+    }
+    </script>
+
     <script type="module" src="../loading-bar.js?v=1"></script>
     <script type="module" src="../confirm-modal.js?v=2"></script>
     <script type="module" src="../network-retry.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=1"></script>
+    <script type="module" src="dashboard.js?v=2"></script>
   </body>
 </html>
