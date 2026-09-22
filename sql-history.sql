@@ -2201,3 +2201,16 @@ begin
   return v_id;
 end;
 $$;
+
+-- ==========================================================================
+-- Let athletes log their own bodyweight. The `bodyweight` table already
+-- existed (coach-only "Log weight" on the athlete profile) but had no policy
+-- letting the athlete themselves touch it, so the athlete-app couldn't read
+-- or write it at all. Same table either way - an entry the athlete logs
+-- shows up on the coach's bodyweight graph/entries list exactly like one the
+-- coach logged, and vice versa. Safe to re-run.
+-- ==========================================================================
+drop policy if exists "athlete manages own bodyweight" on bodyweight;
+create policy "athlete manages own bodyweight" on bodyweight for all
+  using (is_own_athlete_as_athlete(athlete_id))
+  with check (is_own_athlete_as_athlete(athlete_id));

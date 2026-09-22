@@ -667,12 +667,21 @@ async function renderProfile() {
   // localStorage read under coachClient.js's own key, not a login - see
   // coach-app/screens/settings.js's matching "Athlete Account" row for the
   // other direction of this same shortcut.
-  const [status, coachAccountSession] = await Promise.all([
+  const [status, coachAccountSession, latestBodyweight] = await Promise.all([
     pushStatus(),
     coachSupabase.auth.getSession(),
+    saveWithRetry((signal) => supabase
+      .from('bodyweight')
+      .select('date, weight')
+      .eq('athlete_id', athlete.id)
+      .order('date', { ascending: false })
+      .limit(1)
+      .abortSignal(signal)
+    ),
   ])
   const coachAccountLinked = !!coachAccountSession?.data?.session
   const initials = athlete.name.split(' ').map(w => w[0]).join('').toUpperCase()
+  const latestBWRow = latestBodyweight?.data?.[0] || null
 
   if (coachName === null) {
     const { data } = await saveWithRetry((signal) => supabase
@@ -729,6 +738,13 @@ async function renderProfile() {
         </label>
         <span class="${athlete.weight_unit === 'lbs' ? 'active' : ''}">lbs</span>
       </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">Bodyweight</div>
+        <div class="settings-row-desc">${latestBWRow ? `Last logged: ${formatWeight(latestBWRow.weight, athlete.weight_unit)}${athlete.weight_unit || 'kg'} · ${formatShortDate(parseDateStr(latestBWRow.date))}` : 'No entries yet'}</div>
+      </div>
+      <button type="button" class="btn-profile-action" id="logWeightBtn">Log Weight</button>
     </div>
     <div class="settings-row">
       <div class="settings-row-info">
@@ -818,6 +834,10 @@ async function renderProfile() {
     if (status === 'on') await disablePush(supabase)
     else await enablePush(supabase, session.user.id)
     renderProfile()
+  })
+
+  document.getElementById('logWeightBtn').addEventListener('click', function() {
+    openLogWeightModal()
   })
 
   document.getElementById('weightUnitToggle').addEventListener('change', async function(e) {
@@ -3570,6 +3590,44 @@ document.getElementById('saveMoveWorkoutBtn').addEventListener('click', async fu
   document.getElementById('moveWorkoutModal').classList.remove('active')
   await loadTrainingData()
   renderWeekView(startOfWeek(parseDateStr(newDate)))
+})
+
+// Log a bodyweight entry from Profile - writes straight to the same
+// `bodyweight` table the coach's "Log weight" button uses (see
+// athlete-detail.js's bindBodyweightEvents), so it shows up identically on
+// both sides. Always stored in kg, typed in whatever unit the athlete has
+// picked for Weight units (see the toggle above).
+function openLogWeightModal() {
+  document.getElementById('logWeightDate').valueAsDate = new Date()
+  document.getElementById('logWeightValue').value = ''
+  document.getElementById('logWeightUnitLabel').textContent = athlete.weight_unit || 'kg'
+  document.getElementById('logWeightModal').classList.add('active')
+}
+
+document.getElementById('closeLogWeightBtn').addEventListener('click', function() {
+  document.getElementById('logWeightModal').classList.remove('active')
+})
+
+document.getElementById('cancelLogWeightBtn').addEventListener('click', function() {
+  document.getElementById('logWeightModal').classList.remove('active')
+})
+
+document.getElementById('saveLogWeightBtn').addEventListener('click', async function() {
+  const date = document.getElementById('logWeightDate').value
+  const rawWeight = parseFloat(document.getElementById('logWeightValue').value)
+  if (!date || !rawWeight) { customAlert('Please fill in date and weight'); return }
+  const weight = weightToKg(rawWeight, athlete.weight_unit)
+
+  const { error } = await saveWithRetry((signal) => supabase
+    .from('bodyweight')
+    .insert([{ athlete_id: athlete.id, date, weight }])
+    .abortSignal(signal)
+  )
+
+  if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
+
+  document.getElementById('logWeightModal').classList.remove('active')
+  renderProfile()
 })
 
 // ==========================================================================

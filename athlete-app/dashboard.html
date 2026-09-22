@@ -151,6 +151,32 @@
       </div>
     </div>
 
+    <!-- Log a bodyweight entry, opened via the "Log Weight" row on Profile -
+         see openLogWeightModal() in dashboard.js. Writes to the same
+         `bodyweight` table the coach's "Log weight" button on the athlete
+         profile uses, so an entry logged here shows up on the coach's side
+         exactly like one the coach logged, and vice versa. -->
+    <div class="modal-overlay" id="logWeightModal">
+      <div class="modal">
+        <div class="graph-modal-header">
+          <h2>Log Weight</h2>
+          <button type="button" class="btn-cancel" id="closeLogWeightBtn" data-modal-dismiss>✕</button>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="logWeightDate" />
+        </div>
+        <div class="form-group">
+          <label>Weight (<span id="logWeightUnitLabel">kg</span>)</label>
+          <input type="number" id="logWeightValue" step="0.1" placeholder="e.g. 75.5" inputmode="decimal" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-cancel" id="cancelLogWeightBtn">Cancel</button>
+          <button class="btn-save" id="saveLogWeightBtn">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Persistent tab bar, lives outside #pageContent so it survives every
          full-page swap dashboard.js does - see the "BOTTOM NAV" section in
          dashboard.js. Hidden until enterWeekView() has a real athlete to
@@ -202,6 +228,6 @@
     <script type="module" src="../loading-bar.js?v=1"></script>
     <script type="module" src="../confirm-modal.js?v=2"></script>
     <script type="module" src="../network-retry.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=139"></script>
+    <script type="module" src="dashboard.js?v=140"></script>
   </body>
 </html>
