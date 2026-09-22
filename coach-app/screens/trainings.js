@@ -341,6 +341,23 @@ function createTrainingCard(training) {
 
   card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
     e.stopPropagation()
+
+    // Blocked ahead of the confirm (not just left to the database's own FK
+    // constraint) so the coach gets a real count and a next step, instead
+    // of a raw "foreign key violation" if they'd already said yes to
+    // deleting. See the LIVE-LINKED WORKOUTS block in sql-history.sql -
+    // source_training_id is non-null on a day for exactly as long as it's
+    // still tracking this Training.
+    const { count, error: countError } = await supabase
+      .from('program_days')
+      .select('id', { count: 'exact', head: true })
+      .eq('source_training_id', training.id)
+    if (countError) { console.log(countError); customAlert('Something went wrong'); return }
+    if (count > 0) {
+      customAlert(`"${training.name}" is still live-linked to ${count} day${count === 1 ? '' : 's'} (on a calendar, or in a Program template) - editing it is still reaching those days. Start them (or hand-edit that specific day) to detach it first, then delete this workout.`)
+      return
+    }
+
     if (!(await customConfirm(`Delete "${training.name}"? This cannot be undone.`))) return
 
     const { error } = await supabase.from('trainings').delete().eq('id', training.id)

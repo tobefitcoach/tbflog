@@ -396,6 +396,45 @@ function applyFieldOverrides(pe) {
   if (pe.tracks_distance_override != null) pe.exercises.tracks_distance = pe.tracks_distance_override
 }
 
+// A week still tracking a Workout Library Training on one of its days
+// (source_training_id set - see the LIVE-LINKED WORKOUTS block in
+// sql-history.sql) gets refreshed here, right after the main load below and
+// before anything renders, so the template grid always reflects the
+// coach's latest Workout Builder edit. Same helper, duplicated, as
+// athlete-detail.js's syncLiveTrainingDaysCal - just shaped for a flat
+// array of weeks instead of programs -> weeks.
+async function syncLiveTrainingDaysWeeks(weeks) {
+  const linkedDayIds = []
+  for (const week of weeks) {
+    for (const day of week.program_days) {
+      if (day.source_training_id) linkedDayIds.push(day.id)
+    }
+  }
+  if (linkedDayIds.length === 0) return
+
+  const { error: syncError } = await window.fetchWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
+  if (syncError) { console.log('Error syncing live-linked days:', syncError); return }
+
+  const { data: freshExercises, error: fetchError } = await window.fetchWithRetry((signal) => supabase
+    .from('program_exercises')
+    .select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+    .in('day_id', linkedDayIds)
+    .abortSignal(signal)
+  )
+  if (fetchError) { console.log('Error refreshing synced days:', fetchError); return }
+
+  const freshByDayId = {}
+  for (const pe of freshExercises) { (freshByDayId[pe.day_id] ||= []).push(pe) }
+
+  for (const week of weeks) {
+    for (const day of week.program_days) {
+      if (day.source_training_id && freshByDayId[day.id]) {
+        day.program_exercises = freshByDayId[day.id]
+      }
+    }
+  }
+}
+
 async function loadWeeks(token) {
   const { data, error } = await window.fetchWithRetry((signal) => supabase
     .from('program_weeks')
@@ -406,6 +445,9 @@ async function loadWeeks(token) {
   if (token !== undefined ? !nav.isCurrent(token) : !root) return
 
   if (error) { console.log('Error loading weeks:', error); customAlert('Something went wrong loading this program - check your connection and try again'); return }
+
+  await syncLiveTrainingDaysWeeks(data)
+  if (token !== undefined ? !nav.isCurrent(token) : !root) return
 
   data.sort((a, b) => a.week_number - b.week_number)
   data.forEach(week => {
@@ -474,8 +516,13 @@ function renderProgramDayCell(week, dayNumber) {
   // Small colored dot, not an icon - status/planned already owns the
   // badge's background color, so type gets its own separate marker
   const typeDot = day && day.workout_type ? `<span class="workout-type-dot workout-type-dot-${day.workout_type}"></span>` : ''
+  // Still tracking a Workout Library Training (see the LIVE-LINKED
+  // WORKOUTS block in sql-history.sql) - editing that Training in the
+  // Workout Builder updates this template day automatically, until it's
+  // hand-edited or an athlete it was assigned to starts it.
+  const liveDot = day && day.source_training_id ? '<span class="live-link-dot" title="Still tracking its Workout Library Training"></span>' : ''
   const badgeLabel = hasContent
-    ? typeDot + (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`)
+    ? typeDot + (day.label || `${day.program_exercises.length} exercise${day.program_exercises.length === 1 ? '' : 's'}`) + liveDot
     : ''
 
   const badges = hasContent ? `
@@ -599,6 +646,26 @@ async function deleteDay(dayId) {
 }
 
 // ==========================================================================
+// ---- LIVE-LINKED WORKOUTS ----
+// source_training_id on a program_days row means that day still tracks a
+// Workout Library Training's current content - see sync_live_training_days
+// in sql-history.sql, which is what actually keeps it in sync at read time.
+// Set only when a Training lands on a day that was completely empty before
+// it; cleared (detached, frozen from then on) the moment anything else
+// touches that day. Pass a training id to set/replace the link, or null to
+// detach - synced_at always resets to null either way, so the next read
+// naturally performs (and timestamps) the first real sync itself. Same
+// helper, duplicated, as athlete-detail.js's setDayLiveLink.
+// ==========================================================================
+async function setDayLiveLink(dayId, trainingId) {
+  const { error } = await supabase
+    .from('program_days')
+    .update({ source_training_id: trainingId, source_training_synced_at: null })
+    .eq('id', dayId)
+  if (error) console.log('Error updating live-link:', error)
+}
+
+// ==========================================================================
 // ---- ADD WORKOUT (clone a saved Workout Library training into a day) ----
 // Same clone shape athlete-calendar.js's cloneTrainingToDay uses for a real
 // athlete day - carries section/superset links and any "Adjust Fields"/
@@ -714,6 +781,7 @@ async function insertTrainingIntoDay(trainingId, trainingName) {
   trainingExercises.sort((a, b) => a.order_index - b.order_index)
   if (trainingExercises.length === 0) { root.querySelector('#addTrainingModal').classList.remove('active'); return }
 
+  const dayWasEmpty = day.program_exercises.length === 0
   const baseOrder = day.program_exercises.length ? Math.max(...day.program_exercises.map(pe => pe.order_index)) + 1 : 0
 
   // Fresh id per distinct superset/section-instance value in this batch,
@@ -746,6 +814,14 @@ async function insertTrainingIntoDay(trainingId, trainingName) {
 
   day.program_exercises.push(...inserted)
 
+  // Only a Workout dropped onto a completely empty day keeps tracking it
+  // live - see setDayLiveLink's comment near cloneProgramDayExercises
+  // below. Adding a second Workout on top always detaches (a no-op write
+  // if the day was never linked to begin with).
+  await setDayLiveLink(day.id, dayWasEmpty ? trainingId : null)
+  day.source_training_id = dayWasEmpty ? trainingId : null
+  day.source_training_synced_at = null
+
   // A still-unlabeled day gets the workout's name stamped on as its label,
   // so the grid cell shows something meaningful without the coach having
   // to rename it themselves - never overwrites a label they already set
@@ -777,6 +853,13 @@ async function insertTrainingIntoDay(trainingId, trainingName) {
 // appends after whatever's already there (same order_index-offset +
 // superset/section id remap as insertTrainingIntoDay above), so copying can
 // never destroy existing work already on the target day.
+//
+// A day copied this way carries the source day's live-link forward (see
+// setDayLiveLink above) only when the target was completely empty before
+// this call - i.e. it's an exact clone, not an append. Copying onto a day
+// that already had something on it always detaches (both because it's now
+// mixed-origin, and because "appended onto whatever else is there" was
+// never going to match a fresh live-sync 1:1 anyway).
 // ==========================================================================
 async function cloneProgramDayExercises(sourceDay, targetDay) {
   const { data: sourceExercises, error } = await supabase.from('program_exercises').select('*').eq('day_id', sourceDay.id)
@@ -784,6 +867,7 @@ async function cloneProgramDayExercises(sourceDay, targetDay) {
   sourceExercises.sort((a, b) => a.order_index - b.order_index)
   if (sourceExercises.length === 0) return
 
+  const targetWasEmpty = targetDay.program_exercises.length === 0
   const baseOrder = targetDay.program_exercises.length ? Math.max(...targetDay.program_exercises.map(pe => pe.order_index)) + 1 : 0
   const groupIdMap = {}
   const sectionInstanceMap = {}
@@ -809,6 +893,11 @@ async function cloneProgramDayExercises(sourceDay, targetDay) {
   ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
   targetDay.program_exercises.push(...inserted)
+
+  const newLink = targetWasEmpty ? (sourceDay.source_training_id || null) : null
+  await setDayLiveLink(targetDay.id, newLink)
+  targetDay.source_training_id = newLink
+  targetDay.source_training_synced_at = null
 
   if (!targetDay.label && sourceDay.label) {
     const { error: labelError } = await supabase.from('program_days').update({ label: sourceDay.label }).eq('id', targetDay.id)

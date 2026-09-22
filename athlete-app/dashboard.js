@@ -1256,6 +1256,54 @@ function parseTimeToParts(val) {
 }
 
 // ==========================================================================
+// ---- LIVE-LINKED WORKOUTS ----
+// A day still tracking a Workout Library Training (source_training_id set -
+// see the LIVE-LINKED WORKOUTS block in sql-history.sql) gets refreshed
+// here, right after the main load below and before anything renders, so
+// Home/Day Preview/Program always reflect the coach's latest edit for any
+// day not yet started - a day already started has already detached itself
+// (see findOrCreateSession), so this is a no-op for it either way.
+// sync_live_training_days does the actual work server-side (the athlete
+// client has no read access to trainings/training_exercises at all); this
+// just re-fetches whichever days it touched, once.
+// ==========================================================================
+async function syncLiveTrainingDays(programs) {
+  const linkedDayIds = []
+  for (const program of programs) {
+    for (const week of program.program_weeks) {
+      for (const day of week.program_days) {
+        if (day.source_training_id) linkedDayIds.push(day.id)
+      }
+    }
+  }
+  if (linkedDayIds.length === 0) return
+
+  const { error: syncError } = await saveWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
+  if (syncError) { console.log('Error syncing live-linked days:', syncError); return }
+
+  const { data: freshExercises, error: fetchError } = await saveWithRetry((signal) => supabase
+    .from('program_exercises')
+    .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+    .in('day_id', linkedDayIds)
+    .abortSignal(signal)
+  )
+  if (fetchError) { console.log('Error refreshing synced days:', fetchError); return }
+
+  const freshByDayId = {}
+  for (const pe of freshExercises) { (freshByDayId[pe.day_id] ||= []).push(pe) }
+
+  for (const program of programs) {
+    for (const week of program.program_weeks) {
+      for (const day of week.program_days) {
+        if (day.source_training_id && freshByDayId[day.id]) {
+          day.program_exercises = freshByDayId[day.id]
+        }
+      }
+    }
+  }
+}
+
+// ==========================================================================
 // ---- LOAD TRAINING DATA ----
 // One nested query for the whole schedule, one flat query for every set
 // this athlete has logged, one flat query for any in-progress workout
@@ -1303,6 +1351,8 @@ async function loadTrainingData() {
   if (logError) { console.log('Error loading logged sets:', logError); return }
   if (sessionsError) { console.log('Error loading sessions:', sessionsError); return }
   if (formAssignmentsError) { console.log('Error loading form assignments:', formAssignmentsError) }
+
+  await syncLiveTrainingDays(data)
 
   formAssignmentsByDate = {}
   for (const fa of (formAssignments || [])) {
@@ -3660,6 +3710,15 @@ async function findOrCreateSession(programDayId) {
 
   if (findError) { console.log(findError) }
   if (existing) return existing
+
+  // Starting a brand new session for this day - if it was still live-linked
+  // to a Workout Library Training (see sql-history.sql's LIVE-LINKED
+  // WORKOUTS block), detach it now rather than waiting for the next
+  // read-time sync to notice the session and detach it there, so the
+  // exercise list can never shift under an active workout. Not awaited-and-
+  // blocking on its own error - a failure here just means the next sync
+  // catches it instead (sync_live_training_days checks for a session too).
+  supabase.from('program_days').update({ source_training_id: null, source_training_synced_at: null }).eq('id', programDayId).then(({ error }) => { if (error) console.log('Error detaching live-link at session start:', error) })
 
   const { data: newSession, error: insertError } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')

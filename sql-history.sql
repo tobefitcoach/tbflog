@@ -2214,3 +2214,131 @@ drop policy if exists "athlete manages own bodyweight" on bodyweight;
 create policy "athlete manages own bodyweight" on bodyweight for all
   using (is_own_athlete_as_athlete(athlete_id))
   with check (is_own_athlete_as_athlete(athlete_id));
+-- ==========================================================================
+-- LIVE-LINKED WORKOUTS
+-- A day (Program-Builder template day, or a real athlete-assigned day) that
+-- was built by inserting exactly one Workout Library Training onto an
+-- EMPTY day, and never touched since, stays in sync with that Training's
+-- current content everywhere it was placed - a bare calendar day, every
+-- week of a Program template, every athlete that Program was assigned to -
+-- automatically, for as long as it hasn't been started.
+--
+-- source_training_id is the one pointer this whole feature is built on.
+-- Every existing "clone a day" operation the app already has (Copy Week,
+-- assigning a Program to an athlete, moving/duplicating a day) just copies
+-- a day's fields into a new row - this is one more field that copy
+-- naturally carries forward, so a day 5 hops of copying away from the
+-- original Training still points straight at it. No chain-walking needed
+-- to resync, ever - always a single lookup.
+--
+-- source_training_synced_at records which version of the Training (its
+-- updated_at) this day last matched, so a day only ever gets rewritten when
+-- it's actually stale - trainings.updated_at is already bumped by the
+-- existing touch_training_updated_at trigger on every training_exercises
+-- change, so this needed no new triggers of its own.
+--
+-- Cleared (detached, frozen from then on, exactly like the old copy-only
+-- behavior) the instant:
+--   - an athlete starts that specific day (workout_sessions row appears for
+--     it - checked/handled by sync_live_training_days below, and the app
+--     also clears it eagerly the moment Start Workout is tapped), or
+--   - the coach hand-edits that specific day directly, or adds a second
+--     Training/Section/exercise on top of what was there - source_training_id
+--     is only ever SET when a Training is inserted onto a day that was
+--     completely empty; the app clears it explicitly on every other
+--     program_exercises write for an existing day.
+--
+-- No ON DELETE action specified on the FK (defaults to NO ACTION) -
+-- deleting a Training still linked to any day is blocked at the database
+-- level; the app checks first and shows a friendly count instead of a raw
+-- constraint error.
+-- ==========================================================================
+alter table program_days add column if not exists source_training_id uuid references trainings(id);
+alter table program_days add column if not exists source_training_synced_at timestamptz;
+create index if not exists idx_program_days_source_training_id on program_days(source_training_id) where source_training_id is not null;
+
+-- Batch-resyncs whichever of the given days are still live-linked and
+-- stale. SECURITY DEFINER because the athlete side needs this (a day on an
+-- athlete's own calendar can be live-linked too) but the athlete client has
+-- no read access to trainings/training_exercises at all - this function is
+-- the only place that boundary gets crossed, and only for a day the caller
+-- already owns (as the coach who owns the program, or the athlete it's
+-- assigned to).
+create or replace function public.sync_live_training_days(p_day_ids uuid[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_day record;
+begin
+  for v_day in
+    select pd.id as day_id, pd.source_training_id, pd.source_training_synced_at, p.is_template
+    from program_days pd
+    join program_weeks pw on pw.id = pd.week_id
+    join programs p on p.id = pw.program_id
+    where pd.id = any(p_day_ids)
+      and pd.source_training_id is not null
+      and (
+        p.coach_id = (select auth.uid())
+        or exists (select 1 from athletes a where a.id = p.athlete_id and a.user_id = (select auth.uid()))
+      )
+  loop
+    -- An athlete-owned day that's already been started detaches instead of
+    -- syncing - the exercise list can't change out from under a workout in
+    -- progress. (The app also clears this eagerly at Start Workout time -
+    -- this is a defense-in-depth backstop, not the primary path.)
+    if not v_day.is_template and exists (
+      select 1 from workout_sessions ws where ws.program_day_id = v_day.day_id
+    ) then
+      update program_days set source_training_id = null, source_training_synced_at = null where id = v_day.day_id;
+      continue;
+    end if;
+
+    -- Already matches the Training's current version - skip the rewrite
+    if v_day.source_training_synced_at is not null and v_day.source_training_synced_at >= (
+      select t.updated_at from trainings t where t.id = v_day.source_training_id
+    ) then
+      continue;
+    end if;
+
+    delete from program_exercises where day_id = v_day.day_id;
+
+    with te as (
+      select *, row_number() over (order by order_index) as rn
+      from training_exercises
+      where training_id = v_day.source_training_id
+    ),
+    group_map as (
+      select distinct on (superset_group_id) superset_group_id, gen_random_uuid() as new_id
+      from te where superset_group_id is not null
+      order by superset_group_id
+    ),
+    section_map as (
+      select distinct on (section_instance_id) section_instance_id, gen_random_uuid() as new_id
+      from te where section_instance_id is not null
+      order by section_instance_id
+    )
+    insert into program_exercises (
+      day_id, exercise_id, order_index, prescribed_sets, prescribed_reps, prescribed_weight,
+      rest_seconds, extra_fields, set_targets, notes, section_label, section_instance_id,
+      superset_group_id, tracks_weight_override, is_timed_override, is_unilateral_override,
+      tracks_distance_override, alternative_exercise_id
+    )
+    select
+      v_day.day_id, te.exercise_id, te.rn - 1, te.prescribed_sets, te.prescribed_reps, te.prescribed_weight,
+      te.rest_seconds, te.extra_fields, te.set_targets, te.notes, te.section_label,
+      sm.new_id, gm.new_id,
+      te.tracks_weight_override, te.is_timed_override, te.is_unilateral_override,
+      te.tracks_distance_override, te.alternative_exercise_id
+    from te
+    left join group_map gm on gm.superset_group_id = te.superset_group_id
+    left join section_map sm on sm.section_instance_id = te.section_instance_id;
+
+    update program_days
+    set source_training_synced_at = (select t.updated_at from trainings t where t.id = v_day.source_training_id)
+    where id = v_day.day_id;
+  end loop;
+end;
+$$;

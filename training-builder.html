@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Workout Builder — Tobe-Fit</title>
     <link rel="stylesheet" href="style.css?v=32" />
-    <link rel="stylesheet" href="athlete.css?v=72" />
+    <link rel="stylesheet" href="athlete.css?v=73" />
   </head>
   <body>
 
@@ -70,6 +70,8 @@
         <div class="dashboard-header">
           <div style="display:flex; align-items:center; gap:12px">
             <h2 id="trainingNameHeading">Loading...</h2>
+            <!-- Day mode only - see paintLiveBadge() in training-builder.js -->
+            <span class="live-link-badge" id="liveLinkBadge" style="display:none" title="Still tracking the Workout Library entry it was built from - editing that Training updates this day automatically, until it's started or hand-edited">Live</span>
             <select id="trainingTypeSelect" class="workout-type-select">
               <option value="gym">Gym</option>
               <option value="field">Field</option>
@@ -329,7 +331,7 @@
     <script type="module" src="loading-bar.js?v=1"></script>
     <script type="module" src="confirm-modal.js?v=2"></script>
     <script type="module" src="network-retry.js?v=1"></script>
-    <script type="module" src="training-builder.js?v=40"></script>
+    <script type="module" src="training-builder.js?v=41"></script>
     <script type="module" src="bell.js?v=4"></script>
     <script type="module" src="sidebar.js?v=2"></script>
   </body>

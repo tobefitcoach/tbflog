@@ -516,6 +516,45 @@
   background-color: #5a5aae;
 }
 
+/* A day (or a Workout Builder heading) still tracking a Workout Library
+   Training's current content - see the LIVE-LINKED WORKOUTS block in
+   sql-history.sql. Shown on the training-builder.js heading in day mode,
+   and on a calendar-day cell in both the coach's athlete calendar and the
+   Program Builder grid - same small pill either place. Frozen/detached
+   days show nothing here, same as before this feature existed. */
+.live-link-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background-color: #4ad88126;
+  color: #6be08f;
+  white-space: nowrap;
+}
+
+.live-link-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #6be08f;
+}
+
+/* Compact version for a calendar-day badge row, where there's no room for
+   the full pill+label - just the same dot, standalone. */
+.live-link-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #6be08f;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
 /* Program Builder's week pager - same toolbar shape as the athlete
    calendar above (.calendar-toolbar), just paging through blocks of weeks
    instead of months. See renderWeekNav() in program-builder.js. */

@@ -54,6 +54,32 @@ let allExercises = []
 let activeCategoryFilters = new Set()
 let exercisesCache = [] // last-loaded EXERCISE_TABLE rows for this training/day
 
+// ==========================================================================
+// ---- LIVE-LINKED WORKOUTS (day mode only) ----
+// True when this day still tracks a Workout Library Training's current
+// content - see sync_live_training_days in sql-history.sql, which is what
+// actually keeps it in sync at read time; this file only ever detaches.
+// Set from loadTraining()'s day-mode branch below. detachDayIfLive() is
+// called after every hand-edit write in day mode (add/delete/reorder an
+// exercise, Adjust Fields, Set Alternative, Add Section) - it only ever
+// fires the actual write once (the first edit after load), since every
+// edit after that has already detached.
+// ==========================================================================
+let dayIsLiveLinked = false
+
+async function detachDayIfLive() {
+  if (!isDayMode || !dayIsLiveLinked) return
+  dayIsLiveLinked = false
+  paintLiveBadge()
+  const { error } = await supabase.from('program_days').update({ source_training_id: null, source_training_synced_at: null }).eq('id', dayId)
+  if (error) console.log('Error detaching live-link:', error)
+}
+
+function paintLiveBadge() {
+  const badge = document.getElementById('liveLinkBadge')
+  if (badge) badge.style.display = (isDayMode && dayIsLiveLinked) ? '' : 'none'
+}
+
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
   window.location.href = 'login.html'
@@ -89,6 +115,8 @@ async function loadTraining() {
       || (program && program.is_adhoc ? program.name : null)
       || (week ? `Week ${week.week_number} — Day ${data.day_number}` : `Day ${data.day_number}`)
     document.getElementById('trainingTypeSelect').value = data.workout_type || 'gym'
+    dayIsLiveLinked = !!data.source_training_id
+    paintLiveBadge()
     return
   }
 
@@ -438,6 +466,7 @@ async function addExerciseToTraining(exerciseId) {
 
   const newRow = data[0]
   exercisesCache.push(newRow)
+  await detachDayIfLive()
 
   const container = document.getElementById('trainingExercisesList')
   if (exercisesCache.length === 1) {
@@ -860,6 +889,7 @@ async function saveExerciseCard(teId, orderIndex) {
   const { error } = await supabase.from(EXERCISE_TABLE).update(updates).eq('id', teId)
 
   if (error) { console.log(error); return false }
+  await detachDayIfLive()
   // Keeps exercisesCache in sync with what's actually saved, so any action
   // that re-renders a card from cache (Adjust Fields, Set Alternative,
   // Adjust Exercise) reflects what was just typed instead of overwriting it
@@ -946,6 +976,7 @@ async function deleteExerciseRow(id) {
 
   const { error } = await supabase.from(EXERCISE_TABLE).delete().eq('id', id)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
+  await detachDayIfLive()
 
   exercisesCache = exercisesCache.filter(te => te.id !== id)
   if (card) card.remove()
@@ -1212,6 +1243,7 @@ document.getElementById('saveAdjustFieldsBtn').addEventListener('click', async f
   }
   const { error } = await supabase.from(EXERCISE_TABLE).update(updates).eq('id', adjustFieldsTeId)
   if (error) { console.log(error); customAlert('Something went wrong saving those fields - try again'); return }
+  await detachDayIfLive()
 
   const te = exercisesCache.find(t => t.id === adjustFieldsTeId)
   if (te) {
@@ -1294,6 +1326,7 @@ async function saveAlternativeExercise(teId, altExerciseId) {
   if (!teId) return
   const { error } = await supabase.from(EXERCISE_TABLE).update({ alternative_exercise_id: altExerciseId }).eq('id', teId)
   if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
+  await detachDayIfLive()
 
   const te = exercisesCache.find(t => t.id === teId)
   if (te) {
@@ -1780,6 +1813,12 @@ async function insertTrainingIntoDayMode(trainingIdForDay, trainingName) {
   trainingExercises.sort((a, b) => a.order_index - b.order_index)
   if (trainingExercises.length === 0) { document.getElementById('addWorkoutToDayModal').classList.remove('active'); return }
 
+  // Only when this Workout lands on a day that was completely empty does it
+  // start tracking that Training live - see the LIVE-LINKED WORKOUTS block
+  // above. Landing on a day with something already on it detaches instead
+  // (handled below, via flushAllPendingSaves -> saveExerciseCard ->
+  // detachDayIfLive on whatever pre-existing cards get flushed).
+  const dayWasEmpty = exercisesCache.length === 0
   const baseOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
 
   const groupIdMap = {}
@@ -1809,6 +1848,14 @@ async function insertTrainingIntoDayMode(trainingIdForDay, trainingName) {
 
   exercisesCache.push(...inserted)
   await flushAllPendingSaves()
+
+  if (dayWasEmpty) {
+    dayIsLiveLinked = true
+    const { error: linkError } = await supabase.from('program_days').update({ source_training_id: trainingIdForDay, source_training_synced_at: null }).eq('id', dayId)
+    if (linkError) console.log('Error setting live-link:', linkError)
+    paintLiveBadge()
+  }
+
   renderExercisesList()
   document.getElementById('addWorkoutToDayModal').classList.remove('active')
 }

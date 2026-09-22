@@ -295,7 +295,15 @@ async function onDuplicateTemplate() {
     for (const day of week.program_days) {
       const { data: newDay, error: dayError } = await supabase
         .from('program_days')
-        .insert([{ week_id: newWeek.id, day_number: day.day_number, label: day.label, workout_type: day.workout_type }])
+        .insert([{
+          week_id: newWeek.id, day_number: day.day_number, label: day.label, workout_type: day.workout_type,
+          // Carries the live-link forward if the source day still had one -
+          // see setDayLiveLink's comment in athlete-detail.js/program-builder.js.
+          // synced_at always starts null so the next read performs the first
+          // real sync itself.
+          source_training_id: day.source_training_id || null,
+          source_training_synced_at: null
+        }])
         .select()
         .single()
       if (dayError) { console.log('Error copying day:', dayError); continue }
