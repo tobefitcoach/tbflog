@@ -22,7 +22,7 @@ import { ensureCss } from '../lazy-css.js'
 const TEMPLATE = `
   <div class="tb-route" id="trainingBuilderRoute">
     <div class="screen-header tb-route-bar">
-      <button class="btn-back" id="trainingBuilderRouteBackBtn" aria-label="Back to Workout Library">←</button>
+      <button class="btn-back" id="trainingBuilderRouteBackBtn" aria-label="Back to Workout Library"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
       <span class="tb-route-bar-label">Workout Library</span>
     </div>
     <iframe id="trainingBuilderRouteFrame" class="tb-route-frame" src="about:blank"></iframe>

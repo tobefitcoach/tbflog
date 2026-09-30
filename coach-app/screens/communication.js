@@ -339,7 +339,7 @@ function selectCommsAthlete(athlete, opts = {}) {
   root.querySelector('#commsEmptyState').style.display = 'none'
   root.querySelector('#commsActiveChat').style.display = 'block'
   root.querySelector('#commsChatHeader').innerHTML = `
-    <button type="button" class="comms-chat-back-btn" id="commsChatBackBtn" aria-label="Back to conversations">←</button>
+    <button type="button" class="comms-chat-back-btn" id="commsChatBackBtn" aria-label="Back to conversations"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
     <h3>${escapeHtml(athlete.name)}</h3>
   `
   const backBtn = root.querySelector('#commsChatBackBtn')

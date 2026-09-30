@@ -2639,13 +2639,13 @@
 .comms-chat-back-btn {
   display: none;
   flex: none;
-  background: transparent;
+  width: 40px;
+  height: 40px;
+  background-color: var(--c-surface);
   border: 1px solid var(--c-border);
   color: var(--c-text);
-  font-size: 18px;
-  line-height: 1;
-  padding: 8px 12px;
-  border-radius: var(--r-sm);
+  padding: 0;
+  border-radius: 50%;
   cursor: pointer;
 }
 

@@ -33,7 +33,7 @@ import { ensureCss } from '../lazy-css.js'
 
 const TEMPLATE = `
   <div class="screen-header">
-    <button class="btn-back" id="programBuilderBackBtn" aria-label="Back">←</button>
+    <button class="btn-back" id="programBuilderBackBtn" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
     <h2 class="screen-title" id="programNameHeading">Loading...</h2>
   </div>
   <div class="dashboard-header" style="justify-content:flex-end">
@@ -52,9 +52,9 @@ const TEMPLATE = `
        click. Same look/interaction as the athlete calendar's own month
        grid, just paging through weeks instead of months. -->
   <div class="week-page-nav">
-    <button class="btn-cancel" id="weekPagePrevBtn">← Prev</button>
+    <button class="icon-btn" id="weekPagePrevBtn" aria-label="Previous weeks"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
     <h3 id="weekPageLabel">&nbsp;</h3>
-    <button class="btn-cancel" id="weekPageNextBtn">Next →</button>
+    <button class="icon-btn" id="weekPageNextBtn" aria-label="Next weeks"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
   </div>
   <div class="calendar-weekday-header program-day-header">
     <span>Day 1</span><span>Day 2</span><span>Day 3</span><span>Day 4</span><span>Day 5</span><span>Day 6</span><span>Day 7</span>

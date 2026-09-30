@@ -2383,7 +2383,12 @@ body:has(.home-screen) .athlete-app-card {
 
 .intro-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
+}
+
+.intro-actions .btn-save {
+  flex: 1;
 }
 
 /* --- Delete Account (Profile screen) ---

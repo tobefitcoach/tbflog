@@ -98,7 +98,7 @@ import { ensureCss } from '../lazy-css.js'
 // TEMPLATE (and its own back button) has painted.
 const SKELETON = `
   <div class="screen-header">
-    <button class="btn-back" id="athleteDetailBackBtn" aria-label="Back">←</button>
+    <button class="btn-back" id="athleteDetailBackBtn" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
     <h2 class="screen-title">Athlete</h2>
   </div>
   <div class="skeleton-bar" style="width:40%; height:26px; margin-bottom:24px"></div>
@@ -128,7 +128,7 @@ const SKELETON = `
 //     shares one root - none were found colliding (see the report)
 const TEMPLATE = `
   <div class="screen-header">
-    <button class="btn-back" id="athleteDetailBackBtn" aria-label="Back">←</button>
+    <button class="btn-back" id="athleteDetailBackBtn" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
     <h2 class="screen-title" id="athleteDetailScreenTitle">Athlete</h2>
   </div>
 
@@ -325,9 +325,9 @@ const TEMPLATE = `
           <button type="button" class="unit-btn" id="copyArmedCancelBtn">Cancel</button>
         </div>
         <div class="calendar-toolbar">
-          <button class="btn-cancel" id="calPrevBtn">← Prev</button>
+          <button class="icon-btn" id="calPrevBtn" aria-label="Previous month"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
           <h3 id="calMonthLabel">&nbsp;</h3>
-          <button class="btn-cancel" id="calNextBtn">Next →</button>
+          <button class="icon-btn" id="calNextBtn" aria-label="Next month"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
         </div>
         <!-- Static - the grid below always starts each row on Monday (see
              renderCalendarGrid's startWeekday math), so this never needs to
@@ -5005,7 +5005,7 @@ async function loadAthlete(token) {
     if (root) {
       root.innerHTML = `
         <div class="screen-header">
-          <button class="btn-back" id="athleteDetailBackBtn" aria-label="Back">←</button>
+          <button class="btn-back" id="athleteDetailBackBtn" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
           <h2 class="screen-title">Athlete</h2>
         </div>
         <div class="screen-message">
@@ -6799,9 +6799,9 @@ function renderLastUpdatedModal() {
       </div>
     `).join('')}
     <div class="pagination-row">
-      ${hasPrev ? '<button class="pagination-btn" id="prevActivityBtn">← Previous</button>' : '<span></span>'}
+      ${hasPrev ? '<button class="icon-btn" id="prevActivityBtn" aria-label="Previous page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg></button>' : '<span></span>'}
       <span class="pagination-label">${start + 1}–${Math.min(end, sorted.length)} of ${sorted.length}</span>
-      ${hasNext ? '<button class="pagination-btn" id="nextActivityBtn">Next →</button>' : '<span></span>'}
+      ${hasNext ? '<button class="icon-btn" id="nextActivityBtn" aria-label="Next page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg></button>' : '<span></span>'}
     </div>
   `
 

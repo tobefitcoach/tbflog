@@ -439,8 +439,8 @@ function renderIntroStep() {
         ${introSteps.map((_, i) => `<span class="intro-dot ${i === introStepIndex ? 'active' : ''}"></span>`).join('')}
       </div>
       <div class="intro-actions">
-        ${!isFirst ? '<button type="button" class="btn-cancel" id="introBackBtn">Back</button>' : ''}
-        <button type="button" class="btn-save" id="introNextBtn">${isLast ? 'Get Started' : 'Next'}</button>
+        ${!isFirst ? '<button type="button" class="icon-btn" id="introBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>' : ''}
+        <button type="button" class="btn-save" id="introNextBtn">${isLast ? 'Get Started' : 'Continue'}</button>
       </div>
     </div>
   `
