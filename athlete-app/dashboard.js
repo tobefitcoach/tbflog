@@ -5188,7 +5188,7 @@ function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksWeight, 
   return `
     <div class="set-row ${checked ? 'completed' : ''} ${crowded ? 'set-row-crowded' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
       <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
-      ${tracksReps ? `<input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>` : ''}
+      ${tracksReps ? `<div class="set-field ${crowded ? '' : 'set-field-reps'}"><input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>${crowded ? '' : '<span class="set-field-unit">reps</span>'}</div>` : ''}
       ${isTimed ? `
         <div class="set-time-input">
           <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2" ${checked ? 'disabled' : ''}>
@@ -5200,7 +5200,7 @@ function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksWeight, 
         <input type="number" inputmode="decimal" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
         <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
       ` : ''}
-      ${tracksDistance ? `<input type="number" inputmode="numeric" class="set-distance-input" value="${distanceVal}" placeholder="meters" step="1" ${checked ? 'disabled' : ''}>` : ''}
+      ${tracksDistance ? `<div class="set-field set-field-distance"><input type="number" inputmode="numeric" class="set-distance-input" value="${distanceVal}" placeholder="meters" step="1" ${checked ? 'disabled' : ''}><span class="set-field-unit">m</span></div>` : ''}
       <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
       ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>

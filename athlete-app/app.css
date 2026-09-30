@@ -701,6 +701,42 @@ body:has(.home-screen) .athlete-app-card {
   background-color: rgba(79, 195, 247, 0.15);
 }
 
+/* Unit label inside a set-row input. The placeholder ("meters", "reps")
+   disappears as soon as the field is prefilled with the coach's target, so
+   without this a prefilled "30" read as a bare number. The label sits over
+   the right edge of the input, and pointer-events:none keeps taps going to
+   the input underneath. */
+.set-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.set-field > input {
+  width: 100%;
+  min-width: 0;
+}
+
+.set-field-distance > input {
+  padding-right: 26px;
+}
+
+.set-field-reps > input {
+  padding-right: 40px;
+}
+
+.set-field-unit {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--c-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 .set-reps-input,
 .set-weight-input,
 .set-distance-input {
