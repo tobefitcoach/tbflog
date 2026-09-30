@@ -19,7 +19,9 @@ const style = document.createElement('style')
 style.textContent = `
   #loadingBar {
     position: fixed;
-    top: 0;
+    /* Below the status bar / notch - with viewport-fit=cover, top:0 sits
+       behind it on iPhones and the bar is invisible */
+    top: env(safe-area-inset-top, 0px);
     left: 0;
     height: 3px;
     width: 0%;

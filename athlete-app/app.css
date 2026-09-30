@@ -498,7 +498,8 @@ body:has(.home-screen) .athlete-app-card {
 
 .mobility-flow-progress {
   position: absolute;
-  top: 0;
+  /* Below the status bar / notch, same reason as #loadingBar */
+  top: env(safe-area-inset-top, 0px);
   left: 0;
   right: 0;
   height: 4px;
