@@ -265,7 +265,7 @@ body:has(.home-screen) .athlete-app-page {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 56px 20px var(--nav-clearance);
+  padding: 14px 20px var(--nav-clearance);
 }
 
 /* .athlete-app-card's base rule (bordered, rounded, padded, capped at
@@ -307,6 +307,27 @@ body:has(.home-screen) .athlete-app-card {
 .home-screen .week-strip {
   flex: 1;
   flex-shrink: 1;
+}
+
+/* Round icon-only button - back and week navigation. Same circle look as
+   the close/pause buttons in the mobility player. */
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--c-border);
+  background-color: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .day-view-header {
@@ -1041,6 +1062,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .welcome-header h2 {
+  margin-top: 0;
   margin-bottom: 2px;
 }
 

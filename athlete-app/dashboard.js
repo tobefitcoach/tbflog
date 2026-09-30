@@ -121,6 +121,11 @@ const ROUTES = {
 
 nav.init(ROUTES, function(frame) { setActiveBottomTab(frame.tab) })
 
+// Chevron icons for the round .icon-btn buttons (back + week navigation) -
+// same stroke style as the other inline icons in this file
+const CHEVRON_LEFT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>'
+const CHEVRON_RIGHT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>'
+
 // Runs at the top of every screen renderer. Previously each one only cleared
 // the rest timer, so leaving a mobility screen any way other than its own
 // Cancel/Finish button (tapping Home, say) left its interval ticking against
@@ -1026,7 +1031,7 @@ function renderTournaments() {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button class="btn-cancel" id="backFromTournamentsBtn">← Back</button>
+      <button class="icon-btn" id="backFromTournamentsBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">Upcoming Tournaments</h2>
     </div>
     <button type="button" class="btn-save" id="addTournamentBtn" style="margin-bottom:16px">+ Add Tournament</button>
@@ -1074,7 +1079,7 @@ function renderAddTournamentForm() {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button class="btn-cancel" id="cancelAddTournamentBtn">← Back</button>
+      <button class="icon-btn" id="cancelAddTournamentBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">Add Tournament</h2>
     </div>
     <div class="form-group">
@@ -1698,9 +1703,9 @@ function renderWeekView(weekStart = startOfWeek(new Date())) {
       </div>
       ${renderSyncBannerHtml(pendingCount)}
       <div class="week-nav-row">
-        <button class="btn-cancel" id="weekPrevBtn">← Prev</button>
+        <button class="icon-btn" id="weekPrevBtn" aria-label="Previous week">${CHEVRON_LEFT}</button>
         <h3>${formatShortDate(days[0])} – ${formatShortDate(days[6])}</h3>
-        <button class="btn-cancel" id="weekNextBtn" ${nextEnabled ? '' : 'disabled'}>Next →</button>
+        <button class="icon-btn" id="weekNextBtn" aria-label="Next week" ${nextEnabled ? '' : 'disabled'}>${CHEVRON_RIGHT}</button>
       </div>
       <div class="week-strip">${cardsHtml}</div>
       <div class="home-tile-row">${homeTiles.join('')}</div>
@@ -1828,7 +1833,7 @@ async function renderMobilityAreaPicker() {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="mobilityAreaBackBtn">← Back</button>
+      <button type="button" class="icon-btn" id="mobilityAreaBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">Daily Mobility/Stretching</h2>
     </div>
     <p style="color:var(--c-text-muted); font-size:13px; margin-bottom:16px">What do you want to focus on today? Pick up to 2 - the rest of the session still flows across your whole body, these just show up more.</p>
@@ -1836,7 +1841,7 @@ async function renderMobilityAreaPicker() {
       ${distinctAreas.map(a => `<button type="button" class="chip-btn" data-area="${a}">${a}</button>`).join('')}
     </div>
     <button type="button" class="chip-btn chip-btn-clear" id="mobilityAreaNoPreference" style="margin-top:8px">Full Body / No preference</button>
-    <button type="button" class="btn-save start-workout-btn" id="mobilityAreaNextBtn" style="margin-top:16px">Next →</button>
+    <button type="button" class="btn-save start-workout-btn" id="mobilityAreaNextBtn" style="margin-top:16px">Continue</button>
   `
 
   document.getElementById('mobilityAreaBackBtn').addEventListener('click', nav.back)
@@ -1874,7 +1879,7 @@ function renderMobilityPicker(selectedAreas) {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="mobilityBackBtn">← Back</button>
+      <button type="button" class="icon-btn" id="mobilityBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">Daily Mobility/Stretching</h2>
     </div>
     <p style="color:var(--c-text-muted); font-size:13px; margin-bottom:16px">Pick how long you want to stretch or work on mobility.</p>
@@ -2396,7 +2401,7 @@ function renderAddWorkoutChoice() {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
+      <button type="button" class="icon-btn" id="addWorkoutBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">Add Own Workout</h2>
     </div>
     <p style="color:var(--c-text-muted); font-size:13px; margin-bottom:16px">What kind of workout did you do today?</p>
@@ -2508,7 +2513,7 @@ async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, retur
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="ownAddExerciseBackBtn">← Back</button>
+      <button type="button" class="icon-btn" id="ownAddExerciseBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">Add Exercise</h2>
     </div>
     <input type="text" id="ownAddExerciseSearchInput" class="exercise-search-input" placeholder="Search exercises..." />
@@ -2576,7 +2581,7 @@ async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="ownBuilderBackBtn">← Back</button>
+      <button type="button" class="icon-btn" id="ownBuilderBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">Build Your Workout</h2>
     </div>
     <p class="own-builder-subtitle">Select all the exercises you want to do, then start your workout.</p>
@@ -2806,7 +2811,7 @@ function renderAddWorkoutFieldForm(type) {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="addWorkoutBackBtn">← Back</button>
+      <button type="button" class="icon-btn" id="addWorkoutBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">${title}</h2>
     </div>
     <div class="form-group">
@@ -3166,9 +3171,9 @@ function renderWeeklyStats() {
       <h2 class="day-view-date">Stats</h2>
     </div>
     <div class="week-nav-row">
-      <button class="btn-cancel" id="statsWeekPrevBtn">← Prev</button>
+      <button class="icon-btn" id="statsWeekPrevBtn" aria-label="Previous week">${CHEVRON_LEFT}</button>
       <h3 id="statsWeekRangeLabel"></h3>
-      <button class="btn-cancel" id="statsWeekNextBtn" disabled>Next →</button>
+      <button class="icon-btn" id="statsWeekNextBtn" aria-label="Next week" disabled>${CHEVRON_RIGHT}</button>
     </div>
     <div id="weeklyStatsBody"></div>
   `
@@ -3269,7 +3274,7 @@ function renderDayPreview(dateStr) {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button class="btn-cancel" id="backToWeekBtn">← Back</button>
+      <button class="icon-btn" id="backToWeekBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2>${isToday ? 'Today' : formatDisplayDate(dateStr)}</h2>
     </div>
     ${isToday ? `<p class="day-view-date">${formatDisplayDate(dateStr)}</p>` : ''}
@@ -3348,7 +3353,7 @@ async function renderFormFill(fa, dateStr) {
 
   pageContent.innerHTML = `
     <div class="day-view-header">
-      <button type="button" class="btn-cancel" id="formFillBackBtn">← Back</button>
+      <button type="button" class="icon-btn" id="formFillBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>
       <h2 class="day-view-date">${escapeHtml(formName)}</h2>
     </div>
     <div id="formFillQuestions"><p class="no-metrics">Loading...</p></div>
