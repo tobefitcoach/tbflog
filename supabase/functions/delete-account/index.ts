@@ -80,17 +80,11 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (athlete) {
-      // exercise_logs is the one athlete-owned table whose foreign key has no
-      // "on delete cascade", so it would block the athletes row from being
-      // deleted. Everything else (exercise_log_sets, workout_sessions,
-      // chat_messages, form_assignments, tournaments, stretch preferences,
-      // label links) cascades from athletes automatically.
-      const { error: logsError } = await admin
-        .from('exercise_logs')
-        .delete()
-        .eq('athlete_id', athlete.id)
-      if (logsError) return json({ error: logsError.message }, 500)
-
+      // Every athlete-owned table (programs, exercise_log_sets,
+      // workout_sessions, chat_messages, form_assignments, tournaments,
+      // stretch preferences, label links) cascades from athletes, so one
+      // delete is enough. (exercise_logs, which didn't cascade, was dropped -
+      // deleting from it here made every athlete deletion fail.)
       const { error: athleteError } = await admin
         .from('athletes')
         .delete()
