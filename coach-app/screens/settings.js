@@ -159,7 +159,7 @@ function bindEvents() {
     // next visit straight back to the coach side - see that file's header
     // comment for the cache this clears.
     localStorage.removeItem('tbflog-known-role')
-    window.location.href = '../../app/index.html'
+    window.location.href = '../app/index.html'
   })
 
   root.querySelector('#athleteAccountBtn').addEventListener('click', function() {
