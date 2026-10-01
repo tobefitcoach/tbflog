@@ -250,7 +250,7 @@ async function checkAccountState() {
 
   const { data: foundAthlete } = await saveWithRetry((signal) => supabase
     .from('athletes')
-    .select('id, name, date_of_birth, gender, height, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, mobility_enabled, tournaments_enabled, coach_id, intro_seen')
+    .select('id, name, date_of_birth, gender, height, can_preview_next_week, weight_unit, weekly_recap_enabled, can_self_log_workouts, can_add_exercises, can_change_exercises, can_reschedule_workouts, can_view_weekly_stats, mobility_enabled, tournaments_enabled, coach_id, intro_seen, avatar_url')
     .eq('user_id', session.user.id)
     .maybeSingle()
     .abortSignal(signal)
@@ -755,8 +755,8 @@ async function renderProfile() {
         <div class="settings-row-desc">Your coach sees this instead of your initials</div>
       </div>
       <div style="display:flex; align-items:center; gap:10px">
-        ${athlete.avatar_url
-          ? `<img src="${athlete.avatar_url}" class="settings-avatar-preview" alt="">`
+        ${safeUrl(athlete.avatar_url)
+          ? `<img src="${safeUrl(athlete.avatar_url)}" class="settings-avatar-preview" alt="">`
           : `<div class="settings-avatar-placeholder">${initials}</div>`}
         <input type="file" id="avatarFileInput" accept="image/*" style="display:none" />
         <button type="button" class="btn-profile-action" id="avatarUploadBtn">Change</button>
