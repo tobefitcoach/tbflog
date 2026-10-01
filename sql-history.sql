@@ -2342,3 +2342,22 @@ begin
   end loop;
 end;
 $$;
+
+
+-- ==========================================================================
+-- Athlete note to the coach on a finished workout. Free text, optional, any
+-- workout (unlike rpe_flag_note, which only exists for a 9-10 RPE pain
+-- report). Written from the workout summary screen, shown on the coach's
+-- Calendar next to that day's duration/RPE. No RLS change needed - the
+-- existing "athlete manages own sessions" / "coach views sessions for own
+-- athletes" policies already cover the whole row.
+--
+-- 'workout_note' notification type: the coach gets a bell + push when an
+-- athlete saves a note. Re-declares the full allowed list, so keep it in
+-- sync with the constraint above if more types are added later.
+-- ==========================================================================
+alter table workout_sessions add column if not exists athlete_note text;
+
+alter table notifications drop constraint if exists notifications_type_check;
+alter table notifications add constraint notifications_type_check
+  check (type in ('workout_added', 'workout_completed', 'tournament_added', 'low_trainings', 'chat_message', 'workout_note'));

@@ -677,6 +677,17 @@ body:has(.home-screen) .athlete-app-card {
   margin-bottom: 12px;
 }
 
+.last-time {
+  color: var(--c-text-muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.last-time:empty {
+  display: none;
+}
+
 .set-rows {
   display: flex;
   flex-direction: column;
@@ -2489,4 +2500,11 @@ body:has(.home-screen) .athlete-app-card {
 .btn-delete-account:hover {
   background-color: #ff4444;
   color: white;
+}
+
+/* Note-to-coach box on the workout summary reuses .rpe-flag-note-row's
+   textarea/button styling but is always visible (that row starts hidden) */
+.workout-note-row {
+  display: block;
+  margin: 16px 0;
 }

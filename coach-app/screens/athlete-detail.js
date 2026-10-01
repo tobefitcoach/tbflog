@@ -1535,7 +1535,7 @@ let onDocKeydownCal = null // Escape disarms an in-progress calendar copy
 // ---- MOUNT / UNMOUNT ----
 // ==========================================================================
 export async function mount(container, params, token) {
-  ensureCss('css/athlete-detail.css?v=2')
+  ensureCss('css/athlete-detail.css?v=3')
   root = container
   mountToken = token
   athleteId = params.id
@@ -1935,7 +1935,7 @@ async function loadCalendarMonth(year, month) {
     ),
     window.fetchWithRetry((signal) => supabase
       .from('workout_sessions')
-      .select('id, program_day_id, started_at, ended_at, local_date, session_rpe, session_type, rpe_flag_reason, rpe_flag_note, rpe_flag_reviewed_at, mobility_focus_areas')
+      .select('*') // '*' (not a column list) so athlete_note comes through once its migration has run, without breaking this query before then
       .eq('athlete_id', athleteId)
       .abortSignal(signal)
     ),
@@ -2668,7 +2668,11 @@ function renderSessionSummaryCal(session) {
     ? `<p class="pain-flag-note ${session.rpe_flag_reviewed_at ? 'reviewed' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> Reported pain/injury${session.rpe_flag_reviewed_at ? ' (reviewed)' : ''}: ${escapeHtmlCal(session.rpe_flag_note) || '<em>No description given</em>'}</p>`
     : ''
 
-  return `<p class="workout-preview-target" style="margin-bottom:${flagHtml ? '4px' : '12px'}">${parts.join(' · ')}</p>${flagHtml}`
+  const noteHtml = session.athlete_note
+    ? `<p class="athlete-session-note"><strong>Athlete note:</strong> ${escapeHtmlCal(session.athlete_note)}</p>`
+    : ''
+
+  return `<p class="workout-preview-target" style="margin-bottom:${flagHtml || noteHtml ? '4px' : '12px'}">${parts.join(' · ')}</p>${flagHtml}${noteHtml}`
 }
 
 // Only used for user-entered free text rendered into a coach-facing

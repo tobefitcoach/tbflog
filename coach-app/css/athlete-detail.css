@@ -1188,3 +1188,15 @@
     gap: 0;
   }
 }
+
+.athlete-session-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--c-text);
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+}

@@ -3877,6 +3877,7 @@ function proceedToStartWorkout(entry, dateStr) {
 
   const slides = buildWorkoutSlides(exercises)
   const resumeIndex = findResumeIndex(slides)
+  loadLastTime(exercises, dateStr) // not awaited - fills in the "Last time" lines when it lands
   renderActiveExercise(entry, dateStr, slides, resumeIndex, sessionPromise)
 }
 
@@ -4091,6 +4092,7 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
         ${exerciseActionButtonsHtml(pe, isSelfLogged, true)}
       </div>
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
+      ${lastTimeLineHtml(pe)}
       <div class="set-rows">${renderSetRow(pe, round, logged, tracksReps, isTimed, tracksWeight, false)}</div>
     </div>
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe to skip <span class="swipe-hint-arrow">›</span></p>
@@ -4231,10 +4233,108 @@ function renderSingleSlideBody(pe, isSelfLogged) {
         ${exerciseActionButtonsHtml(pe, isSelfLogged)}
       </div>
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
+      ${lastTimeLineHtml(pe)}
       <div class="set-rows">${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set</button>
     </div>
   `
+}
+
+// ==========================================================================
+// ---- LAST TIME ----
+// A one-line "Last time: 8 x 80kg - 8 x 80kg - 6 x 82.5kg" under each
+// exercise's name, so the athlete sees what they did last session without
+// opening the History pop-up. One query when the workout starts (matched by
+// exercise_id, same convention as the history modal, so it carries across
+// programs/weeks), cached for the whole workout; each slide renders its line
+// from the cache, and the loader patches whatever is already on screen if
+// the data lands after the first slide painted.
+// ==========================================================================
+let lastTimeByExerciseId = {} // exercise_id -> { text }
+
+function formatLastTimeSet(s, tracksReps, isTimed, tracksWeight, tracksDistance) {
+  const parts = []
+  const reps = tracksReps && s.actual_reps ? String(s.actual_reps) : null
+  const setUnit = s.weight_unit || 'kg'
+  const weight = tracksWeight && s.actual_weight != null ? `${formatWeight(s.actual_weight, setUnit)}${setUnit}` : null
+  if (reps && weight) parts.push(`${reps} \u00d7 ${weight}`)
+  else if (reps) parts.push(`${reps} reps`)
+  else if (weight) parts.push(weight)
+  if (isTimed) {
+    const durationSource = s.actual_duration != null ? s.actual_duration : (!tracksReps ? s.actual_reps : null)
+    if (durationSource != null) parts.push(formatTimedReps(durationSource))
+  }
+  if (tracksDistance && s.actual_distance != null) parts.push(`${s.actual_distance}m`)
+  return parts.join(' \u00b7 ')
+}
+
+// Identical neighbouring sets collapse ("8 x 80kg (3 sets)") so a 5-set
+// exercise stays one short line on a phone
+function buildLastTimeText(pe, date, sets) {
+  const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
+  const isTimed = pe.exercises && pe.exercises.is_timed
+  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
+  const tracksDistance = pe.exercises && pe.exercises.tracks_distance
+  const lines = []
+  for (const s of [...sets].sort((a, b) => a.set_number - b.set_number)) {
+    const text = formatLastTimeSet(s, tracksReps, isTimed, tracksWeight, tracksDistance)
+    if (!text) continue
+    const prev = lines[lines.length - 1]
+    if (prev && prev.text === text) prev.count++
+    else lines.push({ text, count: 1 })
+  }
+  if (lines.length === 0) return ''
+  const body = lines.map(l => l.count > 1 ? `${l.text} (${l.count} sets)` : l.text).join(' \u00b7 ')
+  return `Last time (${formatShortDate(parseDateStr(date))}): ${body}`
+}
+
+function lastTimeLineHtml(pe) {
+  const last = lastTimeByExerciseId[pe.exercise_id]
+  return `<p class="last-time" data-exercise-id="${pe.exercise_id}">${last ? last.text : ''}</p>`
+}
+
+async function loadLastTime(exercises, dateStr) {
+  lastTimeByExerciseId = {}
+  const exerciseIds = [...new Set(exercises.map(pe => pe.exercise_id).filter(Boolean))]
+  if (exerciseIds.length === 0) return
+
+  // One joined query instead of "find every past program_exercises row,
+  // then fetch their sets by id" - the id list for that grows with the
+  // athlete's whole history and would overflow the request URL
+  const { data: sets, error } = await fetchWithRetry((signal) => supabase
+    .from('exercise_log_sets')
+    .select('*, program_exercises!inner(exercise_id)')
+    .in('program_exercises.exercise_id', exerciseIds)
+    .not('completed_at', 'is', null)
+    .lt('date', dateStr)
+    .order('date', { ascending: false })
+    .limit(400)
+    .abortSignal(signal)
+  )
+  if (error) { console.log(error); return } // best-effort - the workout works the same without it
+
+  const latestDate = {}
+  const setsByExercise = {}
+  for (const s of sets || []) {
+    const exId = s.program_exercises.exercise_id
+    if (latestDate[exId] === undefined) latestDate[exId] = s.date
+    if (s.date !== latestDate[exId]) continue
+    if (!setsByExercise[exId]) setsByExercise[exId] = []
+    setsByExercise[exId].push(s)
+  }
+
+  for (const pe of exercises) {
+    const exSets = setsByExercise[pe.exercise_id]
+    if (!exSets || lastTimeByExerciseId[pe.exercise_id]) continue
+    const text = buildLastTimeText(pe, latestDate[pe.exercise_id], exSets)
+    if (text) lastTimeByExerciseId[pe.exercise_id] = { text }
+  }
+
+  // Fill in whatever slide is already showing
+  document.querySelectorAll('.last-time').forEach(function(el) {
+    const last = lastTimeByExerciseId[el.dataset.exerciseId]
+    if (last) el.textContent = last.text
+  })
 }
 
 // ==========================================================================
@@ -4748,6 +4848,13 @@ function renderWorkoutSummary(finishedSession, entry) {
       </div>
     </div>
 
+    <div class="rpe-flag-note-row workout-note-row">
+      <label for="workoutNoteInput">Note for your coach (optional)</label>
+      <textarea id="workoutNoteInput" rows="3" maxlength="1000" placeholder="e.g. Shoulder felt tight on bench, no sled at the gym so I swapped it">${escapeHtml(finishedSession.athlete_note || '')}</textarea>
+      <button type="button" class="btn-save" id="workoutNoteSaveBtn">Save note</button>
+      <span class="rpe-flag-note-saved" id="workoutNoteSaved" style="display:none">Saved ✓</span>
+    </div>
+
     <div class="summary-exercise-list">${breakdownHtml || '<p class="no-metrics">Nothing logged</p>'}</div>
     <!-- Disabled until an RPE is picked (see wireSummaryRpePicker) - Training
          Load/ACWR/Monotony/Strain are computed entirely from session_rpe
@@ -4766,7 +4873,16 @@ function renderWorkoutSummary(finishedSession, entry) {
     if (noteRow && noteInput && noteRow.style.display !== 'none' && noteInput.value !== (finishedSession.rpe_flag_note || '')) {
       await saveRpeFlagNote(finishedSession, noteInput.value)
     }
+    // Same safety net for the note to the coach
+    const workoutNoteInput = document.getElementById('workoutNoteInput')
+    if (workoutNoteInput && workoutNoteInput.value.trim() !== (finishedSession.athlete_note || '')) {
+      await saveWorkoutNote(finishedSession, entry, workoutNoteInput.value)
+    }
     renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  })
+
+  document.getElementById('workoutNoteSaveBtn').addEventListener('click', function() {
+    saveWorkoutNote(finishedSession, entry, document.getElementById('workoutNoteInput').value)
   })
 
   wireSummaryRpePicker(finishedSession)
@@ -4888,6 +5004,44 @@ function wireRpeFlagFollowup(session) {
 // Shared by the explicit "Save note" button and the summaryDoneBtn
 // safety-net flush (renderWorkoutSummary) - also resets
 // rpe_flag_reviewed_at, since an edited note needs the coach to see it again
+// Free-text note from the athlete to the coach, separate from the RPE
+// follow-up's pain note (that one only appears on a 9-10 rating and is about
+// pain/injury) - this works for any workout. Stored on the session so the
+// coach sees it next to that day's RPE, and the coach also gets a
+// notification when it's saved with text in it. Needs
+// workout_sessions.athlete_note (see sql-history.sql); until that migration
+// has run, the update fails and the athlete is told nothing was saved.
+async function saveWorkoutNote(session, entry, rawNote) {
+  const note = rawNote.trim()
+  if (note === (session.athlete_note || '')) return
+
+  if (!session.id.startsWith('local-')) {
+    const { error } = await saveWithRetry((signal) => supabase
+      .from('workout_sessions')
+      .update({ athlete_note: note || null })
+      .eq('id', session.id)
+      .abortSignal(signal)
+    )
+    if (error) {
+      console.log(error)
+      customAlert('Something went wrong saving your note: ' + describeError(error))
+      return
+    }
+  }
+
+  session.athlete_note = note
+  if (note) {
+    const preview = note.length > 140 ? note.slice(0, 140) + '...' : note
+    notifyCoach('workout_note', `${athlete.name} left a note on ${trainingDisplayName(entry)}: "${preview}"`) // not awaited
+  }
+
+  const saved = document.getElementById('workoutNoteSaved')
+  if (saved) {
+    saved.style.display = 'inline'
+    setTimeout(() => { saved.style.display = 'none' }, 2000)
+  }
+}
+
 async function saveRpeFlagNote(session, note) {
   session.rpe_flag_note = note
   session.rpe_flag_reviewed_at = null

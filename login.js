@@ -17,6 +17,8 @@ const authPassword = document.getElementById('authPassword')
 const authSubmitBtn = document.getElementById('authSubmitBtn')
 const authToggleText = document.getElementById('authToggleText')
 const authToggleLink = document.getElementById('authToggleLink')
+const authForgot = document.getElementById('authForgot')
+const authForgotLink = document.getElementById('authForgotLink')
 
 // Already logged in? Skip straight to the dashboard instead of showing the form
 const { data: { session } } = await supabase.auth.getSession()
@@ -37,12 +39,14 @@ function updateFormForMode() {
     authSubmitBtn.textContent = 'Sign Up'
     authToggleText.textContent = 'Already have an account?'
     authToggleLink.textContent = 'Log in'
+    authForgot.style.display = 'none'
   } else {
     authTitle.textContent = 'Log In'
     nameField.style.display = 'none'
     authSubmitBtn.textContent = 'Log In'
     authToggleText.textContent = "Don't have an account?"
     authToggleLink.textContent = 'Sign up'
+    authForgot.style.display = ''
   }
 }
 
@@ -78,4 +82,20 @@ authSubmitBtn.addEventListener('click', async function() {
     if (error) { showMessage(error.message); return }
     window.location.href = 'app/index.html'
   }
+})
+
+// Emails a reset link (Supabase sends it) that opens reset-password.html,
+// which handles choosing the new password. The URL has to be on Supabase's
+// Auth -> URL Configuration redirect allow-list or it gets ignored. The
+// success message is the same whether or not the email has an account, so
+// this can't be used to find out who's registered.
+authForgotLink.addEventListener('click', async function(e) {
+  e.preventDefault()
+  const email = authEmail.value.trim()
+  if (!email) { showMessage('Enter your email above first, then tap "Forgot password?"'); return }
+
+  const redirectTo = new URL('reset-password.html?role=coach', window.location.href).href
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) { showMessage(error.message); return }
+  showMessage('If that email has an account, a reset link is on its way. Check your inbox.', true)
 })

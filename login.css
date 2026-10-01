@@ -57,3 +57,23 @@
   cursor: pointer;
   margin-left: 4px;
 }
+
+.auth-forgot {
+  margin-top: -4px;
+  margin-bottom: 14px;
+  text-align: right;
+  font-size: 13px;
+}
+
+.auth-forgot a {
+  color: var(--c-text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.reset-done-text {
+  color: var(--c-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 8px;
+}
