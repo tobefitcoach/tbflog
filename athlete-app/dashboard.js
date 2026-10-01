@@ -133,8 +133,15 @@ const CHEVRON_RIGHT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="non
 // unconditionally is safe: the two rest-timer completion paths capture
 // restTimerOnDone into a local before calling clearRestTimer (see the comment
 // above restTimerOnDone), so this never fires a group step's auto-advance.
-function teardownScreen() {
-  clearRestTimer()
+//
+// keepRest: the four workout-slide renderers (exercise, superset gate/step,
+// end slide) pass it so a rest timer started on one exercise keeps counting
+// down as the athlete swipes to the next - the bar is redrawn on each new
+// slide by restoreRestTimerBar() (called from mountSlide). Every other
+// screen still clears it, so leaving the workout ends the rest.
+function teardownScreen(opts) {
+  if (opts && opts.keepRest) workoutScreenSeq++
+  else clearRestTimer()
   clearMobilityTimer()
   clearMobilityFlowTimer()
   if (swipeCleanup) { swipeCleanup(); swipeCleanup = null }
@@ -3913,7 +3920,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
   }
 
   nav.enter('workout', { variant: 'activeExercise', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true })
-  teardownScreen()
+  teardownScreen({ keepRest: true })
 
   const isLast = index === slides.length - 1
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
@@ -3998,7 +4005,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 // ==========================================================================
 function renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction) {
   nav.enter('workout', { variant: 'groupGate', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true })
-  teardownScreen()
+  teardownScreen({ keepRest: true })
 
   const slide = slides[index]
   currentSlideContext = slide
@@ -4053,7 +4060,7 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
 
 function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction) {
   nav.enter('workout', { variant: 'groupStep', entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction }, { collapse: true })
-  teardownScreen()
+  teardownScreen({ keepRest: true })
 
   const slide = slides[index]
   const { pe, round } = steps[stepIndex]
@@ -4104,7 +4111,12 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
 
   attachSwipeHandlers(
     function onSwipeLeft() {
-      goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex)
+      // Swiping is always "move on", and a rest already counting down just
+      // keeps going on the next slide. Without skipRest, goToNextGroupStep
+      // at the end of a round starts a rest timer instead of advancing -
+      // the card slid off screen, the timer restarted from full, and
+      // nothing replaced the card.
+      goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, true)
     },
     function onSwipeRight() {
       if (stepIndex === 0) renderGroupGate(entry, dateStr, slides, index, sessionPromise, -1)
@@ -4121,8 +4133,9 @@ function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, s
 // using the round's last-ordered member's rest_seconds/target - same rule
 // this app already used for supersets before this rework), or past the
 // end of the group (hand off to the normal top-level next-slide/
-// end-of-workout flow).
-function goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex) {
+// end-of-workout flow). skipRest (swipe-left) skips
+// the rest pause and always advances.
+function goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, skipRest) {
   const next = stepIndex + 1
   if (next >= steps.length) {
     const isLast = index === slides.length - 1
@@ -4141,7 +4154,7 @@ function goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps,
   const lastMemberOfRound = steps[stepIndex].pe
   const target = lastMemberOfRound.set_targets && lastMemberOfRound.set_targets[finishedRound - 1]
   const restSeconds = target && target.rest != null ? target.rest : lastMemberOfRound.rest_seconds
-  if (restSeconds) {
+  if (restSeconds && !skipRest) {
     startRestTimer(restSeconds, function() {
       renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, next, 1)
     })
@@ -4408,7 +4421,7 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
 // every slide
 function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, direction) {
   nav.enter('workout', { variant: 'endOfWorkout', entry, dateStr, slides, sessionPromise, direction }, { collapse: true })
-  teardownScreen()
+  teardownScreen({ keepRest: true })
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -4419,6 +4432,7 @@ function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, directi
       <button class="btn-save start-workout-btn" id="endWorkoutBtn">End Workout</button>
     </div>
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe to go back</p>
+    <div id="restTimerBar" class="rest-timer-bar"></div>
   `
 
   document.getElementById('endWorkoutBtn').addEventListener('click', function() {
@@ -4445,6 +4459,7 @@ function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, directi
 // buttons inside the slide are completely unaffected.
 // ==========================================================================
 function mountSlide(direction) {
+  restoreRestTimerBar()
   const slide = document.querySelector('.workout-slide')
   if (!slide || !direction) return
   slide.style.transition = 'none'
@@ -5418,6 +5433,10 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   // Inside a group step-through, checking the set auto-advances (straight
   // to the next member, or a rest then the next round) instead of the
   // plain rest-timer-only behavior a normal single exercise gets
+  // A rest still running from an earlier set (this exercise's or another's,
+  // the timer follows the athlete across swipes) counts as skipped the
+  // moment a new set is checked - startRestTimer below then replaces it
+  clearRestTimer()
   if (currentSlideContext && currentSlideContext.type === 'group' && currentGroupNav) {
     const { entry, slides, index, sessionPromise, steps, stepIndex } = currentGroupNav
     goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex)
@@ -5837,27 +5856,56 @@ let restTimerOnDone = null
 // than continuing to count down slowly from a stale number.
 let restTimerEndAt = null
 
+// Bumped by every workout-slide render (see teardownScreen's keepRest) so a
+// rest can tell whether the athlete is still on the screen it started on
+let workoutScreenSeq = 0
+let restTimerOriginSeq = 0
+
 function startRestTimer(totalSeconds, onDone) {
   clearRestTimer()
   restTimerOnDone = onDone || null
+  restTimerOriginSeq = workoutScreenSeq
   const bar = document.getElementById('restTimerBar')
   if (!bar) return
 
   restTimerEndAt = Date.now() + totalSeconds * 1000
-  bar.style.display = 'flex'
-  bar.innerHTML = `
-    <span class="rest-timer-label">Rest</span>
-    <span class="rest-timer-time" id="restTimerTime">${formatTimer(totalSeconds)}</span>
-    <button type="button" class="rest-timer-skip" id="restTimerSkipBtn">Skip</button>
-  `
-  document.getElementById('restTimerSkipBtn').addEventListener('click', function() {
-    const cb = restTimerOnDone
-    clearRestTimer()
-    if (cb) cb()
-  })
+  renderRestTimerBar(totalSeconds)
 
   restTimerInterval = setInterval(tickRestTimer, 1000)
   scheduleRestTimerPush(totalSeconds) // backup notification in case the athlete isn't looking when this ends - see the comment above these two functions, below
+}
+
+// The auto-continue callback (a superset's next round) only fires while the
+// athlete is still on the screen the rest started on - if they've swiped
+// elsewhere since, the rest just ends instead of pulling them back
+function takeRestTimerCallback() {
+  const cb = restTimerOnDone
+  return restTimerOriginSeq === workoutScreenSeq ? cb : null
+}
+
+function renderRestTimerBar(remainingSeconds) {
+  const bar = document.getElementById('restTimerBar')
+  if (!bar) return
+  bar.style.display = 'flex'
+  bar.innerHTML = `
+    <span class="rest-timer-label">Rest</span>
+    <span class="rest-timer-time" id="restTimerTime">${formatTimer(remainingSeconds)}</span>
+    <button type="button" class="rest-timer-skip" id="restTimerSkipBtn">Skip</button>
+  `
+  document.getElementById('restTimerSkipBtn').addEventListener('click', function() {
+    const cb = takeRestTimerCallback()
+    clearRestTimer()
+    if (cb) cb()
+  })
+}
+
+// Each workout slide renders its own empty #restTimerBar, so a rest that's
+// still running when the athlete swipes needs its bar drawn again on the
+// new slide (called from mountSlide)
+function restoreRestTimerBar() {
+  if (restTimerEndAt == null) return
+  const remaining = Math.ceil((restTimerEndAt - Date.now()) / 1000)
+  if (remaining > 0) renderRestTimerBar(remaining)
 }
 
 function tickRestTimer() {
@@ -5865,7 +5913,7 @@ function tickRestTimer() {
   const remaining = Math.ceil((restTimerEndAt - Date.now()) / 1000)
   if (remaining <= 0) {
     playRestDoneSound()
-    const cb = restTimerOnDone
+    const cb = takeRestTimerCallback()
     clearRestTimer()
     if (cb) cb()
     return
