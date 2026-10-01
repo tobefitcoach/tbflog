@@ -4114,7 +4114,14 @@ async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
       notes: se.notes,
       section_label: sectionName,
       section_instance_id: sectionInstanceId,
-      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
+      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null,
+      // The section's Adjust Fields overrides and alternative exercise -
+      // without these the copy silently lost them
+      tracks_weight_override: se.tracks_weight_override,
+      is_timed_override: se.is_timed_override,
+      is_unilateral_override: se.is_unilateral_override,
+      tracks_distance_override: se.tracks_distance_override,
+      alternative_exercise_id: se.alternative_exercise_id
     }))
   )
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }

@@ -1713,7 +1713,14 @@ async function insertSectionIntoTraining(sectionId, sectionName) {
       extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
       section_label: sectionName,
       section_instance_id: sectionInstanceId,
-      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null
+      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null,
+      // The section's Adjust Fields overrides and alternative exercise -
+      // without these the copy silently lost them
+      tracks_weight_override: se.tracks_weight_override,
+      is_timed_override: se.is_timed_override,
+      is_unilateral_override: se.is_unilateral_override,
+      tracks_distance_override: se.tracks_distance_override,
+      alternative_exercise_id: se.alternative_exercise_id
     }))
   ).select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }

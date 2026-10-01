@@ -476,9 +476,10 @@ function bindEvents() {
     const isTimed = !!(se && se.exercises && se.exercises.is_timed)
     const tracksWeight = !!(se && (!se.exercises || se.exercises.tracks_weight))
     const isUnilateral = !!(se && se.exercises && se.exercises.is_unilateral)
+    const tracksDistance = !!(se && se.exercises && se.exercises.tracks_distance)
 
     if (btn.dataset.action === 'add-set') {
-      addSetTargetRow(card.querySelector('.set-target-rows'), tracksReps, isTimed, tracksWeight, isUnilateral)
+      addSetTargetRow(card.querySelector('.set-target-rows'), tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance)
       scheduleAutosave(seId)
       for (const other of linkedCardsFor(card)) {
         const oSe = exercisesCache.find(s => s.id === other.dataset.id)
@@ -487,7 +488,8 @@ function bindEvents() {
           !!(oSe && (!oSe.exercises || oSe.exercises.tracks_reps !== false)),
           !!(oSe && oSe.exercises && oSe.exercises.is_timed),
           !!(oSe && (!oSe.exercises || oSe.exercises.tracks_weight)),
-          !!(oSe && oSe.exercises && oSe.exercises.is_unilateral)
+          !!(oSe && oSe.exercises && oSe.exercises.is_unilateral),
+          !!(oSe && oSe.exercises && oSe.exercises.tracks_distance)
         )
         scheduleAutosave(other.dataset.id)
       }
@@ -1047,7 +1049,7 @@ function parseTimeToParts(val) {
 // renderSetTargetRow here - this one used to just relabel the reps input's
 // placeholder for a timed exercise instead of giving it a real mm:ss
 // timer, the only one of the four builders with that gap.
-function renderSetTargetRow(setNumber, target, tracksReps, isTimed, tracksWeight, isUnilateral, onlyRow) {
+function renderSetTargetRow(setNumber, target, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, onlyRow) {
   const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
   // Legacy rows (saved back when Timed replaced Reps instead of coexisting
   // with it) stored the duration IN the reps field - fall back to reading
@@ -1074,6 +1076,7 @@ function renderSetTargetRow(setNumber, target, tracksReps, isTimed, tracksWeight
         </div>
       ` : ''}
       ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
+      ${tracksDistance ? `<input type="number" class="set-distance-input" value="${target.distance != null ? target.distance : ''}" placeholder="meters" step="1">` : ''}
       <div class="set-time-group" title="Rest - minutes:seconds">
         <span class="set-time-group-label">Rest</span>
         <div class="set-time-input">
@@ -1104,6 +1107,7 @@ function readSetRowValues(rowEl) {
   if (!rowEl) return { reps: null, duration: null, weight: null, rest: null, type: 'main' }
   const repsInput = rowEl.querySelector('.set-reps-input')
   const weightInput = rowEl.querySelector('.set-weight-input')
+  const distanceInput = rowEl.querySelector('.set-distance-input')
   const typeSelect = rowEl.querySelector('.set-type-select')
   const timeMm = rowEl.querySelector('.set-time-mm:not(.set-rest-mm)')
   const timeSs = rowEl.querySelector('.set-time-ss:not(.set-rest-ss)')
@@ -1113,16 +1117,17 @@ function readSetRowValues(rowEl) {
     reps: repsInput ? repsInput.value : null,
     duration: timeMm ? `${timeMm.value}:${timeSs.value}` : null,
     weight: weightInput && weightInput.value !== '' ? weightInput.value : null,
+    distance: distanceInput && distanceInput.value !== '' ? distanceInput.value : null,
     rest: restMm ? `${restMm.value}:${restSs.value}` : null,
     type: typeSelect ? typeSelect.value : 'main'
   }
 }
 
-function addSetTargetRow(rowsEl, tracksReps, isTimed, tracksWeight, isUnilateral) {
+function addSetTargetRow(rowsEl, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance) {
   const rows = [...rowsEl.querySelectorAll('.set-target-row')]
   if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
   const carryOver = readSetRowValues(rows[rows.length - 1])
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, carryOver, tracksReps, isTimed, tracksWeight, isUnilateral, false))
+  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRow(rows.length + 1, carryOver, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, false))
 }
 
 // Removal can happen from the middle of the list, so every remaining row
@@ -1200,10 +1205,11 @@ function renderExerciseCard(se) {
   const isTimed = se.exercises && se.exercises.is_timed
   const tracksWeight = !se.exercises || se.exercises.tracks_weight
   const isUnilateral = se.exercises && se.exercises.is_unilateral
+  const tracksDistance = se.exercises && se.exercises.tracks_distance
   const videoUrl = (se.exercises && se.exercises.video_url) || ''
   const thumb = getYouTubeThumbnail(videoUrl)
   const targets = deriveSetTargets(se)
-  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, tracksReps, isTimed, tracksWeight, isUnilateral, targets.length === 1)).join('')
+  const rowsHtml = targets.map((t, i) => renderSetTargetRow(i + 1, t, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, targets.length === 1)).join('')
   const groupMembers = se.superset_group_id ? exercisesCache.filter(other => other.id !== se.id && other.superset_group_id === se.superset_group_id) : []
   const groupColor = se.superset_group_id ? colorForSupersetGroup(se.superset_group_id) : null
   const linkTitle = groupMembers.length
@@ -1269,11 +1275,13 @@ async function saveExerciseCard(seId, orderIndex) {
     }
     const weightInput = row.querySelector('.set-weight-input')
     const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
+    const distanceInput = row.querySelector('.set-distance-input')
+    const distance = distanceInput && distanceInput.value ? parseFloat(distanceInput.value) : null
     const restMm = parseInt(row.querySelector('.set-rest-mm').value) || 0
     const restSs = parseInt(row.querySelector('.set-rest-ss').value) || 0
     const rest = (restMm === 0 && restSs === 0) ? null : restMm * 60 + restSs
     const type = row.querySelector('.set-type-select').value
-    return { reps, duration, weight, rest, type }
+    return { reps, duration, weight, distance, rest, type }
   })
 
   const notes = card.querySelector('.exercise-notes-input').value.trim() || null
@@ -1315,7 +1323,7 @@ async function saveExerciseCard(seId, orderIndex) {
 // the big Save button still exists for the final "I'm done" navigation,
 // but nothing is ever actually waiting on it anymore.
 // ==========================================================================
-const AUTOSAVE_FIELD_SELECTOR = '.set-reps-input, .set-weight-input, .set-time-mm, .set-time-ss, .exercise-notes-input, .extra-field-value'
+const AUTOSAVE_FIELD_SELECTOR = '.set-reps-input, .set-weight-input, .set-distance-input, .set-time-mm, .set-time-ss, .exercise-notes-input, .extra-field-value'
 
 function scheduleAutosave(seId) {
   clearTimeout(autosaveTimers[seId])
