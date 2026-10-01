@@ -15,6 +15,7 @@
 import { supabase } from '../../coachClient.js'
 import * as nav from '../nav.js'
 import { coachId } from '../session.js'
+import { safeUrl } from '../../escape.js'
 
 const BUILT_IN_TYPES = {
   weights: 'Weightlifting (sets, reps, weight)',
@@ -349,7 +350,7 @@ function renderExercises(exercises) {
           return `
           <div class="exercise-item">
             ${ex.video_url
-              ? `<a href="${ex.video_url}" target="_blank" class="exercise-item-thumb">${thumbInner}</a>`
+              ? `<a href="${safeUrl(ex.video_url)}" target="_blank" class="exercise-item-thumb">${thumbInner}</a>`
               : `<div class="exercise-item-thumb">${thumbInner}</div>`}
             <div class="card-top">
               <h4 class="exercise-item-title" data-id="${ex.id}">${ex.name}</h4>

@@ -22,6 +22,7 @@ import {
   toDateStr, addDays, parseDateStr, resolveWindow,
   computeWindowStats, sumCompletion, computeDelta, computeRiskRows, formatDuration,
 } from '../stats-calc.js'
+import { escapeHtml } from '../../escape.js'
 
 const RANGES = [
   { key: 'week', label: 'Week' },
@@ -117,11 +118,6 @@ let requestSeq = 0
 let flags = []
 let riskRows = []
 let onKeydown = null
-
-function escapeHtml(str) {
-  if (str == null) return ''
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
-}
 
 function formatDay(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })

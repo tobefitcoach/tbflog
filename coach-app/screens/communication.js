@@ -68,6 +68,7 @@ import { sendPush } from '../../push.js'
 import * as nav from '../nav.js'
 import { coachId } from '../session.js'
 import { refreshChatBadge } from '../bell.js'
+import { escapeHtml, safeUrl } from '../../escape.js'
 
 // Two-pane inbox: athlete list on the left, the selected athlete's full
 // chat_messages history + a send box on the right - see
@@ -158,13 +159,6 @@ function bindEvents() {
     }
     window.visualViewport.addEventListener('resize', viewportResizeHandler)
   }
-}
-
-function escapeHtml(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
 }
 
 // Short, chat-app-style relative stamp for a list row: a time today, a
@@ -280,7 +274,7 @@ function renderCommsAthleteList() {
 
   list.innerHTML = sorted.map(a => {
     const initials = a.name.split(' ').map(word => word[0]).join('').toUpperCase()
-    const avatarHtml = a.avatar_url ? `<img src="${a.avatar_url}" class="avatar-img" alt="">` : initials
+    const avatarHtml = safeUrl(a.avatar_url) ? `<img src="${safeUrl(a.avatar_url)}" class="avatar-img" alt="">` : escapeHtml(initials)
     const unread = unreadCountByAthlete[a.id] || 0
     const lastRow = lastMessageByAthlete[a.id]
     return `
@@ -389,7 +383,7 @@ function renderChatMessages(messages) {
   container.innerHTML = messages.map(m => `
     <div class="chat-bubble chat-bubble-${m.sender === 'coach' ? 'mine' : 'theirs'}" ${m.sender === 'coach' ? `data-message-id="${m.id}"` : ''}>
       ${m.message ? `<p>${escapeHtml(m.message)}</p>` : ''}
-      ${m.pdf_url ? `<a href="${m.pdf_url}" target="_blank" rel="noopener" class="chat-pdf-link">📄 View Report</a>` : ''}
+      ${safeUrl(m.pdf_url) ? `<a href="${safeUrl(m.pdf_url)}" target="_blank" rel="noopener" class="chat-pdf-link">📄 View Report</a>` : ''}
       <span class="chat-bubble-time">${new Date(m.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
       ${m.sender === 'coach' ? `
         <div class="chat-bubble-actions" id="chat-actions-${m.id}">

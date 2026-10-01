@@ -18,6 +18,7 @@ import { supabase } from './athleteClient.js'
 import { supabase as coachSupabase } from '../coachClient.js'
 import { pushStatus, enablePush, disablePush, sendPush } from '../push.js'
 import * as nav from './nav.js'
+import { escapeHtml, safeUrl } from '../escape.js'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')
@@ -604,7 +605,7 @@ function renderChatBubbles(messages) {
   container.innerHTML = messages.map(m => `
     <div class="chat-bubble chat-bubble-${m.sender === 'athlete' ? 'mine' : 'theirs'}">
       ${m.message ? `<p>${escapeHtml(m.message)}</p>` : ''}
-      ${m.pdf_url ? `<a href="${m.pdf_url}" target="_blank" rel="noopener" class="chat-pdf-link">📄 View Report</a>` : ''}
+      ${safeUrl(m.pdf_url) ? `<a href="${safeUrl(m.pdf_url)}" target="_blank" rel="noopener" class="chat-pdf-link">📄 View Report</a>` : ''}
       <span class="chat-bubble-time">${new Date(m.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
     </div>
   `).join('')
@@ -933,17 +934,6 @@ async function renderProfile() {
 // tournament_coach_ratings, which athletes can't read; the row's own
 // importance is null) - and the athlete can't edit or delete them.
 // ==========================================================================
-
-// Only used for user-entered free text rendered via innerHTML (a
-// tournament's name) - every other string in this file is either
-// hard-coded or already-known-safe data, so this is deliberately not
-// applied everywhere (same convention as escapeHtmlCal in athlete-calendar.js).
-function escapeHtml(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
-}
 
 // Fires a row into the coach's notification bell (see bell.js) - never
 // awaited by callers, a failed insert shouldn't block or alert on the

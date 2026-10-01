@@ -91,6 +91,7 @@ import { go } from '../router.js'
 import { coachId } from '../session.js'
 import { loadChartJs, loadJsPdf } from '../vendor.js'
 import { ensureCss } from '../lazy-css.js'
+import { escapeHtml, safeUrl } from '../../escape.js'
 
 // Shown for however long the initial athlete-row fetch takes - same
 // "skeleton, not a blank screen" convention as athletes.js/trainings.js.
@@ -2167,8 +2168,8 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
             <span class="calendar-day-dot calendar-day-dot-${it.status}" data-action="toggle-kebab">${it.glyph}</span>
             <div class="kebab-dropdown">
               <button type="button" class="kebab-item" data-action="view-workout" data-program-day-id="${it.dayId}" data-date="${dateStr}">View Workout</button>
-              <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
-              <button type="button" class="kebab-item" data-action="move-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Move to another day</button>
+              <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtml(it.label)}">Copy to another day</button>
+              <button type="button" class="kebab-item" data-action="move-training" data-program-day-id="${it.dayId}" data-name="${escapeHtml(it.label)}">Move to another day</button>
               <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
             </div>
           </div>
@@ -2206,12 +2207,12 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           : `data-mode="day" data-program-day-id="${it.dayId}"`
         return `
           <div class="calendar-day-badge-row">
-            <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}" data-action="view-workout" data-date="${dateStr}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}${it.liveDot || ''}</span>
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" draggable="true" data-day-id="${it.dayId}" data-action="view-workout" data-date="${dateStr}">${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtml(it.label)}${it.liveDot || ''}</span>
             <div class="kebab-menu calendar-badge-kebab">
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
-                <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Copy to another day</button>
-                <button type="button" class="kebab-item" data-action="move-training" data-program-day-id="${it.dayId}" data-name="${escapeHtmlCal(it.label)}">Move to another day</button>
+                <button type="button" class="kebab-item" data-action="copy-training" data-program-day-id="${it.dayId}" data-name="${escapeHtml(it.label)}">Copy to another day</button>
+                <button type="button" class="kebab-item" data-action="move-training" data-program-day-id="${it.dayId}" data-name="${escapeHtml(it.label)}">Move to another day</button>
                 <button type="button" class="kebab-item" data-action="delete-training" ${deleteAttrs}>Delete Workout</button>
               </div>
             </div>
@@ -2221,7 +2222,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
       if (it.mobilitySessionId) {
         return `
           <div class="calendar-day-badge-row">
-            <span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-mobility" data-date="${dateStr}">${escapeHtmlCal(it.label)}</span>
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-mobility" data-date="${dateStr}">${escapeHtml(it.label)}</span>
             <div class="kebab-menu calendar-badge-kebab">
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
@@ -2234,7 +2235,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
       if (it.formAssignmentId) {
         return `
           <div class="calendar-day-badge-row">
-            <span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-form" data-assignment-id="${it.formAssignmentId}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>
+            <span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-form" data-assignment-id="${it.formAssignmentId}">${it.glyph ? it.glyph + ' ' : ''}${escapeHtml(it.label)}</span>
             <div class="kebab-menu calendar-badge-kebab">
               <button type="button" class="kebab-btn" data-action="toggle-kebab">⋮</button>
               <div class="kebab-dropdown">
@@ -2244,7 +2245,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
           </div>
         `
       }
-      return `<span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="${it.importance != null ? `Importance ${it.importance}/5` : 'Tournament'}">${it.importance != null ? `★${it.importance} ` : ''}${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtmlCal(it.label)}</span>`
+      return `<span class="calendar-day-badge calendar-day-badge-${it.status}" data-action="view-tournament" data-date="${dateStr}" title="${it.importance != null ? `Importance ${it.importance}/5` : 'Tournament'}">${it.importance != null ? `★${it.importance} ` : ''}${it.typeDot || ''}${it.glyph ? it.glyph + ' ' : ''}${escapeHtml(it.label)}</span>`
     }).join('')
       + (extraCount > 0 ? `<span class="calendar-day-badge calendar-day-badge-more">+${extraCount} more</span>` : '')
 
@@ -2478,7 +2479,7 @@ function openMobilityDetailModal(dateStr) {
   root.querySelector('#dayDetailTitle').innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg> Mobility / Stretching'
 
   const mobilityFocusText = mobility.mobility_focus_areas && mobility.mobility_focus_areas.length
-    ? mobility.mobility_focus_areas.map(escapeHtmlCal).join(', ')
+    ? mobility.mobility_focus_areas.map(escapeHtml).join(', ')
     : 'Full Body / No preference'
 
   root.querySelector('#dayDetailContent').innerHTML = `
@@ -2494,7 +2495,7 @@ function openTournamentDetailModal(dateStr) {
   if (!tournament) return
 
   currentDayDateForModal = dateStr
-  root.querySelector('#dayDetailTitle').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${escapeHtmlCal(tournament.name)}`
+  root.querySelector('#dayDetailTitle').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${escapeHtml(tournament.name)}`
 
   const tournamentDateRange = tournament.date !== tournament.end_date
     ? `${formatShortDateCal(tournament.date)} – ${formatShortDateCal(tournament.end_date)}`
@@ -2571,8 +2572,8 @@ async function openFormDetailModal(assignmentId) {
       const answerText = a ? (q.type === 'scale_1_5' ? (a.answer_scale != null ? `${a.answer_scale}/5` : '—') : (a.answer_text || '—')) : '—'
       return `
         <div class="form-question-card">
-          <p style="color:#aaaacc; font-size:12px; margin-bottom:4px">${escapeHtmlCal(q.question_text)}</p>
-          <p style="white-space:pre-wrap">${escapeHtmlCal(answerText)}</p>
+          <p style="color:#aaaacc; font-size:12px; margin-bottom:4px">${escapeHtml(q.question_text)}</p>
+          <p style="white-space:pre-wrap">${escapeHtml(answerText)}</p>
         </div>
       `
     }).join('')}
@@ -2665,25 +2666,14 @@ function renderSessionSummaryCal(session) {
   // inbox, so that stays a single source of truth for that write and
   // Calendar is purely context when browsing history
   const flagHtml = session.rpe_flag_reason === 'pain_injury'
-    ? `<p class="pain-flag-note ${session.rpe_flag_reviewed_at ? 'reviewed' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> Reported pain/injury${session.rpe_flag_reviewed_at ? ' (reviewed)' : ''}: ${escapeHtmlCal(session.rpe_flag_note) || '<em>No description given</em>'}</p>`
+    ? `<p class="pain-flag-note ${session.rpe_flag_reviewed_at ? 'reviewed' : ''}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> Reported pain/injury${session.rpe_flag_reviewed_at ? ' (reviewed)' : ''}: ${escapeHtml(session.rpe_flag_note) || '<em>No description given</em>'}</p>`
     : ''
 
   const noteHtml = session.athlete_note
-    ? `<p class="athlete-session-note"><strong>Athlete note:</strong> ${escapeHtmlCal(session.athlete_note)}</p>`
+    ? `<p class="athlete-session-note"><strong>Athlete note:</strong> ${escapeHtml(session.athlete_note)}</p>`
     : ''
 
   return `<p class="workout-preview-target" style="margin-bottom:${flagHtml || noteHtml ? '4px' : '12px'}">${parts.join(' · ')}</p>${flagHtml}${noteHtml}`
-}
-
-// Only used for user-entered free text rendered into a coach-facing
-// template via innerHTML (the pain/injury note above) - every other
-// string here is coach-authored or comes from a fixed set of options, so
-// this is deliberately not applied everywhere
-function escapeHtmlCal(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
 }
 
 // Read-only version of renderScheduledExerciseCard - what the athlete
@@ -4203,13 +4193,13 @@ async function previewFormCal(formId, formName) {
 
   preview.innerHTML = `
     <div class="workout-preview-header">
-      <h3>${escapeHtmlCal(formName)}</h3>
+      <h3>${escapeHtml(formName)}</h3>
       <span class="workout-preview-count">${questions.length} Question${questions.length === 1 ? '' : 's'}</span>
     </div>
     ${form && form.gate_workout ? '<p class="form-gate-notice"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86l-8.18 14.18A2 2 0 0 0 4 21h16a2 2 0 0 0 1.89-2.96L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg> Gates that day\'s workout until completed</p>' : ''}
     ${questions.length === 0
       ? '<p class="no-metrics">No questions in this form</p>'
-      : questions.map(q => `<div class="workout-preview-exercise"><span>${escapeHtmlCal(q.question_text) || '<em>(untitled question)</em>'}</span></div>`).join('')}
+      : questions.map(q => `<div class="workout-preview-exercise"><span>${escapeHtml(q.question_text) || '<em>(untitled question)</em>'}</span></div>`).join('')}
   `
 }
 
@@ -5037,9 +5027,9 @@ function paintAthleteHeader() {
 
   // Fill in profile header
   const initials = data.name.split(' ').map(w => w[0]).join('').toUpperCase()
-  root.querySelector('#profileInitials').innerHTML = data.avatar_url
-    ? `<img src="${data.avatar_url}" class="avatar-img" alt="">`
-    : initials
+  root.querySelector('#profileInitials').innerHTML = safeUrl(data.avatar_url)
+    ? `<img src="${safeUrl(data.avatar_url)}" class="avatar-img" alt="">`
+    : escapeHtml(initials)
   root.querySelector('#profileName').textContent = data.name
   root.querySelector('#profileDetails').textContent =
     `${data.gender} · ${age} years old · ${data.height}cm`
@@ -5400,7 +5390,7 @@ function renderPainReports(sessions, dayInfoById) {
     const name = info ? info.name : 'Workout'
     return `
       <div class="pain-report-row">
-        <div class="pain-report-meta">${formatDisplayDate(dateStr)} — ${name} · RPE ${s.session_rpe}/10</div>
+        <div class="pain-report-meta">${formatDisplayDate(dateStr)} — ${escapeHtml(name)} · RPE ${s.session_rpe}/10</div>
         <p class="pain-report-note">${escapeHtml(s.rpe_flag_note) || '<em>No description given</em>'}</p>
         <button type="button" class="unit-btn pain-report-review-btn" data-session-id="${s.id}">Mark Reviewed</button>
       </div>
@@ -5430,17 +5420,6 @@ function renderPainReports(sessions, dayInfoById) {
       if (list.children.length === 0) section.style.display = 'none'
     })
   })
-}
-
-// Only used for user-entered free text rendered via innerHTML (the
-// pain/injury note above, and the tournament/workout names in the recent
-// activity feed below) - every other string on this tab is either
-// coach-authored or a fixed option, so this isn't applied everywhere
-function escapeHtml(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
 }
 
 function bindOverviewEvents() {
@@ -5591,7 +5570,7 @@ function renderDurationModal() {
     <ul class="detail-list">
       ${durationEvents.map(e => `
         <li class="detail-row">
-          <span>${e.dateStr} — ${e.name}</span>
+          <span>${e.dateStr} — ${escapeHtml(e.name)}</span>
           <span class="detail-row-value">${formatDurationOv(e.minutes)}</span>
         </li>
       `).join('')}

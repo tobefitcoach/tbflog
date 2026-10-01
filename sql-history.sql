@@ -2402,3 +2402,69 @@ drop trigger if exists athletes_guard_self_update on athletes;
 create trigger athletes_guard_self_update
   before update on athletes
   for each row execute function public.athletes_guard_self_update();
+
+
+-- ==========================================================================
+-- Security: chat - athletes can only send as themselves and only mark
+-- the coach's messages read.
+--
+-- "athlete manages own chat" (above) was `for all`, checked on athlete_id
+-- only, so an athlete calling the API directly could insert a message with
+-- sender = 'coach' (or attach a pdf_url link), point it at any coach_id,
+-- and edit or delete the coach's messages. Replaced with exactly what the
+-- athlete app does:
+--   select - their own conversation
+--   insert - sender 'athlete', to their own coach, text only (no pdf_url;
+--            only coaches share reports)
+--   update - the coach's messages, read_at only (the trigger below, same
+--            allowlist idea as athletes_guard_self_update)
+--   no delete
+--
+-- "coach manages own chats" only checked coach_id = the caller, so a coach
+-- could insert into another coach's athlete's chat. Now the athlete must
+-- also be theirs.
+-- ==========================================================================
+drop policy if exists "coach manages own chats" on chat_messages;
+create policy "coach manages own chats" on chat_messages for all
+  using (coach_id = (select auth.uid()))
+  with check (coach_id = (select auth.uid()) and public.is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "athlete manages own chat" on chat_messages;
+
+drop policy if exists "athlete reads own chat" on chat_messages;
+create policy "athlete reads own chat" on chat_messages for select
+  using (public.is_own_athlete_as_athlete(athlete_id));
+
+drop policy if exists "athlete sends to own coach" on chat_messages;
+create policy "athlete sends to own coach" on chat_messages for insert
+  with check (
+    sender = 'athlete'
+    and pdf_url is null
+    and exists (select 1 from athletes a
+                where a.id = chat_messages.athlete_id
+                  and a.user_id = (select auth.uid())
+                  and a.coach_id = chat_messages.coach_id)
+  );
+
+drop policy if exists "athlete marks coach messages read" on chat_messages;
+create policy "athlete marks coach messages read" on chat_messages for update
+  using (sender = 'coach' and public.is_own_athlete_as_athlete(athlete_id))
+  with check (sender = 'coach' and public.is_own_athlete_as_athlete(athlete_id));
+
+create or replace function public.chat_messages_guard_athlete_update()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if (select auth.uid()) is not null
+     and old.coach_id is distinct from (select auth.uid())
+     and (to_jsonb(new) - 'read_at') is distinct from (to_jsonb(old) - 'read_at') then
+    raise exception 'Athletes can only mark messages as read'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists chat_messages_guard_athlete_update on chat_messages;
+create trigger chat_messages_guard_athlete_update
+  before update on chat_messages
+  for each row execute function public.chat_messages_guard_athlete_update();

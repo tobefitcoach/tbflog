@@ -41,6 +41,7 @@ import { sendPush } from '../../push.js'
 import * as nav from '../nav.js'
 import { go } from '../router.js'
 import { coachId } from '../session.js'
+import { escapeHtml, safeUrl } from '../../escape.js'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -734,7 +735,7 @@ function renderMessageRecipientList() {
     : eligible.map(a => `
         <label class="message-recipient-row">
           <input type="checkbox" class="message-recipient-checkbox" value="${a.id}">
-          <span>${a.name}</span>
+          <span>${escapeHtml(a.name)}</span>
         </label>
       `).join('')
 }
@@ -789,16 +790,9 @@ async function onSendMessageAthletes() {
 // ==========================================================================
 const STATUS_LABELS = { active: 'Active', pending: 'Pending', offline: 'Offline', archived: 'Archived' }
 
-function escapeHtmlIdx(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
-}
-
 function createAthleteCard(athlete, flaggedCount) {
   const initials = athlete.name.split(' ').map(word => word[0]).join('').toUpperCase()
-  const avatarHtml = athlete.avatar_url ? `<img src="${athlete.avatar_url}" class="avatar-img" alt="">` : initials
+  const avatarHtml = safeUrl(athlete.avatar_url) ? `<img src="${safeUrl(athlete.avatar_url)}" class="avatar-img" alt="">` : escapeHtml(initials)
   const status = athleteStatus(athlete)
   const stats = athleteStatsById[athlete.id] || {}
   const todayStr = toDateStrIdx(new Date())
@@ -819,7 +813,7 @@ function createAthleteCard(athlete, flaggedCount) {
   const completionText = stats.completionRate30 == null ? '—' : `${stats.completionRate30}%`
 
   const athleteLabelIds = labelLinksByAthlete[athlete.id] || new Set()
-  const labelTagsHtml = allLabels.filter(l => athleteLabelIds.has(l.id)).map(l => `<span class="label-tag">${escapeHtmlIdx(l.name)}</span>`).join('')
+  const labelTagsHtml = allLabels.filter(l => athleteLabelIds.has(l.id)).map(l => `<span class="label-tag">${escapeHtml(l.name)}</span>`).join('')
 
   const card = document.createElement('div')
   card.classList.add('athlete-card')
@@ -845,7 +839,7 @@ function createAthleteCard(athlete, flaggedCount) {
         </div>
       </div>
     </div>
-    <h3>${athlete.name}</h3>
+    <h3>${escapeHtml(athlete.name)}</h3>
     <div class="athlete-card-stats">
       <div class="athlete-card-stat-row">
         <div class="athlete-card-stat-top">
@@ -1076,7 +1070,7 @@ function renderLabelFilterList() {
       <div class="label-filter-row">
         <label>
           <input type="checkbox" data-label-id="${label.id}" ${checked}>
-          <span>${escapeHtmlIdx(label.name)} (${count})</span>
+          <span>${escapeHtml(label.name)} (${count})</span>
         </label>
         <button type="button" class="label-row-delete" data-label-id="${label.id}" title="Delete label">✕</button>
       </div>
@@ -1145,7 +1139,7 @@ function renderManageLabelsList() {
   list.innerHTML = allLabels.map(label => `
     <label class="message-recipient-row">
       <input type="checkbox" data-label-id="${label.id}" ${athleteLabelIds.has(label.id) ? 'checked' : ''}>
-      <span>${escapeHtmlIdx(label.name)}</span>
+      <span>${escapeHtml(label.name)}</span>
     </label>
   `).join('')
 

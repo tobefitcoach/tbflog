@@ -23,6 +23,7 @@ import { supabase } from '../../coachClient.js'
 import * as nav from '../nav.js'
 import { go } from '../router.js'
 import { ensureCss } from '../lazy-css.js'
+import { escapeHtml } from '../../escape.js'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -188,7 +189,7 @@ function renderQuestionCard(q, i) {
     <div class="form-question-card" data-id="${q.id}">
       <div class="form-question-card-header">
         <span class="form-question-number">${i + 1}</span>
-        <input type="text" class="form-question-text" placeholder="Question text..." value="${escapeHtmlForm(q.question_text)}" />
+        <input type="text" class="form-question-text" placeholder="Question text..." value="${escapeHtml(q.question_text)}" />
         <button type="button" class="btn-delete-measurement form-question-delete" data-id="${q.id}" title="Delete question"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
       </div>
       <select class="form-question-type">
@@ -198,13 +199,6 @@ function renderQuestionCard(q, i) {
       </select>
     </div>
   `
-}
-
-function escapeHtmlForm(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
 }
 
 function scheduleAutosave(questionId) {

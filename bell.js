@@ -14,6 +14,7 @@
 // first WebSocket subscription.
 // ==========================================================================
 import { supabase } from './coachClient.js'
+import { escapeHtml } from './escape.js'
 
 const { data: { session } } = await supabase.auth.getSession()
 if (session) initBell()
@@ -105,16 +106,6 @@ async function openPanel() {
     const badge = document.getElementById('notificationBellBadge')
     if (badge) badge.style.display = 'none'
   }
-}
-
-// Only used for the athlete-entered-derived free text in a notification's
-// message, rendered via innerHTML - same convention as escapeHtmlCal in
-// athlete-calendar.js
-function escapeHtml(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
 }
 
 function formatRelativeTime(isoStr) {
