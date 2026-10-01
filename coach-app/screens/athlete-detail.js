@@ -7930,6 +7930,10 @@ async function openReportBuilderModal() {
 // lifetime of one modal-open - both the eligibility checklist AND the final
 // PDF read from this same cache, filtered to whichever date range the coach
 // picks, so there's exactly one round-trip to Supabase per report attempt.
+// Rows asked for per request when paging the report's logged sets - at
+// Supabase's default response cap
+const REPORT_PAGE_SIZE = 1000
+
 async function fetchReportData() {
   const [
     { data: programs, error: programsError },
@@ -7982,23 +7986,37 @@ async function fetchReportData() {
     }
   }
 
-  const peIds = Object.keys(peInfoById)
+  // Fetched by athlete, not by listing every program_exercise id - that id
+  // list went into the URL and overflowed it for athletes with a long
+  // history. Paged, because Supabase caps a response at 1,000 rows and this
+  // is oldest-first, so a long history used to silently lose its newest
+  // sets. The filter keeps the same set as before: sets on exercises the
+  // report knows about.
   let logSets = []
-  if (peIds.length > 0) {
-    const { data, error } = await window.fetchWithRetry((signal) => supabase
-      .from('exercise_log_sets')
-      .select('*')
-      .in('program_exercise_id', peIds)
-      .not('completed_at', 'is', null)
-      .order('date', { ascending: true })
-      .abortSignal(signal)
-    )
-    if (error) {
-      console.log('Error loading report log sets:', error)
-      customAlert('Something went wrong loading report data - check your connection and try again')
-      return null
+  if (Object.keys(peInfoById).length > 0) {
+    let from = 0
+    while (true) {
+      const { data, error } = await window.fetchWithRetry((signal) => supabase
+        .from('exercise_log_sets')
+        .select('*')
+        .eq('athlete_id', athleteId)
+        .not('completed_at', 'is', null)
+        .order('date', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + REPORT_PAGE_SIZE - 1)
+        .abortSignal(signal)
+      )
+      if (error) {
+        console.log('Error loading report log sets:', error)
+        customAlert('Something went wrong loading report data - check your connection and try again')
+        return null
+      }
+      if (!data || data.length === 0) break
+      logSets.push(...data.filter(s => peInfoById[s.program_exercise_id]))
+      // Step by what actually came back, in case the server's row cap is
+      // ever lower than the page size asked for
+      from += data.length
     }
-    logSets = data || []
   }
 
   // Eligibility - a section is only offered if the athlete actually has
