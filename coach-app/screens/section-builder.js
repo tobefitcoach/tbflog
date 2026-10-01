@@ -279,13 +279,20 @@ export async function mount(container, params, token) {
   await Promise.all([loadSection(token), loadExercisesList(token), loadAllExercises(token)])
 }
 
+// The router awaits this before leaving the screen (any way: Back, back
+// gesture, sidebar), so edits typed in the last 800ms are sent rather
+// than dropped. Only cards with a pending debounce are written.
+export async function beforeLeave() {
+  await Promise.all(Object.keys(autosaveTimers).map(id => flushCardSave(id)))
+}
+
 export function unmount() {
   if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
   onDocClickKebab = null
 
-  // Every armed autosave debounce must die here - left running, one that
-  // fired after the coach navigated away would write against a card whose
-  // DOM no longer exists.
+  // beforeLeave has already sent anything pending; clearing here only
+  // matters if it timed out - a debounce firing after the coach left would
+  // write against a card whose DOM no longer exists.
   Object.values(autosaveTimers).forEach(clearTimeout)
   autosaveTimers = {}
 

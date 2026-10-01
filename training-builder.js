@@ -926,6 +926,13 @@ async function flushCardSave(teId) {
   return saveExerciseCard(teId, orderIndex)
 }
 
+// Sends only the edits still waiting on their 800ms debounce. The coach
+// app (this page's iframe host) calls it and waits before closing or
+// leaving the builder - otherwise blanking the iframe dropped them.
+window.flushPendingSaves = function() {
+  return Promise.all(Object.keys(autosaveTimers).map(id => flushCardSave(id)))
+}
+
 // Flushes every card at once - used right before an action rebuilds the
 // WHOLE list from exercisesCache (Adjust Exercise, inserting a section),
 // so nothing mid-edit on any other card gets lost in that rebuild.

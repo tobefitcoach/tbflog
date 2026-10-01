@@ -26,7 +26,7 @@
 // ==========================================================================
 import * as nav from './nav.js'
 
-const SCREENS_V = 15
+const SCREENS_V = 16
 
 // name -> () => Promise<{ mount(container, params, token), unmount?() }>
 export const ROUTES = {
@@ -112,6 +112,10 @@ const SCREEN_TITLES = {
 let pageContent = null
 let pageTitle = null
 let currentModule = null
+// Bumped by every renderScreen call - a navigation that waited on
+// beforeLeave() checks it afterwards, so only the latest tap proceeds
+let navSeq = 0
+const LEAVE_TIMEOUT_MS = 3000
 let currentRoute = null
 
 export function currentRouteName() {
@@ -128,6 +132,21 @@ export function currentRouteName() {
 async function renderScreen(name, params = {}) {
   const loader = ROUTES[name]
   if (!loader) { console.warn('[router] unknown route:', name); return }
+
+  // A screen with unsaved work (the builders' 800ms autosave debounce) can
+  // export beforeLeave() to finish it first. Capped so a dead connection
+  // can't trap the coach on the screen. If another navigation started
+  // while this one waited, that one owns the switch - stop here.
+  const mySeq = ++navSeq
+  const leaving = currentModule
+  if (leaving?.beforeLeave) {
+    try {
+      await Promise.race([leaving.beforeLeave(), new Promise(resolve => setTimeout(resolve, LEAVE_TIMEOUT_MS))])
+    } catch (err) {
+      console.warn('[router] beforeLeave failed:', err)
+    }
+    if (mySeq !== navSeq) return
+  }
 
   // Tear the old screen down BEFORE awaiting the next one's module, so a
   // slow import can't leave two screens' timers running at once.

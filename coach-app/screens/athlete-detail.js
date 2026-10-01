@@ -91,6 +91,7 @@ import { go } from '../router.js'
 import { coachId } from '../session.js'
 import { loadChartJs, loadJsPdf } from '../vendor.js'
 import { ensureCss } from '../lazy-css.js'
+import { flushBuilderFrame } from '../builder-frame.js'
 import { escapeHtml, safeUrl } from '../../escape.js'
 
 // Shown for however long the initial athlete-row fetch takes - same
@@ -1593,6 +1594,12 @@ export async function mount(container, params, token) {
     if (e.key === 'Escape' && copyArmedMode) disarmCopy()
   }
   document.addEventListener('keydown', onDocKeydownCal)
+}
+
+// Leaving with the Workout Builder overlay still open: let it send any
+// edit still waiting on its autosave before the router tears this down.
+export async function beforeLeave() {
+  await flushBuilderFrame(root?.querySelector('#trainingBuilderFrame'))
 }
 
 export function unmount() {
@@ -4842,8 +4849,11 @@ function bindCalendarStaticEvents() {
   // there's no popup to return to. See trainingBuilderOverlayMode's own
   // declaration further up for the state var itself.
   root.querySelector('#doneTrainingBuilderBtn').addEventListener('click', async function() {
+    const frame = root.querySelector('#trainingBuilderFrame')
     root.querySelector('#trainingBuilderOverlayModal').classList.remove('active')
-    root.querySelector('#trainingBuilderFrame').src = 'about:blank'
+    // Save the last edit first, so the refresh below shows it
+    await flushBuilderFrame(frame)
+    frame.src = 'about:blank'
     if (trainingBuilderOverlayMode === 'edit-day') {
       await loadCalendarMonth(currentViewYear, currentViewMonth)
     } else {

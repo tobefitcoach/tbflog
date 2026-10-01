@@ -84,10 +84,16 @@ export async function mount(container, params, token) {
   await loadForm(token)
 }
 
+// The router awaits this before leaving the screen, so a question edited
+// in the last 800ms is sent rather than dropped.
+export async function beforeLeave() {
+  await Promise.all(Object.keys(autosaveTimers).map(id => flushQuestionSave(id)))
+}
+
 export function unmount() {
-  // Every armed autosave debounce must die here - left running, one that
-  // fired after the coach navigated away would write against a question
-  // whose card no longer exists on screen.
+  // beforeLeave has already sent anything pending; clearing here only
+  // matters if it timed out - a debounce firing after the coach left would
+  // write against a question whose card no longer exists on screen.
   Object.values(autosaveTimers).forEach(clearTimeout)
   autosaveTimers = {}
   root = null

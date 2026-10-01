@@ -30,6 +30,7 @@ import { supabase } from '../../coachClient.js'
 import * as nav from '../nav.js'
 import { go } from '../router.js'
 import { ensureCss } from '../lazy-css.js'
+import { flushBuilderFrame } from '../builder-frame.js'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -163,6 +164,12 @@ export async function mount(container, params, token) {
   await Promise.all([loadProgram(token), loadWeeks(token)])
 }
 
+// Leaving with the Workout Builder overlay still open: let it send any
+// edit still waiting on its autosave before the router tears this down.
+export async function beforeLeave() {
+  await flushBuilderFrame(root?.querySelector('#trainingBuilderFrame'))
+}
+
 export function unmount() {
   if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
   if (onDocKeydown) document.removeEventListener('keydown', onDocKeydown)
@@ -257,8 +264,11 @@ function bindEvents() {
   })
 
   root.querySelector('#doneTrainingBuilderBtn').addEventListener('click', async function() {
+    const frame = root.querySelector('#trainingBuilderFrame')
     root.querySelector('#trainingBuilderOverlayModal').classList.remove('active')
-    root.querySelector('#trainingBuilderFrame').src = 'about:blank'
+    // Save the last edit first, so loadWeeks below shows it
+    await flushBuilderFrame(frame)
+    frame.src = 'about:blank'
     await loadWeeks()
   })
 

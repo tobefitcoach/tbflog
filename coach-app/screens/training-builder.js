@@ -18,6 +18,7 @@
 // ==========================================================================
 import * as nav from '../nav.js'
 import { ensureCss } from '../lazy-css.js'
+import { flushBuilderFrame } from '../builder-frame.js'
 
 const TEMPLATE = `
   <div class="tb-route" id="trainingBuilderRoute">
@@ -57,6 +58,13 @@ export async function mount(container, params, token) {
   window.addEventListener('resize', sizeToViewport)
 
   root.querySelector('#trainingBuilderRouteFrame').src = `../training-builder.html?id=${params.id}&embed=1`
+}
+
+// The router awaits this before leaving (Back button, back gesture,
+// sidebar), so an edit typed in the last 800ms is saved before unmount
+// blanks the iframe.
+export async function beforeLeave() {
+  await flushBuilderFrame(root?.querySelector('#trainingBuilderRouteFrame'))
 }
 
 export function unmount() {
