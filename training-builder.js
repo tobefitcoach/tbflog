@@ -16,6 +16,8 @@
 // between the two modes; everything else in this file reads through them.
 // ==========================================================================
 import { supabase } from './coachClient.js?v=__V__'
+import { getYouTubeThumbnail, getYouTubeEmbedUrl } from './shared/video.js?v=__V__'
+import { applyFieldOverrides } from './shared/exercise-fields.js?v=__V__'
 
 const params = new URLSearchParams(window.location.search)
 const trainingId = params.get('id')
@@ -173,21 +175,6 @@ document.getElementById('exerciseCategoryChips').addEventListener('click', funct
   btn.classList.toggle('selected')
   renderLibraryPanel()
 })
-
-// YouTube's thumbnail images are available at a predictable URL from just
-// the video id, no API key needed - other hosts (Vimeo etc.) would need a
-// real API call, so those just fall back to a placeholder icon
-function getYouTubeThumbnail(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
-}
-
-function getYouTubeEmbedUrl(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null
-}
 
 // Tapping a card's thumbnail swaps it for a playing embed right in place,
 // same as the athlete's own exercise card
@@ -709,20 +696,6 @@ function removeSetTargetRow(row) {
 // ==========================================================================
 // ---- LOAD + RENDER EXERCISE LIST ----
 // ==========================================================================
-// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
-// straight from the exercise's own row (te.exercises) - an explicit
-// *_override on THIS training_exercises row (set via a card's "Adjust
-// Fields" menu, scoped to just this one workout) takes precedence instead.
-// Merging the override into te.exercises here, once per fetch, means every
-// existing read of te.exercises.* downstream (set-target rows, badges,
-// etc.) sees the right effective value with no other changes needed.
-function applyFieldOverrides(te) {
-  if (!te.exercises) return
-  if (te.tracks_weight_override != null) te.exercises.tracks_weight = te.tracks_weight_override
-  if (te.is_timed_override != null) te.exercises.is_timed = te.is_timed_override
-  if (te.is_unilateral_override != null) te.exercises.is_unilateral = te.is_unilateral_override
-  if (te.tracks_distance_override != null) te.exercises.tracks_distance = te.tracks_distance_override
-}
 
 async function loadExercisesList() {
   const { data, error } = await fetchWithRetry((signal) => supabase

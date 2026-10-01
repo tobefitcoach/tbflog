@@ -93,6 +93,9 @@ import { loadChartJs, loadJsPdf } from '../vendor.js?v=__V__'
 import { ensureCss } from '../lazy-css.js?v=__V__'
 import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
+import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
+import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
+import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
 
 // Shown for however long the initial athlete-row fetch takes - same
 // "skeleton, not a blank screen" convention as athletes.js/trainings.js.
@@ -1772,16 +1775,6 @@ function activateCalendarTab() {
 // YYYY-MM-DD strings by hand rather than via .toISOString(), which
 // re-introduces an off-by-one bug for local dates.
 // ==========================================================================
-function toDateStr(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function parseDateStr(dateStr) {
-  return new Date(dateStr + 'T00:00:00')
-}
 
 function formatDisplayDateCal(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
@@ -1789,21 +1782,6 @@ function formatDisplayDateCal(dateStr) {
 
 function formatShortDateCal(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
-// straight from the exercise's own row (row.exercises) - an explicit
-// *_override on THIS training_exercises/program_exercises row (set via
-// Workout Builder's "Adjust Fields") takes precedence instead, scoped to
-// just that one workout. Merging the override into row.exercises here,
-// once per fetch, means every existing read of row.exercises.* downstream
-// sees the right effective value with no other changes needed.
-function applyFieldOverridesCal(row) {
-  if (!row.exercises) return
-  if (row.tracks_weight_override != null) row.exercises.tracks_weight = row.tracks_weight_override
-  if (row.is_timed_override != null) row.exercises.is_timed = row.is_timed_override
-  if (row.is_unilateral_override != null) row.exercises.is_unilateral = row.is_unilateral_override
-  if (row.tracks_distance_override != null) row.exercises.tracks_distance = row.tracks_distance_override
 }
 
 // All the calendar-day dates a tournament covers, inclusive of both ends -
@@ -1983,7 +1961,7 @@ async function loadCalendarMonth(year, month) {
   for (const program of data) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
-        day.program_exercises.forEach(applyFieldOverridesCal)
+        day.program_exercises.forEach(applyFieldOverrides)
         const dateStr = day.date_override || resolveDate(program.start_date, week.week_number, day.day_number)
         if (!calendarEntriesByDate[dateStr]) calendarEntriesByDate[dateStr] = []
         calendarEntriesByDate[dateStr].push({ program, week, day })
@@ -2597,7 +2575,7 @@ function renderSessionSummaryCal(session) {
 function renderLoggedExerciseCardCal(pe) {
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
-  const thumb = getYouTubeThumbnailCal(videoUrl)
+  const thumb = getYouTubeThumbnail(videoUrl)
   const sets = (logSetsByPECal[pe.id] || []).filter(s => s.completed_at).sort((a, b) => a.set_number - b.set_number)
 
   const rowsHtml = sets.length === 0
@@ -2814,7 +2792,7 @@ async function previewTraining(trainingId, trainingName) {
       .order('order_index')
     if (error) { console.log(error); preview.innerHTML = '<p class="no-metrics">Something went wrong loading this preview</p>'; return }
     exercises = data
-    exercises.forEach(applyFieldOverridesCal)
+    exercises.forEach(applyFieldOverrides)
     cachedTrainingExercises[trainingId] = exercises
   }
 
@@ -2834,7 +2812,7 @@ async function previewTraining(trainingId, trainingName) {
 }
 
 function renderWorkoutPreviewExercise(te) {
-  const thumb = getYouTubeThumbnailCal((te.exercises && te.exercises.video_url) || '')
+  const thumb = getYouTubeThumbnail((te.exercises && te.exercises.video_url) || '')
   const target = targetLineForTraining(te)
 
   return `
@@ -2901,12 +2879,6 @@ function targetLineForTraining(te) {
     for (const [k, v] of Object.entries(te.extra_fields)) parts.push(`${k}: ${v}`)
   }
   return parts.join(' × ')
-}
-
-function getYouTubeThumbnailCal(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
 }
 
 // ---- TOURNAMENT TAB ------------------------------------------------------
@@ -3870,17 +3842,11 @@ async function previewFormCal(formId, formName) {
 // ---- INLINE VIDEO (exercise thumbnails in the day popup) ----
 // ==========================================================================
 
-function getYouTubeEmbedUrlCal(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null
-}
-
 // Tapping a card's thumbnail swaps it for a playing embed right in place,
 // same as the athlete's own exercise card
 function playInlineVideoCal(containerEl, url) {
   if (!url) return
-  const embedUrl = getYouTubeEmbedUrlCal(url)
+  const embedUrl = getYouTubeEmbedUrl(url)
   if (!embedUrl) { window.open(url, '_blank'); return }
   containerEl.innerHTML = `<iframe src="${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`
 }
@@ -4416,43 +4382,18 @@ function paintAthleteHeader() {
 // athlete-calendar.js/dashboard.js use, duplicated here since this screen
 // (like every other one) has no shared scope with those.
 // ==========================================================================
-function toDateStrOv(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function parseDateStrOv(dateStr) {
-  return new Date(dateStr + 'T00:00:00')
-}
 
 function resolveDateOv(startDateStr, weekNumber, dayNumber) {
-  const start = parseDateStrOv(startDateStr)
+  const start = parseDateStr(startDateStr)
   const result = new Date(start)
   result.setDate(result.getDate() + (weekNumber - 1) * 7 + (dayNumber - 1))
-  return toDateStrOv(result)
-}
-
-function addDaysOv(date, n) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
+  return toDateStr(result)
 }
 
 function daysBetweenDateStrsOv(a, b) {
   const [ay, am, ad] = a.split('-').map(Number)
   const [by, bm, bd] = b.split('-').map(Number)
   return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000)
-}
-
-function startOfWeekOv(date) {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  const day = d.getDay() // 0=Sun..6=Sat
-  const diff = day === 0 ? -6 : 1 - day // shift back to Monday
-  d.setDate(d.getDate() + diff)
-  return d
 }
 
 // Weight x reps for one logged set - 0 if incomplete, unweighted, or the
@@ -4488,8 +4429,8 @@ async function loadOverviewStatsGuarded() {
 }
 
 async function loadOverviewStats() {
-  const ninetyDaysAgo = toDateStrOv(addDaysOv(new Date(), -89))
-  const ninetyDaysAgoISO = addDaysOv(new Date(), -89).toISOString()
+  const ninetyDaysAgo = toDateStr(addDays(new Date(), -89))
+  const ninetyDaysAgoISO = addDays(new Date(), -89).toISOString()
   const token = mountToken
 
   // These 3 queries don't depend on each other's results, so they fire
@@ -4580,8 +4521,8 @@ async function loadOverviewStats() {
   // an unfinished/not-yet-started workout scheduled for today shouldn't
   // drag the rate down as if it had been missed.
   function completionRate(windowDays) {
-    const cutoff = toDateStrOv(addDaysOv(new Date(), -(windowDays - 1)))
-    const todayStr = toDateStrOv(new Date())
+    const cutoff = toDateStr(addDays(new Date(), -(windowDays - 1)))
+    const todayStr = toDateStr(new Date())
     let scheduled = 0
     let completed = 0
 
@@ -4617,7 +4558,7 @@ async function loadOverviewStats() {
   root.querySelector('#statCompletion90').textContent = rate90 === null ? '—' : `${rate90}%`
 
   // ---- Volume (weights exercises only - see weightsPEIds above) ----
-  const sevenDaysAgo = toDateStrOv(addDaysOv(new Date(), -6))
+  const sevenDaysAgo = toDateStr(addDays(new Date(), -6))
   const volume7d = logSets
     .filter(s => s.date >= sevenDaysAgo && weightsPEIds.has(s.program_exercise_id))
     .reduce((sum, s) => sum + setVolumeOv(s), 0)
@@ -4628,17 +4569,17 @@ async function loadOverviewStats() {
   const weeklyVolume = {} // 'YYYY-MM-DD' (week start) -> kg
   for (const s of logSets) {
     if (!weightsPEIds.has(s.program_exercise_id)) continue
-    const weekStart = toDateStrOv(startOfWeekOv(parseDateStrOv(s.date)))
+    const weekStart = toDateStr(startOfWeek(parseDateStr(s.date)))
     weeklyVolume[weekStart] = (weeklyVolume[weekStart] || 0) + setVolumeOv(s)
   }
 
   const labels = []
   const values = []
-  const currentWeekStart = startOfWeekOv(new Date())
+  const currentWeekStart = startOfWeek(new Date())
   for (let i = 11; i >= 0; i--) {
-    const weekStart = addDaysOv(currentWeekStart, -7 * i)
+    const weekStart = addDays(currentWeekStart, -7 * i)
     labels.push(weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
-    values.push(Math.round(weeklyVolume[toDateStrOv(weekStart)] || 0))
+    values.push(Math.round(weeklyVolume[toDateStr(weekStart)] || 0))
   }
   volumeChartData = { labels, values }
 
@@ -4650,7 +4591,7 @@ async function loadOverviewStats() {
     return { dateStr: info ? info.dateStr : s.local_date, name: info ? info.name : 'Workout', minutes }
   })
 
-  const thirtyDaysAgo = toDateStrOv(addDaysOv(new Date(), -29))
+  const thirtyDaysAgo = toDateStr(addDays(new Date(), -29))
   const recentDurations = durationEvents.filter(e => e.dateStr >= thirtyDaysAgo).map(e => e.minutes)
   const avgMinutes = recentDurations.length
     ? Math.round(recentDurations.reduce((sum, m) => sum + m, 0) / recentDurations.length)
@@ -4670,8 +4611,8 @@ async function loadOverviewStats() {
   }
 
   function loadSum(days) {
-    const cutoff = toDateStrOv(addDaysOv(new Date(), -(days - 1)))
-    const todayStr = toDateStrOv(new Date())
+    const cutoff = toDateStr(addDays(new Date(), -(days - 1)))
+    const todayStr = toDateStr(new Date())
     return Object.entries(dailyLoad)
       .filter(([d]) => d >= cutoff && d <= todayStr)
       .reduce((sum, [, v]) => sum + v, 0)
@@ -4683,7 +4624,7 @@ async function loadOverviewStats() {
   // understating the baseline and inflating the ratio. Held back as "—"
   // until enough history exists, rather than showing a falsely high number.
   const loadDates = Object.keys(dailyLoad).sort()
-  daysOfLoadHistoryValue = loadDates.length ? daysBetweenDateStrsOv(loadDates[0], toDateStrOv(new Date())) + 1 : 0
+  daysOfLoadHistoryValue = loadDates.length ? daysBetweenDateStrsOv(loadDates[0], toDateStr(new Date())) + 1 : 0
   const hasEnoughHistoryForAcwr = daysOfLoadHistoryValue >= 28
 
   acuteLoadValue = loadSum(7)
@@ -4695,7 +4636,7 @@ async function loadOverviewStats() {
   // the whole week, and a rest day lowering it is the entire point
   last7DailyLoad = []
   for (let i = 6; i >= 0; i--) {
-    const dateStr = toDateStrOv(addDaysOv(new Date(), -i))
+    const dateStr = toDateStr(addDays(new Date(), -i))
     last7DailyLoad.push({ dateStr, load: dailyLoad[dateStr] || 0 })
   }
   const mean7 = last7DailyLoad.reduce((sum, d) => sum + d.load, 0) / 7
@@ -5317,7 +5258,7 @@ async function renderMetrics() {
   const metricIds = athleteMetrics.map(am => am.metrics.id)
   const threeMonthsAgo = new Date()
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-  const fromDate = threeMonthsAgo.toISOString().split('T')[0]
+  const fromDate = toDateStr(threeMonthsAgo)
 
   const { data: recentMeasurements } = await window.fetchWithRetry((signal) => supabase
     .from('measurements')
@@ -5408,8 +5349,8 @@ async function renderMetrics() {
 
           if (allZone2.length >= 2) {
             const now = new Date()
-            const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            const sixtyDaysAgo = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            const thirtyDaysAgo = toDateStr(new Date(now - 30 * 24 * 60 * 60 * 1000))
+            const sixtyDaysAgo = toDateStr(new Date(now - 60 * 24 * 60 * 60 * 1000))
 
             const last30 = allZone2.filter(m => m.date >= thirtyDaysAgo)
             const prev30 = allZone2.filter(m => m.date >= sixtyDaysAgo && m.date < thirtyDaysAgo)
@@ -5878,7 +5819,7 @@ async function loadStatsBar() {
   // counts as a PR - except the very first entry ever logged for a metric,
   // since it has no earlier value to compare against and can't be a "record".
   const now = new Date()
-  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const thirtyDaysAgo = toDateStr(new Date(now - 30 * 24 * 60 * 60 * 1000))
 
   let prCount = 0
   prEvents = [] // reset the module-level list the PR overview modal reads from
@@ -6189,7 +6130,7 @@ function averageOf(nums) {
 // overlay series (aggregated separately, via the same function) land on
 // exactly the same bucket dates and merge cleanly onto one x-axis.
 function chartBucketKey(dateStr, granularity) {
-  const d = parseDateStrOv(dateStr)
+  const d = parseDateStr(dateStr)
   if (granularity === 'monthly') {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
   }
@@ -6197,7 +6138,7 @@ function chartBucketKey(dateStr, granularity) {
   const weekLength = granularity === 'biweekly' ? 14 : 7
   const epochMonday = new Date('2024-01-01T00:00:00') // an arbitrary real Monday, just a fixed grid reference
   const bucketIndex = Math.floor(Math.round((d - epochMonday) / dayMs) / weekLength)
-  return toDateStrOv(new Date(epochMonday.getTime() + bucketIndex * weekLength * dayMs))
+  return toDateStr(new Date(epochMonday.getTime() + bucketIndex * weekLength * dayMs))
 }
 
 // Averages every listed field across entries sharing a bucket, returning one
@@ -6254,7 +6195,7 @@ async function loadGraphData(months) {
   if (months > 0) {
     const fromDate = new Date()
     fromDate.setMonth(fromDate.getMonth() - months)
-    query = query.gte('date', fromDate.toISOString().split('T')[0])
+    query = query.gte('date', toDateStr(fromDate))
   }
 
   const { data } = await query
@@ -6295,8 +6236,8 @@ async function loadGraphData(months) {
       .select('*')
       .eq('athlete_id', athleteId)
       .eq('metric_id', currentGraphMetric.id)
-      .gte('date', previousStart.toISOString().split('T')[0])
-      .lt('date', currentStart.toISOString().split('T')[0])
+      .gte('date', toDateStr(previousStart))
+      .lt('date', toDateStr(currentStart))
 
     if (!nav.isCurrent(token)) return
     previousPeriodData = prevData
@@ -6430,7 +6371,7 @@ async function renderGraphWithBodyweightOverlay(data, months, granularity) {
   if (months > 0) {
     const fromDate = new Date()
     fromDate.setMonth(fromDate.getMonth() - months)
-    fromDateStr = fromDate.toISOString().split('T')[0]
+    fromDateStr = toDateStr(fromDate)
     bwQuery = bwQuery.gte('date', fromDateStr)
   }
 
@@ -7403,8 +7344,8 @@ function buildReportRange(months) {
   const prevFrom = new Date(prevTo)
   prevFrom.setMonth(prevFrom.getMonth() - months)
   return {
-    from: toDateStrOv(from), to: toDateStrOv(to),
-    prevFrom: toDateStrOv(prevFrom), prevTo: toDateStrOv(prevTo)
+    from: toDateStr(from), to: toDateStr(to),
+    prevFrom: toDateStr(prevFrom), prevTo: toDateStr(prevTo)
   }
 }
 
@@ -7417,7 +7358,7 @@ function buildReportRange(months) {
 // report window does, see buildReportRange) doesn't count an unfinished
 // same-day workout as missed
 function completionRateForRange(workoutEntries, logSetsByPE, from, to) {
-  const todayStr = toDateStrOv(new Date())
+  const todayStr = toDateStr(new Date())
   let scheduled = 0
   let completed = 0
   for (const entry of workoutEntries) {
@@ -7472,8 +7413,8 @@ function computeWorkoutOverviewSection(cache, range) {
 // badge uses (renderMetrics()), so the report's % always matches the app's
 function zone2ChangePct(allForMetric) {
   const now = new Date()
-  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const sixtyDaysAgo = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const thirtyDaysAgo = toDateStr(new Date(now - 30 * 24 * 60 * 60 * 1000))
+  const sixtyDaysAgo = toDateStr(new Date(now - 60 * 24 * 60 * 60 * 1000))
   const last30 = allForMetric.filter(m => m.date >= thirtyDaysAgo)
   const prev30 = allForMetric.filter(m => m.date >= sixtyDaysAgo && m.date < thirtyDaysAgo)
   if (last30.length === 0 || prev30.length === 0) return null
@@ -7820,7 +7761,7 @@ async function generateReportPDF() {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(130, 130, 140)
-    doc.text(`Generated ${toDateStrOv(new Date())}`, textX, y + 19.5)
+    doc.text(`Generated ${toDateStr(new Date())}`, textX, y + 19.5)
 
     // Right-aligned period callout - the single biggest piece of text in
     // the header, since "which period is this" is the first thing a coach

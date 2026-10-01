@@ -26,6 +26,8 @@ import * as nav from '../nav.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { ensureCss } from '../lazy-css.js?v=__V__'
+import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
+import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -826,21 +828,6 @@ function renderCategoryChips() {
   ).join('')
 }
 
-// YouTube's thumbnail images are available at a predictable URL from just
-// the video id, no API key needed - other hosts (Vimeo etc.) would need a
-// real API call, so those just fall back to a placeholder icon
-function getYouTubeThumbnail(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
-}
-
-function getYouTubeEmbedUrl(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null
-}
-
 // Tapping a card's thumbnail swaps it for a playing embed right in place,
 // same as the athlete's own exercise card
 function playInlineVideo(containerEl, url) {
@@ -1153,20 +1140,6 @@ function removeSetTargetRow(row) {
 // ==========================================================================
 // ---- LOAD + RENDER EXERCISE LIST ----
 // ==========================================================================
-// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
-// straight from the exercise's own row (se.exercises) - an explicit
-// *_override on THIS section_exercises row (set via a card's "Adjust
-// Fields" menu, scoped to just this one section) takes precedence instead.
-// Merging the override into se.exercises here, once per fetch, means every
-// existing read of se.exercises.* downstream (set-target rows, badges,
-// etc.) sees the right effective value with no other changes needed.
-function applyFieldOverrides(se) {
-  if (!se.exercises) return
-  if (se.tracks_weight_override != null) se.exercises.tracks_weight = se.tracks_weight_override
-  if (se.is_timed_override != null) se.exercises.is_timed = se.is_timed_override
-  if (se.is_unilateral_override != null) se.exercises.is_unilateral = se.is_unilateral_override
-  if (se.tracks_distance_override != null) se.exercises.tracks_distance = se.tracks_distance_override
-}
 
 async function loadExercisesList(token) {
   const { data, error } = await window.fetchWithRetry((signal) => supabase

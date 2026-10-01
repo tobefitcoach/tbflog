@@ -16,6 +16,7 @@ import { supabase } from '../../coachClient.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { safeUrl } from '../../escape.js?v=__V__'
+import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
 
 const BUILT_IN_TYPES = {
   weights: 'Weightlifting (sets, reps, weight)',
@@ -293,14 +294,6 @@ function applyTypeLoggingDefaults(type) {
     root.querySelector('#exerciseIsTimed').checked = false
     root.querySelector('#exerciseTracksWeight').checked = true
   }
-}
-
-// YouTube thumbnails are available at a predictable URL from just the video
-// id, no API key needed - other hosts fall back to a placeholder icon.
-function getYouTubeThumbnail(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
 }
 
 function renderExercises(exercises) {

@@ -21,6 +21,9 @@ import * as nav from './nav.js?v=__V__'
 import { escapeHtml, safeUrl } from '../escape.js?v=__V__'
 import { runTour } from './tour.js?v=__V__'
 import { signReportLinks } from '../report-links.js?v=__V__'
+import { toDateStr, parseDateStr, addDays, startOfWeek } from '../shared/dates.js?v=__V__'
+import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../shared/video.js?v=__V__'
+import { applyFieldOverrides } from '../shared/exercise-fields.js?v=__V__'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')
@@ -998,22 +1001,6 @@ async function notifyCoach(type, message) {
   sendPush(supabase, athlete.coach_id, 'Tobe-Fit', message, url) // not awaited, same as the insert above
 }
 
-// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
-// straight from the exercise's own row (pe.exercises) - an explicit
-// *_override on THIS program_exercises row (set by the coach in Workout
-// Builder's "Adjust Fields", scoped to just this one workout) takes
-// precedence instead. Merging the override into pe.exercises here, once
-// per fetch, means every existing read of pe.exercises.* downstream (set
-// rows, badges, volume calc, etc.) sees the right effective value with no
-// other changes needed.
-function applyFieldOverrides(pe) {
-  if (!pe.exercises) return
-  if (pe.tracks_weight_override != null) pe.exercises.tracks_weight = pe.tracks_weight_override
-  if (pe.is_timed_override != null) pe.exercises.is_timed = pe.is_timed_override
-  if (pe.is_unilateral_override != null) pe.exercises.is_unilateral = pe.is_unilateral_override
-  if (pe.tracks_distance_override != null) pe.exercises.tracks_distance = pe.tracks_distance_override
-}
-
 // All the calendar-day dates a tournament covers, inclusive of both ends -
 // a single-day tournament (date === end_date) is just a one-element range
 function eachDateStrInRange(startStr, endStr) {
@@ -1198,16 +1185,6 @@ function renderAddTournamentForm() {
 // (new Date(dateStr + 'T00:00:00')) - building YYYY-MM-DD strings by hand
 // rather than via .toISOString(), which re-introduces an off-by-one bug.
 // ==========================================================================
-function toDateStr(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function parseDateStr(dateStr) {
-  return new Date(dateStr + 'T00:00:00')
-}
 
 function formatDisplayDate(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
@@ -1222,21 +1199,6 @@ function resolveDate(startDateStr, weekNumber, dayNumber) {
   const result = new Date(start)
   result.setDate(result.getDate() + (weekNumber - 1) * 7 + (dayNumber - 1))
   return toDateStr(result)
-}
-
-function startOfWeek(date) {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  const day = d.getDay() // 0=Sun..6=Sat
-  const diff = day === 0 ? -6 : 1 - day // shift back to Monday
-  d.setDate(d.getDate() + diff)
-  return d
-}
-
-function addDays(date, n) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -1571,17 +1533,6 @@ function targetLine(pe) {
 // Tapping a thumbnail swaps it for a playing embed right in place - no
 // overlay/modal covering the screen.
 // ==========================================================================
-function getYouTubeThumbnail(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
-}
-
-function getYouTubeEmbedUrl(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null
-}
 
 function playInlineVideo(containerEl, url) {
   if (!url) return

@@ -42,6 +42,7 @@ import * as nav from '../nav.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
+import { toDateStr, parseDateStr, addDays } from '../../shared/dates.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -310,8 +311,8 @@ async function reloadAndRepaint() {
 }
 
 async function loadAthleteExtras() {
-  const thirtyDaysAgo = toDateStrIdx(addDaysIdx(new Date(), -29))
-  const ninetyDaysAgoISO = addDaysIdx(new Date(), -89).toISOString()
+  const thirtyDaysAgo = toDateStr(addDays(new Date(), -29))
+  const ninetyDaysAgoISO = addDays(new Date(), -89).toISOString()
 
   // maxAttempts=1 (no retries) - these are all secondary/derived data, so
   // failing fast and just showing '—'/no badge is better than making the
@@ -406,7 +407,7 @@ async function loadAthleteExtras() {
 // ==========================================================================
 function isLowOnTrainings(athlete, stats) {
   if (athleteStatus(athlete) !== 'active') return false
-  const todayStr = toDateStrIdx(new Date())
+  const todayStr = toDateStr(new Date())
   if (!stats || !stats.furthestDate) return true
   return daysBetweenDateStrsIdx(todayStr, stats.furthestDate) <= lowTrainingsWarningDays
 }
@@ -431,7 +432,7 @@ async function checkLowTrainings() {
     if (athlete.low_trainings_notified_for === currentKey) continue
 
     const message = (stats && stats.furthestDate)
-      ? `${athlete.name} only has trainings scheduled through ${parseDateStrIdx(stats.furthestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      ? `${athlete.name} only has trainings scheduled through ${parseDateStr(stats.furthestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
       : `${athlete.name} doesn't have any trainings scheduled yet`
 
     const { error: notifError } = await supabase.from('notifications').insert([{
@@ -451,22 +452,6 @@ async function checkLowTrainings() {
 // per this codebase's per-file convention (this is a separate module with
 // no shared scope).
 // ==========================================================================
-function toDateStrIdx(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function parseDateStrIdx(dateStr) {
-  return new Date(dateStr + 'T00:00:00')
-}
-
-function addDaysIdx(date, n) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
-}
 
 function daysBetweenDateStrsIdx(a, b) {
   const [ay, am, ad] = a.split('-').map(Number)
@@ -475,10 +460,10 @@ function daysBetweenDateStrsIdx(a, b) {
 }
 
 function resolveDateIdx(startDateStr, weekNumber, dayNumber) {
-  const start = parseDateStrIdx(startDateStr)
+  const start = parseDateStr(startDateStr)
   const result = new Date(start)
   result.setDate(result.getDate() + (weekNumber - 1) * 7 + (dayNumber - 1))
-  return toDateStrIdx(result)
+  return toDateStr(result)
 }
 
 function computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo) {
@@ -494,7 +479,7 @@ function computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo) {
   const sessionsByAthlete = {}
   for (const s of sessions) (sessionsByAthlete[s.athlete_id] ||= []).push(s)
 
-  const todayStr = toDateStrIdx(new Date())
+  const todayStr = toDateStr(new Date())
   const result = {}
 
   for (const athlete of allAthletes) {
@@ -547,7 +532,7 @@ function computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo) {
       dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
     }
     function loadSum(days) {
-      const cutoff = toDateStrIdx(addDaysIdx(new Date(), -(days - 1)))
+      const cutoff = toDateStr(addDays(new Date(), -(days - 1)))
       return Object.entries(dailyLoad).filter(([d]) => d >= cutoff && d <= todayStr).reduce((sum, [, v]) => sum + v, 0)
     }
     const loadDates = Object.keys(dailyLoad).sort()
@@ -795,7 +780,7 @@ function createAthleteCard(athlete, flaggedCount) {
   const avatarHtml = safeUrl(athlete.avatar_url) ? `<img src="${safeUrl(athlete.avatar_url)}" class="avatar-img" alt="">` : escapeHtml(initials)
   const status = athleteStatus(athlete)
   const stats = athleteStatsById[athlete.id] || {}
-  const todayStr = toDateStrIdx(new Date())
+  const todayStr = toDateStr(new Date())
 
   const acwrText = stats.acwr == null ? '—' : stats.acwr.toFixed(2)
   const acwrHighRisk = stats.acwr != null && stats.acwr > 1.5
@@ -804,7 +789,7 @@ function createAthleteCard(athlete, flaggedCount) {
     : (stats.acwrBuilding ? '<span class="stat-risk-badge neutral">Building History</span>' : '')
 
   const programmedThroughText = stats.furthestDate
-    ? parseDateStrIdx(stats.furthestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    ? parseDateStr(stats.furthestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : '—'
   const programRanOut = stats.furthestDate && stats.furthestDate < todayStr
   const programBadgeHtml = programRanOut ? '<span class="stat-risk-badge neutral">Program Ended</span>' : ''

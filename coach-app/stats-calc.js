@@ -17,25 +17,13 @@
 //     per-athlete rows it returns.
 // ==========================================================================
 
+import { toDateStr, parseDateStr, addDays } from '../shared/dates.js?v=__V__'
+
 export const PRESET_DAYS = { week: 7, month: 30, quarter: 90, half: 180, year: 365 }
 
-export function toDateStr(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-export function parseDateStr(s) {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-
-export function addDays(date, n) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
-}
+// Passed on from shared/dates.js for the Stats screen, which imports them
+// from here alongside the stats functions
+export { toDateStr, parseDateStr, addDays }
 
 export function daysBetween(a, b) {
   return Math.round((parseDateStr(b) - parseDateStr(a)) / 86400000)

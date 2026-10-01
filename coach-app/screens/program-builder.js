@@ -31,6 +31,8 @@ import * as nav from '../nav.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { ensureCss } from '../lazy-css.js?v=__V__'
 import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
+import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
+import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -365,15 +367,6 @@ async function loadProgram(token) {
   root.querySelector('#programNameHeading').textContent = data.name
 }
 
-// YouTube's thumbnail images are available at a predictable URL from just
-// the video id, no API key needed - other hosts fall back to a placeholder.
-// Used by the Add Workout preview panel below (renderSectionPreviewExercise).
-function getYouTubeThumbnail(url) {
-  if (!url) return null
-  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null
-}
-
 // A program_exercises row keeps one set_targets array
 // ([{reps, weight, rest, type}, ...], index 0 = Set 1). Used by the Add
 // Workout preview panel below (renderSectionPreviewExercise) to show a set
@@ -390,21 +383,6 @@ function deriveSetTargets(row) {
 // One nested query pulls the whole tree; sorted client-side since the
 // dataset per template is always small.
 // ==========================================================================
-// tracks_weight/is_timed/is_unilateral/tracks_distance normally come
-// straight from the exercise's own row (pe.exercises) - an explicit
-// *_override on THIS program_exercises row (set via Workout Builder's
-// "Adjust Fields" on the Training this day was cloned from, or carried
-// forward from a cloned template) takes precedence instead, scoped to
-// just this one placement. Merging the override into pe.exercises here,
-// once per fetch, means every existing read of pe.exercises.* downstream
-// sees the right effective value with no other changes needed.
-function applyFieldOverrides(pe) {
-  if (!pe.exercises) return
-  if (pe.tracks_weight_override != null) pe.exercises.tracks_weight = pe.tracks_weight_override
-  if (pe.is_timed_override != null) pe.exercises.is_timed = pe.is_timed_override
-  if (pe.is_unilateral_override != null) pe.exercises.is_unilateral = pe.is_unilateral_override
-  if (pe.tracks_distance_override != null) pe.exercises.tracks_distance = pe.tracks_distance_override
-}
 
 // A week still tracking a Workout Library Training on one of its days
 // (source_training_id set - see the LIVE-LINKED WORKOUTS block in
