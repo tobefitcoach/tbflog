@@ -69,6 +69,7 @@ import * as nav from '../nav.js'
 import { coachId } from '../session.js'
 import { refreshChatBadge } from '../bell.js'
 import { escapeHtml, safeUrl } from '../../escape.js'
+import { signReportLinks } from '../../report-links.js'
 
 // Two-pane inbox: athlete list on the left, the selected athlete's full
 // chat_messages history + a send box on the right - see
@@ -359,6 +360,8 @@ async function loadChatMessages() {
     return
   }
 
+  await signReportLinks(supabase, data)
+  if (!nav.isCurrent(mountToken) || !root) return
   renderChatMessages(data)
 
   const unreadIds = data.filter(m => m.sender === 'athlete' && !m.read_at).map(m => m.id)
@@ -383,7 +386,7 @@ function renderChatMessages(messages) {
   container.innerHTML = messages.map(m => `
     <div class="chat-bubble chat-bubble-${m.sender === 'coach' ? 'mine' : 'theirs'}" ${m.sender === 'coach' ? `data-message-id="${m.id}"` : ''}>
       ${m.message ? `<p>${escapeHtml(m.message)}</p>` : ''}
-      ${safeUrl(m.pdf_url) ? `<a href="${safeUrl(m.pdf_url)}" target="_blank" rel="noopener" class="chat-pdf-link">📄 View Report</a>` : ''}
+      ${m.pdf_url ? (safeUrl(m.report_url) ? `<a href="${safeUrl(m.report_url)}" target="_blank" rel="noopener" class="chat-pdf-link">📄 View Report</a>` : '<span class="chat-pdf-link">📄 Report link unavailable - reopen the chat to try again</span>') : ''}
       <span class="chat-bubble-time">${new Date(m.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
       ${m.sender === 'coach' ? `
         <div class="chat-bubble-actions" id="chat-actions-${m.id}">

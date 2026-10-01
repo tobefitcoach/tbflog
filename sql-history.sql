@@ -2478,3 +2478,34 @@ create trigger chat_messages_guard_athlete_update
 -- replay the tour for everyone.
 -- ==========================================================================
 update athletes set intro_seen = false;
+
+
+-- ==========================================================================
+-- Security: progress reports (health data) are no longer public.
+--
+-- chat-attachments was a public bucket, and "public reads chat
+-- attachments" let ANYONE (no login, just the app's public key) list and
+-- download every coach's report files. Now private:
+--   - coaches keep "coach manages own chat attachments" (their own folder)
+--   - an athlete can read a file only if a chat message to THEM points at
+--     it, so reports already sent keep working for the right athlete
+-- Both apps open reports through short-lived signed links (report-links.js),
+-- so push that code BEFORE running this block.
+-- objects.name is qualified on purpose: inside the subquery a bare `name`
+-- would resolve to athletes.name.
+-- ==========================================================================
+update storage.buckets set public = false where id = 'chat-attachments';
+
+drop policy if exists "public reads chat attachments" on storage.objects;
+
+drop policy if exists "athlete reads reports sent to them" on storage.objects;
+create policy "athlete reads reports sent to them" on storage.objects for select to authenticated
+  using (
+    bucket_id = 'chat-attachments'
+    and exists (
+      select 1 from public.chat_messages m
+      join public.athletes a on a.id = m.athlete_id
+      where a.user_id = (select auth.uid())
+        and m.pdf_url like '%/chat-attachments/' || objects.name
+    )
+  );
