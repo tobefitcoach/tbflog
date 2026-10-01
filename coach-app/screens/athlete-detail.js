@@ -1326,16 +1326,6 @@ const TEMPLATE = `
       </div>
     </div>
 
-    <!-- Shown only while linking a superset on the Calendar tab - see
-         updatePickingModeBarCal() -->
-    <div class="picking-mode-bar" id="pickingModeBar" style="display:none">
-      <span class="picking-mode-bar-count" id="pickingModeBarCount"></span>
-      <div class="picking-mode-bar-actions">
-        <button type="button" class="btn-cancel" id="pickingModeBarCancelBtn">Cancel</button>
-        <button type="button" class="btn-save" id="pickingModeBarFinishBtn">✓ Finish Superset</button>
-      </div>
-    </div>
-
     <!-- Brief self-dismissing confirmation - see showToast() -->
     <div class="toast-notice" id="pageToast"></div>
 `
@@ -1499,16 +1489,6 @@ let copyArmedSourceName = null
 let copyArmedSourceMonday = null
 let copyArmedHoverKey = null
 
-// ---- Drag-to-reorder within a day's exercise list ----
-let draggingCardsCal = []
-let draggingGroupCal = null
-
-// ---- Autosave timers, one per program_exercise id being edited ----
-let autosaveTimersCal = {}
-
-// ---- Supersets ----
-let pickingGroupIdsCal = null // array being built while picking, else null
-
 // ---- Section tab ----
 let cachedSectionsCal = null
 let selectedSectionIdCal = null
@@ -1612,8 +1592,6 @@ export function unmount() {
 
   clearTimeout(toastHideTimer)
   toastHideTimer = null
-  Object.values(autosaveTimersCal).forEach(clearTimeout)
-  autosaveTimersCal = {}
 
   if (bodyweightChart) { bodyweightChart.destroy(); bodyweightChart = null }
   if (volumeChart) { volumeChart.destroy(); volumeChart = null }
@@ -1698,11 +1676,6 @@ export function unmount() {
   copyArmedSourceName = null
   copyArmedSourceMonday = null
   copyArmedHoverKey = null
-
-  draggingCardsCal = []
-  draggingGroupCal = null
-
-  pickingGroupIdsCal = null
 
   cachedSectionsCal = null
   selectedSectionIdCal = null
@@ -2589,73 +2562,6 @@ async function openFormDetailModal(assignmentId) {
   root.querySelector('#dayDetailModal').classList.add('active')
 }
 
-// One header per run of consecutive exercises sharing the same non-null
-// section_label - list must already be sorted by order_index. Manually/
-// individually added exercises (section_label null) never get a header.
-function renderExerciseListHtmlCal(list) {
-  let html = ''
-  let lastLabel // undefined sentinel - a run of nulls never gets a header
-  for (const pe of list) {
-    if (pe.section_label !== lastLabel) {
-      if (pe.section_label) html += `<div class="builder-section-header">${pe.section_label}</div>`
-      lastLabel = pe.section_label
-    }
-    html += renderScheduledExerciseCard(pe, list)
-  }
-  return html
-}
-
-// Same card look/behaviour as training-builder.js / program-builder.js -
-// video thumbnail, one row per set with its own reps/weight target, rest
-// time, notes - editing an already-scheduled exercise directly from the
-// calendar, same underlying program_exercises table program-builder.js
-// edits, just reached a different way (day already has this exercise on it
-// vs. picking one to add).
-function renderScheduledExerciseCard(pe, siblingExercises) {
-  const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
-  const isTimed = pe.exercises && pe.exercises.is_timed
-  const tracksWeight = !pe.exercises || pe.exercises.tracks_weight
-  const isUnilateral = pe.exercises && pe.exercises.is_unilateral
-  const tracksDistance = pe.exercises && pe.exercises.tracks_distance
-  const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
-  const thumb = getYouTubeThumbnailCal(videoUrl)
-  const targets = deriveSetTargetsCal(pe)
-  const rowsHtml = targets.map((t, i) => renderSetTargetRowCal(i + 1, t, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, targets.length === 1)).join('')
-  const groupMembers = pe.superset_group_id ? (siblingExercises || []).filter(other => other.id !== pe.id && other.superset_group_id === pe.superset_group_id) : []
-  const groupColor = pe.superset_group_id ? colorForSupersetGroupCal(pe.superset_group_id) : null
-  const linkTitle = groupMembers.length
-    ? `Linked with ${groupMembers.map(m => m.exercises ? m.exercises.name : 'exercise').join(', ')} - tap to remove`
-    : 'Link with other exercises (superset)'
-
-  return `
-    <div class="builder-exercise-card" data-id="${pe.id}" data-superset-group-id="${pe.superset_group_id || ''}" data-section-instance-id="${pe.section_instance_id || ''}" data-section-label="${pe.section_label || ''}">
-      <div class="builder-exercise-card-header">
-        <span class="builder-drag-handle" draggable="true" title="Drag to reorder">⠿</span>
-        <button type="button" class="builder-exercise-thumb" ${videoUrl ? `data-video-url="${videoUrl}"` : 'disabled'}>
-          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : '<span class="builder-exercise-thumb-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="12" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="6" y1="12" x2="18" y2="12"></line><line x1="9" y1="8" x2="9" y2="16"></line><line x1="15" y1="8" x2="15" y2="16"></line></svg></span>'}
-        </button>
-        <div class="builder-exercise-name">${pe.exercises ? pe.exercises.name : 'Unknown exercise'}</div>
-        ${isUnilateral ? '<span class="builder-unilateral-badge">Each Side</span>' : ''}
-        <button type="button" class="builder-link-btn ${pe.superset_group_id ? 'linked' : ''}" data-action="toggle-link" style="${groupColor ? `border-color:${groupColor}; color:${groupColor}; background-color:${groupColor}22` : ''}" title="${linkTitle}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
-        <button type="button" class="btn-delete-measurement" data-action="delete-scheduled" title="Remove exercise"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-      </div>
-      <div class="set-target-rows">
-        ${rowsHtml}
-      </div>
-      <button type="button" class="builder-add-set-btn" data-action="add-set">+ Add Set</button>
-      <div class="builder-exercise-notes">
-        <label>Extra Fields (optional)</label>
-        <div class="extra-fields-container" id="extraFieldsSched-${pe.id}"></div>
-        <button type="button" class="btn-create-metric" data-action="add-extra-field" style="margin-top:6px">+ Add Field</button>
-      </div>
-      <div class="builder-exercise-notes">
-        <label>Notes (visible to the athlete)</label>
-        <textarea class="exercise-notes-input" placeholder="e.g. Focus on controlled tempo">${pe.notes || ''}</textarea>
-      </div>
-    </div>
-  `
-}
-
 // Shown at the top of a done/in-progress day's review - just duration + RPE,
 // same numbers the athlete's own post-workout summary shows (see
 // renderWorkoutSummary in the athlete app's dashboard.js), formatted for a
@@ -2683,10 +2589,11 @@ function renderSessionSummaryCal(session) {
   return `<p class="workout-preview-target" style="margin-bottom:${flagHtml || noteHtml ? '4px' : '12px'}">${parts.join(' · ')}</p>${flagHtml}${noteHtml}`
 }
 
-// Read-only version of renderScheduledExerciseCard - what the athlete
-// actually logged (actual_reps/actual_weight) instead of the coach's
-// editable set_targets, so a coach opening a done workout sees a real
-// review instead of the still-blank plan they set beforehand
+// Read-only exercise card for a done workout - what the athlete actually
+// logged (actual_reps/actual_weight) instead of the coach's set_targets,
+// so a coach opening it sees a real review instead of the plan. Editing a
+// day's exercises happens in the Workout Builder overlay
+// (openWorkoutBuilderOverlay), not in this popup.
 function renderLoggedExerciseCardCal(pe) {
   const isUnilateral = pe.exercises && pe.exercises.is_unilateral
   const videoUrl = (pe.exercises && pe.exercises.video_url) || ''
@@ -2711,37 +2618,6 @@ function renderLoggedExerciseCardCal(pe) {
       ${rowsHtml}
     </div>
   `
-}
-
-function findScheduledPE(peId) {
-  for (const dateStr in calendarEntriesByDate) {
-    for (const entry of calendarEntriesByDate[dateStr]) {
-      const pe = entry.day.program_exercises.find(p => p.id === peId)
-      if (pe) return pe
-    }
-  }
-  return null
-}
-
-function findScheduledDay(dayId) {
-  for (const dateStr in calendarEntriesByDate) {
-    for (const entry of calendarEntriesByDate[dateStr]) {
-      if (entry.day.id === dayId) return entry.day
-    }
-  }
-  return null
-}
-
-// Same "only fire the write once" reasoning as training-builder.js's
-// detachDayIfLive - checks the already-loaded day object instead of a flag,
-// since this file doesn't have one scoped variable per open day the way
-// that file's isDayMode does.
-async function detachScheduledDayIfLive(dayId) {
-  const day = findScheduledDay(dayId)
-  if (!day || !day.source_training_id) return
-  day.source_training_id = null
-  day.source_training_synced_at = null
-  await setDayLiveLink(dayId, null)
 }
 
 // Ad-hoc trainings only ever cover the one day they were created for, so
@@ -2794,279 +2670,6 @@ async function deleteFormAssignment(assignmentId) {
 
   root.querySelector('#dayDetailModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
-}
-
-// ==========================================================================
-// ---- EDIT / DELETE A SCHEDULED EXERCISE ----
-// Always-editable card (see renderScheduledExerciseCard above), same
-// pattern as training-builder.js/program-builder.js - no modal, and one
-// Save button for the whole day's exercises (see saveScheduledDay below)
-// instead of one per exercise, since a coach edits a whole day in one
-// sitting and only wants to press Save once when it's done.
-// ==========================================================================
-async function saveScheduledExercise(peId, orderIndex) {
-  const card = root.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
-  if (!card) return true
-
-  const pe = findScheduledPE(peId)
-  const isTimed = !!(pe && pe.exercises && pe.exercises.is_timed)
-
-  const rows = [...card.querySelectorAll('.set-target-row')]
-  const setTargets = rows.map(row => {
-    const repsInput = row.querySelector('.set-reps-input')
-    const reps = repsInput ? (repsInput.value.trim() || null) : null
-    let duration = null
-    if (isTimed) {
-      const mm = parseInt(row.querySelector('.set-time-mm').value) || 0
-      const ss = parseInt(row.querySelector('.set-time-ss').value) || 0
-      duration = (mm === 0 && ss === 0) ? null : `${mm}:${String(ss).padStart(2, '0')}`
-    }
-    const weightInput = row.querySelector('.set-weight-input')
-    const weight = weightInput && weightInput.value ? parseFloat(weightInput.value) : null
-    const distanceInput = row.querySelector('.set-distance-input')
-    const distance = distanceInput && distanceInput.value ? parseFloat(distanceInput.value) : null
-    const restMm = parseInt(row.querySelector('.set-rest-mm').value) || 0
-    const restSs = parseInt(row.querySelector('.set-rest-ss').value) || 0
-    const rest = (restMm === 0 && restSs === 0) ? null : restMm * 60 + restSs
-    const type = row.querySelector('.set-type-select').value
-    return { reps, duration, weight, distance, rest, type }
-  })
-
-  const notes = card.querySelector('.exercise-notes-input').value.trim() || null
-  const extraFields = collectExtraFieldsCal(`extraFieldsSched-${peId}`)
-  const first = setTargets[0] || { reps: null, duration: null, weight: null, rest: null }
-
-  const updates = {
-    set_targets: setTargets,
-    prescribed_sets: setTargets.length,
-    prescribed_reps: first.reps != null ? first.reps : first.duration,
-    prescribed_weight: first.weight,
-    rest_seconds: first.rest,
-    extra_fields: extraFields,
-    notes,
-    order_index: orderIndex,
-    superset_group_id: card.dataset.supersetGroupId || null
-  }
-
-  const { error } = await supabase.from('program_exercises').update(updates).eq('id', peId)
-
-  if (error) { console.log(error); return false }
-  if (pe) await detachScheduledDayIfLive(pe.day_id)
-  // Keeps calendarEntriesByDate in sync with what's actually saved - see
-  // scheduleAutosaveCal/flushCardSaveCal below.
-  if (pe) Object.assign(pe, updates)
-  return true
-}
-
-// ==========================================================================
-// ---- AUTOSAVE ----
-// Every set/notes/extra-field edit and superset link/unlink used to only
-// persist when the coach pressed a day's "Save" button - matching the same
-// "it just stays, unless you change it yourself" reliability the athlete's
-// own logging screen already has, every edit here now gets written to the
-// database on its own, a moment after the coach stops typing. "Save" still
-// exists (it's what closes the modal), but nothing is ever actually
-// waiting on it to persist anymore.
-// ==========================================================================
-function scheduleAutosaveCal(peId) {
-  clearTimeout(autosaveTimersCal[peId])
-  autosaveTimersCal[peId] = setTimeout(() => flushCardSaveCal(peId), 800)
-}
-
-async function flushCardSaveCal(peId) {
-  clearTimeout(autosaveTimersCal[peId])
-  delete autosaveTimersCal[peId]
-  const card = root.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
-  if (!card) return true
-  const group = card.closest('.detail-group')
-  const ids = [...group.querySelectorAll('.builder-exercise-card')].map(c => c.dataset.id)
-  const orderIndex = ids.indexOf(peId)
-  if (orderIndex === -1) return true
-  return saveScheduledExercise(peId, orderIndex)
-}
-
-// ==========================================================================
-// ---- SUPERSETS (link up to 4 exercises into one giant-set group) ----
-// Same pattern as training-builder.js/program-builder.js, scoped to one
-// day's .detail-group - every member of a group always has to be within
-// the same day. Draft-until-Save, exactly like set_targets/notes.
-// ==========================================================================
-const SUPERSET_CAP_CAL = 4
-
-function handleLinkClickCal(id, listScopeEl) {
-  const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
-  const currentGroupId = card.dataset.supersetGroupId || null
-  if (currentGroupId && !pickingGroupIdsCal) { removeFromSupersetGroupCal(id, listScopeEl); return }
-  if (pickingGroupIdsCal && pickingGroupIdsCal[0] === id) { finalizePickingCal(listScopeEl); return }
-  if (pickingGroupIdsCal && pickingGroupIdsCal.includes(id)) return // already picked, not the original - ignore
-  if (pickingGroupIdsCal) { addToPickingGroupCal(id, listScopeEl); return }
-  enterPickingModeCal(id, listScopeEl)
-}
-
-function enterPickingModeCal(id, listScopeEl) {
-  pickingGroupIdsCal = [id]
-  refreshPickingHighlightCal(listScopeEl)
-  updatePickingModeBarCal(listScopeEl)
-}
-
-// Tapping another unlinked card adds it to the group being built - once
-// the cap is hit the group finalizes on its own, no extra tap needed
-function addToPickingGroupCal(id, listScopeEl) {
-  pickingGroupIdsCal.push(id)
-  if (pickingGroupIdsCal.length >= SUPERSET_CAP_CAL) { finalizePickingCal(listScopeEl); return }
-  refreshPickingHighlightCal(listScopeEl)
-  updatePickingModeBarCal(listScopeEl)
-}
-
-function refreshPickingHighlightCal(listScopeEl) {
-  listScopeEl.querySelectorAll('.builder-exercise-card').forEach(card => {
-    const picked = pickingGroupIdsCal.includes(card.dataset.id)
-    const isLinked = !!card.dataset.supersetGroupId
-    card.classList.toggle('picking-self', picked)
-    card.classList.toggle('pickable', !picked && !isLinked)
-  })
-}
-
-function exitPickingModeCal(listScopeEl) {
-  pickingGroupIdsCal = null
-  listScopeEl.querySelectorAll('.builder-exercise-card').forEach(c => c.classList.remove('picking-self', 'pickable'))
-  updatePickingModeBarCal(listScopeEl)
-}
-
-// Floating bar shown only while picking mode is active - the only way to
-// confirm a superset used to be tapping the original card's 🔗 button
-// again (undiscoverable, no visible affordance), so this gives an explicit
-// "Finish Superset" button for stopping at 2 or 3 instead of the 4-cap
-function updatePickingModeBarCal(listScopeEl) {
-  const bar = root.querySelector('#pickingModeBar')
-  if (!bar) return
-  if (!pickingGroupIdsCal) { bar.style.display = 'none'; return }
-  bar.style.display = 'flex'
-  const n = pickingGroupIdsCal.length
-  root.querySelector('#pickingModeBarCount').textContent = `${n} exercise${n === 1 ? '' : 's'} selected`
-  const finishBtn = root.querySelector('#pickingModeBarFinishBtn')
-  finishBtn.disabled = n < 2
-  finishBtn.onclick = () => finalizePickingCal(listScopeEl)
-  root.querySelector('#pickingModeBarCancelBtn').onclick = () => exitPickingModeCal(listScopeEl)
-}
-
-// Tapping the original card again finishes early with fewer than the cap -
-// needs at least 2 to actually form a group, otherwise it's just a cancel
-function finalizePickingCal(listScopeEl) {
-  if (pickingGroupIdsCal.length < 2) { exitPickingModeCal(listScopeEl); return }
-  const groupId = crypto.randomUUID()
-  const ids = pickingGroupIdsCal
-  ids.forEach(id => {
-    listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`).dataset.supersetGroupId = groupId
-  })
-  exitPickingModeCal(listScopeEl)
-  ids.forEach(id => refreshSupersetBadgeCal(listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`), listScopeEl))
-  ids.forEach(scheduleAutosaveCal)
-}
-
-// Removes just this one card from its group (tapped via 🔗, or from the
-// day's delete-exercise handler) - if that would leave only one member,
-// that last one is cleared too, since a "group of 1" isn't a superset
-function removeFromSupersetGroupCal(id, listScopeEl) {
-  const card = listScopeEl.querySelector(`.builder-exercise-card[data-id="${id}"]`)
-  const groupId = card.dataset.supersetGroupId
-  if (!groupId) return
-  delete card.dataset.supersetGroupId
-  const remaining = [...listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)]
-  if (remaining.length === 1) delete remaining[0].dataset.supersetGroupId
-  refreshSupersetBadgeCal(card, listScopeEl)
-  remaining.forEach(c => refreshSupersetBadgeCal(c, listScopeEl))
-  scheduleAutosaveCal(id)
-  remaining.forEach(c => scheduleAutosaveCal(c.dataset.id))
-}
-
-// Deterministic color per superset group id, so several groups on the
-// same day are visually distinguishable at a glance without spelling out
-// which exercises are linked (that's in the 🔗 button's title tooltip
-// instead) - same group id always resolves to the same color
-const SUPERSET_COLORS_CAL = ['#4a4a8e', '#e0a030', '#3aa66e', '#c0466e', '#3a8ec0', '#a05fd6', '#c07a2e', '#5fb8b8']
-function colorForSupersetGroupCal(groupId) {
-  let hash = 0
-  for (let i = 0; i < groupId.length; i++) hash = (hash * 31 + groupId.charCodeAt(i)) >>> 0
-  return SUPERSET_COLORS_CAL[hash % SUPERSET_COLORS_CAL.length]
-}
-
-function refreshSupersetBadgeCal(card, listScopeEl) {
-  const linkBtn = card.querySelector('.builder-link-btn')
-  const groupId = card.dataset.supersetGroupId
-  linkBtn.classList.toggle('linked', !!groupId)
-
-  if (!groupId) {
-    linkBtn.style.borderColor = ''
-    linkBtn.style.color = ''
-    linkBtn.style.backgroundColor = ''
-    linkBtn.title = 'Link with other exercises (superset)'
-    return
-  }
-
-  const color = colorForSupersetGroupCal(groupId)
-  linkBtn.style.borderColor = color
-  linkBtn.style.color = color
-  linkBtn.style.backgroundColor = color + '22'
-
-  const others = [...listScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
-  const names = others.map(c => c.querySelector('.builder-exercise-name').textContent).filter(Boolean)
-  linkBtn.title = names.length ? `Linked with ${names.join(', ')} - tap to remove` : 'Remove from superset'
-}
-
-// Saves every exercise card in one day-entry group at once, then closes
-// the day-detail modal back to the calendar (that's "done" for a coach
-// editing a scheduled day).
-async function saveScheduledDay(groupEl) {
-  const btn = groupEl.querySelector('[data-action="save-scheduled-day"]')
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving...' }
-
-  const cardIds = [...groupEl.querySelectorAll('.builder-exercise-card')].map(card => card.dataset.id)
-  cardIds.forEach(id => { clearTimeout(autosaveTimersCal[id]); delete autosaveTimersCal[id] })
-  const results = await Promise.all(cardIds.map(saveScheduledExercise))
-
-  if (results.some(ok => !ok)) {
-    customAlert('Something went wrong saving one or more exercises - please try again')
-    if (btn) { btn.disabled = false; btn.textContent = 'Save' }
-    return
-  }
-
-  root.querySelector('#dayDetailModal').classList.remove('active')
-  await loadCalendarMonth(currentViewYear, currentViewMonth)
-}
-
-// Removes just this one card instead of reloading the whole month + rebuilding
-// the modal, so unsaved edits sitting in this day's other cards aren't wiped out
-async function deleteScheduledExercise(peId) {
-  if (!(await customConfirm('Remove this exercise?'))) return
-
-  clearTimeout(autosaveTimersCal[peId])
-  delete autosaveTimersCal[peId]
-  const card = root.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
-  if (card && card.dataset.supersetGroupId) removeFromSupersetGroupCal(peId, card.closest('.detail-group'))
-
-  const peBeforeDelete = findScheduledPE(peId)
-
-  const { error } = await supabase.from('program_exercises').delete().eq('id', peId)
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-  if (peBeforeDelete) await detachScheduledDayIfLive(peBeforeDelete.day_id)
-
-  const entries = calendarEntriesByDate[currentDayDateForModal] || []
-  for (const entry of entries) {
-    const idx = entry.day.program_exercises.findIndex(pe => pe.id === peId)
-    if (idx === -1) continue
-
-    entry.day.program_exercises.splice(idx, 1)
-    const card = root.querySelector(`.builder-exercise-card[data-id="${peId}"]`)
-    const group = card ? card.closest('.detail-group') : null
-    if (card) card.remove()
-    if (group && group.querySelectorAll('.builder-exercise-card').length === 0) {
-      const saveBtn = group.querySelector('[data-action="save-scheduled-day"]')
-      if (saveBtn) saveBtn.remove()
-      group.insertAdjacentHTML('beforeend', '<p class="no-metrics">No exercises</p>')
-    }
-    break
-  }
 }
 
 // ==========================================================================
@@ -4218,166 +3821,8 @@ async function previewFormCal(formId, formName) {
 }
 
 // ==========================================================================
-// ---- DURATION + EXTRA FIELD HELPERS ----
-// Still needed by the always-editable scheduled-exercise card
-// (renderScheduledExerciseCard/saveScheduledExercise above) even though the
-// calendar no longer has its own exercise picker - editing what's already
-// on a day is still supported.
+// ---- INLINE VIDEO (exercise thumbnails in the day popup) ----
 // ==========================================================================
-
-function addExtraFieldRowCal(containerId, name, value) {
-  const container = root.querySelector('#' + containerId)
-  const row = document.createElement('div')
-  row.className = 'extra-field-row'
-  row.innerHTML = `
-    <input type="text" class="extra-field-name" placeholder="Field name (e.g. RPE)" value="${name || ''}">
-    <input type="text" class="extra-field-value" placeholder="Value (e.g. 8)" value="${value || ''}">
-    <button type="button" class="extra-field-remove">✕</button>
-  `
-  row.querySelector('.extra-field-remove').addEventListener('click', function() { row.remove() })
-  container.appendChild(row)
-}
-
-function collectExtraFieldsCal(containerId) {
-  const rows = root.querySelectorAll('#' + containerId + ' .extra-field-row')
-  const result = {}
-  rows.forEach(row => {
-    const name = row.querySelector('.extra-field-name').value.trim()
-    const value = row.querySelector('.extra-field-value').value.trim()
-    if (name && value) result[name] = value
-  })
-  return Object.keys(result).length ? result : null
-}
-
-// ==========================================================================
-// ---- PER-SET TARGETS ----
-// Same shape/reasoning as training-builder.js / program-builder.js: a
-// program_exercises row keeps one set_targets array
-// ([{reps, weight, rest, type}, ...], index 0 = Set 1) so each set can have
-// its own target AND its own rest afterward (shorter between warmup sets
-// than top sets) and its own type (warmup / main / failure), with
-// prescribed_sets/prescribed_reps/prescribed_weight/rest_seconds kept in
-// sync (length / first set's values) so every other place that only reads
-// those old columns keeps working untouched.
-// ==========================================================================
-const SET_TYPES_CAL = { main: 'Main Set', warmup: 'Warmup Set', failure: 'Set to Failure' }
-
-function deriveSetTargetsCal(row) {
-  if (row.set_targets && row.set_targets.length) return row.set_targets
-  const count = row.prescribed_sets || 1
-  return Array.from({ length: count }, () => ({ reps: row.prescribed_reps || null, weight: row.prescribed_weight || null, rest: row.rest_seconds || null, type: 'main' }))
-}
-
-// Splits any previously-stored timed value into {mm, ss} so the mm:ss input
-// boxes can be prefilled - handles the "M:SS" format this app now saves,
-// old plain-seconds strings ("45") from before this change, and a
-// best-effort digit grab for anything else free-typed in the past ("45s")
-function parseTimeToParts(val) {
-  if (val == null || val === '') return { mm: 0, ss: 0 }
-  const str = String(val).trim()
-  const mmss = str.match(/^(\d+):(\d{1,2})$/)
-  if (mmss) return { mm: parseInt(mmss[1]), ss: Math.min(parseInt(mmss[2]), 59) }
-  if (/^\d+$/.test(str)) {
-    const total = parseInt(str)
-    return { mm: Math.floor(total / 60), ss: total % 60 }
-  }
-  const digits = str.match(/\d+/)
-  return digits ? { mm: 0, ss: Math.min(parseInt(digits[0]), 59) } : { mm: 0, ss: 0 }
-}
-
-function renderSetTargetRowCal(setNumber, target, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, onlyRow) {
-  const repsPlaceholder = 'reps' + (isUnilateral ? ' each side' : '')
-  // Legacy rows (saved back when Timed replaced Reps instead of coexisting
-  // with it) stored the duration IN the reps field - fall back to reading
-  // it from there, but only when reps isn't ALSO being tracked, so a real
-  // rep count can never get misread as a duration once both are on.
-  const durationSource = target.duration != null ? target.duration : (isTimed && !tracksReps ? target.reps : null)
-  const { mm, ss } = parseTimeToParts(durationSource)
-  const restParts = parseTimeToParts(target.rest)
-  return `
-    <div class="set-target-row" data-set-number="${setNumber}">
-      <span class="set-label">Set ${setNumber}</span>
-      <select class="set-type-select">
-        ${Object.entries(SET_TYPES_CAL).map(([value, label]) => `<option value="${value}" ${(target.type || 'main') === value ? 'selected' : ''}>${label}</option>`).join('')}
-      </select>
-      ${tracksReps ? `<input type="text" class="set-reps-input" value="${target.reps || ''}" placeholder="${repsPlaceholder}">` : ''}
-      ${isTimed ? `
-        <div class="set-time-group" title="Time - minutes:seconds">
-          <span class="set-time-group-label">Time</span>
-          <div class="set-time-input">
-            <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2">
-            <span class="set-time-sep">:</span>
-            <input type="text" inputmode="numeric" class="set-time-ss" value="${String(ss).padStart(2, '0')}" maxlength="2">
-          </div>
-        </div>
-      ` : ''}
-      ${tracksWeight ? `<input type="number" class="set-weight-input" value="${target.weight != null ? target.weight : ''}" placeholder="kg" step="0.5">` : ''}
-      ${tracksDistance ? `<input type="number" class="set-distance-input" value="${target.distance != null ? target.distance : ''}" placeholder="meters" step="1">` : ''}
-      <div class="set-time-group" title="Rest - minutes:seconds">
-        <span class="set-time-group-label">Rest</span>
-        <div class="set-time-input">
-          <input type="text" inputmode="numeric" class="set-time-mm set-rest-mm" value="${String(restParts.mm).padStart(2, '0')}" maxlength="2">
-          <span class="set-time-sep">:</span>
-          <input type="text" inputmode="numeric" class="set-time-ss set-rest-ss" value="${String(restParts.ss).padStart(2, '0')}" maxlength="2">
-        </div>
-      </div>
-      <button type="button" class="set-remove-btn" data-action="remove-set" ${onlyRow ? 'disabled' : ''}>✕</button>
-    </div>
-  `
-}
-
-// A superset is performed as one shared round, so its exercises can't
-// drift to different set counts - every other card linked to this one
-// (same superset_group_id, same day), if any.
-function linkedCardsForCal(card, dayScopeEl) {
-  const groupId = card.dataset.supersetGroupId
-  if (!groupId || !dayScopeEl) return []
-  return [...dayScopeEl.querySelectorAll(`.builder-exercise-card[data-superset-group-id="${groupId}"]`)].filter(c => c !== card)
-}
-
-// Reads a set row's current (possibly-edited) field values, so a new set
-// added below it starts from what's already there instead of always blank -
-// an untouched row's inputs are still at their blank defaults, so this
-// naturally stays blank too when nothing was filled in yet.
-function readSetRowValuesCal(rowEl) {
-  if (!rowEl) return { reps: null, duration: null, weight: null, rest: null, distance: null, type: 'main' }
-  const repsInput = rowEl.querySelector('.set-reps-input')
-  const weightInput = rowEl.querySelector('.set-weight-input')
-  const distanceInput = rowEl.querySelector('.set-distance-input')
-  const typeSelect = rowEl.querySelector('.set-type-select')
-  const timeMm = rowEl.querySelector('.set-time-mm:not(.set-rest-mm)')
-  const timeSs = rowEl.querySelector('.set-time-ss:not(.set-rest-ss)')
-  const restMm = rowEl.querySelector('.set-rest-mm')
-  const restSs = rowEl.querySelector('.set-rest-ss')
-  return {
-    reps: repsInput ? repsInput.value : null,
-    duration: timeMm ? `${timeMm.value}:${timeSs.value}` : null,
-    weight: weightInput && weightInput.value !== '' ? weightInput.value : null,
-    distance: distanceInput && distanceInput.value !== '' ? distanceInput.value : null,
-    rest: restMm ? `${restMm.value}:${restSs.value}` : null,
-    type: typeSelect ? typeSelect.value : 'main'
-  }
-}
-
-function addSetTargetRowCal(rowsEl, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance) {
-  const rows = [...rowsEl.querySelectorAll('.set-target-row')]
-  if (rows.length === 1) rows[0].querySelector('.set-remove-btn').disabled = false
-  const carryOver = readSetRowValuesCal(rows[rows.length - 1])
-  rowsEl.insertAdjacentHTML('beforeend', renderSetTargetRowCal(rows.length + 1, carryOver, tracksReps, isTimed, tracksWeight, isUnilateral, tracksDistance, false))
-}
-
-// Removal can happen from the middle of the list, so every remaining row
-// needs relabelling, not just a length check
-function removeSetTargetRowCal(row) {
-  const rowsEl = row.parentElement
-  row.remove()
-  const remaining = [...rowsEl.querySelectorAll('.set-target-row')]
-  remaining.forEach((r, i) => {
-    r.dataset.setNumber = i + 1
-    r.querySelector('.set-label').textContent = `Set ${i + 1}`
-  })
-  if (remaining.length === 1) remaining[0].querySelector('.set-remove-btn').disabled = true
-}
 
 function getYouTubeEmbedUrlCal(url) {
   if (!url) return null
@@ -4557,10 +4002,6 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
   }
 }
 
-// Any set field, note, or extra-field value - autosave the owning card a
-// moment after the coach stops typing (see scheduleAutosaveCal above)
-const AUTOSAVE_FIELD_SELECTOR_CAL = '.set-reps-input, .set-weight-input, .set-distance-input, .set-time-mm, .set-time-ss, .exercise-notes-input, .extra-field-value'
-
 // ==========================================================================
 // ---- CALENDAR TAB: STATIC EVENT WIRING ----
 // Everything athlete-calendar.js registered at module top-level, against
@@ -4595,100 +4036,14 @@ function bindCalendarStaticEvents() {
     const btn = e.target.closest('[data-action]')
     if (!btn) return
 
-    if (btn.dataset.action === 'save-scheduled-day') {
-      await saveScheduledDay(btn.closest('.detail-group'))
-      return
-    }
-
     if (btn.dataset.action === 'toggle-review-edit') {
       const dayId = btn.closest('.detail-group').dataset.programDayId
       openWorkoutBuilderOverlay(dayId, currentDayDateForModal)
       return
     }
-
-    const card = btn.closest('.builder-exercise-card')
-    const peId = card ? card.dataset.id : null
-
-    if (btn.dataset.action === 'delete-scheduled') {
-      await deleteScheduledExercise(peId)
-    } else if (btn.dataset.action === 'add-set') {
-      const pe = findScheduledPE(peId)
-      addSetTargetRowCal(
-        card.querySelector('.set-target-rows'),
-        !!(pe && (!pe.exercises || pe.exercises.tracks_reps !== false)),
-        !!(pe && pe.exercises && pe.exercises.is_timed),
-        !!(pe && (!pe.exercises || pe.exercises.tracks_weight)),
-        !!(pe && pe.exercises && pe.exercises.is_unilateral),
-        !!(pe && pe.exercises && pe.exercises.tracks_distance)
-      )
-      scheduleAutosaveCal(peId)
-      const dayScopeEl = card.closest('.detail-group')
-      for (const other of linkedCardsForCal(card, dayScopeEl)) {
-        const oPe = findScheduledPE(other.dataset.id)
-        addSetTargetRowCal(
-          other.querySelector('.set-target-rows'),
-          !!(oPe && (!oPe.exercises || oPe.exercises.tracks_reps !== false)),
-          !!(oPe && oPe.exercises && oPe.exercises.is_timed),
-          !!(oPe && (!oPe.exercises || oPe.exercises.tracks_weight)),
-          !!(oPe && oPe.exercises && oPe.exercises.is_unilateral),
-          !!(oPe && oPe.exercises && oPe.exercises.tracks_distance)
-        )
-        scheduleAutosaveCal(other.dataset.id)
-      }
-    } else if (btn.dataset.action === 'remove-set') {
-      const row = btn.closest('.set-target-row')
-      const setNumber = row.dataset.setNumber
-      removeSetTargetRowCal(row)
-      scheduleAutosaveCal(peId)
-      const dayScopeEl = card.closest('.detail-group')
-      for (const other of linkedCardsForCal(card, dayScopeEl)) {
-        const otherRow = other.querySelector(`.set-target-row[data-set-number="${setNumber}"]`)
-        if (otherRow && other.querySelectorAll('.set-target-row').length > 1) {
-          removeSetTargetRowCal(otherRow)
-          scheduleAutosaveCal(other.dataset.id)
-        }
-      }
-    } else if (btn.dataset.action === 'add-extra-field') {
-      addExtraFieldRowCal(`extraFieldsSched-${peId}`)
-    } else if (btn.dataset.action === 'toggle-link') {
-      handleLinkClickCal(peId, btn.closest('.detail-group'))
-    }
   })
 
-  // mm:ss time boxes: strip anything non-digit as it's typed, then pad back
-  // to 2 digits (and clamp seconds to 59) once the coach taps away. Selects
-  // the "00" on focus so typing a digit replaces it instead of needing a
-  // manual delete first
-  dayDetailContent.addEventListener('focusin', function(e) {
-    if (e.target.matches('.set-time-mm, .set-time-ss')) {
-      e.target.select()
-    }
-  })
-  dayDetailContent.addEventListener('input', function(e) {
-    if (e.target.matches('.set-time-mm, .set-time-ss')) {
-      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 2)
-    }
-  })
-  dayDetailContent.addEventListener('focusout', function(e) {
-    if (e.target.matches('.set-time-mm, .set-time-ss')) {
-      const max = e.target.classList.contains('set-time-ss') ? 59 : 99
-      const val = Math.min(parseInt(e.target.value) || 0, max)
-      e.target.value = String(val).padStart(2, '0')
-    }
-  })
-
-  dayDetailContent.addEventListener('input', function(e) {
-    if (!e.target.matches(AUTOSAVE_FIELD_SELECTOR_CAL)) return
-    const card = e.target.closest('.builder-exercise-card')
-    if (card) scheduleAutosaveCal(card.dataset.id)
-  })
   dayDetailContent.addEventListener('change', async function(e) {
-    if (e.target.matches('.set-type-select')) {
-      const card = e.target.closest('.builder-exercise-card')
-      if (card) scheduleAutosaveCal(card.dataset.id)
-      return
-    }
-
     if (e.target.matches('[data-action="set-workout-type"]')) {
       const dayId = e.target.dataset.dayId
       const { error } = await supabase.from('program_days').update({ workout_type: e.target.value }).eq('id', dayId)
@@ -4697,65 +4052,6 @@ function bindCalendarStaticEvents() {
       if (entry) entry.day.workout_type = e.target.value
       renderCalendarGrid(currentViewYear, currentViewMonth)
     }
-  })
-
-  // ---- Reorder exercises within a day-entry group by dragging the ⠿
-  // handle ---- Purely a DOM reorder while dragging (no network call),
-  // scoped to stay within the same group - the new order is only written
-  // to order_index when that group's own Save button is pressed, same as
-  // every other edit here. Dragging between different day-entry groups
-  // isn't supported. Grabbing any member of a section drags the whole
-  // section together - see dataset.sectionInstanceId grouping below -
-  // since the whole point of a section is that it stays together.
-  dayDetailContent.addEventListener('dragstart', function(e) {
-    const handle = e.target.closest('.builder-drag-handle')
-    if (!handle) return
-    const card = handle.closest('.builder-exercise-card')
-    draggingGroupCal = card.closest('.detail-group')
-    const instanceId = card.dataset.sectionInstanceId
-    draggingCardsCal = instanceId
-      ? [...draggingGroupCal.querySelectorAll(`.builder-exercise-card[data-section-instance-id="${instanceId}"]`)]
-      : [card]
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', '')
-    e.dataTransfer.setDragImage(card, 20, 20)
-    setTimeout(function() { draggingCardsCal.forEach(c => c.classList.add('dragging')) }, 0)
-  })
-
-  dayDetailContent.addEventListener('dragover', function(e) {
-    if (!draggingCardsCal.length) return
-    if (e.target.closest('.detail-group') !== draggingGroupCal) return
-    e.preventDefault()
-
-    // Only a standalone card, or the FIRST card of a stationary section,
-    // counts as a valid drop-target boundary - this is what makes it
-    // impossible to drop in the middle of someone else's section
-    const cards = [...draggingGroupCal.querySelectorAll('.builder-exercise-card:not(.dragging)')]
-    const unitLeaders = cards.filter(function(c) {
-      const id = c.dataset.sectionInstanceId
-      if (!id) return true
-      const prev = c.previousElementSibling
-      return !prev || prev.dataset.sectionInstanceId !== id
-    })
-    const after = unitLeaders.reduce(function(closest, card) {
-      const box = card.getBoundingClientRect()
-      const offset = e.clientY - box.top - box.height / 2
-      return (offset < 0 && offset > closest.offset) ? { offset, element: card } : closest
-    }, { offset: -Infinity, element: null }).element
-
-    if (after) {
-      draggingCardsCal.forEach(c => draggingGroupCal.insertBefore(c, after))
-    } else {
-      const saveBtn = draggingGroupCal.querySelector('[data-action="save-scheduled-day"]')
-      if (saveBtn) draggingCardsCal.forEach(c => draggingGroupCal.insertBefore(c, saveBtn))
-      else draggingCardsCal.forEach(c => draggingGroupCal.appendChild(c))
-    }
-  })
-
-  dayDetailContent.addEventListener('dragend', function() {
-    draggingCardsCal.forEach(c => c.classList.remove('dragging'))
-    draggingCardsCal = []
-    draggingGroupCal = null
   })
 
   root.querySelector('#closeDayDetailBtn').addEventListener('click', function() {
