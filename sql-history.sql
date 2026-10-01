@@ -2509,3 +2509,22 @@ create policy "athlete reads reports sent to them" on storage.objects for select
         and m.pdf_url like '%/chat-attachments/' || objects.name
     )
   );
+
+
+-- ==========================================================================
+-- Missing indexes on foreign keys / RLS columns. Postgres doesn't index a
+-- foreign key column automatically, so each of these lookups (and each
+-- RLS check like "coach_id = the caller") read the whole table. Small
+-- tables today, so this is about staying fast as data grows. No behaviour
+-- change; safe to re-run. (athlete_label_links' primary key and
+-- form_answers' unique key start with a different column, so they don't
+-- cover these lookups.)
+-- ==========================================================================
+create index if not exists idx_chat_messages_coach_id on chat_messages(coach_id);
+create index if not exists idx_athlete_labels_coach_id on athlete_labels(coach_id);
+create index if not exists idx_athlete_label_links_label_id on athlete_label_links(label_id);
+create index if not exists idx_forms_coach_id on forms(coach_id);
+create index if not exists idx_form_questions_form_id on form_questions(form_id);
+create index if not exists idx_form_assignments_form_id on form_assignments(form_id);
+create index if not exists idx_form_answers_question_id on form_answers(question_id);
+create index if not exists idx_scheduled_notifications_user_id on scheduled_notifications(user_id);
