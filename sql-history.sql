@@ -2361,3 +2361,44 @@ alter table workout_sessions add column if not exists athlete_note text;
 alter table notifications drop constraint if exists notifications_type_check;
 alter table notifications add constraint notifications_type_check
   check (type in ('workout_added', 'workout_completed', 'tournament_added', 'low_trainings', 'chat_message', 'workout_note'));
+
+
+-- ==========================================================================
+-- Security: athletes can only change their own profile settings.
+--
+-- "athlete updates own settings" (above) is row-level only, so an athlete
+-- calling the API directly could change ANY column on their own row:
+-- switch on their own can_* permissions, un-archive themselves, or rewrite
+-- coach_id / user_id / email. The coach's toggles were only enforced by the
+-- UI. A column grant (the profiles fix near the top of this file) doesn't
+-- work here because coaches and athletes share the `authenticated` role,
+-- and coaches must keep full access.
+--
+-- So: a trigger that, when the person updating is the athlete themself,
+-- rejects any change outside an allowlist. It's an allowlist on purpose -
+-- new columns are protected by default; add one here only if the athlete
+-- app needs to write it. Coach edits, claim_athlete_by_email (row isn't
+-- linked yet, old.user_id is null) and service-role jobs (auth.uid() is
+-- null) all skip the check.
+-- ==========================================================================
+create or replace function public.athletes_guard_self_update()
+returns trigger language plpgsql set search_path = public as $$
+declare
+  editable text[] := array['name', 'date_of_birth', 'gender', 'height', 'avatar_url',
+                           'weight_unit', 'weekly_recap_enabled', 'intro_seen'];
+begin
+  if old.user_id is not null
+     and old.user_id = (select auth.uid())
+     and old.coach_id is distinct from (select auth.uid())
+     and (to_jsonb(new) - editable) is distinct from (to_jsonb(old) - editable) then
+    raise exception 'Athletes can only change their own profile settings'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists athletes_guard_self_update on athletes;
+create trigger athletes_guard_self_update
+  before update on athletes
+  for each row execute function public.athletes_guard_self_update();
