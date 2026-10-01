@@ -3252,6 +3252,43 @@ function renderWeeklyStatsBody(weekStart) {
   `
 }
 
+// What a day with no workout and no form shows. Today gets the useful next
+// steps (a mobility session, logging something of their own) - the same two
+// flows the Home tiles open, gated by the same settings. A future day stays
+// button-free since the coach may still add something to it, and a
+// tournament day says so instead of calling itself a rest day.
+function renderRestDayCard(dateStr, isToday) {
+  const todayStr = toDateStr(new Date())
+  const tournament = tournamentsByDate[dateStr]
+  const showMobility = coachMobilityEnabled && athlete.mobility_enabled
+  const mobilityDone = !!mobilitySessionsByDate[dateStr]
+
+  let title = 'Rest day'
+  let text
+  if (tournament) {
+    title = 'Tournament day'
+    text = escapeHtml(tournament.name)
+  } else if (isToday) text = 'Nothing planned today. Recovery is part of the program.'
+  else if (dateStr > todayStr) text = 'Nothing planned for this day yet.'
+  else text = 'Nothing was planned for this day.'
+
+  const actions = []
+  if (!tournament) {
+    if (showMobility && mobilityDone) actions.push('<p class="rest-day-done">Mobility done \u2713</p>')
+    else if (showMobility && isToday) actions.push('<button type="button" class="btn-save" id="restMobilityBtn">Do a mobility session</button>')
+    if (isToday && athlete.can_self_log_workouts) actions.push('<button type="button" class="btn-cancel" id="restOwnWorkoutBtn">Log your own workout</button>')
+  }
+
+  return `
+    <div class="rest-day-card">
+      <div class="rest-day-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></div>
+      <h3 class="rest-day-title">${title}</h3>
+      <p class="rest-day-text">${text}</p>
+      ${actions.length ? `<div class="rest-day-actions">${actions.join('')}</div>` : ''}
+    </div>
+  `
+}
+
 // ==========================================================================
 // ---- DAY PREVIEW (read-only, no logging inputs) ----
 // ==========================================================================
@@ -3277,7 +3314,7 @@ function renderDayPreview(dateStr) {
     : ''
 
   const bodyHtml = (entries.length === 0 && forms.length === 0)
-    ? '<p class="no-metrics">Rest day — nothing scheduled</p>'
+    ? renderRestDayCard(dateStr, isToday)
     : formsHtml + multiWorkoutNoticeHtml + entries.map(entry => renderDayPreviewGroup(entry, isToday, dateStr)).join('')
 
   pageContent.innerHTML = `
@@ -3293,6 +3330,11 @@ function renderDayPreview(dateStr) {
   document.getElementById('backToWeekBtn').addEventListener('click', nav.back)
 
   wireSyncBanner(function() { renderDayPreview(dateStr) })
+
+  const restMobilityBtn = document.getElementById('restMobilityBtn')
+  if (restMobilityBtn) restMobilityBtn.addEventListener('click', function() { renderMobilityAreaPicker() })
+  const restOwnWorkoutBtn = document.getElementById('restOwnWorkoutBtn')
+  if (restOwnWorkoutBtn) restOwnWorkoutBtn.addEventListener('click', function() { renderAddWorkoutChoice() })
 
   document.getElementById('dayPreviewBody').addEventListener('click', function(e) {
     const thumbBtn = e.target.closest('[data-video-url]')

@@ -1396,6 +1396,58 @@ body:has(.home-screen) .athlete-app-card {
   margin: -4px 0 14px;
 }
 
+/* Empty-day card in the day preview - see renderRestDayCard */
+.rest-day-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 16px;
+  padding: 28px 20px 22px;
+  margin-top: 8px;
+}
+
+.rest-day-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background-color: var(--c-accent);
+  color: var(--c-text);
+  margin-bottom: 6px;
+}
+
+.rest-day-title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.rest-day-text {
+  color: var(--c-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 28ch;
+}
+
+.rest-day-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.rest-day-done {
+  color: #4ade80;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
 /* Collapsed-by-default summary for one workout's exercise list - tapping it
    toggles .day-preview-exercises-detail below (see the data-toggle-exercises
    handler in renderDayPreview). A plain full-width button, not a card
