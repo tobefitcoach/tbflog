@@ -2468,3 +2468,13 @@ drop trigger if exists chat_messages_guard_athlete_update on chat_messages;
 create trigger chat_messages_guard_athlete_update
   before update on chat_messages
   for each row execute function public.chat_messages_guard_athlete_update();
+
+
+-- ==========================================================================
+-- One-off: show the new Home walkthrough (athlete-app/tour.js) to every
+-- athlete once. It replaced the old 4-card intro; resetting intro_seen
+-- makes it run on each athlete's next app open, and it flips back to true
+-- when they finish or skip it. Run once, not again - re-running would
+-- replay the tour for everyone.
+-- ==========================================================================
+update athletes set intro_seen = false;

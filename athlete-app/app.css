@@ -2456,68 +2456,93 @@ body:has(.home-screen) .athlete-app-card {
   color: var(--c-text);
 }
 
-/* First-time app intro (see enterAppMaybeIntro()/renderIntroStep() in
-   dashboard.js) - a handful of short full-screen steps shown once, right
-   after an athlete finishes their profile/password setup. */
-.intro-screen {
-  position: relative;
+/* ==========================================================================
+   TOUR (see tour.js) - first-time Home walkthrough, replayable from Profile,
+   and the one-time set-check hint in a workout. Sits above everything,
+   modals (1000) included. The hole's huge box-shadow is the dimmed screen;
+   the hole itself is the clear cut-out around the highlighted element.
+   ========================================================================== */
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+}
+
+.tour-hole {
+  position: fixed;
+  border-radius: var(--r-md);
+  box-shadow: 0 0 0 9999px rgba(5, 5, 15, 0.75);
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 0;
+  pointer-events: none;
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+.tour-centred .tour-hole {
+  outline: none;
+}
+
+.tour-bubble {
+  position: fixed;
+  width: min(320px, calc(100vw - 32px));
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--s-4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  transition: top 0.25s ease, left 0.25s ease;
+}
+
+.tour-bubble-top {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  text-align: center;
-  padding: 60px 24px 24px;
-  min-height: 60vh;
-  justify-content: center;
+  min-height: 20px;
+  margin-bottom: var(--s-2);
 }
 
-.intro-skip-btn {
-  position: absolute;
-  top: 0;
-  right: 0;
+.tour-count {
+  color: var(--c-text-muted);
+  font-size: 12px;
 }
 
-.intro-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+.tour-skip {
+  background: none;
+  border: none;
+  color: var(--c-text-muted);
+  font-size: 13px;
+  padding: var(--s-1) 0 var(--s-1) var(--s-3);
+  cursor: pointer;
 }
 
-.intro-title {
-  margin-bottom: 12px;
+.tour-title {
+  font-size: 17px;
+  margin-bottom: var(--s-1);
 }
 
-.intro-body {
+.tour-body {
   color: var(--c-text-muted);
   font-size: 14px;
   line-height: 1.5;
-  max-width: 340px;
-  margin-bottom: 28px;
+  margin-bottom: var(--s-4);
 }
 
-.intro-dots {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 28px;
-}
-
-.intro-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--c-border);
-}
-
-.intro-dot.active {
-  background-color: var(--c-accent);
-}
-
-.intro-actions {
+.tour-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-3);
 }
 
-.intro-actions .btn-save {
+.tour-actions .btn-save {
   flex: 1;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole,
+  .tour-bubble {
+    transition: none;
+  }
 }
 
 /* --- Delete Account (Profile screen) ---

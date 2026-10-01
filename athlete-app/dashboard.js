@@ -19,6 +19,7 @@ import { supabase as coachSupabase } from '../coachClient.js'
 import { pushStatus, enablePush, disablePush, sendPush } from '../push.js'
 import * as nav from './nav.js'
 import { escapeHtml, safeUrl } from '../escape.js'
+import { runTour } from './tour.js?v=1'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')
@@ -392,81 +393,78 @@ function renderCompleteProfilePrompt() {
 }
 
 // ==========================================================================
-// ---- FIRST-TIME APP INTRO ----
-// Shown exactly once, right after an athlete finishes the profile/password
-// step above (or, for anyone who reached that step before this feature
-// existed, the next time they open the app) - a few short screens
-// explaining the basics before they land on their real Week view for the
-// first time. athletes.intro_seen gates it so it never shows again once
-// they've clicked through or skipped it.
+// ---- FIRST-TIME TOUR ----
+// First-time tour. Shown once, right after an athlete finishes the
+// profile/password step above (or the next time they open the app, for
+// anyone whose intro_seen was reset), and on demand from Profile's
+// "Replay" button. It runs on the real Home screen, highlighting one thing
+// at a time (see tour.js), so athletes see where things are instead of
+// reading about them. Steps for features this athlete doesn't have (no
+// mobility, tournaments, stats, or own workouts) are skipped by tour.js
+// because their element isn't on the page.
 // ==========================================================================
-const introSteps = [
-  {
-    icon: '👋',
-    title: null, // filled in with the athlete's name at render time, see renderIntroStep()
-    body: "This is where you'll follow the training program your coach builds for you. Let's take a quick look around."
-  },
-  {
-    icon: '📅',
-    title: 'Your Week',
-    body: 'The Home tab shows your week at a glance. Tap any day to preview what\'s on it, and tap "Start Workout" on today\'s to begin logging your session.'
-  },
-  {
-    icon: '✅',
-    title: 'Log As You Go',
-    body: "Check off each set as you finish it - your weights, reps, and times save automatically, so there's nothing to remember for later."
-  },
-  {
-    icon: '💬',
-    title: 'Stay Connected',
-    body: 'Message your coach anytime from the Communication tab, and use Settings to set your units, notifications, and profile photo.'
-  }
-]
-let introStepIndex = 0
-
 async function enterAppMaybeIntro() {
-  if (athlete.intro_seen) { await enterWeekView(); return }
-  introStepIndex = 0
-  renderIntroStep()
+  await enterWeekView({ tour: !athlete.intro_seen })
 }
 
-function renderIntroStep() {
-  pageWrap.classList.add('centered')
-  cardWrap.classList.add('centered')
-  const step = introSteps[introStepIndex]
-  const isFirst = introStepIndex === 0
-  const isLast = introStepIndex === introSteps.length - 1
-
-  pageContent.innerHTML = `
-    <div class="intro-screen">
-      ${!isLast ? '<button type="button" class="unit-btn intro-skip-btn" id="introSkipBtn">Skip</button>' : ''}
-      <div class="intro-icon">${step.icon}</div>
-      <h2 class="intro-title">${step.title || `Welcome, ${athlete.name}!`}</h2>
-      <p class="intro-body">${step.body}</p>
-      <div class="intro-dots">
-        ${introSteps.map((_, i) => `<span class="intro-dot ${i === introStepIndex ? 'active' : ''}"></span>`).join('')}
-      </div>
-      <div class="intro-actions">
-        ${!isFirst ? '<button type="button" class="icon-btn" id="introBackBtn" aria-label="Back">${CHEVRON_LEFT}</button>' : ''}
-        <button type="button" class="btn-save" id="introNextBtn">${isLast ? 'Get Started' : 'Continue'}</button>
-      </div>
-    </div>
-  `
-
-  const skipBtn = document.getElementById('introSkipBtn')
-  if (skipBtn) skipBtn.addEventListener('click', finishIntro)
-
-  const backBtn = document.getElementById('introBackBtn')
-  if (backBtn) backBtn.addEventListener('click', function() { introStepIndex--; renderIntroStep() })
-
-  document.getElementById('introNextBtn').addEventListener('click', function() {
-    if (isLast) { finishIntro(); return }
-    introStepIndex++
-    renderIntroStep()
-  })
+function homeTourSteps() {
+  const $ = sel => () => document.querySelector(sel)
+  return [
+    {
+      title: `Welcome, ${athlete.name.split(' ')[0]}!`,
+      body: "Here's a quick look around, so you know where everything is. It takes about 30 seconds."
+    },
+    {
+      target: $('.week-strip'),
+      title: 'Your week',
+      body: "Each card is a day of your program. Tap any day to see what's planned. The arrows above switch weeks."
+    },
+    {
+      target: $('.week-day-card.today'),
+      title: 'Today',
+      body: "When it's time to train, tap today and hit Start Workout. Tick off each set as you go. Everything saves automatically."
+    },
+    {
+      target: $('#addOwnWorkoutTile'),
+      title: 'Add your own workout',
+      body: 'Trained outside your program, like a team practice or an extra gym session? Log it here so your coach sees it.'
+    },
+    {
+      target: $('#mobilityTile'),
+      title: 'Mobility & stretching',
+      body: 'Guided mobility and stretching sessions you can do any day, on top of your training.'
+    },
+    {
+      target: $('#tournamentsTile'),
+      title: 'Tournaments',
+      body: 'Add your upcoming tournaments so your coach can plan your training around them.'
+    },
+    {
+      target: $('#logWeightTile'),
+      title: 'Log your weight',
+      body: 'Keep track of your bodyweight over time.'
+    },
+    {
+      target: $('#navCommsBtn'),
+      title: 'Chat',
+      body: 'Message your coach any time. A dot shows up here when they reply.'
+    },
+    {
+      target: $('#navStatsBtn'),
+      title: 'Stats',
+      body: 'Your training stats and progress, week by week.'
+    },
+    {
+      target: $('#navProfileBtn'),
+      title: 'Profile',
+      body: 'Switch kg/lbs, turn on notifications and add your photo. You can replay this tour from here too.'
+    }
+  ]
 }
 
-async function finishIntro() {
+async function runHomeTour() {
+  await runTour(homeTourSteps(), { doneLabel: "Let's go" })
+  if (athlete.intro_seen) return
   athlete.intro_seen = true
   await saveWithRetry((signal) => supabase
     .from('athletes')
@@ -474,10 +472,33 @@ async function finishIntro() {
     .eq('id', athlete.id)
     .abortSignal(signal)
   )
-  await enterWeekView()
 }
 
-async function enterWeekView() {
+// One-time hint the first time an athlete opens a workout: points at the
+// first unticked set's check button. Called from mountSlide(), which every
+// workout screen goes through. Remembered per device (localStorage) - it's
+// only a hint, so seeing it once more on a new phone is fine. Profile's
+// "Replay" clears it along with replaying the Home tour.
+const SET_HINT_KEY = 'tbflog-set-hint-seen'
+
+function maybeShowSetHint() {
+  try { if (localStorage.getItem(SET_HINT_KEY)) return } catch (e) { return }
+  const btn = document.querySelector('.workout-slide .set-row:not(.completed) .set-check-btn')
+  if (!btn) return
+  try { localStorage.setItem(SET_HINT_KEY, '1') } catch (e) { /* storage blocked - shows again next time, harmless */ }
+  // After the slide-in animation (mountSlide's 0.2s) so the hole lands on
+  // the button's final position
+  setTimeout(function() {
+    if (!btn.isConnected) return
+    runTour([{
+      target: () => btn,
+      title: 'Tick off each set',
+      body: 'Do the set, change the numbers if yours were different, then tap here. Tap it again to undo.'
+    }], { doneLabel: 'Got it' })
+  }, 250)
+}
+
+async function enterWeekView({ tour = false } = {}) {
   // Clears the display:none set inline in dashboard.html's markup, rather
   // than setting an inline 'flex' - an inline style always wins over a
   // stylesheet rule regardless of specificity, which permanently defeated
@@ -505,13 +526,16 @@ async function enterWeekView() {
     if (document.visibilityState === 'visible') refreshChatNavBadge()
   })
   renderWeekView(startOfWeek(new Date()))
+  flushPendingQueue() // not awaited - picks up anything left over from a previous session
+  flushPendingSessionEnds()
+  // The tour goes first; the recap and coach messages wait until it's
+  // closed, so only one overlay is ever on screen
+  if (tour) await runHomeTour()
   // Only one modal-overlay should ever be active at once - if the recap
   // actually shows, its own close button chains into
   // maybeShowOnOpenMessages() afterward instead of this firing right away
   const recapShown = maybeShowWeeklyRecap()
   if (!recapShown) maybeShowOnOpenMessages()
-  flushPendingQueue() // not awaited - picks up anything left over from a previous session
-  flushPendingSessionEnds()
 }
 
 // A place for per-athlete settings that live outside the coach-editable
@@ -771,6 +795,13 @@ async function renderProfile() {
       </div>
       <button type="button" class="btn-profile-action" id="coachAccountBtn">Switch to Coach View</button>
     </div>` : ''}
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">App tour</div>
+        <div class="settings-row-desc">See where everything is again</div>
+      </div>
+      <button type="button" class="btn-profile-action" id="replayTourBtn">Replay</button>
+    </div>
     <button type="button" class="btn-cancel" id="profileLogoutBtn" style="margin-top:24px">Log Out</button>
 
     <div class="profile-danger-zone">
@@ -880,6 +911,12 @@ async function renderProfile() {
       e.target.checked = previousValue
       customAlert('Something went wrong saving that - try again')
     }
+  })
+
+  document.getElementById('replayTourBtn').addEventListener('click', function() {
+    try { localStorage.removeItem(SET_HINT_KEY) } catch (e) { /* storage blocked - the hint just won't replay */ }
+    renderWeekView(startOfWeek(new Date()))
+    runHomeTour()
   })
 
   document.getElementById('profileLogoutBtn').addEventListener('click', async function() {
@@ -4594,6 +4631,7 @@ function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, directi
 // ==========================================================================
 function mountSlide(direction) {
   restoreRestTimerBar()
+  maybeShowSetHint()
   const slide = document.querySelector('.workout-slide')
   if (!slide || !direction) return
   slide.style.transition = 'none'
@@ -5674,7 +5712,10 @@ function uncheckSet(peId, setNumber, dateStr, rowEl) {
 
   clearRestTimer()
   rowEl.classList.remove('completed', 'unsynced')
-  if (isTimed) { mmInput.disabled = false; ssInput.disabled = false } else { repsInput.disabled = false }
+  // Mirror checkSet: each input only exists for the fields this exercise
+  // tracks - a row can have reps AND time, or neither (weight-only)
+  if (repsInput) repsInput.disabled = false
+  if (isTimed) { mmInput.disabled = false; ssInput.disabled = false }
   if (weightInput) weightInput.disabled = false
   if (distanceInput) distanceInput.disabled = false
   checkBtn.textContent = ''
