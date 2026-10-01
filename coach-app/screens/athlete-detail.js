@@ -2141,7 +2141,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
     const dotsHtml = visibleItems.map(it => {
       if (it.dayId) {
         const deleteAttrs = it.isAdhoc
-          ? `data-mode="adhoc" data-program-id="${it.programId}"`
+          ? `data-mode="adhoc" data-program-id="${it.programId}" data-program-day-id="${it.dayId}"`
           : `data-mode="day" data-program-day-id="${it.dayId}"`
         return `
           <div class="kebab-menu calendar-dot-kebab">
@@ -2183,7 +2183,7 @@ function renderCalendarDayCell(cell, weekMonday, todayStr) {
     const badgesHtml = visibleItems.map(it => {
       if (it.dayId) {
         const deleteAttrs = it.isAdhoc
-          ? `data-mode="adhoc" data-program-id="${it.programId}"`
+          ? `data-mode="adhoc" data-program-id="${it.programId}" data-program-day-id="${it.dayId}"`
           : `data-mode="day" data-program-day-id="${it.dayId}"`
         return `
           <div class="calendar-day-badge-row">
@@ -2625,10 +2625,16 @@ function renderLoggedExerciseCardCal(pe) {
 // (cascades its week/day/exercises). An assigned template instance can span
 // many weeks, so only that one program_days row is removed - the rest of
 // the assigned program stays on the calendar untouched.
+//
+// Deleting a workout also deletes everything the athlete logged on it (sets
+// and the session cascade from the day), so a logged one gets a clear
+// warning instead of the plain question.
 async function deleteTraining(mode, programId, programDayId) {
-  if (!(await customConfirm(mode === 'adhoc'
+  const logged = await loggedSummaryForDay(programDayId)
+  const plainQuestion = mode === 'adhoc'
     ? 'Delete this workout?'
-    : 'Remove this day from the assigned program? (The rest of the program stays intact.)'))) return
+    : 'Remove this day from the assigned program? (The rest of the program stays intact.)'
+  if (!(await customConfirm(logged ? loggedDeleteWarning(logged) : plainQuestion))) return
 
   const token = mountToken
   const { error } = mode === 'adhoc'
@@ -2640,6 +2646,46 @@ async function deleteTraining(mode, programId, programDayId) {
 
   root.querySelector('#dayDetailModal').classList.remove('active')
   await loadCalendarMonth(currentViewYear, currentViewMonth)
+}
+
+// What the athlete has logged on one workout: { sets, date } when they
+// logged anything, null when nothing, { unknown: true } when the check
+// itself failed (so the caller warns rather than assume it's safe).
+async function loggedSummaryForDay(programDayId) {
+  if (!programDayId) return { unknown: true }
+  const [setsRes, sessionsRes] = await Promise.all([
+    supabase
+      .from('exercise_log_sets')
+      .select('date, program_exercises!inner(day_id)', { count: 'exact' })
+      .eq('program_exercises.day_id', programDayId)
+      .not('completed_at', 'is', null)
+      .order('date', { ascending: true })
+      .limit(1),
+    supabase
+      .from('workout_sessions')
+      .select('local_date')
+      .eq('program_day_id', programDayId)
+      .limit(1)
+  ])
+  if (setsRes.error || sessionsRes.error) {
+    console.log(setsRes.error || sessionsRes.error)
+    return { unknown: true }
+  }
+  const sets = setsRes.count || 0
+  const session = sessionsRes.data && sessionsRes.data[0]
+  if (sets === 0 && !session) return null
+  const date = (setsRes.data[0] && setsRes.data[0].date) || (session && session.local_date)
+  return { sets, date }
+}
+
+function loggedDeleteWarning(logged) {
+  const name = currentAthlete ? currentAthlete.name.split(' ')[0] : 'The athlete'
+  if (logged.unknown) {
+    return `Couldn't check whether ${name} logged this workout. If they did, deleting it also permanently deletes everything they logged.\n\nDelete anyway?`
+  }
+  const when = logged.date ? formatShortDateCal(logged.date) : null
+  const details = [when, logged.sets ? `${logged.sets} set${logged.sets === 1 ? '' : 's'}` : null].filter(Boolean).join(', ')
+  return `${name} already logged this workout${details ? ` (${details})` : ''}.\n\nDeleting it also permanently deletes everything they logged: sets, duration, RPE and notes.\n\nDelete anyway?`
 }
 
 // A logged mobility session has no program/day/exercises of its own to
