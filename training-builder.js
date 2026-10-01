@@ -25,14 +25,12 @@ const EXERCISE_TABLE = isDayMode ? 'program_exercises' : 'training_exercises'
 const PARENT_FIELD = isDayMode ? 'day_id' : 'training_id'
 const parentId = isDayMode ? dayId : trainingId
 
-// Loaded inside an iframe overlay (see athlete-calendar.js's "+ New
-// Training" flow, and openWorkoutBuilderOverlay for day mode) - hide the
-// page's own header/sidebar since the overlay already has its own title
-// bar and Done button
+// Only ever loaded inside the coach app's iframe (the Workout Library
+// screen, and the athlete-calendar / program-builder overlays), always
+// with &embed=1 - tb-embed switches on the embedded layout in athlete.css.
+// The page's old standalone header and sidebar are gone.
 if (params.get('embed') === '1') {
   document.body.classList.add('tb-embed')
-  document.getElementById('pageHeader').style.display = 'none'
-  document.getElementById('pageSidebar').style.display = 'none'
 }
 
 // Day mode gets a 4th header button, Add Workout - inserting a whole other
@@ -941,11 +939,9 @@ async function flushAllPendingSaves() {
   await Promise.all(ids.map((id, i) => { clearTimeout(autosaveTimers[id]); delete autosaveTimers[id]; return saveExerciseCard(id, i) }))
 }
 
-// Saves every exercise card on the page at once. Standalone page: heads
-// back to the Training Library list afterward (that's "done" for a coach
-// building a training). Embedded in the calendar's "+ New Training"
-// overlay: stays put and just confirms, since the overlay's own Done
-// button (in athlete-calendar.js) is what actually closes it.
+// Saves every exercise card on the page at once, then stays put and just
+// confirms - the coach app's own Done/Back button is what closes the
+// builder.
 document.getElementById('saveTrainingBtn').addEventListener('click', async function() {
   const btn = this
   btn.disabled = true
@@ -962,13 +958,10 @@ document.getElementById('saveTrainingBtn').addEventListener('click', async funct
     return
   }
 
-  if (params.get('embed') === '1') {
-    await loadExercisesList()
-    btn.textContent = 'Saved!'
-    setTimeout(function() { btn.disabled = false; btn.textContent = 'Save' }, 1200)
-  } else {
-    window.location.href = 'trainings.html'
-  }
+  // Stays put and confirms - the host's own Done button closes the builder
+  await loadExercisesList()
+  btn.textContent = 'Saved!'
+  setTimeout(function() { btn.disabled = false; btn.textContent = 'Save' }, 1200)
 })
 
 // Removes just this one card instead of reloading + re-rendering the whole
