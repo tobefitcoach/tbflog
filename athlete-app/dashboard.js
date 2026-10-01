@@ -34,27 +34,29 @@ if (!session) {
 // ---- BOTTOM NAV ----
 // Lives outside #pageContent (declared once in dashboard.html), so
 // re-rendering pageContent for every screen never wipes it out - this is
-// what makes it a persistent tab bar instead of per-screen chrome. Hidden
+// what makes it a persistent tab bar instead of per-screen chrome. Each tap
+// first runs the current screen's leave guard (nav.confirmLeave), the same
+// question a back gesture asks - only the mobility screens have one. Hidden
 // entirely (see enterWeekView) until there's a real athlete to navigate
 // for; every click here is guarded the same way the old header buttons
 // were, as a safety net for the brief pre-load window.
 // ==========================================================================
-document.getElementById('navHomeBtn').addEventListener('click', function() {
-  if (athlete) renderWeekView(currentWeekStart || startOfWeek(new Date()))
+document.getElementById('navHomeBtn').addEventListener('click', async function() {
+  if (athlete && await nav.confirmLeave()) renderWeekView(currentWeekStart || startOfWeek(new Date()))
 })
 
 // Also hidden entirely (see enterWeekView) unless the coach has
 // can_view_weekly_stats on for this athlete
-document.getElementById('navStatsBtn').addEventListener('click', function() {
-  if (athlete) renderWeeklyStats()
+document.getElementById('navStatsBtn').addEventListener('click', async function() {
+  if (athlete && await nav.confirmLeave()) renderWeeklyStats()
 })
 
-document.getElementById('navCommsBtn').addEventListener('click', function() {
-  if (athlete) renderCommunication()
+document.getElementById('navCommsBtn').addEventListener('click', async function() {
+  if (athlete && await nav.confirmLeave()) renderCommunication()
 })
 
-document.getElementById('navProfileBtn').addEventListener('click', function() {
-  if (athlete) renderProfile()
+document.getElementById('navProfileBtn').addEventListener('click', async function() {
+  if (athlete && await nav.confirmLeave()) renderProfile()
 })
 
 // Tabs are sticky, not re-asserted by every screen: only the tab-root
@@ -121,14 +123,17 @@ const ROUTES = {
   workoutSummary: a => renderWorkoutSummary(a.session, a.entry),
 }
 
-nav.init(ROUTES, function(frame) { setActiveBottomTab(frame.tab) })
+nav.init(ROUTES, function(frame) { setActiveBottomTab(frame.tab) }, { beforeEnter: teardownScreen })
 
 // Chevron icons for the round .icon-btn buttons (back + week navigation) -
 // same stroke style as the other inline icons in this file
 const CHEVRON_LEFT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>'
 const CHEVRON_RIGHT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>'
 
-// Runs at the top of every screen renderer. Previously each one only cleared
+// Runs at the start of every screen, from nav.enter() (wired in nav.init
+// above) - not called by hand, so no renderer can forget it. Previously
+// each renderer called it itself and over half didn't, so e.g. tapping
+// Profile mid-mobility-timer left the timer running. Before that, each one only cleared
 // the rest timer, so leaving a mobility screen any way other than its own
 // Cancel/Finish button (tapping Home, say) left its interval ticking against
 // a torn-down DOM and silently dropped the session. Clearing all three
@@ -137,7 +142,7 @@ const CHEVRON_RIGHT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="non
 // above restTimerOnDone), so this never fires a group step's auto-advance.
 //
 // keepRest: the four workout-slide renderers (exercise, superset gate/step,
-// end slide) pass it so a rest timer started on one exercise keeps counting
+// end slide) pass it in their nav.enter opts so a rest timer started on one exercise keeps counting
 // down as the athlete swipes to the next - the bar is redrawn on each new
 // slide by restoreRestTimerBar() (called from mountSlide). Every other
 // screen still clears it, so leaving the workout ends the rest.
@@ -1589,7 +1594,6 @@ function playInlineVideo(containerEl, url) {
 // ==========================================================================
 function renderWeekView(weekStart = startOfWeek(new Date())) {
   nav.enter('home', { weekStart }, { root: true, tab: 'home' })
-  teardownScreen()
   currentWeekStart = weekStart
   // Only screen that ever needs to clear .centered: it's the sole landing
   // point for the real app (see enterWeekView), reached either fresh or,
@@ -1951,43 +1955,51 @@ function renderMobilityPicker(selectedAreas) {
 
 function renderMobilityTimer(totalSeconds) {
   nav.enter('mobilityTimer', { totalSeconds }, {
-    // Writes nothing until finishMobilitySession - unlike a workout (durable
-    // pending queue, safe to back out of silently), leaving here mid-count
-    // loses the whole session, so this is the one screen worth asking first.
-    guard: () => customConfirm("End this mobility session? Your progress so far won't be saved.")
+    // Writes nothing until the session ends, so leaving any way (back
+    // gesture, a bottom-nav tab) asks first and then ends it under the
+    // same half-time rule as the End button
+    guard: () => endTimerSession({ goHome: false })
   })
   const startedAt = new Date()
-  let remaining = totalSeconds
+  let ended = false
+  // Wall clock, not a counter: setInterval is throttled while the app is in
+  // the background, so counting ticks undercounts a session left running
+  const doneSeconds = () => Math.min(totalSeconds, Math.floor((Date.now() - startedAt.getTime()) / 1000))
 
   pageContent.innerHTML = `
     <div class="mobility-timer-screen">
       <p class="mobility-timer-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"></circle><path d="M12 6v6"></path><path d="M8 8l4 2 4-2"></path><path d="M9 20l3-6 3 6"></path></svg> Mobility / Stretching</p>
-      <p class="mobility-timer-time" id="mobilityTimerTime">${formatTimer(remaining)}</p>
-      <div style="display:flex; gap:12px; margin-top:24px">
-        <button type="button" class="btn-cancel" id="mobilityCancelBtn">Cancel</button>
-        <button type="button" class="btn-save" id="mobilityFinishBtn">Finish Early</button>
-      </div>
+      <p class="mobility-timer-time" id="mobilityTimerTime">${formatTimer(totalSeconds)}</p>
+      <button type="button" class="btn-save" id="mobilityEndBtn" style="margin-top:24px">End Session</button>
     </div>
   `
 
   mobilityTimerInterval = setInterval(function() {
-    remaining--
+    if (ended) return
+    const done = doneSeconds()
     const timeEl = document.getElementById('mobilityTimerTime')
-    if (timeEl) timeEl.textContent = formatTimer(remaining)
-    if (remaining <= 0) {
+    if (timeEl) timeEl.textContent = formatTimer(totalSeconds - done)
+    if (done >= totalSeconds) {
+      ended = true
       clearMobilityTimer()
       playRestDoneSound()
-      finishMobilitySession(startedAt)
+      finishMobilitySession(startedAt, undefined, totalSeconds, totalSeconds)
     }
   }, 1000)
 
-  document.getElementById('mobilityCancelBtn').addEventListener('click', function() {
+  async function endTimerSession({ goHome }) {
+    if (ended) return true
+    const done = doneSeconds()
+    if (!(await customConfirm(mobilityEndPrompt(done, totalSeconds)))) return false
+    if (ended) return true // the timer ran out while the question was open
+    ended = true
     clearMobilityTimer()
-    renderWeekView(currentWeekStart || startOfWeek(new Date()))
-  })
-  document.getElementById('mobilityFinishBtn').addEventListener('click', function() {
-    clearMobilityTimer()
-    finishMobilitySession(startedAt)
+    finishMobilitySession(startedAt, undefined, done, totalSeconds, { goHome, told: true })
+    return true
+  }
+
+  document.getElementById('mobilityEndBtn').addEventListener('click', function() {
+    endTimerSession({ goHome: true })
   })
 }
 
@@ -1996,11 +2008,41 @@ function clearMobilityTimer() {
   mobilityTimerInterval = null
 }
 
+// A mobility session ended early is only saved if at least half the
+// planned time was done, and is saved as the time actually done (stop a
+// 10-minute session at 7 and it's logged as 7 minutes; stop a 20-minute
+// one at 7 and nothing is saved).
+function mobilityCountsAsDone(doneSeconds, plannedSeconds) {
+  return doneSeconds * 2 >= plannedSeconds
+}
+
+function formatMobilityLength(seconds) {
+  return seconds < 60 ? `${seconds} sec` : `${Math.floor(seconds / 60)} min`
+}
+
+function mobilityEndPrompt(doneSeconds, plannedSeconds) {
+  const progress = `You've done ${formatMobilityLength(doneSeconds)} of ${formatMobilityLength(plannedSeconds)}`
+  return mobilityCountsAsDone(doneSeconds, plannedSeconds)
+    ? `End this mobility session? ${progress}, so it will be saved as a ${formatMobilityLength(doneSeconds)} session.`
+    : `End this mobility session? ${progress}. Sessions shorter than half the planned time aren't saved.`
+}
+
 // selectedAreas is the up-to-2 focus areas chosen in renderMobilityAreaPicker
 // (or undefined from renderMobilityTimer's no-library path, where there was
 // never a library to pick areas from) - stored so the coach can see what the
 // athlete was focusing on from the calendar day-detail view.
-async function finishMobilitySession(startedAt, selectedAreas) {
+//
+// goHome: false when the session ended because the athlete is leaving for
+// another screen (back gesture / tab) - save in the background, don't
+// pull them back to Home. told: the end prompt already said whether it
+// would be saved, so a discarded session needs no second message.
+async function finishMobilitySession(startedAt, selectedAreas, doneSeconds, plannedSeconds, { goHome = true, told = false } = {}) {
+  if (!mobilityCountsAsDone(doneSeconds, plannedSeconds)) {
+    if (!told) customAlert("This mobility session wasn't saved: less than half of the planned time was done.")
+    if (goHome) renderWeekView(currentWeekStart || startOfWeek(new Date()))
+    return
+  }
+
   const { error } = await saveWithRetry((signal) => supabase
     .from('workout_sessions')
     .insert([{
@@ -2008,7 +2050,9 @@ async function finishMobilitySession(startedAt, selectedAreas) {
       program_day_id: null,
       session_type: 'mobility',
       started_at: startedAt.toISOString(),
-      ended_at: new Date().toISOString(),
+      // Started + time actually done, so the calendar shows the real length
+      // (pauses in the guided flow don't count)
+      ended_at: new Date(startedAt.getTime() + doneSeconds * 1000).toISOString(),
       local_date: toDateStr(startedAt),
       mobility_focus_areas: selectedAreas && selectedAreas.length ? selectedAreas : null
     }])
@@ -2019,11 +2063,11 @@ async function finishMobilitySession(startedAt, selectedAreas) {
     console.log(error)
     customAlert('Something went wrong saving that mobility session - check your connection and try again')
   } else {
-    customAlert('Mobility session logged!')
+    customAlert(`Mobility session logged (${formatMobilityLength(doneSeconds)})!`)
   }
 
   await loadTrainingData()
-  renderWeekView(currentWeekStart || startOfWeek(new Date()))
+  if (goHome) renderWeekView(currentWeekStart || startOfWeek(new Date()))
 }
 
 // ---- Stretch Library + preferences (cached once per page load, same
@@ -2147,7 +2191,9 @@ async function startMobilityFlow(selectedAreas, totalSeconds) {
 function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
   nav.enter('mobilityFlow', { queue, totalSeconds, selectedAreas }, {
     collapse: true,
-    guard: () => customConfirm("End this mobility session? Your progress so far won't be saved.")
+    // Same as the End button: ask, then end under the half-time rule -
+    // without pulling the athlete back to Home, since they're leaving
+    guard: () => endFlowEarly({ goHome: false })
   })
 
   const startedAt = new Date()
@@ -2309,11 +2355,24 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
     }
   }
 
-  function finishFlow() {
+  let ended = false
+
+  // Reached the end of the queue, or ended early after the prompt (told).
+  // elapsedActiveSeconds, not wall time, is what counts: pauses and the
+  // between-stretch grace periods aren't mobility done.
+  function finishFlow({ goHome = true, told = false } = {}) {
+    ended = true
     clearMobilityFlowTimer()
     pendingSideTransitionTimeouts.forEach(clearTimeout)
     pendingSideTransitionTimeouts = []
-    finishMobilitySession(startedAt, selectedAreas) // startedAt unchanged - real flow-start time, ended_at is now, however the flow actually stopped
+    finishMobilitySession(startedAt, selectedAreas, elapsedActiveSeconds, totalSeconds, { goHome, told })
+  }
+
+  async function endFlowEarly({ goHome }) {
+    if (ended) return true
+    if (!(await customConfirm(mobilityEndPrompt(elapsedActiveSeconds, totalSeconds)))) return false
+    if (!ended) finishFlow({ goHome, told: true })
+    return true
   }
 
   loadStretchIntoVideo(videos[0], queue[0])
@@ -2321,7 +2380,7 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
   preloadNext()
 
   mobilityFlowInterval = setInterval(function() {
-    if (paused) return
+    if (paused || ended) return
     remaining--
     elapsedActiveSeconds++
     const timeEl = document.getElementById('mobilityFlowTime')
@@ -2338,8 +2397,8 @@ function renderMobilityFlow(queue, totalSeconds, selectedAreas) {
 
   document.getElementById('mobilityFlowSkipBtn').addEventListener('click', advance)
 
-  document.getElementById('mobilityFlowEndBtn').addEventListener('click', async function() {
-    if (await customConfirm('End this mobility session now?')) finishFlow()
+  document.getElementById('mobilityFlowEndBtn').addEventListener('click', function() {
+    endFlowEarly({ goHome: true })
   })
 
   document.getElementById('mobilityFlowLikeBtn').addEventListener('click', function() {
@@ -2544,7 +2603,6 @@ function wireExercisePicker(searchInputEl, listEl, library, onPick) {
 // the very first exercise of a fresh (or emptied-back-to-zero) day.
 async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
   const myToken = nav.enter('ownAddExercise', { entry, dateStr, sessionPromise, returnIndex })
-  teardownScreen()
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -2609,7 +2667,6 @@ function getRecentlyLoggedExercises(library, limit) {
 // same renderActiveExercise flow as a coach-built workout.
 async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
   const myToken = nav.enter('ownBuilder', { entry, dateStr, sessionPromise }, { collapse: true })
-  teardownScreen()
 
   const selected = new Map() // exercise_id -> exercise object, insertion-ordered
   const activeCategoryFilters = new Set()
@@ -3322,7 +3379,6 @@ function renderRestDayCard(dateStr, isToday) {
 // ==========================================================================
 function renderDayPreview(dateStr) {
   nav.enter('dayPreview', { dateStr })
-  teardownScreen()
 
   const isToday = dateStr === toDateStr(new Date())
   const entries = entriesByDate[dateStr] || []
@@ -3991,8 +4047,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
     return
   }
 
-  nav.enter('workout', { variant: 'activeExercise', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true })
-  teardownScreen({ keepRest: true })
+  nav.enter('workout', { variant: 'activeExercise', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true, keepRest: true })
 
   const isLast = index === slides.length - 1
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
@@ -4076,8 +4131,7 @@ function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, dir
 // automatically. See buildGroupSteps for the exact step order.
 // ==========================================================================
 function renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction) {
-  nav.enter('workout', { variant: 'groupGate', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true })
-  teardownScreen({ keepRest: true })
+  nav.enter('workout', { variant: 'groupGate', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true, keepRest: true })
 
   const slide = slides[index]
   currentSlideContext = slide
@@ -4131,8 +4185,7 @@ function renderGroupGate(entry, dateStr, slides, index, sessionPromise, directio
 }
 
 function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction) {
-  nav.enter('workout', { variant: 'groupStep', entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction }, { collapse: true })
-  teardownScreen({ keepRest: true })
+  nav.enter('workout', { variant: 'groupStep', entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction }, { collapse: true, keepRest: true })
 
   const slide = slides[index]
   const { pe, round } = steps[stepIndex]
@@ -4591,8 +4644,7 @@ async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId,
 // only place "End Workout" lives now, instead of a persistent link on
 // every slide
 function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, direction) {
-  nav.enter('workout', { variant: 'endOfWorkout', entry, dateStr, slides, sessionPromise, direction }, { collapse: true })
-  teardownScreen({ keepRest: true })
+  nav.enter('workout', { variant: 'endOfWorkout', entry, dateStr, slides, sessionPromise, direction }, { collapse: true, keepRest: true })
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -4792,7 +4844,6 @@ function renderWorkoutSummary(finishedSession, entry) {
   // already dayPreview, so this is a no-op push right on top of it, same
   // as any other drill-down.
   nav.enter('workoutSummary', { session: finishedSession, entry }, { popTo: 'dayPreview' })
-  teardownScreen()
 
   const durationMs = new Date(finishedSession.ended_at) - new Date(finishedSession.started_at)
   const durationMin = Math.floor(durationMs / 60000)

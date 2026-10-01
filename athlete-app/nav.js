@@ -35,6 +35,7 @@ const EPOCH = Date.now().toString(36) + Math.random().toString(36).slice(2)
 
 let ROUTES = {}
 let onFrameChange = null // (frame) => void - dashboard.js uses this to keep the bottom-nav highlight in sync
+let beforeEnter = null // (opts) => void - dashboard.js's teardownScreen, run at the start of every screen entry
 
 let frames = []
 let cursor = -1
@@ -86,6 +87,11 @@ function announce(frame) {
 // Returns the current generation token (see above) - async renderers
 // capture it and check isCurrent(token) after each await.
 export function enter(name, args, opts = {}) {
+  // Every screen starts here, so this is the one place leftover timers and
+  // listeners from the previous screen get cleared - forward or replayed
+  // alike (before the replaying early-return below). opts.keepRest is
+  // passed by the workout slides so a rest timer survives a swipe.
+  if (beforeEnter) beforeEnter(opts)
   generation++
   const myToken = generation
   if (replaying) return myToken // popstate is already driving this render; don't re-push what it just replayed
@@ -244,9 +250,10 @@ function handleHardwareBack() {
 // so the bottom-nav highlight (or anything else keyed off "what screen and
 // tab am I on") only needs to live in one place instead of being re-asserted
 // by every tab-root renderer individually.
-export function init(routes, onChange) {
+export function init(routes, onChange, opts = {}) {
   ROUTES = routes
   onFrameChange = onChange || null
+  beforeEnter = opts.beforeEnter || null
   window.addEventListener('popstate', onPopState)
   // Safe no-op on plain web and on any native binary built before this
   // plugin was added (window.Capacitor may not even exist there, or may
@@ -265,4 +272,19 @@ export function init(routes, onChange) {
 // empty stack.
 export function back() {
   if (cursor > 0) history.back()
+}
+
+// For navigation that doesn't go through a back gesture - the bottom-nav
+// tabs. Runs the current screen's guard (if it has one) and resolves
+// whether leaving is OK, so a tab tap mid-mobility-session asks first
+// just like a back gesture does.
+export async function confirmLeave() {
+  const cur = currentFrame()
+  if (!cur || !cur.guard || guardBusy) return true
+  guardBusy = true
+  try {
+    return await cur.guard()
+  } finally {
+    guardBusy = false
+  }
 }
