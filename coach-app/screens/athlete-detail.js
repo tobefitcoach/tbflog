@@ -84,15 +84,15 @@
 // screens/athletes.js / screens/trainings.js for the conventions this
 // follows.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import { sendPush } from '../../push.js'
-import * as nav from '../nav.js'
-import { go } from '../router.js'
-import { coachId } from '../session.js'
-import { loadChartJs, loadJsPdf } from '../vendor.js'
-import { ensureCss } from '../lazy-css.js'
-import { flushBuilderFrame } from '../builder-frame.js'
-import { escapeHtml, safeUrl } from '../../escape.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import { sendPush } from '../../push.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { go } from '../router.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
+import { loadChartJs, loadJsPdf } from '../vendor.js?v=__V__'
+import { ensureCss } from '../lazy-css.js?v=__V__'
+import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
+import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 
 // Shown for however long the initial athlete-row fetch takes - same
 // "skeleton, not a blank screen" convention as athletes.js/trainings.js.
@@ -1517,7 +1517,7 @@ let onDocKeydownCal = null // Escape disarms an in-progress calendar copy
 // ---- MOUNT / UNMOUNT ----
 // ==========================================================================
 export async function mount(container, params, token) {
-  ensureCss('css/athlete-detail.css?v=3')
+  ensureCss('css/athlete-detail.css?v=__V__')
   root = container
   mountToken = token
   athleteId = params.id

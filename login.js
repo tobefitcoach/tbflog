@@ -4,7 +4,7 @@
 // passes role: 'coach' in the auth metadata, which the database trigger
 // (handle_new_user) reads to create the matching profiles row.
 // ==========================================================================
-import { supabase } from './coachClient.js'
+import { supabase } from './coachClient.js?v=__V__'
 
 let mode = 'login'
 

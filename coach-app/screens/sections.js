@@ -11,10 +11,10 @@
 // worth more than de-duplicating ~30 lines into a shared helper that would
 // then have to carry both sets of table names, icons and copy.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import * as nav from '../nav.js'
-import { go } from '../router.js'
-import { coachId } from '../session.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { go } from '../router.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">

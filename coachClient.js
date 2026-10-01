@@ -9,7 +9,7 @@
 // cache this long-term instead of re-resolving/re-downloading it on every
 // visit - jsdelivr only sets a far-future cache header on versioned URLs
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/+esm'
-import { supabaseUrl, supabaseKey } from './supabaseClient.js'
+import { supabaseUrl, supabaseKey } from './supabaseClient.js?v=__V__'
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { storageKey: 'tbflog-coach-auth' }

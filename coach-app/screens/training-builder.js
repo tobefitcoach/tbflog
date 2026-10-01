@@ -16,9 +16,9 @@
 // IS the screen, so back calls nav.back() (pop to the Workout Library)
 // instead of just hiding a modal class.
 // ==========================================================================
-import * as nav from '../nav.js'
-import { ensureCss } from '../lazy-css.js'
-import { flushBuilderFrame } from '../builder-frame.js'
+import * as nav from '../nav.js?v=__V__'
+import { ensureCss } from '../lazy-css.js?v=__V__'
+import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
 
 const TEMPLATE = `
   <div class="tb-route" id="trainingBuilderRoute">
@@ -47,7 +47,7 @@ function sizeToViewport() {
 
 export async function mount(container, params, token) {
   root = container
-  ensureCss('css/builders.css?v=3')
+  ensureCss('css/builders.css?v=__V__')
   root.innerHTML = TEMPLATE
 
   root.querySelector('#trainingBuilderRouteBackBtn').addEventListener('click', function() {

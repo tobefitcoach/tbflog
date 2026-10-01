@@ -36,12 +36,12 @@
 //
 // See screens/_placeholder.js for the full contract.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import { sendPush } from '../../push.js'
-import * as nav from '../nav.js'
-import { go } from '../router.js'
-import { coachId } from '../session.js'
-import { escapeHtml, safeUrl } from '../../escape.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import { sendPush } from '../../push.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { go } from '../router.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
+import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">

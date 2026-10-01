@@ -13,16 +13,16 @@
 // too much to download for a whole roster. If that function isn't installed
 // yet, only the Completion tile is affected; everything else still loads.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import * as nav from '../nav.js'
-import { go } from '../router.js'
-import { coachId } from '../session.js'
-import { ensureCss } from '../lazy-css.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { go } from '../router.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
+import { ensureCss } from '../lazy-css.js?v=__V__'
 import {
   toDateStr, addDays, parseDateStr, resolveWindow,
   computeWindowStats, sumCompletion, computeDelta, computeRiskRows, formatDuration,
-} from '../stats-calc.js'
-import { escapeHtml } from '../../escape.js'
+} from '../stats-calc.js?v=__V__'
+import { escapeHtml } from '../../escape.js?v=__V__'
 
 const RANGES = [
   { key: 'week', label: 'Week' },
@@ -552,7 +552,7 @@ function bindEvents() {
 export async function mount(container, params, token) {
   root = container
   mountToken = token
-  ensureCss('css/stats.css?v=2')
+  ensureCss('css/stats.css?v=__V__')
   container.innerHTML = TEMPLATE
   renderTilesLoading()
 

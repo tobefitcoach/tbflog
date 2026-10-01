@@ -12,10 +12,10 @@
 // behaviour difference worth fixing deliberately, not as a side effect of
 // a structural conversion.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import * as nav from '../nav.js'
-import { coachId } from '../session.js'
-import { safeUrl } from '../../escape.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
+import { safeUrl } from '../../escape.js?v=__V__'
 
 const BUILT_IN_TYPES = {
   weights: 'Weightlifting (sets, reps, weight)',

@@ -21,9 +21,9 @@
 // the notification links themselves: `communication.html?id=X` and
 // `athlete.html?id=X` were real page loads; here they're route calls.
 // ==========================================================================
-import { supabase } from '../coachClient.js'
-import { go } from './router.js'
-import { escapeHtml } from '../escape.js'
+import { supabase } from '../coachClient.js?v=__V__'
+import { go } from './router.js?v=__V__'
+import { escapeHtml } from '../escape.js?v=__V__'
 
 let refreshTimer = null
 

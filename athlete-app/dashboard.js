@@ -14,13 +14,13 @@
 // same date-math helpers) but duplicated rather than imported - this is a
 // separate mini-app with its own Supabase client (see athleteClient.js).
 // ==========================================================================
-import { supabase } from './athleteClient.js'
-import { supabase as coachSupabase } from '../coachClient.js'
-import { pushStatus, enablePush, disablePush, sendPush } from '../push.js'
-import * as nav from './nav.js'
-import { escapeHtml, safeUrl } from '../escape.js'
-import { runTour } from './tour.js?v=1'
-import { signReportLinks } from '../report-links.js'
+import { supabase } from './athleteClient.js?v=__V__'
+import { supabase as coachSupabase } from '../coachClient.js?v=__V__'
+import { pushStatus, enablePush, disablePush, sendPush } from '../push.js?v=__V__'
+import * as nav from './nav.js?v=__V__'
+import { escapeHtml, safeUrl } from '../escape.js?v=__V__'
+import { runTour } from './tour.js?v=__V__'
+import { signReportLinks } from '../report-links.js?v=__V__'
 
 const pageContent = document.getElementById('pageContent')
 const pageWrap = document.querySelector('.athlete-app-page')

@@ -13,41 +13,33 @@
 // than the multi-page site it replaces. If you add a screen, add it the
 // same way the others are written.
 //
-// CACHE-BUSTING: every static asset dashboard.html loads (style.css,
-// coach-core.css, app.css, ...) carries a `?v=N` - these dynamic import()
-// calls are the one place in this app that didn't, and it bit us:
-// WKWebView's disk cache holds onto a fetched module past a force-quit AND
-// a normal rebuild (same issue already chased down for CSS earlier), so a
-// pushed screen fix could sit invisible on a real device with no way to
-// force a refetch short of deleting the whole app. SCREENS_V is one shared
-// version for every screen module - bump it any time ANY screens/*.js file
-// changes, so the browser/WKWebView treats it as a new URL and refetches
-// rather than serving what it already has cached.
+// CACHE-BUSTING: like every import in the app, each screen URL carries
+// ?v=__V__, which the deploy workflow stamps with the commit id - see
+// .github/workflows/pages.yml. WKWebView's disk cache otherwise holds an
+// old module past a force-quit and a rebuild.
 // ==========================================================================
-import * as nav from './nav.js'
-
-const SCREENS_V = 20
+import * as nav from './nav.js?v=__V__'
 
 // name -> () => Promise<{ mount(container, params, token), unmount?() }>
 export const ROUTES = {
-  stats:            () => import(`./screens/stats.js?v=${SCREENS_V}`),
-  athletes:         () => import(`./screens/athletes.js?v=${SCREENS_V}`),
-  'athlete-detail': () => import(`./screens/athlete-detail.js?v=${SCREENS_V}`),
-  communication:    () => import(`./screens/communication.js?v=${SCREENS_V}`),
-  exercises:        () => import(`./screens/exercises.js?v=${SCREENS_V}`),
-  sections:         () => import(`./screens/sections.js?v=${SCREENS_V}`),
-  trainings:        () => import(`./screens/trainings.js?v=${SCREENS_V}`),
-  programs:         () => import(`./screens/programs.js?v=${SCREENS_V}`),
-  stretches:        () => import(`./screens/stretches.js?v=${SCREENS_V}`),
-  forms:            () => import(`./screens/forms.js?v=${SCREENS_V}`),
-  settings:         () => import(`./screens/settings.js?v=${SCREENS_V}`),
-  'program-builder':() => import(`./screens/program-builder.js?v=${SCREENS_V}`),
-  'section-builder':() => import(`./screens/section-builder.js?v=${SCREENS_V}`),
-  'form-builder':   () => import(`./screens/form-builder.js?v=${SCREENS_V}`),
+  stats:            () => import(`./screens/stats.js?v=__V__`),
+  athletes:         () => import(`./screens/athletes.js?v=__V__`),
+  'athlete-detail': () => import(`./screens/athlete-detail.js?v=__V__`),
+  communication:    () => import(`./screens/communication.js?v=__V__`),
+  exercises:        () => import(`./screens/exercises.js?v=__V__`),
+  sections:         () => import(`./screens/sections.js?v=__V__`),
+  trainings:        () => import(`./screens/trainings.js?v=__V__`),
+  programs:         () => import(`./screens/programs.js?v=__V__`),
+  stretches:        () => import(`./screens/stretches.js?v=__V__`),
+  forms:            () => import(`./screens/forms.js?v=__V__`),
+  settings:         () => import(`./screens/settings.js?v=__V__`),
+  'program-builder':() => import(`./screens/program-builder.js?v=__V__`),
+  'section-builder':() => import(`./screens/section-builder.js?v=__V__`),
+  'form-builder':   () => import(`./screens/form-builder.js?v=__V__`),
   // Wraps the unchanged repo-root training-builder.html in a full-bleed
   // iframe (Phase 5). Reached from the Workout Library and from a day in
   // the calendar/program builder, which already used it as an overlay.
-  'training-builder': () => import(`./screens/training-builder.js?v=${SCREENS_V}`),
+  'training-builder': () => import(`./screens/training-builder.js?v=__V__`),
 }
 
 // Which of the 4 tab roots each route lights up. Drill-downs inherit their

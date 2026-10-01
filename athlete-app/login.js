@@ -4,7 +4,7 @@
 // passes role: 'athlete' in the signup metadata and sends people to this
 // app's own dashboard.html afterwards.
 // ==========================================================================
-import { supabase } from './athleteClient.js'
+import { supabase } from './athleteClient.js?v=__V__'
 
 let mode = 'login'
 

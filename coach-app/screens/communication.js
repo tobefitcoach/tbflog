@@ -63,13 +63,13 @@
 // same as the settings screen. See screens/_placeholder.js for the full
 // contract.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import { sendPush } from '../../push.js'
-import * as nav from '../nav.js'
-import { coachId } from '../session.js'
-import { refreshChatBadge } from '../bell.js'
-import { escapeHtml, safeUrl } from '../../escape.js'
-import { signReportLinks } from '../../report-links.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import { sendPush } from '../../push.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
+import { refreshChatBadge } from '../bell.js?v=__V__'
+import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
+import { signReportLinks } from '../../report-links.js?v=__V__'
 
 // Two-pane inbox: athlete list on the left, the selected athlete's full
 // chat_messages history + a send box on the right - see

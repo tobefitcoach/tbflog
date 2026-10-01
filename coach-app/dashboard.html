@@ -11,13 +11,13 @@
     <title>Coach — Tobe-Fit</title>
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0d0d1a" />
-    <link rel="stylesheet" href="../style.css?v=33" />
+    <link rel="stylesheet" href="../style.css?v=__V__" />
     <!-- Was ../athlete.css (77KB) - split by consumer, see Part D of the
          plan. coach-core.css is the ~55KB every coach screen needs;
          athlete-detail.css and css/builders.css are injected by their own
          screens on first mount via lazy-css.js, not loaded here. -->
-    <link rel="stylesheet" href="css/coach-core.css?v=4" />
-    <link rel="stylesheet" href="app.css?v=3" />
+    <link rel="stylesheet" href="css/coach-core.css?v=__V__" />
+    <link rel="stylesheet" href="app.css?v=__V__" />
     <!-- Supabase's ESM build on jsDelivr is not bundled: importing
          supabase-js fans out into 8 more modules, and the browser can't
          discover them until supabase-js itself has downloaded and parsed.
@@ -123,38 +123,16 @@
 
     </div>
 
-    <!-- CACHE-BUSTING FOR THE MODULE GRAPH. GitHub Pages sends max-age=600, so
-         a browser (and above all the native app's WKWebView) can keep using a
-         cached copy of a script for 10 minutes or far longer. This page's own
-         HTML is fresh, but every import inside dashboard.js is written without
-         a ?v=, so a release could arrive half-updated: a new sidebar link with
-         an old router that doesn't know its route ("Dashboard does nothing"),
-         or a new screen with an old shared module. This import map rewrites
-         those imports to versioned URLs from ONE place, whichever file
-         imports them. Bump APP_V below (all seven lines AND dashboard.js?v=)
-         whenever any of these shared coach-app modules changes. Screens have
-         their own version, SCREENS_V in router.js. The keys are relative, so
-         they resolve on Pages, locally and in the native app alike. A browser
-         without import-map support just ignores this and behaves as before.
-         APP_V = 2 -->
-    <script type="importmap">
-    {
-      "imports": {
-        "./router.js": "./router.js?v=6",
-        "./nav.js": "./nav.js?v=6",
-        "./session.js": "./session.js?v=6",
-        "./bell.js": "./bell.js?v=6",
-        "./lazy-css.js": "./lazy-css.js?v=6",
-        "./vendor.js": "./vendor.js?v=6",
-        "./stats-calc.js": "./stats-calc.js?v=6",
-        "./builder-frame.js": "./builder-frame.js?v=6"
-      }
-    }
-    </script>
+    <!-- Every script, stylesheet and import carries ?v=__V__. The GitHub
+         Pages workflow (.github/workflows/pages.yml) replaces __V__ with the
+         commit id on each deploy, so a release always reaches phones as a
+         whole - no file can stay on a cached old copy. Never hand-edit a
+         version number; locally it stays __V__ and dev-server.py disables
+         caching instead. -->
 
-    <script type="module" src="../loading-bar.js?v=2"></script>
-    <script type="module" src="../confirm-modal.js?v=2"></script>
-    <script type="module" src="../network-retry.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=6"></script>
+    <script type="module" src="../loading-bar.js?v=__V__"></script>
+    <script type="module" src="../confirm-modal.js?v=__V__"></script>
+    <script type="module" src="../network-retry.js?v=__V__"></script>
+    <script type="module" src="dashboard.js?v=__V__"></script>
   </body>
 </html>

@@ -15,7 +15,7 @@
 // PARENT_FIELD/parentId below are the only three things that differ
 // between the two modes; everything else in this file reads through them.
 // ==========================================================================
-import { supabase } from './coachClient.js'
+import { supabase } from './coachClient.js?v=__V__'
 
 const params = new URLSearchParams(window.location.search)
 const trainingId = params.get('id')

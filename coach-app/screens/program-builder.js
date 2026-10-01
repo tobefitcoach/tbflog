@@ -26,11 +26,11 @@
 // here (every edit either writes immediately or happens inside the
 // training-builder overlay), so there's no debounce timer to clear.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import * as nav from '../nav.js'
-import { go } from '../router.js'
-import { ensureCss } from '../lazy-css.js'
-import { flushBuilderFrame } from '../builder-frame.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { go } from '../router.js?v=__V__'
+import { ensureCss } from '../lazy-css.js?v=__V__'
+import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -154,7 +154,7 @@ let onDocClickKebab = null
 let onDocKeydown = null
 
 export async function mount(container, params, token) {
-  ensureCss('css/builders.css?v=3')
+  ensureCss('css/builders.css?v=__V__')
   root = container
   programId = params.id
   container.innerHTML = TEMPLATE

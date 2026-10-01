@@ -21,11 +21,11 @@
 // 0) calls are one-shot DOM nudges that fire and self-clear before the next
 // tick; they hold no state and need no tracking.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import * as nav from '../nav.js'
-import { go } from '../router.js'
-import { coachId } from '../session.js'
-import { ensureCss } from '../lazy-css.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { go } from '../router.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
+import { ensureCss } from '../lazy-css.js?v=__V__'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -268,7 +268,7 @@ let editingExerciseId = null
 let onDocClickKebab = null
 
 export async function mount(container, params, token) {
-  ensureCss('css/builders.css?v=3')
+  ensureCss('css/builders.css?v=__V__')
   root = container
   sectionId = params.id
   container.innerHTML = TEMPLATE

@@ -16,10 +16,10 @@
 //
 // The route table and screen swapping live in router.js.
 // ==========================================================================
-import { supabase } from '../coachClient.js'
-import { setSession } from './session.js'
-import { go, initRouter, prefetchLikelyNext, currentRouteName, TAB_FOR_ROUTE } from './router.js'
-import { initBell } from './bell.js'
+import { supabase } from '../coachClient.js?v=__V__'
+import { setSession } from './session.js?v=__V__'
+import { go, initRouter, prefetchLikelyNext, currentRouteName, TAB_FOR_ROUTE } from './router.js?v=__V__'
+import { initBell } from './bell.js?v=__V__'
 
 const pageContent = document.getElementById('pageContent')
 const pageTitle = document.getElementById('pageTitle')

@@ -11,11 +11,11 @@
 // to back before the screen settled, which on a phone is exactly the kind
 // of waterfall this rewrite exists to remove.
 // ==========================================================================
-import { supabase } from '../../coachClient.js'
-import { supabase as athleteSupabase } from '../../athlete-app/athleteClient.js'
-import { pushStatus, enablePush, disablePush } from '../../push.js'
-import * as nav from '../nav.js'
-import { coachId } from '../session.js'
+import { supabase } from '../../coachClient.js?v=__V__'
+import { supabase as athleteSupabase } from '../../athlete-app/athleteClient.js?v=__V__'
+import { pushStatus, enablePush, disablePush } from '../../push.js?v=__V__'
+import * as nav from '../nav.js?v=__V__'
+import { coachId } from '../session.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">

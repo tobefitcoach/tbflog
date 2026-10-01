@@ -17,8 +17,8 @@
 // mobile-app/capacitor.config.json's server.url point at now - a
 // session-less visitor lands here first on every platform.
 // ==========================================================================
-import { supabase as coachSupabase } from '../coachClient.js'
-import { supabase as athleteSupabase } from '../athlete-app/athleteClient.js'
+import { supabase as coachSupabase } from '../coachClient.js?v=__V__'
+import { supabase as athleteSupabase } from '../athlete-app/athleteClient.js?v=__V__'
 
 // Once a coach or athlete has been routed once, their role is cached here
 // so every later visit skips the two-client session probe (and its two

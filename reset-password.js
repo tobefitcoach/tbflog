@@ -11,7 +11,7 @@
 const role = new URLSearchParams(window.location.search).get('role') === 'coach' ? 'coach' : 'athlete'
 const loginUrl = role === 'coach' ? 'login.html' : 'athlete-app/index.html'
 
-const { supabase } = await import(role === 'coach' ? './coachClient.js' : './athlete-app/athleteClient.js')
+const { supabase } = await import(role === 'coach' ? './coachClient.js?v=__V__' : './athlete-app/athleteClient.js?v=__V__')
 
 const checking = document.getElementById('resetChecking')
 const form = document.getElementById('resetForm')
