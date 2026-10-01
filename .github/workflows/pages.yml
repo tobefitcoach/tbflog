@@ -1,0 +1,56 @@
+# Publishes the site to GitHub Pages on every push to main.
+#
+# 1. Copies only the app's web files into _site (not mobile-app/,
+#    supabase/, sql-history.sql or this folder - those were public before).
+# 2. Replaces every __V__ (the ?v=__V__ on each script, stylesheet and
+#    import) with this commit's id, so phones fetch a whole release fresh
+#    instead of mixing cached old files with new ones. Fails the deploy if
+#    any __V__ is left, rather than publishing a half-stamped site.
+#
+# Requires Settings -> Pages -> Source = "GitHub Actions".
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build site (web files only, version stamped)
+        run: |
+          mkdir _site
+          rsync -a \
+            --exclude '.git' --exclude '.github' --exclude '_site' \
+            --exclude 'mobile-app' --exclude 'supabase' \
+            --exclude 'sql-history.sql' --exclude 'README.md' --exclude 'dev-server.py' \
+            ./ _site/
+          V="${GITHUB_SHA::8}"
+          grep -rl '__V__' _site --include='*.html' --include='*.js' --include='*.css' | xargs sed -i "s/__V__/$V/g"
+          if grep -rq '__V__' _site; then echo "::error::unstamped __V__ left in _site"; exit 1; fi
+          echo "Stamped version $V"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
