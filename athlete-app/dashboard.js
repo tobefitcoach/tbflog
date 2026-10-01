@@ -484,6 +484,7 @@ async function enterWeekView() {
   // from this point on. Clearing it instead just lets that rule (and
   // .bottom-nav's own default display:flex) govern visibility normally.
   document.getElementById('bottomNav').style.display = ''
+  document.getElementById('bottomNavBlur').style.display = ''
   document.getElementById('navStatsBtn').style.display = athlete.can_view_weekly_stats ? '' : 'none'
   const { data: coachProfile } = await saveWithRetry((signal) => supabase
     .from('profiles')

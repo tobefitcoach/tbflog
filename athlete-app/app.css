@@ -86,21 +86,50 @@ header {
    both correctly cover it full-screen when active; above the rest timer
    bar (50), which is offset to clear it instead (see .rest-timer-bar).
    ========================================================================== */
+/* Distance from the screen's bottom edge to the pill. Sits just above the
+   home indicator (which lives inside the safe-area inset) instead of a
+   full 16px clear of it, so the bar reads as part of the screen edge. */
+:root {
+  --nav-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 12px));
+}
+
 .bottom-nav {
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  bottom: var(--nav-bottom);
   z-index: 200;
   display: flex;
   max-width: 420px;
   margin: 0 auto;
-  background-color: rgba(26, 26, 46, 0.92);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(74, 74, 142, 0.4);
+  /* See-through: page content shows (blurred) behind the pill instead of an
+     almost-solid slab */
+  background-color: rgba(26, 26, 46, 0.55);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 22px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+}
+
+/* Soft blur band along the very bottom of the screen, behind and under the
+   pill, fading out upward - content scrolling underneath goes frosted
+   instead of being cut off by a hard edge or showing through sharp. A real
+   element (not body::after) so it can be shown/hidden together with the nav,
+   see dashboard.js where #bottomNav is revealed. */
+.bottom-nav-blur {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--nav-bottom) + 64px + 28px);
+  z-index: 199;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(15, 15, 26, 0.6), rgba(15, 15, 26, 0));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to top, #000 55%, transparent);
+  mask-image: linear-gradient(to top, #000 55%, transparent);
 }
 
 /* Hidden while actively doing a workout (guided exercise screens, the
@@ -111,7 +140,8 @@ header {
    :has() re-evaluates on every innerHTML swap, the nav reappears on its own
    the instant any other screen renders, with no explicit "show it again"
    call needed anywhere. */
-body:has(.workout-active) .bottom-nav {
+body:has(.workout-active) .bottom-nav,
+body:has(.workout-active) .bottom-nav-blur {
   display: none;
 }
 

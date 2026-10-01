@@ -13,7 +13,7 @@
          ones) - see athlete-shared.css's own header and Part D of the
          coach-app rebuild plan. -->
     <link rel="stylesheet" href="../athlete-shared.css?v=1" />
-    <link rel="stylesheet" href="app.css?v=86" />
+    <link rel="stylesheet" href="app.css?v=88" />
 
     <!-- Supabase's ESM build on jsDelivr is not bundled: importing
          supabase-js fans out into 8 more modules, and the browser cannot
@@ -182,6 +182,7 @@
          dashboard.js. Hidden until enterWeekView() has a real athlete to
          navigate for; #navStatsBtn additionally stays hidden unless the
          coach has can_view_weekly_stats on. -->
+    <div class="bottom-nav-blur" id="bottomNavBlur" style="display:none"></div>
     <nav class="bottom-nav" id="bottomNav" style="display:none">
       <button type="button" class="bottom-nav-btn" id="navHomeBtn" data-tab="home">
         <span class="bottom-nav-icon">
@@ -228,6 +229,6 @@
     <script type="module" src="../loading-bar.js?v=2"></script>
     <script type="module" src="../confirm-modal.js?v=2"></script>
     <script type="module" src="../network-retry.js?v=1"></script>
-    <script type="module" src="dashboard.js?v=147"></script>
+    <script type="module" src="dashboard.js?v=148"></script>
   </body>
 </html>
