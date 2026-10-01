@@ -945,11 +945,12 @@ async function notifyCoach(type, message) {
     .insert([{ coach_id: athlete.coach_id, athlete_id: athlete.id, type, message }])
   if (error) console.log(error)
 
-  // A new chat message opens straight into that conversation in the
-  // Communication inbox; every other notification type still lands on
-  // this athlete's profile page, same as before
-  const targetPage = type === 'chat_message' ? 'communication.html' : 'athlete.html'
-  const url = new URL(`../${targetPage}?id=${athlete.id}`, window.location.href).href
+  // A new chat message opens straight into that conversation in Chat;
+  // every other notification type lands on this athlete's profile. The
+  // coach app reads ?screen=&id= on startup - see readDeepLink() in
+  // coach-app/dashboard.js.
+  const screen = type === 'chat_message' ? 'communication' : 'athlete-detail'
+  const url = new URL(`../coach-app/dashboard.html?screen=${screen}&id=${athlete.id}`, window.location.href).href
   sendPush(supabase, athlete.coach_id, 'Tobe-Fit', message, url) // not awaited, same as the insert above
 }
 

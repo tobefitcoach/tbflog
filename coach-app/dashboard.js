@@ -137,12 +137,37 @@ async function start() {
     return
   }
 
+  const deepLink = readDeepLink()
+
   initSidebar()
   initRouter({ content: pageContent, title: pageTitle, onFrameChange: syncNavHighlight })
   initBell() // chrome, not a screen - initialized once here, no unmount (see bell.js header comment)
 
-  await go('athletes', {})
+  if (deepLink && deepLink.screen === 'communication') {
+    // Chat is a tab root, so it can open directly
+    await go('communication', { id: deepLink.id })
+  } else {
+    await go('athletes', {})
+    // athlete-detail is drilled into from Athletes, so Back lands there
+    if (deepLink) await go('athlete-detail', { id: deepLink.id })
+  }
   prefetchLikelyNext()
+}
+
+// A push notification opens the app on a specific screen with
+// ?screen=communication|athlete-detail&id=<athlete id> (built by
+// notifyCoach() in athlete-app/dashboard.js). Only those two screens are
+// accepted. The query is stripped straight away so a reload, or nav's own
+// history entries, don't keep jumping back there.
+function readDeepLink() {
+  const params = new URLSearchParams(location.search)
+  const screen = params.get('screen')
+  if (!screen) return null
+  history.replaceState(history.state, '', location.pathname)
+
+  const id = params.get('id')
+  if (!['communication', 'athlete-detail'].includes(screen) || !/^\d+$/.test(id || '')) return null
+  return { screen, id }
 }
 
 start()

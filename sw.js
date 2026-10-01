@@ -30,9 +30,17 @@ self.addEventListener('notificationclick', function(event) {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
       // Focus an already-open tab on the same page instead of opening a
       // duplicate one, matched by path (ignoring query string, since
-      // ?id=123 vs no query still counts as "already there")
+      // ?id=123 vs no query still counts as "already there"). A link that
+      // names a screen (the coach app's ?screen=...&id=...) also reloads
+      // that tab onto it - otherwise the tap would just surface whatever
+      // screen the coach had open.
       for (const client of windowClients) {
-        if (client.url.split('?')[0] === url.split('?')[0] && 'focus' in client) return client.focus()
+        if (client.url.split('?')[0] === url.split('?')[0] && 'focus' in client) {
+          if (url.includes('?screen=') && 'navigate' in client) {
+            return client.focus().then(c => (c || client).navigate(url)).catch(() => clients.openWindow(url))
+          }
+          return client.focus()
+        }
       }
       if (clients.openWindow) return clients.openWindow(url)
     })

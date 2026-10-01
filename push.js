@@ -33,15 +33,13 @@ function isIosNotInstalled() {
   return isIos && !isStandalone
 }
 
-// "sw.js" resolves relative to the CURRENT page, so it's a different
-// absolute URL depending on whether the page lives at the repo root or in
-// /athlete-app/ - but since both paths point at the same file living at
-// the repo root, the service worker's scope still ends up covering the
-// whole site either way (a service worker's default scope is the directory
-// IT lives in, not the page that registered it).
+// sw.js sits next to this file at the repo root, so resolve it from this
+// module's own URL rather than the page's - the page can be in
+// /athlete-app/ or /coach-app/ (guessing from the page path used to send
+// the coach app to coach-app/sw.js, a 404). A service worker's default
+// scope is the directory IT lives in, so this covers the whole site.
 function registerServiceWorker() {
-  const path = window.location.pathname.includes('/athlete-app/') ? '../sw.js' : 'sw.js'
-  return navigator.serviceWorker.register(path)
+  return navigator.serviceWorker.register(new URL('sw.js', import.meta.url))
 }
 
 export async function pushStatus() {
