@@ -410,6 +410,18 @@ function renderManageAreasList() {
 // (deduped via Set in case a stretch is somehow tagged with both) and on
 // its stretch_body_areas row.
 async function renameArea(oldArea, newArea) {
+  // All stretches + the area list in one database step
+  // (rename_stretch_area in sql-history.sql), so it can't stop half-way
+  const { error: rpcError } = await supabase.rpc('rename_stretch_area', { p_old: oldArea, p_new: newArea })
+  if (rpcError && rpcError.code !== 'PGRST202') { console.log(rpcError); customAlert('Something went wrong renaming that area'); return }
+  if (rpcError) { await renameAreaStepByStep(oldArea, newArea); return }
+  if (activeAreaFilters.has(oldArea)) { activeAreaFilters.delete(oldArea); activeAreaFilters.add(newArea) }
+  await reloadAndRepaint()
+  if (root) renderManageAreasList()
+}
+
+// The old way, for before rename_stretch_area is installed
+async function renameAreaStepByStep(oldArea, newArea) {
   const affected = allStretchesCache.filter(s => (s.body_areas || []).includes(oldArea))
   for (const s of affected) {
     const updated = [...new Set(s.body_areas.map(a => a === oldArea ? newArea : a))]
@@ -430,6 +442,17 @@ async function renameArea(oldArea, newArea) {
 }
 
 async function deleteArea(area) {
+  // One database step (delete_stretch_area in sql-history.sql)
+  const { error: rpcError } = await supabase.rpc('delete_stretch_area', { p_area: area })
+  if (rpcError && rpcError.code !== 'PGRST202') { console.log(rpcError); customAlert('Something went wrong removing that area'); return }
+  if (rpcError) { await deleteAreaStepByStep(area); return }
+  activeAreaFilters.delete(area)
+  await reloadAndRepaint()
+  if (root) renderManageAreasList()
+}
+
+// The old way, for before delete_stretch_area is installed
+async function deleteAreaStepByStep(area) {
   const affected = allStretchesCache.filter(s => (s.body_areas || []).includes(area))
   for (const s of affected) {
     const updated = s.body_areas.filter(a => a !== area)

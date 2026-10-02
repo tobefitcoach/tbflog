@@ -33,6 +33,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// pdf_url is a full public-style URL (.../object/public/chat-attachments/
+// <coach id>/<file>.pdf); the storage path is everything after the bucket.
+// Same rule as reportPath() in report-links.js (a browser module, so it
+// can't be imported here).
+function reportPath(pdfUrl) {
+  if (!pdfUrl) return null
+  const marker = '/chat-attachments/'
+  const i = pdfUrl.indexOf(marker)
+  if (i === -1) return null
+  return decodeURIComponent(pdfUrl.slice(i + marker.length).split('?')[0])
+}
+
 function json(body, status) {
   return new Response(JSON.stringify(body), {
     status,
@@ -80,6 +92,23 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (athlete) {
+      // Progress-report PDFs the coach sent to this athlete in chat. They're
+      // files, not rows, so nothing cascades them - and they're health data
+      // about the person asking to be deleted. Found through this athlete's
+      // chat messages, so it has to happen BEFORE those rows are deleted
+      // below. A failure here is logged but doesn't stop the deletion: the
+      // account and its data must still go.
+      const { data: reportMessages } = await admin
+        .from('chat_messages')
+        .select('pdf_url')
+        .eq('athlete_id', athlete.id)
+        .not('pdf_url', 'is', null)
+      const reportPaths = [...new Set((reportMessages || []).map((m) => reportPath(m.pdf_url)).filter(Boolean))]
+      if (reportPaths.length > 0) {
+        const { error: reportsError } = await admin.storage.from('chat-attachments').remove(reportPaths)
+        if (reportsError) console.log('Error removing report PDFs:', reportsError)
+      }
+
       // Every athlete-owned table (programs, exercise_log_sets,
       // workout_sessions, chat_messages, form_assignments, tournaments,
       // stretch preferences, label links) cascades from athletes, so one

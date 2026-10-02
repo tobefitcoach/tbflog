@@ -5,6 +5,7 @@ import { supabase } from '../athleteClient.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { toDateStr, parseDateStr } from '../../shared/dates.js?v=__V__'
 import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
+import { createAdHocDay } from '../../shared/adhoc-day.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { completedSessionsByDayId, entriesByDate, loadTrainingData, logSetsByPE } from '../data.js?v=__V__'
 import { CHEVRON_LEFT, RPE_DESCRIPTIONS } from '../format.js?v=__V__'
@@ -417,29 +418,22 @@ async function findOrCreateSelfLoggedDay(dateStr, name, workoutType) {
   // this check (a separate query per program) never correctly detected an
   // already-finished day and kept reusing it indefinitely
   for (const program of existingPrograms || []) {
-    const dayId = program.program_weeks[0].program_days[0].id
+    // A half-made one (program without its week/day - left by a dropped
+    // connection before create_adhoc_day existed) is skipped, not read:
+    // reading it used to crash every later attempt to log on this date
+    const dayId = program.program_weeks?.[0]?.program_days?.[0]?.id
+    if (!dayId) continue
     if (!completedSessionsByDayId[dayId]) return { dayId, created: false }
   }
 
-  const { data: newProgram, error: programError } = await supabase
-    .from('programs')
-    .insert([{ coach_id: athlete.coach_id, athlete_id: athlete.id, is_template: false, is_adhoc: true, created_by_athlete: true, start_date: dateStr, name: name || 'My Workout' }])
-    .select()
-  if (programError) { console.log(programError); customAlert('Something went wrong saving your workout'); throw programError }
+  // Program + week + day in one step - see shared/adhoc-day.js
+  const { dayId, error } = await createAdHocDay(supabase, {
+    coachId: athlete.coach_id, athleteId: athlete.id, date: dateStr,
+    name: name || 'My Workout', workoutType: workoutType || null, createdByAthlete: true
+  })
+  if (error) { console.log(error); customAlert('Something went wrong saving your workout'); throw error }
 
-  const { data: newWeek, error: weekError } = await supabase
-    .from('program_weeks')
-    .insert([{ program_id: newProgram[0].id, week_number: 1 }])
-    .select()
-  if (weekError) { console.log(weekError); customAlert('Something went wrong saving your workout'); throw weekError }
-
-  const { data: newDay, error: dayError } = await supabase
-    .from('program_days')
-    .insert([{ week_id: newWeek[0].id, day_number: 1, workout_type: workoutType || null }])
-    .select()
-  if (dayError) { console.log(dayError); customAlert('Something went wrong saving your workout'); throw dayError }
-
-  return { dayId: newDay[0].id, created: true }
+  return { dayId, created: true }
 }
 
 // ---- Field/Training and Run: duration + RPE, no exercises at all - same

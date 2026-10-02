@@ -508,6 +508,13 @@ async function deleteExercise(id) {
   }
   if (!(await customConfirm(message))) return
 
+  // All of it in one database step (archive_exercise in sql-history.sql),
+  // so a dropped connection can't leave it half-done
+  const { error: archiveError } = await supabase.rpc('archive_exercise', { p_exercise_id: id })
+  if (!archiveError) { await reloadAndRepaint(); return }
+  if (archiveError.code !== 'PGRST202') { console.log(archiveError); customAlert('Something went wrong'); return }
+
+  // Not installed yet - the old way, one step at a time
   if (trainingCount > 0) {
     const { error } = await supabase.from('training_exercises').delete().eq('exercise_id', id)
     if (error) { console.log(error); customAlert('Something went wrong'); return }

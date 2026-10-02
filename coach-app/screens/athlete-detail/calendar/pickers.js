@@ -9,6 +9,7 @@ import { coachId } from '../../../session.js?v=__V__'
 import { escapeHtml } from '../../../../escape.js?v=__V__'
 import { getYouTubeEmbedUrl } from '../../../../shared/video.js?v=__V__'
 import { copyExercises } from '../../../../shared/copy-exercises.js?v=__V__'
+import { createAdHocDay } from '../../../../shared/adhoc-day.js?v=__V__'
 import { root, mountToken, athleteId, cal } from '../state.js?v=__V__'
 import { getProgramTemplates, renderWorkoutPreviewExercise } from './add-day.js?v=__V__'
 import { loadCalendarMonth } from './grid.js?v=__V__'
@@ -257,27 +258,15 @@ async function findOrCreateAdHocDay(dateStr, name) {
     return cal.adHocDayIdForThisSession
   }
 
-  const { data: newProgram, error: programError } = await supabase
-    .from('programs')
-    .insert([{ coach_id: coachId(), athlete_id: athleteId, is_template: false, is_adhoc: true, start_date: dateStr, name: name || 'Workout' }])
-    .select()
-  if (programError) { console.log(programError); customAlert('Something went wrong'); throw programError }
+  // Program + week + day in one step - see shared/adhoc-day.js
+  const { dayId, error } = await createAdHocDay(supabase, {
+    coachId: coachId(), athleteId, date: dateStr, name: name || 'Workout'
+  })
+  if (error) { console.log(error); customAlert('Something went wrong'); throw error }
 
-  const { data: newWeek, error: weekError } = await supabase
-    .from('program_weeks')
-    .insert([{ program_id: newProgram[0].id, week_number: 1 }])
-    .select()
-  if (weekError) { console.log(weekError); customAlert('Something went wrong'); throw weekError }
-
-  const { data: newDay, error: dayError } = await supabase
-    .from('program_days')
-    .insert([{ week_id: newWeek[0].id, day_number: 1 }])
-    .select()
-  if (dayError) { console.log(dayError); customAlert('Something went wrong'); throw dayError }
-
-  cal.adHocDayIdForThisSession = newDay[0].id
+  cal.adHocDayIdForThisSession = dayId
   cal.adHocDayDateForThisSession = dateStr
-  return newDay[0].id
+  return dayId
 }
 
 // ==========================================================================

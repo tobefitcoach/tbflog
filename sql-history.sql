@@ -2978,3 +2978,122 @@ begin
     update program_days set moved_by_athlete = true where date_override is not null;
   end if;
 end $$;
+
+
+-- ==========================================================================
+-- One-step "new workout on a date": create_adhoc_day.
+-- A workout that isn't part of an assigned program (the athlete logging
+-- their own, or the coach's "+" / copy-to-date on the calendar) is three
+-- rows: a program, its week 1 and its day 1. The apps used to insert them
+-- one request at a time, so a dropped connection between requests left a
+-- half-made workout behind - and a half-made one on a date made the
+-- athlete app crash every time they tried to add their own workout there
+-- again. This inserts all three in one transaction: all or nothing.
+-- SECURITY INVOKER (the default): each insert still goes through the
+-- caller's own row-level security exactly as the three separate requests
+-- did (coach policies for the coach; "athlete creates own self-logged
+-- programs" etc. for the athlete), so nobody can do more than before.
+-- Returns the new day's id. Safe to re-run (create or replace).
+-- ==========================================================================
+create or replace function public.create_adhoc_day(
+  p_coach_id uuid,
+  p_athlete_id bigint,
+  p_date date,
+  p_name text,
+  p_workout_type text default null,
+  p_created_by_athlete boolean default false
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_program_id uuid;
+  v_week_id uuid;
+  v_day_id uuid;
+begin
+  insert into programs (coach_id, athlete_id, is_template, is_adhoc, created_by_athlete, start_date, name)
+  values (p_coach_id, p_athlete_id, false, true, p_created_by_athlete, p_date, p_name)
+  returning id into v_program_id;
+
+  insert into program_weeks (program_id, week_number)
+  values (v_program_id, 1)
+  returning id into v_week_id;
+
+  insert into program_days (week_id, day_number, workout_type)
+  values (v_week_id, 1, p_workout_type)
+  returning id into v_day_id;
+
+  return v_day_id;
+end;
+$$;
+
+
+-- ==========================================================================
+-- One-step library changes: archive_exercise, rename_stretch_area,
+-- delete_stretch_area.
+-- Each of these used to be several separate requests from the coach app,
+-- so a dropped connection could leave it half-done: an exercise already
+-- taken out of some templates but still in the library, or stretches
+-- split between an old and a new area name. Now each is one transaction:
+-- all or nothing. The app still asks its "are you sure" question first,
+-- exactly as before.
+-- SECURITY INVOKER (the default): every change goes through the coach's
+-- own row-level security, the same as the separate requests did.
+-- Safe to re-run (create or replace). No tables change.
+-- ==========================================================================
+
+-- Deleting an exercise: take it out of every Workout Library training and
+-- section, remove it from scheduled days where nothing was logged yet, and
+-- archive it (kept, so athletes' logged history still has its name).
+create or replace function public.archive_exercise(p_exercise_id uuid)
+returns void
+language sql
+set search_path = public
+as $$
+  delete from training_exercises where exercise_id = p_exercise_id;
+  delete from section_exercises where exercise_id = p_exercise_id;
+  delete from program_exercises pe
+  where pe.exercise_id = p_exercise_id
+    and not exists (select 1 from exercise_log_sets l where l.program_exercise_id = pe.id);
+  update exercises set archived = true where id = p_exercise_id;
+$$;
+
+-- Renaming a body area on every stretch tagged with it (no duplicates if a
+-- stretch already had the new name too - first position kept) and in the
+-- area list. If the new name already exists in the list, it's a merge: the
+-- old entry is removed instead.
+create or replace function public.rename_stretch_area(p_old text, p_new text)
+returns void
+language plpgsql
+set search_path = public
+as $$
+begin
+  update stretches s
+  set body_areas = (
+    select array_agg(x.area order by x.first_pos)
+    from (
+      select t.area, min(t.pos) as first_pos
+      from unnest(array_replace(s.body_areas, p_old, p_new)) with ordinality as t(area, pos)
+      group by t.area
+    ) x
+  )
+  where p_old = any(s.body_areas);
+
+  if exists (select 1 from stretch_body_areas where name = p_new) then
+    delete from stretch_body_areas where name = p_old;
+  else
+    update stretch_body_areas set name = p_new where name = p_old;
+  end if;
+end;
+$$;
+
+-- Deleting a body area: off every stretch, then out of the list.
+create or replace function public.delete_stretch_area(p_area text)
+returns void
+language sql
+set search_path = public
+as $$
+  update stretches set body_areas = array_remove(body_areas, p_area) where p_area = any(body_areas);
+  delete from stretch_body_areas where name = p_area;
+$$;
