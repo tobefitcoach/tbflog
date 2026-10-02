@@ -96,6 +96,7 @@ import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
 import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
+import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
 
 // Shown for however long the initial athlete-row fetch takes - same
 // "skeleton, not a blank screen" convention as athletes.js/trainings.js.
@@ -3189,82 +3190,20 @@ async function setDayLiveLink(dayId, trainingId) {
   if (error) console.log('Error updating live-link:', error)
 }
 
-// Copies a saved training's exercise list onto an ad-hoc day - a real copy;
-// whether the day keeps tracking the Training going forward (see
-// setDayLiveLink above) depends on whether it was empty before this call.
-//
-// Offsets order_index past whatever's already on the target day (same fix
-// as cloneSectionToDayCal below) instead of copying verbatim - copying
-// verbatim used to collide/interleave order_index with any exercises
-// already on that day (e.g. adding a second Training to a day that already
-// has one), which is what made a second workout look like it silently
-// failed to add.
+// Copies a saved training's exercise list onto an ad-hoc day - a real copy,
+// appended after whatever's already on that day (adding a second Training
+// to a day never interleaves with the first); whether the day keeps
+// tracking the Training going forward (see setDayLiveLink above) depends on
+// whether it was empty before this call.
 async function cloneTrainingToDay(trainingId, dayId) {
-  const { data: trainingExercises, error } = await supabase
-    .from('training_exercises')
-    .select('*')
-    .eq('training_id', trainingId)
+  const { data: copied, error } = await copyExercises(supabase, { from: 'training', fromId: trainingId, to: 'day', toId: dayId })
+  if (error) { console.log(error); customAlert('Something went wrong copying the exercises'); return }
+  if (copied.length === 0) return
 
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-
-  trainingExercises.sort((a, b) => a.order_index - b.order_index)
-
-  if (trainingExercises.length === 0) return
-
-  const { data: existingExercises, error: existingError } = await supabase
-    .from('program_exercises')
-    .select('order_index')
-    .eq('day_id', dayId)
-  if (existingError) { console.log(existingError); customAlert('Something went wrong'); return }
-  const baseOrder = existingExercises.length ? Math.max(...existingExercises.map(pe => pe.order_index)) + 1 : 0
-
-  // A Training built with a Section or superset inside it carries
-  // section_label/section_instance_id/superset_group_id on its own
-  // training_exercises rows (see insertSectionIntoTraining) - this clone
-  // path was written before any of that existed and never copied them
-  // over, so assigning such a Training to a calendar day silently dropped
-  // every section/superset link. Fresh id per distinct value found in this
-  // batch, same reasoning as cloneSectionToDayCal just below - so
-  // assigning the same Training to more than one day never makes two
-  // different days' exercises look linked to each other.
-  const groupIdMap = {}
-  const sectionInstanceMap = {}
-  for (const te of trainingExercises) {
-    if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
-    if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
-  }
-
-  // One bulk insert instead of one insert per exercise - used to be N
-  // sequential round-trips for an N-exercise training
-  const { error: insertError } = await supabase.from('program_exercises').insert(
-    trainingExercises.map((te, i) => ({
-      day_id: dayId,
-      exercise_id: te.exercise_id,
-      order_index: baseOrder + i,
-      prescribed_sets: te.prescribed_sets,
-      prescribed_reps: te.prescribed_reps,
-      prescribed_weight: te.prescribed_weight,
-      rest_seconds: te.rest_seconds,
-      extra_fields: te.extra_fields,
-      set_targets: te.set_targets,
-      notes: te.notes,
-      section_label: te.section_label,
-      section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
-      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
-      // Carry any "Adjust Fields" per-instance overrides from the Training
-      // over to this real athlete day - without this, assigning a Training
-      // whose exercises were adjusted in Workout Builder would silently
-      // lose those adjustments the moment it landed on a calendar day
-      tracks_weight_override: te.tracks_weight_override,
-      is_timed_override: te.is_timed_override,
-      is_unilateral_override: te.is_unilateral_override,
-      tracks_distance_override: te.tracks_distance_override,
-      alternative_exercise_id: te.alternative_exercise_id
-    }))
-  )
-  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
-
-  await setDayLiveLink(dayId, existingExercises.length === 0 ? trainingId : null)
+  // The copy starts right after the day's last exercise, so a copy that
+  // starts at 0 means the day was empty before it
+  const dayWasEmpty = Math.min(...copied.map(r => r.order_index)) === 0
+  await setDayLiveLink(dayId, dayWasEmpty ? trainingId : null)
 }
 
 // name is only used the first time a training is created for this popup
@@ -3559,48 +3498,14 @@ async function createFreshAdHocDay(dateStr, name, workoutType) {
 // createFreshAdHocDay), so if the source day was still live-linked, the
 // copy just carries that same pointer forward - see setDayLiveLink above.
 async function cloneDayToDate(sourceDayId, name, targetDateStr) {
-  const [{ data: sourceDay }, { data: sourceExercises, error }] = await Promise.all([
-    supabase.from('program_days').select('workout_type, source_training_id').eq('id', sourceDayId).single(),
-    supabase.from('program_exercises').select('*').eq('day_id', sourceDayId)
-  ])
+  const { data: sourceDay, error } = await supabase.from('program_days').select('workout_type, source_training_id').eq('id', sourceDayId).single()
   if (error) { console.log(error); customAlert('Something went wrong'); return }
 
-  sourceExercises.sort((a, b) => a.order_index - b.order_index)
+  const newDayId = await createFreshAdHocDay(targetDateStr, name, sourceDay.workout_type)
+  if (sourceDay.source_training_id) await setDayLiveLink(newDayId, sourceDay.source_training_id)
 
-  const newDayId = await createFreshAdHocDay(targetDateStr, name, sourceDay && sourceDay.workout_type)
-  if (sourceDay && sourceDay.source_training_id) await setDayLiveLink(newDayId, sourceDay.source_training_id)
-  if (sourceExercises.length === 0) return
-
-  const groupIdMap = {}
-  const sectionInstanceMap = {}
-  for (const pe of sourceExercises) {
-    if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
-    if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
-  }
-
-  const { error: insertError } = await supabase.from('program_exercises').insert(
-    sourceExercises.map((pe, i) => ({
-      day_id: newDayId,
-      exercise_id: pe.exercise_id,
-      order_index: i,
-      prescribed_sets: pe.prescribed_sets,
-      prescribed_reps: pe.prescribed_reps,
-      prescribed_weight: pe.prescribed_weight,
-      rest_seconds: pe.rest_seconds,
-      extra_fields: pe.extra_fields,
-      set_targets: pe.set_targets,
-      notes: pe.notes,
-      section_label: pe.section_label,
-      section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
-      superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
-      tracks_weight_override: pe.tracks_weight_override,
-      is_timed_override: pe.is_timed_override,
-      is_unilateral_override: pe.is_unilateral_override,
-      tracks_distance_override: pe.tracks_distance_override,
-      alternative_exercise_id: pe.alternative_exercise_id
-    }))
-  )
-  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+  const { error: copyError } = await copyExercises(supabase, { from: 'day', fromId: sourceDayId, to: 'day', toId: newDayId, baseOrder: 0 })
+  if (copyError) { console.log(copyError); customAlert('Something went wrong copying the exercises'); return }
 }
 
 // ==========================================================================
@@ -3692,67 +3597,13 @@ async function applySectionToDayCal(sectionId, sectionName, dateStr) {
   await loadCalendarMonth(currentViewYear, currentViewMonth)
 }
 
-// Fixed version of cloneTrainingToDay's copy - offsets order_index past
-// whatever's already on the target day instead of copying verbatim, so
-// repeated adds to the same day (or a day that already has a scheduled
-// workout) never collide/interleave.
+// Appends a Section's exercises after whatever's already on the day, as
+// one block (copy_exercises gives them one shared section instance id), so
+// repeated adds to the same day never collide or merge.
 async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
-  const { data: sectionExercises, error } = await supabase
-    .from('section_exercises')
-    .select('*')
-    .eq('section_id', sectionId)
-
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-
-  sectionExercises.sort((a, b) => a.order_index - b.order_index)
-  if (sectionExercises.length === 0) return
-
-  const { data: existing, error: existingError } = await supabase
-    .from('program_exercises')
-    .select('order_index')
-    .eq('day_id', dayId)
-  if (existingError) { console.log(existingError); customAlert('Something went wrong'); return }
-  const baseOrder = existing.length ? Math.max(...existing.map(pe => pe.order_index)) + 1 : 0
-
-  // Fresh group id per distinct superset_group_id in this batch, so
-  // inserting the same section twice into one day doesn't make both
-  // copies' supersets collide into a single group - same reasoning as the
-  // baseOrder offset just above, applied to group ids instead of order_index
-  const groupIdMap = {}
-  for (const se of sectionExercises) {
-    if (se.superset_group_id && !groupIdMap[se.superset_group_id]) groupIdMap[se.superset_group_id] = crypto.randomUUID()
-  }
-
-  // One id shared by the WHOLE batch (unlike groupIdMap above, which is
-  // per superset sub-group within the batch) - this is what keeps the
-  // section together as a single block in the drag-reorder UI from now on
-  const sectionInstanceId = crypto.randomUUID()
-
-  const { error: insertError } = await supabase.from('program_exercises').insert(
-    sectionExercises.map((se, i) => ({
-      day_id: dayId,
-      exercise_id: se.exercise_id,
-      order_index: baseOrder + i,
-      prescribed_sets: se.prescribed_sets,
-      prescribed_reps: se.prescribed_reps,
-      prescribed_weight: se.prescribed_weight,
-      rest_seconds: se.rest_seconds,
-      extra_fields: se.extra_fields,
-      set_targets: se.set_targets,
-      notes: se.notes,
-      section_label: sectionName,
-      section_instance_id: sectionInstanceId,
-      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null,
-      // The section's Adjust Fields overrides and alternative exercise -
-      // without these the copy silently lost them
-      tracks_weight_override: se.tracks_weight_override,
-      is_timed_override: se.is_timed_override,
-      is_unilateral_override: se.is_unilateral_override,
-      tracks_distance_override: se.tracks_distance_override,
-      alternative_exercise_id: se.alternative_exercise_id
-    }))
-  )
-  if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+  const { data: copied, error } = await copyExercises(supabase, { from: 'section', fromId: sectionId, to: 'day', toId: dayId, sectionLabel: sectionName })
+  if (error) { console.log(error); customAlert('Something went wrong copying the exercises'); return }
+  if (copied.length === 0) return
 
   // A Section is never a Training, so this day is never purely one Training
   // anymore either way - detach if it was live-linked (a no-op write if it
@@ -3865,22 +3716,10 @@ function playInlineVideoCal(containerEl, url) {
 // saveDayAddProgramBtn handler in bindCalendarStaticEvents).
 // ==========================================================================
 
-// Not wrapped in a database transaction - a failure partway through leaves
-// a partial clone. Since programs -> program_weeks -> program_days ->
-// program_exercises all cascade-delete, recovery is just deleting that one
-// programs row and retrying.
+// One database call (copy_program in sql-history.sql): the whole slice is
+// copied in a single transaction, so a dropped connection can't leave the
+// athlete with half a program - it's either all there or not there at all.
 async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEnd) {
-  // These 2 don't depend on each other's results, so they fire together
-  const [
-    { data: template, error: templateError },
-    { data: weeks, error: weeksError }
-  ] = await Promise.all([
-    supabase.from('programs').select('*').eq('id', templateId).single(),
-    supabase.from('program_weeks').select('*, program_days(*, program_exercises(*))').eq('program_id', templateId)
-  ])
-  if (templateError) throw templateError
-  if (weeksError) throw weeksError
-
   // startDate is the calendar day that was clicked to open this popup, and
   // it's always meant to line up with rangeStart (day 1 of whatever slice
   // was picked) - resolveDate() always counts from the program's own day 1,
@@ -3891,127 +3730,14 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
   // and day = 2 - rangeStart gives startDate - (rangeStart - 1).
   const newStartDate = resolveDate(startDate, 1, 2 - rangeStart)
 
-  const { data: newProgram, error: programError } = await supabase
-    .from('programs')
-    .insert([{
-      coach_id: coachId(),
-      athlete_id: athleteId,
-      is_template: false,
-      is_adhoc: false,
-      name: template.name,
-      start_date: newStartDate
-    }])
-    .select()
-  if (programError) throw programError
-  const newProgramId = newProgram[0].id
-
-  weeks.sort((a, b) => a.week_number - b.week_number)
-
-  // Only weeks that have at least one day inside the picked range
-  const weeksInRange = weeks
-    .map(week => ({
-      week,
-      days: [...week.program_days]
-        .filter(day => {
-          const linearDay = (week.week_number - 1) * 7 + day.day_number
-          return linearDay >= rangeStart && linearDay <= rangeEnd
-        })
-        .sort((a, b) => a.day_number - b.day_number)
-    }))
-    .filter(w => w.days.length > 0)
-
-  if (weeksInRange.length === 0) return
-
-  // ---- Bulk-insert every week, then every day, then every exercise, one
-  // insert call per table instead of one insert call per row - a 12-week
-  // program used to mean 100+ sequential round-trips here, now it's 3-4.
-  // Rows are matched back up to their new parent by a real key (week_number,
-  // then week_id+day_number) rather than by array position, since a bulk
-  // insert's response order isn't something to rely on. ----
-  const { data: newWeeks, error: weeksInsertError } = await supabase
-    .from('program_weeks')
-    .insert(weeksInRange.map(w => ({ program_id: newProgramId, week_number: w.week.week_number })))
-    .select()
-  if (weeksInsertError) throw weeksInsertError
-
-  const newWeekIdByNumber = {}
-  newWeeks.forEach(w => { newWeekIdByNumber[w.week_number] = w.id })
-
-  const dayRows = [] // flat list of { weekNumber, day } - remembers which template day each planned insert came from
-  weeksInRange.forEach(w => {
-    w.days.forEach(day => { dayRows.push({ weekNumber: w.week.week_number, day }) })
+  const { error } = await supabase.rpc('copy_program', {
+    p_source_program_id: templateId,
+    p_athlete_id: Number(athleteId),
+    p_start_date: newStartDate,
+    p_range_start: rangeStart,
+    p_range_end: rangeEnd
   })
-
-  const { data: newDays, error: daysInsertError } = await supabase
-    .from('program_days')
-    .insert(dayRows.map(r => ({
-      week_id: newWeekIdByNumber[r.weekNumber],
-      day_number: r.day.day_number,
-      label: r.day.label,
-      // Carries the live-link forward if the template day still had one -
-      // see setDayLiveLink's comment above. synced_at always starts null so
-      // the next read performs (and timestamps) the first real sync itself.
-      source_training_id: r.day.source_training_id || null,
-      source_training_synced_at: null
-    })))
-    .select()
-  if (daysInsertError) throw daysInsertError
-
-  const newDayIdByKey = {}
-  newDays.forEach(d => { newDayIdByKey[`${d.week_id}:${d.day_number}`] = d.id })
-
-  // A template built with a Section or superset inside it carries
-  // section_label/section_instance_id/superset_group_id on its own
-  // program_exercises rows - this clone path was written before any of
-  // that existed and never copied them over, so assigning such a template
-  // silently dropped every section/superset link. Fresh id per distinct
-  // value found across the whole template (all weeks), same reasoning as
-  // every other clone-with-remap function above - so assigning the same
-  // template more than once never makes two different assignments'
-  // exercises look linked to each other.
-  const groupIdMap = {}
-  const sectionInstanceMap = {}
-  dayRows.forEach(r => {
-    r.day.program_exercises.forEach(pe => {
-      if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
-      if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
-    })
-  })
-
-  const exerciseRows = []
-  dayRows.forEach(r => {
-    const newDayId = newDayIdByKey[`${newWeekIdByNumber[r.weekNumber]}:${r.day.day_number}`]
-    const exercisesInDay = [...r.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
-    exercisesInDay.forEach(pe => {
-      exerciseRows.push({
-        day_id: newDayId,
-        exercise_id: pe.exercise_id,
-        order_index: pe.order_index,
-        prescribed_sets: pe.prescribed_sets,
-        prescribed_reps: pe.prescribed_reps,
-        prescribed_weight: pe.prescribed_weight,
-        rest_seconds: pe.rest_seconds,
-        extra_fields: pe.extra_fields,
-        set_targets: pe.set_targets,
-        notes: pe.notes,
-        section_label: pe.section_label,
-        section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
-        superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
-        // Carry any per-instance "Adjust Fields" overrides forward too -
-        // assigning a template shouldn't silently drop them
-        tracks_weight_override: pe.tracks_weight_override,
-        is_timed_override: pe.is_timed_override,
-        is_unilateral_override: pe.is_unilateral_override,
-        tracks_distance_override: pe.tracks_distance_override,
-        alternative_exercise_id: pe.alternative_exercise_id
-      })
-    })
-  })
-
-  if (exerciseRows.length > 0) {
-    const { error: exercisesInsertError } = await supabase.from('program_exercises').insert(exerciseRows)
-    if (exercisesInsertError) throw exercisesInsertError
-  }
+  if (error) throw error
 }
 
 // ==========================================================================
@@ -4107,7 +3833,7 @@ function bindCalendarStaticEvents() {
       await loadCalendarMonth(currentViewYear, currentViewMonth)
     } catch (err) {
       console.log(err)
-      customAlert('Something went wrong while assigning the program. Check Supabase for a partially-created program under this athlete and delete it before retrying.')
+      customAlert('Something went wrong while assigning the program - nothing was added, so it\'s safe to try again.')
     } finally {
       saveBtn.disabled = false
       saveBtn.textContent = 'Assign Program'

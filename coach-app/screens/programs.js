@@ -235,12 +235,10 @@ function createTemplateCard(template) {
 
 // ==========================================================================
 // DUPLICATE
-// Clones the source template's own row plus every week/day/exercise under
-// it (fresh superset/section-instance ids), then jumps straight into the
-// builder for the new copy. Weeks and days are created one at a time - each
-// needs its own id before its children can reference it - while exercises
-// are batch-inserted per day, since nothing downstream references them
-// individually.
+// Copies the source template with every week/day/exercise under it (fresh
+// superset/section-instance ids), then jumps straight into the builder for
+// the new copy. One database call (copy_program in sql-history.sql), so the
+// copy is either complete or not there at all.
 // ==========================================================================
 async function onDuplicateTemplate() {
   const btn = root.querySelector('#saveDuplicateTemplateBtn')
@@ -256,75 +254,8 @@ async function onDuplicateTemplate() {
     btn.textContent = 'Duplicate & Edit'
   }
 
-  const { data: sourceWeeks, error: weeksError } = await supabase
-    .from('program_weeks')
-    .select('*, program_days(*, program_exercises(*))')
-    .eq('program_id', duplicateSourceTemplateId)
-    .order('week_number')
-  if (weeksError) return fail('Error loading source program:', weeksError)
+  const { data: newProgramId, error } = await supabase.rpc('copy_program', { p_source_program_id: duplicateSourceTemplateId, p_name: name })
+  if (error) return fail('Error duplicating program:', error)
 
-  const { data: newProgram, error: programError } = await supabase
-    .from('programs')
-    .insert([{ coach_id: coachId(), is_template: true, athlete_id: null, name }])
-    .select()
-    .single()
-  if (programError) return fail('Error creating duplicate:', programError)
-
-  // Keyed by the ORIGINAL id, so one shared map for the whole program is
-  // fine - those originals were already unique, nothing to collide with
-  // across different days/weeks.
-  const groupIdMap = {}
-  const sectionInstanceMap = {}
-  for (const week of sourceWeeks) {
-    for (const day of week.program_days) {
-      for (const pe of day.program_exercises) {
-        if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
-        if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
-      }
-    }
-  }
-
-  for (const week of sourceWeeks) {
-    const { data: newWeek, error: weekError } = await supabase
-      .from('program_weeks')
-      .insert([{ program_id: newProgram.id, week_number: week.week_number }])
-      .select()
-      .single()
-    if (weekError) { console.log('Error copying week:', weekError); continue }
-
-    for (const day of week.program_days) {
-      const { data: newDay, error: dayError } = await supabase
-        .from('program_days')
-        .insert([{
-          week_id: newWeek.id, day_number: day.day_number, label: day.label, workout_type: day.workout_type,
-          // Carries the live-link forward if the source day still had one -
-          // see setDayLiveLink's comment in athlete-detail.js/program-builder.js.
-          // synced_at always starts null so the next read performs the first
-          // real sync itself.
-          source_training_id: day.source_training_id || null,
-          source_training_synced_at: null
-        }])
-        .select()
-        .single()
-      if (dayError) { console.log('Error copying day:', dayError); continue }
-      if (day.program_exercises.length === 0) continue
-
-      const { error: exercisesError } = await supabase.from('program_exercises').insert(
-        day.program_exercises.map(pe => ({
-          day_id: newDay.id, exercise_id: pe.exercise_id, order_index: pe.order_index,
-          prescribed_sets: pe.prescribed_sets, prescribed_reps: pe.prescribed_reps, prescribed_weight: pe.prescribed_weight,
-          rest_seconds: pe.rest_seconds, extra_fields: pe.extra_fields, set_targets: pe.set_targets, notes: pe.notes,
-          section_label: pe.section_label,
-          section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
-          superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
-          tracks_weight_override: pe.tracks_weight_override, is_timed_override: pe.is_timed_override,
-          is_unilateral_override: pe.is_unilateral_override, tracks_distance_override: pe.tracks_distance_override,
-          alternative_exercise_id: pe.alternative_exercise_id
-        }))
-      )
-      if (exercisesError) console.log('Error copying exercises for a day:', exercisesError)
-    }
-  }
-
-  go('program-builder', { id: newProgram.id })
+  go('program-builder', { id: newProgramId })
 }

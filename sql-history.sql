@@ -2528,3 +2528,285 @@ create index if not exists idx_form_questions_form_id on form_questions(form_id)
 create index if not exists idx_form_assignments_form_id on form_assignments(form_id);
 create index if not exists idx_form_answers_question_id on form_answers(question_id);
 create index if not exists idx_scheduled_notifications_user_id on scheduled_notifications(user_id);
+
+
+-- ==========================================================================
+-- One copy routine for exercise lists, and one for whole programs.
+--
+-- Exercises used to be copied by ~10 hand-written mappers in the coach app
+-- (add a Workout/Section to a day, copy a day/week, duplicate a workout or
+-- program, assign a template) plus sync_live_training_days, each listing
+-- the same ~17 columns. A new column had to be added to all of them, and a
+-- missed one silently dropped it on that copy path. The big copies also
+-- ran as many separate requests, so a dropped connection left a half-built
+-- program behind. Now each copy is one call and one transaction.
+--
+-- Both run as the caller (no security definer), so the normal RLS
+-- policies decide what can be read and written - nobody can copy anything
+-- they couldn't already copy by hand.
+--
+-- Adding a column that should travel with a copy: add it to
+-- copy_exercise_rows and to both inserts in copy_exercises, and to the
+-- program_exercises insert in copy_program.
+-- ==========================================================================
+
+-- The source rows, in order, with fresh superset / section-instance ids
+-- (a fresh id per distinct original, so copying the same thing twice never
+-- links the two copies together). A Section's rows all get one new section
+-- instance id and the given label - that's what keeps them together as one
+-- block in the builders.
+create or replace function public.copy_exercise_rows(p_source_kind text, p_source_id uuid, p_section_label text default null)
+returns table (
+  rn int, exercise_id uuid, prescribed_sets int, prescribed_reps text, prescribed_weight numeric,
+  rest_seconds int, extra_fields jsonb, set_targets jsonb, notes text, section_label text,
+  section_instance_id uuid, superset_group_id uuid, tracks_weight_override boolean,
+  is_timed_override boolean, is_unilateral_override boolean, tracks_distance_override boolean,
+  alternative_exercise_id uuid
+)
+language sql
+set search_path = public
+as $$
+  with src as (
+    select x.id, x.exercise_id, x.order_index, x.prescribed_sets, x.prescribed_reps, x.prescribed_weight,
+           x.rest_seconds, x.extra_fields, x.set_targets, x.notes, x.section_label, x.section_instance_id,
+           x.superset_group_id, x.tracks_weight_override, x.is_timed_override, x.is_unilateral_override,
+           x.tracks_distance_override, x.alternative_exercise_id
+    from training_exercises x where p_source_kind = 'training' and x.training_id = p_source_id
+    union all
+    select x.id, x.exercise_id, x.order_index, x.prescribed_sets, x.prescribed_reps, x.prescribed_weight,
+           x.rest_seconds, x.extra_fields, x.set_targets, x.notes, null, null,
+           x.superset_group_id, x.tracks_weight_override, x.is_timed_override, x.is_unilateral_override,
+           x.tracks_distance_override, x.alternative_exercise_id
+    from section_exercises x where p_source_kind = 'section' and x.section_id = p_source_id
+    union all
+    select x.id, x.exercise_id, x.order_index, x.prescribed_sets, x.prescribed_reps, x.prescribed_weight,
+           x.rest_seconds, x.extra_fields, x.set_targets, x.notes, x.section_label, x.section_instance_id,
+           x.superset_group_id, x.tracks_weight_override, x.is_timed_override, x.is_unilateral_override,
+           x.tracks_distance_override, x.alternative_exercise_id
+    from program_exercises x where p_source_kind = 'day' and x.day_id = p_source_id
+  ),
+  group_map as (
+    select g.superset_group_id, gen_random_uuid() as new_id
+    from (select distinct s.superset_group_id from src s where s.superset_group_id is not null) g
+  ),
+  section_map as (
+    select g.section_instance_id, gen_random_uuid() as new_id
+    from (select distinct s.section_instance_id from src s where s.section_instance_id is not null) g
+  ),
+  new_section as (select gen_random_uuid() as new_id)
+  select
+    (row_number() over (order by s.order_index, s.id) - 1)::int,
+    s.exercise_id, s.prescribed_sets, s.prescribed_reps, s.prescribed_weight,
+    s.rest_seconds, s.extra_fields, s.set_targets, s.notes,
+    case when p_source_kind = 'section' then p_section_label else s.section_label end,
+    case when p_source_kind = 'section' then ns.new_id else sm.new_id end,
+    gm.new_id,
+    s.tracks_weight_override, s.is_timed_override, s.is_unilateral_override,
+    s.tracks_distance_override, s.alternative_exercise_id
+  from src s
+  cross join new_section ns
+  left join group_map gm on gm.superset_group_id = s.superset_group_id
+  left join section_map sm on sm.section_instance_id = s.section_instance_id
+$$;
+
+-- Copies a Workout ('training'), Section ('section') or day ('day') onto a
+-- Workout or a day, appended after whatever is already there - never
+-- overwrites. p_base_order is the first order_index to use; leave it null
+-- to start right after the target's current last exercise. Returns the new
+-- rows' ids and order_index (the app re-reads them with their exercise).
+create or replace function public.copy_exercises(
+  p_source_kind text, p_source_id uuid,
+  p_target_kind text, p_target_id uuid,
+  p_base_order int default null,
+  p_section_label text default null
+) returns table (id uuid, order_index int)
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_base int := p_base_order;
+begin
+  if p_source_kind not in ('training', 'section', 'day') or p_target_kind not in ('training', 'day') then
+    raise exception 'copy_exercises: unknown kind %/%', p_source_kind, p_target_kind;
+  end if;
+
+  if p_target_kind = 'day' then
+    if v_base is null then
+      select coalesce(max(pe.order_index) + 1, 0) into v_base from program_exercises pe where pe.day_id = p_target_id;
+    end if;
+    return query
+    insert into program_exercises as t (
+      day_id, exercise_id, order_index, prescribed_sets, prescribed_reps, prescribed_weight,
+      rest_seconds, extra_fields, set_targets, notes, section_label, section_instance_id,
+      superset_group_id, tracks_weight_override, is_timed_override, is_unilateral_override,
+      tracks_distance_override, alternative_exercise_id
+    )
+    select p_target_id, r.exercise_id, v_base + r.rn, r.prescribed_sets, r.prescribed_reps, r.prescribed_weight,
+           r.rest_seconds, r.extra_fields, r.set_targets, r.notes, r.section_label, r.section_instance_id,
+           r.superset_group_id, r.tracks_weight_override, r.is_timed_override, r.is_unilateral_override,
+           r.tracks_distance_override, r.alternative_exercise_id
+    from copy_exercise_rows(p_source_kind, p_source_id, p_section_label) r
+    returning t.id, t.order_index;
+  else
+    if v_base is null then
+      select coalesce(max(te.order_index) + 1, 0) into v_base from training_exercises te where te.training_id = p_target_id;
+    end if;
+    return query
+    insert into training_exercises as t (
+      training_id, exercise_id, order_index, prescribed_sets, prescribed_reps, prescribed_weight,
+      rest_seconds, extra_fields, set_targets, notes, section_label, section_instance_id,
+      superset_group_id, tracks_weight_override, is_timed_override, is_unilateral_override,
+      tracks_distance_override, alternative_exercise_id
+    )
+    select p_target_id, r.exercise_id, v_base + r.rn, r.prescribed_sets, r.prescribed_reps, r.prescribed_weight,
+           r.rest_seconds, r.extra_fields, r.set_targets, r.notes, r.section_label, r.section_instance_id,
+           r.superset_group_id, r.tracks_weight_override, r.is_timed_override, r.is_unilateral_override,
+           r.tracks_distance_override, r.alternative_exercise_id
+    from copy_exercise_rows(p_source_kind, p_source_id, p_section_label) r
+    returning t.id, t.order_index;
+  end if;
+end;
+$$;
+
+-- The source program's days that fall inside "Day N" to "Day M" (counting
+-- straight through the program: week 2 day 1 = day 8); null = no limit.
+create or replace function public.copy_program_days_in_range(p_program_id uuid, p_range_start int, p_range_end int)
+returns table (src_day uuid, week_number int, day_number int)
+language sql
+set search_path = public
+as $$
+  select d.id, w.week_number, d.day_number
+  from program_days d join program_weeks w on w.id = d.week_id
+  where w.program_id = p_program_id
+    and (p_range_start is null or (w.week_number - 1) * 7 + d.day_number >= p_range_start)
+    and (p_range_end is null or (w.week_number - 1) * 7 + d.day_number <= p_range_end)
+$$;
+
+-- Copies a program - its weeks, days and exercises - in one transaction:
+-- either the whole copy exists afterwards or none of it does.
+--   p_athlete_id null  -> a new template (Duplicate on the Programs page)
+--   p_athlete_id set   -> assigned to that athlete from p_start_date
+-- p_range_start/p_range_end limit it to a slice (see
+-- copy_program_days_in_range). With a range, weeks with no day inside it
+-- are left out; without one, every week and day is copied, empty ones
+-- included. A day still live-linked to a Workout keeps its link (synced on
+-- the next read). p_name null keeps the source's name. Returns the new
+-- program's id.
+create or replace function public.copy_program(
+  p_source_program_id uuid, p_name text default null,
+  p_athlete_id bigint default null, p_start_date date default null,
+  p_range_start int default null, p_range_end int default null
+) returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_new uuid;
+begin
+  if not exists (select 1 from programs p where p.id = p_source_program_id) then
+    raise exception 'copy_program: program not found';
+  end if;
+
+  insert into programs (coach_id, athlete_id, is_template, is_adhoc, name, start_date)
+  values ((select auth.uid()), p_athlete_id, p_athlete_id is null, false,
+          coalesce(p_name, (select p.name from programs p where p.id = p_source_program_id)), p_start_date)
+  returning id into v_new;
+
+  insert into program_weeks (program_id, week_number)
+  select v_new, w.week_number from program_weeks w
+  where w.program_id = p_source_program_id
+    and ((p_range_start is null and p_range_end is null)
+         or exists (select 1 from copy_program_days_in_range(p_source_program_id, p_range_start, p_range_end) c
+                    where c.week_number = w.week_number));
+
+  insert into program_days (week_id, day_number, label, workout_type, source_training_id, source_training_synced_at)
+  select nw.id, d.day_number, d.label, d.workout_type, d.source_training_id, null
+  from copy_program_days_in_range(p_source_program_id, p_range_start, p_range_end) c
+  join program_days d on d.id = c.src_day
+  join program_weeks nw on nw.program_id = v_new and nw.week_number = c.week_number;
+
+  -- One superset / section-instance map for the whole program: the
+  -- originals are already unique, so there's nothing to collide with.
+  with src as (
+    select pe.*, c.week_number, c.day_number
+    from program_exercises pe
+    join copy_program_days_in_range(p_source_program_id, p_range_start, p_range_end) c on c.src_day = pe.day_id
+  ),
+  group_map as (
+    select g.superset_group_id, gen_random_uuid() as new_id
+    from (select distinct s.superset_group_id from src s where s.superset_group_id is not null) g
+  ),
+  section_map as (
+    select g.section_instance_id, gen_random_uuid() as new_id
+    from (select distinct s.section_instance_id from src s where s.section_instance_id is not null) g
+  )
+  insert into program_exercises (
+    day_id, exercise_id, order_index, prescribed_sets, prescribed_reps, prescribed_weight,
+    rest_seconds, extra_fields, set_targets, notes, section_label, section_instance_id,
+    superset_group_id, tracks_weight_override, is_timed_override, is_unilateral_override,
+    tracks_distance_override, alternative_exercise_id
+  )
+  select nd.id, s.exercise_id, s.order_index, s.prescribed_sets, s.prescribed_reps, s.prescribed_weight,
+         s.rest_seconds, s.extra_fields, s.set_targets, s.notes, s.section_label, sm.new_id,
+         gm.new_id, s.tracks_weight_override, s.is_timed_override, s.is_unilateral_override,
+         s.tracks_distance_override, s.alternative_exercise_id
+  from src s
+  join program_weeks nw on nw.program_id = v_new and nw.week_number = s.week_number
+  join program_days nd on nd.week_id = nw.id and nd.day_number = s.day_number
+  left join group_map gm on gm.superset_group_id = s.superset_group_id
+  left join section_map sm on sm.section_instance_id = s.section_instance_id;
+
+  return v_new;
+end;
+$$;
+
+-- The live sync now uses the same copy routine (same columns, same id
+-- remapping as before - only the duplicate column list is gone).
+create or replace function public.sync_live_training_days(p_day_ids uuid[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_day record;
+begin
+  for v_day in
+    select pd.id as day_id, pd.source_training_id, pd.source_training_synced_at, p.is_template
+    from program_days pd
+    join program_weeks pw on pw.id = pd.week_id
+    join programs p on p.id = pw.program_id
+    where pd.id = any(p_day_ids)
+      and pd.source_training_id is not null
+      and (
+        p.coach_id = (select auth.uid())
+        or exists (select 1 from athletes a where a.id = p.athlete_id and a.user_id = (select auth.uid()))
+      )
+  loop
+    -- An athlete-owned day that's already been started detaches instead of
+    -- syncing - the exercise list can't change out from under a workout in
+    -- progress. (The app also clears this eagerly at Start Workout time -
+    -- this is a defense-in-depth backstop, not the primary path.)
+    if not v_day.is_template and exists (
+      select 1 from workout_sessions ws where ws.program_day_id = v_day.day_id
+    ) then
+      update program_days set source_training_id = null, source_training_synced_at = null where id = v_day.day_id;
+      continue;
+    end if;
+
+    -- Already matches the Training's current version - skip the rewrite
+    if v_day.source_training_synced_at is not null and v_day.source_training_synced_at >= (
+      select t.updated_at from trainings t where t.id = v_day.source_training_id
+    ) then
+      continue;
+    end if;
+
+    delete from program_exercises where day_id = v_day.day_id;
+    perform copy_exercises('training', v_day.source_training_id, 'day', v_day.day_id, 0);
+
+    update program_days
+    set source_training_synced_at = (select t.updated_at from trainings t where t.id = v_day.source_training_id)
+    where id = v_day.day_id;
+  end loop;
+end;
+$$;

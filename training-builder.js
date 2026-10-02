@@ -18,6 +18,7 @@
 import { supabase } from './coachClient.js?v=__V__'
 import { getYouTubeThumbnail, getYouTubeEmbedUrl } from './shared/video.js?v=__V__'
 import { applyFieldOverrides } from './shared/exercise-fields.js?v=__V__'
+import { copyExercises } from './shared/copy-exercises.js?v=__V__'
 
 const params = new URLSearchParams(window.location.search)
 const trainingId = params.get('id')
@@ -1657,46 +1658,18 @@ document.getElementById('closeAddSectionBtn').addEventListener('click', function
 })
 
 async function insertSectionIntoTraining(sectionId, sectionName) {
-  const { data: sectionExercises, error } = await supabase.from('section_exercises').select('*').eq('section_id', sectionId)
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-  sectionExercises.sort((a, b) => a.order_index - b.order_index)
-  if (sectionExercises.length === 0) { document.getElementById('addSectionModal').classList.remove('active'); return }
-
+  // copy_exercises (see shared/copy-exercises.js) gives the copied rows
+  // fresh superset ids and one shared section instance id - what keeps the
+  // section together as a single block in the drag-reorder UI - so
+  // inserting the same section twice never merges the two copies
   const baseOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
-
-  // Fresh group id per distinct superset_group_id in this batch, so
-  // inserting the same section twice into one training doesn't make both
-  // copies' supersets collide into a single group - same reasoning as the
-  // baseOrder offset just above, applied to group ids instead of order_index
-  const groupIdMap = {}
-  for (const se of sectionExercises) {
-    if (se.superset_group_id && !groupIdMap[se.superset_group_id]) groupIdMap[se.superset_group_id] = crypto.randomUUID()
-  }
-
-  // One id shared by the WHOLE batch (unlike groupIdMap above, which is
-  // per superset sub-group within the batch) - this is what keeps the
-  // section together as a single block in the drag-reorder UI from now on
-  const sectionInstanceId = crypto.randomUUID()
-
-  const { data: inserted, error: insertError } = await supabase.from(EXERCISE_TABLE).insert(
-    sectionExercises.map((se, i) => ({
-      [PARENT_FIELD]: parentId, exercise_id: se.exercise_id, order_index: baseOrder + i,
-      prescribed_sets: se.prescribed_sets, prescribed_reps: se.prescribed_reps,
-      prescribed_weight: se.prescribed_weight, rest_seconds: se.rest_seconds,
-      extra_fields: se.extra_fields, set_targets: se.set_targets, notes: se.notes,
-      section_label: sectionName,
-      section_instance_id: sectionInstanceId,
-      superset_group_id: se.superset_group_id ? groupIdMap[se.superset_group_id] : null,
-      // The section's Adjust Fields overrides and alternative exercise -
-      // without these the copy silently lost them
-      tracks_weight_override: se.tracks_weight_override,
-      is_timed_override: se.is_timed_override,
-      is_unilateral_override: se.is_unilateral_override,
-      tracks_distance_override: se.tracks_distance_override,
-      alternative_exercise_id: se.alternative_exercise_id
-    }))
-  ).select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  const { data: inserted, error: insertError } = await copyExercises(supabase, {
+    from: 'section', fromId: sectionId, to: isDayMode ? 'day' : 'training', toId: parentId,
+    baseOrder, sectionLabel: sectionName,
+    select: '*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)'
+  })
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+  if (inserted.length === 0) { document.getElementById('addSectionModal').classList.remove('active'); return }
 
   exercisesCache.push(...inserted)
   await flushAllPendingSaves()
@@ -1788,11 +1761,6 @@ document.getElementById('closeAddWorkoutToDayBtn').addEventListener('click', fun
 })
 
 async function insertTrainingIntoDayMode(trainingIdForDay, trainingName) {
-  const { data: trainingExercises, error } = await supabase.from('training_exercises').select('*').eq('training_id', trainingIdForDay)
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-  trainingExercises.sort((a, b) => a.order_index - b.order_index)
-  if (trainingExercises.length === 0) { document.getElementById('addWorkoutToDayModal').classList.remove('active'); return }
-
   // Only when this Workout lands on a day that was completely empty does it
   // start tracking that Training live - see the LIVE-LINKED WORKOUTS block
   // above. Landing on a day with something already on it detaches instead
@@ -1801,30 +1769,12 @@ async function insertTrainingIntoDayMode(trainingIdForDay, trainingName) {
   const dayWasEmpty = exercisesCache.length === 0
   const baseOrder = exercisesCache.length ? Math.max(...exercisesCache.map(te => te.order_index)) + 1 : 0
 
-  const groupIdMap = {}
-  const sectionInstanceMap = {}
-  for (const te of trainingExercises) {
-    if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
-    if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
-  }
-
-  const { data: inserted, error: insertError } = await supabase.from(EXERCISE_TABLE).insert(
-    trainingExercises.map((te, i) => ({
-      [PARENT_FIELD]: parentId, exercise_id: te.exercise_id, order_index: baseOrder + i,
-      prescribed_sets: te.prescribed_sets, prescribed_reps: te.prescribed_reps,
-      prescribed_weight: te.prescribed_weight, rest_seconds: te.rest_seconds,
-      extra_fields: te.extra_fields, set_targets: te.set_targets, notes: te.notes,
-      section_label: te.section_label,
-      section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
-      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
-      tracks_weight_override: te.tracks_weight_override,
-      is_timed_override: te.is_timed_override,
-      is_unilateral_override: te.is_unilateral_override,
-      tracks_distance_override: te.tracks_distance_override,
-      alternative_exercise_id: te.alternative_exercise_id
-    }))
-  ).select('*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  const { data: inserted, error: insertError } = await copyExercises(supabase, {
+    from: 'training', fromId: trainingIdForDay, to: 'day', toId: parentId, baseOrder,
+    select: '*, exercises!exercise_id(id, name, category, type, video_url, instructions, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)'
+  })
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+  if (inserted.length === 0) { document.getElementById('addWorkoutToDayModal').classList.remove('active'); return }
 
   exercisesCache.push(...inserted)
   await flushAllPendingSaves()

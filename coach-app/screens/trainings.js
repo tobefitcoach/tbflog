@@ -15,6 +15,7 @@ import { supabase } from '../../coachClient.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
+import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
 
 const WORKOUT_TYPE_LABELS = { gym: 'Gym', field: 'Field', run: 'Run' }
 
@@ -502,10 +503,10 @@ async function onCreateTraining() {
   go('training-builder', { id: data[0].id })
 }
 
-// Clones the source workout's own row plus every one of its exercises,
-// with fresh superset/section-instance ids, then jumps straight into the
-// builder for the new copy - the same "land in the editor" feel as
-// creating a brand new workout.
+// Clones the source workout's own row plus every one of its exercises
+// (copy_exercises: fresh superset/section-instance ids), then jumps
+// straight into the builder for the new copy - the same "land in the
+// editor" feel as creating a brand new workout.
 async function onDuplicateTraining() {
   const btn = root.querySelector('#saveDuplicateTrainingBtn')
   const name = root.querySelector('#duplicateTrainingName').value.trim()
@@ -521,12 +522,6 @@ async function onDuplicateTraining() {
     btn.textContent = 'Duplicate & Edit'
   }
 
-  const { data: sourceExercises, error: sourceError } = await supabase
-    .from('training_exercises')
-    .select('*')
-    .eq('training_id', duplicateSourceTrainingId)
-  if (sourceError) return fail('Error loading source exercises:', sourceError)
-
   const { data: newTraining, error: insertTrainingError } = await supabase
     .from('trainings')
     .insert([{ coach_id: coachId(), name, workout_type: sourceTraining.workout_type }])
@@ -534,39 +529,10 @@ async function onDuplicateTraining() {
     .single()
   if (insertTrainingError) return fail('Error creating duplicate:', insertTrainingError)
 
-  sourceExercises.sort((a, b) => a.order_index - b.order_index)
-
-  if (sourceExercises.length > 0) {
-    const groupIdMap = {}
-    const sectionInstanceMap = {}
-    for (const te of sourceExercises) {
-      if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
-      if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
-    }
-
-    const { error: insertExercisesError } = await supabase.from('training_exercises').insert(
-      sourceExercises.map(te => ({
-        training_id: newTraining.id, exercise_id: te.exercise_id, order_index: te.order_index,
-        prescribed_sets: te.prescribed_sets, prescribed_reps: te.prescribed_reps,
-        prescribed_weight: te.prescribed_weight, rest_seconds: te.rest_seconds,
-        extra_fields: te.extra_fields, set_targets: te.set_targets, notes: te.notes,
-        section_label: te.section_label,
-        section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
-        superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
-        tracks_weight_override: te.tracks_weight_override,
-        is_timed_override: te.is_timed_override,
-        is_unilateral_override: te.is_unilateral_override,
-        tracks_distance_override: te.tracks_distance_override,
-        alternative_exercise_id: te.alternative_exercise_id
-      }))
-    )
-
-    if (insertExercisesError) {
-      console.log('Error copying exercises:', insertExercisesError)
-      customAlert('Workout was duplicated but something went wrong copying its exercises')
-      go('training-builder', { id: newTraining.id })
-      return
-    }
+  const { error: copyError } = await copyExercises(supabase, { from: 'training', fromId: duplicateSourceTrainingId, to: 'training', toId: newTraining.id, baseOrder: 0 })
+  if (copyError) {
+    console.log('Error copying exercises:', copyError)
+    customAlert('Workout was duplicated but something went wrong copying its exercises')
   }
 
   go('training-builder', { id: newTraining.id })

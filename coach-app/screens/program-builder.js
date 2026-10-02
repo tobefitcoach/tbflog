@@ -33,6 +33,7 @@ import { ensureCss } from '../lazy-css.js?v=__V__'
 import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
 import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
 import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
+import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -764,41 +765,18 @@ async function insertTrainingIntoDay(trainingId, trainingName) {
   const day = findDay(currentDayIdForAddTraining)
   if (!day) return
 
-  const { data: trainingExercises, error } = await supabase.from('training_exercises').select('*').eq('training_id', trainingId)
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-  trainingExercises.sort((a, b) => a.order_index - b.order_index)
-  if (trainingExercises.length === 0) { root.querySelector('#addTrainingModal').classList.remove('active'); return }
-
   const dayWasEmpty = day.program_exercises.length === 0
   const baseOrder = day.program_exercises.length ? Math.max(...day.program_exercises.map(pe => pe.order_index)) + 1 : 0
 
-  // Fresh id per distinct superset/section-instance value in this batch,
-  // same reasoning as insertSectionIntoDay above - so dropping the same
-  // Workout onto two different days never makes them look linked
-  const groupIdMap = {}
-  const sectionInstanceMap = {}
-  for (const te of trainingExercises) {
-    if (te.superset_group_id && !groupIdMap[te.superset_group_id]) groupIdMap[te.superset_group_id] = crypto.randomUUID()
-    if (te.section_instance_id && !sectionInstanceMap[te.section_instance_id]) sectionInstanceMap[te.section_instance_id] = crypto.randomUUID()
-  }
-
-  const { data: inserted, error: insertError } = await supabase.from('program_exercises').insert(
-    trainingExercises.map((te, i) => ({
-      day_id: day.id, exercise_id: te.exercise_id, order_index: baseOrder + i,
-      prescribed_sets: te.prescribed_sets, prescribed_reps: te.prescribed_reps,
-      prescribed_weight: te.prescribed_weight, rest_seconds: te.rest_seconds,
-      extra_fields: te.extra_fields, set_targets: te.set_targets, notes: te.notes,
-      section_label: te.section_label,
-      section_instance_id: te.section_instance_id ? sectionInstanceMap[te.section_instance_id] : null,
-      superset_group_id: te.superset_group_id ? groupIdMap[te.superset_group_id] : null,
-      tracks_weight_override: te.tracks_weight_override,
-      is_timed_override: te.is_timed_override,
-      is_unilateral_override: te.is_unilateral_override,
-      tracks_distance_override: te.tracks_distance_override,
-      alternative_exercise_id: te.alternative_exercise_id
-    }))
-  ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  // copy_exercises gives the copies fresh superset / section-instance ids,
+  // so dropping the same Workout onto two different days never makes them
+  // look linked
+  const { data: inserted, error: insertError } = await copyExercises(supabase, {
+    from: 'training', fromId: trainingId, to: 'day', toId: day.id, baseOrder,
+    select: '*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)'
+  })
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+  if (inserted.length === 0) { root.querySelector('#addTrainingModal').classList.remove('active'); return }
 
   day.program_exercises.push(...inserted)
 
@@ -850,36 +828,14 @@ async function insertTrainingIntoDay(trainingId, trainingName) {
 // never going to match a fresh live-sync 1:1 anyway).
 // ==========================================================================
 async function cloneProgramDayExercises(sourceDay, targetDay) {
-  const { data: sourceExercises, error } = await supabase.from('program_exercises').select('*').eq('day_id', sourceDay.id)
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
-  sourceExercises.sort((a, b) => a.order_index - b.order_index)
-  if (sourceExercises.length === 0) return
-
   const targetWasEmpty = targetDay.program_exercises.length === 0
   const baseOrder = targetDay.program_exercises.length ? Math.max(...targetDay.program_exercises.map(pe => pe.order_index)) + 1 : 0
-  const groupIdMap = {}
-  const sectionInstanceMap = {}
-  for (const pe of sourceExercises) {
-    if (pe.superset_group_id && !groupIdMap[pe.superset_group_id]) groupIdMap[pe.superset_group_id] = crypto.randomUUID()
-    if (pe.section_instance_id && !sectionInstanceMap[pe.section_instance_id]) sectionInstanceMap[pe.section_instance_id] = crypto.randomUUID()
-  }
-
-  const { data: inserted, error: insertError } = await supabase.from('program_exercises').insert(
-    sourceExercises.map((pe, i) => ({
-      day_id: targetDay.id, exercise_id: pe.exercise_id, order_index: baseOrder + i,
-      prescribed_sets: pe.prescribed_sets, prescribed_reps: pe.prescribed_reps, prescribed_weight: pe.prescribed_weight,
-      rest_seconds: pe.rest_seconds, extra_fields: pe.extra_fields, set_targets: pe.set_targets, notes: pe.notes,
-      section_label: pe.section_label,
-      section_instance_id: pe.section_instance_id ? sectionInstanceMap[pe.section_instance_id] : null,
-      superset_group_id: pe.superset_group_id ? groupIdMap[pe.superset_group_id] : null,
-      tracks_weight_override: pe.tracks_weight_override,
-      is_timed_override: pe.is_timed_override,
-      is_unilateral_override: pe.is_unilateral_override,
-      tracks_distance_override: pe.tracks_distance_override,
-      alternative_exercise_id: pe.alternative_exercise_id
-    }))
-  ).select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
+  const { data: inserted, error: insertError } = await copyExercises(supabase, {
+    from: 'day', fromId: sourceDay.id, to: 'day', toId: targetDay.id, baseOrder,
+    select: '*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)'
+  })
   if (insertError) { console.log(insertError); customAlert('Something went wrong copying the exercises'); return }
+  if (inserted.length === 0) return
   targetDay.program_exercises.push(...inserted)
 
   const newLink = targetWasEmpty ? (sourceDay.source_training_id || null) : null
