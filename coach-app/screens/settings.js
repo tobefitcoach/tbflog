@@ -22,7 +22,7 @@ const TEMPLATE = `
   </div>
 
   <h3 class="detail-group-title" style="margin-top:0">Notifications</h3>
-  <div class="settings-row">
+  <div class="settings-row" id="pushRow">
     <div class="settings-row-info">
       <div class="settings-row-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="settings-row-icon"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>Push Notifications</div>
       <div class="settings-row-desc" id="pushStatusDesc">Checking...</div>
@@ -86,6 +86,7 @@ function mobilityStatusDesc(enabled) {
 
 function paintPushRow(status) {
   currentStatus = status
+  if (!root.querySelector('#pushRow')) return
   root.querySelector('#pushStatusDesc').textContent = pushStatusDesc(status)
   const btn = root.querySelector('#pushToggleBtn')
   btn.textContent = status === 'on' ? 'Disable' : 'Enable'
@@ -118,6 +119,9 @@ function paintAthleteAccountRow() {
 export async function mount(container, params, ctx) {
   root = container
   container.innerHTML = TEMPLATE
+  // The browser's push can't work inside the App Store / Play Store app -
+  // the row would only ever say "not supported", so it's left out there
+  if (window.Capacitor?.isNativePlatform?.()) root.querySelector('#pushRow').remove()
   bindEvents()
 
   // All four reads at once. The original awaited them in sequence.
@@ -169,7 +173,7 @@ function bindEvents() {
     window.location.href = athleteAccountLinked ? '../athlete-app/dashboard.html' : '../athlete-app/index.html'
   })
 
-  root.querySelector('#pushToggleBtn').addEventListener('click', async function(e) {
+  root.querySelector('#pushToggleBtn')?.addEventListener('click', async function(e) {
     e.target.disabled = true
     if (currentStatus === 'on') await disablePush(supabase)
     else await enablePush(supabase, coachId())

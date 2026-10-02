@@ -1,9 +1,12 @@
 // ==========================================================================
 // ATHLETE APP - rest timer
-// Wall-clock rest countdown and its push-notification backup.
+// Wall-clock rest countdown and its "rest is over" alert for when the
+// athlete isn't looking: an on-device alert in the App Store / Play Store
+// app, a push notification on the website.
 // ==========================================================================
 import { supabase } from '../athleteClient.js?v=__V__'
 import { session, workoutScreenSeq } from '../state.js?v=__V__'
+import { alertPermission, askForAlerts, localAlerts } from '../native-alerts.js?v=__V__'
 
 let restTimerInterval = null
 
@@ -64,7 +67,10 @@ export function startRestTimer(totalSeconds, onDone) {
   renderRestTimerBar(totalSeconds)
 
   restTimerInterval = setInterval(tickRestTimer, 1000)
-  scheduleRestTimerPush(totalSeconds) // backup notification in case the athlete isn't looking when this ends - see the comment above these two functions, below
+  // Backup alert in case the athlete isn't looking when this ends: on the
+  // phone itself in the native app, a push on the website - see both below
+  if (localAlerts()) scheduleRestAlert(restTimerEndAt)
+  else scheduleRestTimerPush(totalSeconds)
 }
 
 // The auto-continue callback (a superset's next round) only fires while the
@@ -110,6 +116,10 @@ export function tickRestTimer() {
     if (cb) cb()
     return
   }
+  // About to finish with the athlete looking at it: the in-app beep is
+  // enough, so the on-device alert is called off rather than also going off
+  // (iPhone already hides it while the app is open; Android would show both)
+  if (remaining <= 2 && document.visibilityState === 'visible') cancelRestAlert()
   const timeEl = document.getElementById('restTimerTime')
   if (timeEl) timeEl.textContent = formatTimer(remaining)
 }
@@ -120,6 +130,7 @@ export function clearRestTimer() {
   restTimerOnDone = null
   restTimerEndAt = null
   cancelRestTimerPush()
+  cancelRestAlert()
   const bar = document.getElementById('restTimerBar')
   if (bar) { bar.style.display = 'none'; bar.innerHTML = '' }
 }
@@ -178,6 +189,49 @@ function cancelRestTimerPush() {
     supabase.from('scheduled_notifications').delete().eq('id', restTimerNotificationId) // not awaited - best effort, harmless even if it fails
     restTimerNotificationId = null
   }
+}
+
+// ==========================================================================
+// ---- ON-DEVICE REST ALERT (the native app) ----
+// The phone itself shows "Rest is over" at the rest's end time - works with
+// the app in the background or the screen locked, no server involved (see
+// native-alerts.js). The first rest ever asks the phone's permission
+// question; after that it just schedules. One rest at a time, so one fixed
+// id: scheduling again replaces it, cancelling removes it.
+// ==========================================================================
+const REST_ALERT_ID = 1001
+let restAlertToken = 0
+let restAlertScheduled = false
+
+async function scheduleRestAlert(endAt) {
+  const token = ++restAlertToken
+  const alerts = localAlerts()
+  try {
+    let permission = await alertPermission()
+    if (permission === 'prompt') permission = await askForAlerts()
+    // The rest was skipped or replaced while the permission question was up
+    if (token !== restAlertToken || permission !== 'granted') return
+    await alerts.schedule({ notifications: [{
+      id: REST_ALERT_ID,
+      title: 'Rest is over',
+      body: 'Time to start your next set',
+      schedule: { at: new Date(endAt), allowWhileIdle: true },
+      // Not shown while the app is open - the in-app beep covers that
+      foreground: false
+    }] })
+    restAlertScheduled = true
+    // Cleared while the schedule call itself was in flight
+    if (token !== restAlertToken) cancelRestAlert()
+  } catch (err) {
+    console.log('Error scheduling rest alert:', err) // best effort - the in-app countdown and beep still work
+  }
+}
+
+function cancelRestAlert() {
+  restAlertToken++ // invalidates a schedule still waiting on the permission question
+  if (!restAlertScheduled) return
+  restAlertScheduled = false
+  localAlerts()?.cancel({ notifications: [{ id: REST_ALERT_ID }] }).catch(err => console.log('Error cancelling rest alert:', err))
 }
 
 export function formatTimer(seconds) {

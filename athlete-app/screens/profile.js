@@ -6,6 +6,7 @@
 import { supabase } from '../athleteClient.js?v=__V__'
 import { supabase as coachSupabase } from '../../coachClient.js?v=__V__'
 import { pushStatus, enablePush, disablePush } from '../../push.js?v=__V__'
+import { alertPermission, askForAlerts, isNativeApp } from '../native-alerts.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { startOfWeek } from '../../shared/dates.js?v=__V__'
@@ -20,6 +21,14 @@ let coachName = null // fetched once, lazily, the first time the Profile tab is 
 // A place for per-athlete settings that live outside the coach-editable
 // Settings tab (which is on the coach's own athlete page) - this one is
 // self-service, for things the athlete should be able to change themselves.
+const BELL_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:5px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>'
+
+function restAlertDesc(permission) {
+  if (permission === 'granted') return "On - your phone tells you when a rest is over, even if you've switched apps"
+  if (permission === 'denied') return "Off - turn on notifications for Tobe-Fit in your phone's Settings to get them"
+  return "Get an alert when a rest is over, even if you've switched apps"
+}
+
 function pushStatusDesc(status) {
   if (status === 'on') return 'On - your coach can message you even when the app is closed'
   if (status === 'denied') return 'Blocked in your browser settings - re-enable notifications for this site to turn this on'
@@ -46,9 +55,14 @@ export async function renderProfile() {
   // localStorage read under coachClient.js's own key, not a login - see
   // coach-app/screens/settings.js's matching "Athlete Account" row for the
   // other direction of this same shortcut.
-  const [status, coachAccountSession] = await Promise.all([
-    pushStatus(),
+  // Inside the App Store / Play Store app the browser's push can't work, so
+  // that row is replaced by on-device rest-timer alerts (see
+  // native-alerts.js) - or left out, on an older app build without them
+  const native = isNativeApp()
+  const [status, coachAccountSession, alertStatus] = await Promise.all([
+    native ? null : pushStatus(),
     coachSupabase.auth.getSession(),
+    alertPermission(),
   ])
   const coachAccountLinked = !!coachAccountSession?.data?.session
   const initials = athlete.name.split(' ').map(w => w[0]).join('').toUpperCase()
@@ -119,13 +133,21 @@ export async function renderProfile() {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    ${!native ? `
     <div class="settings-row">
       <div class="settings-row-info">
-        <div class="settings-row-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:5px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>Push Notifications</div>
+        <div class="settings-row-title">${BELL_ICON}Push Notifications</div>
         <div class="settings-row-desc" id="pushStatusDesc">${pushStatusDesc(status)}</div>
       </div>
       <button type="button" class="btn-profile-action" id="pushToggleBtn">${status === 'on' ? 'Disable' : 'Enable'}</button>
-    </div>
+    </div>` : alertStatus ? `
+    <div class="settings-row">
+      <div class="settings-row-info">
+        <div class="settings-row-title">${BELL_ICON}Rest Timer Alerts</div>
+        <div class="settings-row-desc">${restAlertDesc(alertStatus)}</div>
+      </div>
+      ${alertStatus === 'prompt' ? '<button type="button" class="btn-profile-action" id="restAlertsBtn">Turn On</button>' : ''}
+    </div>` : ''}
     ${coachAccountLinked ? `
     <div class="settings-row">
       <div class="settings-row-info">
@@ -199,10 +221,18 @@ export async function renderProfile() {
   // show the permission prompt, so this can't be a silent toggle like the
   // two above) - re-renders the whole screen after either action so the
   // button label/description reflect what actually happened
-  document.getElementById('pushToggleBtn').addEventListener('click', async function(e) {
+  document.getElementById('pushToggleBtn')?.addEventListener('click', async function(e) {
     e.target.disabled = true
     if (status === 'on') await disablePush(supabase)
     else await enablePush(supabase, session.user.id)
+    renderProfile()
+  })
+
+  // The phone's own permission question - asked once; after that the
+  // switch lives in the phone's Settings, which the row then points to
+  document.getElementById('restAlertsBtn')?.addEventListener('click', async function(e) {
+    e.target.disabled = true
+    await askForAlerts()
     renderProfile()
   })
 

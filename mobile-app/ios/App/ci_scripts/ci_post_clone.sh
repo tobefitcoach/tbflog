@@ -3,7 +3,12 @@
 # references packages inside it, so install it before Xcode resolves packages.
 set -e
 
-brew install node
+# Always the same Node major version, not "whatever is newest today" - a
+# new Node release must never be able to break an app build on its own.
+# node@22 is keg-only in Homebrew, so put it on the PATH explicitly.
+brew install node@22
+export PATH="$(brew --prefix node@22)/bin:$PATH"
+node --version
 
 cd "$CI_PRIMARY_REPOSITORY_PATH/mobile-app"
 npm ci
