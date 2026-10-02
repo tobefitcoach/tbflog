@@ -74,14 +74,14 @@ let formId = null
 let questionsCache = []
 let autosaveTimers = {}
 
-export async function mount(container, params, token) {
+export async function mount(container, params, ctx) {
   ensureCss('css/builders.css?v=__V__')
   root = container
   formId = params.id
   container.innerHTML = TEMPLATE
   bindEvents()
 
-  await loadForm(token)
+  await loadForm(ctx)
 }
 
 // The router awaits this before leaving the screen, so a question edited
@@ -150,15 +150,15 @@ function bindEvents() {
   })
 }
 
-async function loadForm(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+async function loadForm(ctx) {
+  const { data, error } = await ctx.fetch((signal) => supabase
     .from('forms')
     .select('*, form_questions(*)')
     .eq('id', formId)
     .single()
     .abortSignal(signal)
   )
-  if (!nav.isCurrent(token)) return
+  if (!ctx.alive()) return
 
   if (error) {
     console.log('Error loading form:', error)

@@ -267,18 +267,19 @@ let adjustFieldsSeId = null
 let setAlternativeSeId = null
 let editingExerciseId = null
 
-let onDocClickKebab = null
+let ctx = null   // this mount's screen context (screen-context.js)
 
-export async function mount(container, params, token) {
+export async function mount(container, params, screenCtx) {
   ensureCss('css/builders.css?v=__V__')
   root = container
+  ctx = screenCtx
   sectionId = params.id
   container.innerHTML = TEMPLATE
   sectionDropZone = root.querySelector('#sectionExercisesList')
   workoutOutlineList = root.querySelector('#workoutOutlineList')
   bindEvents()
 
-  await Promise.all([loadSection(token), loadExercisesList(token), loadAllExercises(token)])
+  await Promise.all([loadSection(), loadExercisesList(), loadAllExercises()])
 }
 
 // The router awaits this before leaving the screen (any way: Back, back
@@ -289,8 +290,7 @@ export async function beforeLeave() {
 }
 
 export function unmount() {
-  if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
-  onDocClickKebab = null
+  ctx = null
 
   // beforeLeave has already sent anything pending; clearing here only
   // matters if it timed out - a debounce firing after the coach left would
@@ -543,11 +543,10 @@ function bindEvents() {
   // Kebab dropdowns (see toggle-kebab above) close on their own toggle or on
   // picking an item, but not yet on an outside click - add that here so one
   // left open doesn't linger while the coach works on other cards
-  onDocClickKebab = function(e) {
+  ctx.on(document, 'click', function(e) {
     if (e.target.closest('.builder-kebab-menu')) return
     root?.querySelectorAll('#sectionExercisesList .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  }
-  document.addEventListener('click', onDocClickKebab)
+  })
 
   // ==========================================================================
   // ---- ADJUST FIELDS (per-instance override) ----
@@ -785,15 +784,17 @@ function bindEvents() {
 // ==========================================================================
 // ---- LOAD SECTION NAME ----
 // ==========================================================================
-async function loadSection(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+async function loadSection() {
+  const c = ctx
+  if (!c) return
+  const { data, error } = await c.fetch((signal) => supabase
     .from('sections')
     .select('*')
     .eq('id', sectionId)
     .single()
     .abortSignal(signal)
   )
-  if (!nav.isCurrent(token)) return
+  if (!c.alive()) return
 
   if (error) {
     console.log('Error loading section:', error)
@@ -808,9 +809,11 @@ async function loadSection(token) {
 // ==========================================================================
 // ---- EXERCISE LIBRARY PANEL (search + drag source) ----
 // ==========================================================================
-async function loadAllExercises(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase.from('exercises').select('*').eq('archived', false).order('name').abortSignal(signal))
-  if (!nav.isCurrent(token)) return
+async function loadAllExercises() {
+  const c = ctx
+  if (!c) return
+  const { data, error } = await c.fetch((signal) => supabase.from('exercises').select('*').eq('archived', false).order('name').abortSignal(signal))
+  if (!c.alive()) return
   if (error) { console.log('Error loading exercises:', error); customAlert('Something went wrong loading the exercise library - check your connection and try again'); return }
   allExercises = data
   renderCategoryChips()
@@ -1141,14 +1144,16 @@ function removeSetTargetRow(row) {
 // ---- LOAD + RENDER EXERCISE LIST ----
 // ==========================================================================
 
-async function loadExercisesList(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+async function loadExercisesList() {
+  const c = ctx
+  if (!c) return
+  const { data, error } = await c.fetch((signal) => supabase
     .from('section_exercises')
     .select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .eq('section_id', sectionId)
     .abortSignal(signal)
   )
-  if (!nav.isCurrent(token)) return
+  if (!c.alive()) return
 
   if (error) { console.log('Error loading section exercises:', error); customAlert('Something went wrong loading this section\'s exercises - check your connection and try again'); return }
 

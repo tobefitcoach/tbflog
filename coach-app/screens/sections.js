@@ -12,9 +12,9 @@
 // then have to carry both sets of table names, icons and copy.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
+import { showLoadError } from '../screen-context.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -48,48 +48,40 @@ const SKELETON = `
 
 let root = null
 let allSections = []
-let onDocClick = null
 
-export async function mount(container, params, token) {
+export async function mount(container, params, ctx) {
   root = container
   container.innerHTML = SKELETON
 
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+  const { data, error } = await ctx.fetch((signal) => supabase
     .from('sections')
     .select('*, section_exercises(id)')
     .order('name')
     .abortSignal(signal)
   )
-  if (!nav.isCurrent(token)) return
+  if (!ctx.alive()) return
 
   if (error) {
     console.log('Error loading sections:', error)
-    container.innerHTML = `
-      <div class="screen-message">
-        <h2>Couldn't load your sections</h2>
-        <p>Check your connection and try again.</p>
-      </div>`
+    showLoadError(container, 'sections')
     return
   }
 
   allSections = data || []
   container.innerHTML = TEMPLATE
-  bindEvents()
+  bindEvents(ctx)
   renderSectionGrid()
 }
 
 export function unmount() {
-  if (onDocClick) document.removeEventListener('click', onDocClick)
-  onDocClick = null
   root = null
   allSections = []
 }
 
-function bindEvents() {
-  onDocClick = function() {
+function bindEvents(ctx) {
+  ctx.on(document, 'click', function() {
     root?.querySelectorAll('#sectionGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  }
-  document.addEventListener('click', onDocClick)
+  })
 
   root.querySelector('#newSectionBtn').addEventListener('click', function() {
     root.querySelector('#newSectionName').value = ''

@@ -100,6 +100,10 @@ const TEMPLATE = `
 `
 
 let root = null
+// Starts as the router's ctx.token, but selectCommsAthlete replaces it when
+// it pushes its own nav frame on a phone - which is why this screen checks
+// nav.isCurrent(mountToken) rather than ctx.alive() (that would go false
+// the moment a conversation opens, while the screen is still showing).
 let mountToken = null
 let allCommsAthletes = []
 let unreadCountByAthlete = {} // athlete_id -> count of unread athlete-sent messages
@@ -107,25 +111,20 @@ let lastMessageByAthlete = {} // athlete_id -> most recent chat_messages row, fo
 let selectedAthlete = null
 let searchQuery = ''
 let editingMessageId = null // non-null while the coach is editing a previously-sent bubble
-let viewportResizeHandler = null
 
 function isMobileWidth() {
   return window.matchMedia('(max-width: 768px)').matches
 }
 
-export async function mount(container, params, token) {
+export async function mount(container, params, ctx) {
   root = container
-  mountToken = token
+  mountToken = ctx.token
   container.innerHTML = TEMPLATE
-  bindEvents()
+  bindEvents(ctx)
   await loadCommsAthletes(params.id)
 }
 
 export function unmount() {
-  if (viewportResizeHandler) {
-    window.visualViewport?.removeEventListener('resize', viewportResizeHandler)
-    viewportResizeHandler = null
-  }
   root = null
   mountToken = null
   allCommsAthletes = []
@@ -136,7 +135,7 @@ export function unmount() {
   editingMessageId = null
 }
 
-function bindEvents() {
+function bindEvents(ctx) {
   root.querySelector('#chatSendBtn').addEventListener('click', sendChatMessage)
   root.querySelector('#chatInput').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') sendChatMessage()
@@ -153,12 +152,11 @@ function bindEvents() {
   // message (and the input row right below it) in view instead of hidden
   // under the keyboard.
   if (window.visualViewport) {
-    viewportResizeHandler = function() {
+    ctx.on(window.visualViewport, 'resize', function() {
       if (!selectedAthlete) return
       const container = root?.querySelector('#chatMessages')
       if (container) container.scrollTop = container.scrollHeight
-    }
-    window.visualViewport.addEventListener('resize', viewportResizeHandler)
+    })
   }
 }
 

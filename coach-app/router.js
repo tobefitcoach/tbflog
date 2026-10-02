@@ -19,8 +19,10 @@
 // old module past a force-quit and a rebuild.
 // ==========================================================================
 import * as nav from './nav.js?v=__V__'
+import { createScreenContext } from './screen-context.js?v=__V__'
 
-// name -> () => Promise<{ mount(container, params, token), unmount?() }>
+// name -> () => Promise<{ mount(container, params, ctx), unmount?(), beforeLeave?() }>
+// ctx is a screen context - see screen-context.js
 export const ROUTES = {
   stats:            () => import(`./screens/stats.js?v=__V__`),
   athletes:         () => import(`./screens/athletes.js?v=__V__`),
@@ -103,6 +105,7 @@ const SCREEN_TITLES = {
 let pageContent = null
 let pageTitle = null
 let currentModule = null
+let currentCtx = null
 // Bumped by every renderScreen call - a navigation that waited on
 // beforeLeave() checks it afterwards, so only the latest tap proceeds
 let navSeq = 0
@@ -142,7 +145,9 @@ async function renderScreen(name, params = {}) {
   // Tear the old screen down BEFORE awaiting the next one's module, so a
   // slow import can't leave two screens' timers running at once.
   try { currentModule?.unmount?.() } catch (err) { console.warn('[router] unmount failed:', err) }
+  currentCtx?.dispose()
   currentModule = null
+  currentCtx = null
 
   let mod
   try {
@@ -181,11 +186,15 @@ async function renderScreen(name, params = {}) {
     tab: TAB_FOR_ROUTE[name] || 'athletes',
   })
 
-  // Screens get the token so they can check nav.isCurrent(token) after
-  // every await. Every coach screen loads data before it can render, so
-  // without this a slow response landing after the coach has navigated on
-  // would repaint over whatever screen is actually showing by then.
-  await mod.mount(pageContent, { ...params, route: name }, token)
+  // Screens get a context carrying the token, so they can check
+  // ctx.alive() after every await. Every coach screen loads data before it
+  // can render, so without this a slow response landing after the coach
+  // has navigated on would repaint over whatever screen is showing by
+  // then. The context also owns the screen's document listeners, timers
+  // and requests, and the dispose() above releases them all.
+  const ctx = createScreenContext(token)
+  currentCtx = ctx
+  await mod.mount(pageContent, { ...params, route: name }, ctx)
 }
 
 // What every in-app navigation calls, from screens and from the sidebar

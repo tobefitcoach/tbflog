@@ -13,7 +13,7 @@
 // a structural conversion.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
+import { showLoadError } from '../screen-context.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { safeUrl } from '../../escape.js?v=__V__'
 import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
@@ -124,14 +124,16 @@ const SKELETON = `
 `
 
 let root = null
+let ctx = null   // this mount's screen context (screen-context.js)
 let currentExercise = null   // exercise being edited, or null when adding new
 let allExercisesCache = []   // also used to build the category/type dropdowns
 let activeCategoryFilters = new Set()
 
-export async function mount(container, params, token) {
+export async function mount(container, params, screenCtx) {
   root = container
+  ctx = screenCtx
   container.innerHTML = SKELETON
-  if (!(await loadExercises(token))) return
+  if (!(await loadExercises())) return
 
   container.innerHTML = TEMPLATE
   bindEvents()
@@ -139,6 +141,7 @@ export async function mount(container, params, token) {
 }
 
 export function unmount() {
+  ctx = null
   root = null
   currentExercise = null
   allExercisesCache = []
@@ -146,23 +149,21 @@ export function unmount() {
 }
 
 // Returns false if the screen should stop (error, or navigated away mid-load).
-async function loadExercises(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+async function loadExercises() {
+  const c = ctx
+  if (!c) return false
+  const { data, error } = await c.fetch((signal) => supabase
     .from('exercises')
     .select('*')
     .eq('archived', false)
     .order('name')
     .abortSignal(signal)
   )
-  if (token !== undefined && !nav.isCurrent(token)) return false
+  if (!c.alive()) return false
 
   if (error) {
     console.log('Error loading exercises:', error)
-    if (root) root.innerHTML = `
-      <div class="screen-message">
-        <h2>Couldn't load your exercises</h2>
-        <p>Check your connection and try again.</p>
-      </div>`
+    showLoadError(root, 'exercises')
     return false
   }
 

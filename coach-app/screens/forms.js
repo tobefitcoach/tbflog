@@ -7,19 +7,19 @@
 //   - the session check at the top is gone (the bootstrap does it once)
 //   - top-level document.getElementById calls move inside mount(), because
 //     this module is now imported before its markup exists
-//   - the document-level click listener that closes kebab dropdowns is
-//     registered in mount() and REMOVED in unmount() - left attached, it
-//     would accumulate one copy per visit for the life of the app
+//   - the document-level click listener that closes kebab dropdowns goes
+//     through ctx.on, so the router removes it when the screen goes away -
+//     left attached, it would accumulate one copy per visit
 //   - window.location.href = 'form-builder.html?id=X' becomes a route call
-//   - every await is followed by an isCurrent(token) check before the DOM
-//     is touched again
+//   - every await is followed by a ctx.alive() check before the DOM is
+//     touched again
 //
-// See screens/_placeholder.js for the full contract.
+// See screen-context.js for the full contract.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
+import { showLoadError } from '../screen-context.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -58,51 +58,40 @@ const SKELETON = `
 
 let root = null
 let allForms = []
-let onDocClick = null
 
-export async function mount(container, params, token) {
+export async function mount(container, params, ctx) {
   root = container
   container.innerHTML = SKELETON
 
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+  const { data, error } = await ctx.fetch((signal) => supabase
     .from('forms')
     .select('*, form_questions(id)')
     .order('name')
     .abortSignal(signal)
   )
-  if (!nav.isCurrent(token)) return
+  if (!ctx.alive()) return
 
   if (error) {
     console.log('Error loading forms:', error)
-    container.innerHTML = `
-      <div class="screen-message">
-        <h2>Couldn't load your forms</h2>
-        <p>Check your connection and try again.</p>
-      </div>`
+    showLoadError(container, 'forms')
     return
   }
 
   allForms = data || []
   container.innerHTML = TEMPLATE
-  bindEvents()
+  bindEvents(ctx)
   renderFormGrid()
 }
 
 export function unmount() {
-  // The multi-page site could leave this attached because the whole
-  // document went away on every navigation. Here it must be removed by
-  // hand, or every visit to this screen adds another live listener.
-  if (onDocClick) document.removeEventListener('click', onDocClick)
-  onDocClick = null
   root = null
   allForms = []
 }
 
-function bindEvents() {
-  onDocClick = function() {
+function bindEvents(ctx) {
+  ctx.on(document, 'click', function() {
     root?.querySelectorAll('#formGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  }
-  document.addEventListener('click', onDocClick)
+  })
 
   root.querySelector('#newFormBtn').addEventListener('click', function() {
     root.querySelector('#newFormName').value = ''

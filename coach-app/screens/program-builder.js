@@ -148,18 +148,18 @@ let root = null
 let programId = null
 let weeksCache = [] // last-loaded weeks (with nested days/exercises), used to compute next week/day/order numbers without extra queries
 let currentWeekPage = 0
-let onDocClickKebab = null
-let onDocKeydown = null
+let ctx = null   // this mount's screen context (screen-context.js)
 
-export async function mount(container, params, token) {
+export async function mount(container, params, screenCtx) {
   ensureCss('css/builders.css?v=__V__')
   root = container
+  ctx = screenCtx
   programId = params.id
   container.innerHTML = TEMPLATE
   bindEvents()
   wireProgramGridCopyArming(root.querySelector('#programWeeksGrid'))
 
-  await Promise.all([loadProgram(token), loadWeeks(token)])
+  await Promise.all([loadProgram(), loadWeeks()])
 }
 
 // Leaving with the Workout Builder overlay still open: let it send any
@@ -170,11 +170,8 @@ export async function beforeLeave() {
 
 export function unmount() {
   teardownBuilderOverlay(root?.querySelector('#trainingBuilderHost'))
-  if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
-  if (onDocKeydown) document.removeEventListener('keydown', onDocKeydown)
-  onDocClickKebab = null
-  onDocKeydown = null
   root = null
+  ctx = null
   programId = null
   weeksCache = []
   currentWeekPage = 0
@@ -246,11 +243,10 @@ function bindEvents() {
 
   // Kebab dropdowns on the grid close on outside click (mirrors the same
   // pattern in training-builder.js and athlete-calendar.js)
-  onDocClickKebab = function(e) {
+  ctx.on(document, 'click', function(e) {
     if (e.target.closest('#programWeeksGrid .kebab-menu')) return
     root?.querySelectorAll('#programWeeksGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  }
-  document.addEventListener('click', onDocClickKebab)
+  })
 
   root.querySelector('#weekPagePrevBtn').addEventListener('click', function() {
     currentWeekPage--
@@ -311,10 +307,9 @@ function bindEvents() {
   })
 
   root.querySelector('#copyArmedCancelBtn').addEventListener('click', disarmCopy)
-  onDocKeydown = function(e) {
+  ctx.on(document, 'keydown', function(e) {
     if (e.key === 'Escape' && copyArmedMode) disarmCopy()
-  }
-  document.addEventListener('keydown', onDocKeydown)
+  })
 
   // ==========================================================================
   // ---- RENAME TEMPLATE ----
@@ -343,15 +338,17 @@ function bindEvents() {
 // ==========================================================================
 // ---- LOAD PROGRAM NAME ----
 // ==========================================================================
-async function loadProgram(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+async function loadProgram() {
+  const c = ctx
+  if (!c) return
+  const { data, error } = await c.fetch((signal) => supabase
     .from('programs')
     .select('*')
     .eq('id', programId)
     .single()
     .abortSignal(signal)
   )
-  if (token !== undefined ? !nav.isCurrent(token) : !root) return
+  if (!c.alive()) return
 
   if (error) {
     console.log('Error loading program:', error)
@@ -419,19 +416,21 @@ async function syncLiveTrainingDaysWeeks(weeks) {
   }
 }
 
-async function loadWeeks(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+async function loadWeeks() {
+  const c = ctx
+  if (!c) return
+  const { data, error } = await c.fetch((signal) => supabase
     .from('program_weeks')
     .select('*, program_days(*, program_exercises(*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)))')
     .eq('program_id', programId)
     .abortSignal(signal)
   )
-  if (token !== undefined ? !nav.isCurrent(token) : !root) return
+  if (!c.alive()) return
 
   if (error) { console.log('Error loading weeks:', error); customAlert('Something went wrong loading this program - check your connection and try again'); return }
 
   await syncLiveTrainingDaysWeeks(data)
-  if (token !== undefined ? !nav.isCurrent(token) : !root) return
+  if (!c.alive()) return
 
   data.sort((a, b) => a.week_number - b.week_number)
   data.forEach(week => {

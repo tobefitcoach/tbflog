@@ -17,16 +17,16 @@
 //     cancelBtn, saveBtn, athleteGrid) move inside mount(), because this
 //     module is now imported before its markup exists
 //   - the ONE document-level click listener script.js had (outside-click
-//     closes the label filter dropdown) is registered in mount() and
-//     REMOVED in unmount() - left attached it would accumulate one copy
-//     per visit for the life of the app
+//     closes the label filter dropdown) goes through ctx.on, so the router
+//     removes it when the screen goes away - left attached it would
+//     accumulate one copy per visit for the life of the app
 //   - the status filter no longer comes from ?status= in the URL; the
 //     sidebar submenu passes it in as params.status, same default of
 //     'active' when it's absent
 //   - window.location.href = 'athlete.html?id=X' becomes a route call
-//   - every await in mount() is followed by an isCurrent(token) check
-//     before the DOM is touched again, and the two background loads
-//     (loadAthleteExtras/checkLowTrainings) check the mount's token too
+//   - every await is followed by a ctx.alive() check before the DOM is
+//     touched again, including the two background loads
+//     (loadAthleteExtras/checkLowTrainings) and the reloads
 //   - loadAthletes() used to both fetch AND repaint. Here it only fetches
 //     (mount paints the template itself, and there's nothing to repaint
 //     into until it has); reloadAndRepaint() is what the card actions call
@@ -34,11 +34,11 @@
 //     so the grid is looked up once per render rather than once per card -
 //     same split the other converted screens use
 //
-// See screens/_placeholder.js for the full contract.
+// See screen-context.js for the full contract.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
 import { sendPush } from '../../push.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
+import { showLoadError } from '../screen-context.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
@@ -187,11 +187,11 @@ const SKELETON = `
 `
 
 let root = null
-// The mount's nav token, kept module-level so the two background loads
-// (loadAthleteExtras and the label flows that follow it) can check it after
-// their own awaits - they're started fire-and-forget from mount and can
-// easily outlive it on a slow connection.
-let mountToken = null
+// The mount's screen context (screen-context.js), kept module-level so the
+// background loads (loadAthleteExtras and the label flows that follow it)
+// can check ctx.alive() after their own awaits - they're started
+// fire-and-forget from mount and can easily outlive it on a slow connection.
+let ctx = null
 
 // Cached full list + the filter currently applied to it, so switching
 // status (or typing a search) re-renders instantly from memory instead of
@@ -212,25 +212,13 @@ let labelLinksByAthlete = {} // athlete_id -> Set of label_id
 let selectedLabelFilterIds = new Set()
 let manageLabelsAthleteId = null
 
-let onDocClickFilter = null
-// Not present in the original script.js - every other library screen
-// (forms/sections/trainings/programs/stretches) has an outside-click
-// listener that closes an open kebab dropdown, but the Athletes list never
-// did. On the multi-page site that gap was invisible: any navigation
-// destroyed the whole document, which incidentally closed the dropdown
-// too. In the SPA nothing destroys the screen between clicks, so a left-
-// open dropdown would sit there until another kebab was tapped or the grid
-// repainted. Added here for consistency with its five siblings - see
-// trainings.js for the identical pattern.
-let onDocClickKebab = null
-
-export async function mount(container, params, token) {
+export async function mount(container, params, screenCtx) {
   root = container
-  mountToken = token
+  ctx = screenCtx
   currentStatusFilter = params.status || 'active'
   container.innerHTML = SKELETON
 
-  if (!(await loadAthletes(token))) return
+  if (!(await loadAthletes())) return
 
   container.innerHTML = TEMPLATE
   bindEvents()
@@ -249,15 +237,8 @@ export async function mount(container, params, token) {
 }
 
 export function unmount() {
-  // script.js could leave this attached because the whole document went
-  // away on every navigation. Here it must be removed by hand, or every
-  // visit to this screen adds another live listener.
-  if (onDocClickFilter) document.removeEventListener('click', onDocClickFilter)
-  if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
-  onDocClickFilter = null
-  onDocClickKebab = null
   root = null
-  mountToken = null
+  ctx = null
   allAthletes = []
   flaggedCountByAthlete = {}
   athleteStatsById = {}
@@ -277,21 +258,19 @@ export function unmount() {
 // to paint into yet, so mount() puts up the template and renders itself,
 // and reloadAndRepaint() below is what the card actions call.
 // ==========================================================================
-async function loadAthletes(token) {
+async function loadAthletes() {
+  const c = ctx
+  if (!c) return false
   // Just the athletes themselves - the one query the whole screen actually
   // depends on to show anything. Kept alone in its own await (default 3
   // retries) so a slow/flaky connection still gets retried, but nothing
   // else can ever hold this up.
-  const { data, error } = await window.fetchWithRetry((signal) => supabase.from('athletes').select('*').abortSignal(signal))
-  if (token !== undefined && !nav.isCurrent(token)) return false
+  const { data, error } = await c.fetch((signal) => supabase.from('athletes').select('*').abortSignal(signal))
+  if (!c.alive()) return false
 
   if (error) {
     console.log('Error loading athletes:', error)
-    if (root) root.innerHTML = `
-      <div class="screen-message">
-        <h2>Couldn't load your athletes</h2>
-        <p>Check your connection and try again.</p>
-      </div>`
+    showLoadError(root, 'athletes')
     return false
   }
 
@@ -311,6 +290,8 @@ async function reloadAndRepaint() {
 }
 
 async function loadAthleteExtras() {
+  const c = ctx
+  if (!c) return
   const thirtyDaysAgo = toDateStr(addDays(new Date(), -29))
   const ninetyDaysAgoISO = addDays(new Date(), -89).toISOString()
 
@@ -329,7 +310,7 @@ async function loadAthleteExtras() {
     // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
     // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
     // stats, since this is meant to stay visible until acknowledged
-    window.fetchWithRetry((signal) => supabase
+    c.fetch((signal) => supabase
       .from('workout_sessions')
       .select('athlete_id')
       .eq('rpe_flag_reason', 'pain_injury')
@@ -338,7 +319,7 @@ async function loadAthleteExtras() {
     ),
     // Every non-template scheduled day, for "Programmed Through" + 30-day
     // completion - same nested shape athlete.js's loadOverviewStats() uses
-    window.fetchWithRetry((signal) => supabase
+    c.fetch((signal) => supabase
       .from('programs')
       .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, date_override, program_exercises(id, prescribed_sets)))')
       .eq('is_template', false)
@@ -346,28 +327,28 @@ async function loadAthleteExtras() {
     ),
     // Logged sets for the last 30 days only - completion rate never looks
     // further back than that
-    window.fetchWithRetry((signal) => supabase
+    c.fetch((signal) => supabase
       .from('exercise_log_sets')
       .select('athlete_id, program_exercise_id, date, completed_at, set_number')
       .gte('date', thirtyDaysAgo)
       .abortSignal(signal), 1
     ),
     // Rated sessions for ACWR - 90 days back, same window athlete.js uses
-    window.fetchWithRetry((signal) => supabase
+    c.fetch((signal) => supabase
       .from('workout_sessions')
       .select('athlete_id, started_at, ended_at, local_date, session_rpe')
       .not('ended_at', 'is', null)
       .gte('started_at', ninetyDaysAgoISO)
       .abortSignal(signal), 1
     ),
-    window.fetchWithRetry((signal) => supabase.from('athlete_labels').select('*').order('name').abortSignal(signal), 1),
-    window.fetchWithRetry((signal) => supabase.from('athlete_label_links').select('*').abortSignal(signal), 1),
+    c.fetch((signal) => supabase.from('athlete_labels').select('*').order('name').abortSignal(signal), 1),
+    c.fetch((signal) => supabase.from('athlete_label_links').select('*').abortSignal(signal), 1),
     // Coach's own "warn me N days before an athlete's last training" setting
-    window.fetchWithRetry((signal) => supabase.from('profiles').select('low_trainings_warning_days').eq('id', coachId()).single().abortSignal(signal), 1)
+    c.fetch((signal) => supabase.from('profiles').select('low_trainings_warning_days').eq('id', coachId()).single().abortSignal(signal), 1)
   ])
   // Started fire-and-forget from mount(), so this can easily land after the
   // coach has moved on - everything below repaints the grid.
-  if (!nav.isCurrent(mountToken) || !root) return
+  if (!c.alive() || !root) return
 
   lowTrainingsWarningDays = profileData ? (profileData.low_trainings_warning_days ?? 7) : 7
 
@@ -423,8 +404,10 @@ function isLowOnTrainings(athlete, stats) {
 // stop early once the screen is gone, rather than walking a whole roster of
 // athletes the coach has already navigated away from.
 async function checkLowTrainings() {
+  const c = ctx
+  if (!c) return
   for (const athlete of allAthletes) {
-    if (!nav.isCurrent(mountToken)) return
+    if (!c.alive()) return
     const stats = athleteStatsById[athlete.id]
     if (!isLowOnTrainings(athlete, stats)) continue
 
@@ -616,17 +599,18 @@ function applyFilters() {
 // ==========================================================================
 function bindEvents() {
   // Outside click closes the label filter dropdown.
-  onDocClickFilter = function(e) {
+  ctx.on(document, 'click', function(e) {
     if (!e.target.closest('#labelFilter')) root?.querySelector('#labelFilterDropdown')?.classList.remove('active')
-  }
-  document.addEventListener('click', onDocClickFilter)
+  })
 
-  // Outside click closes any open kebab dropdown - see the onDocClickKebab
-  // declaration above for why this didn't exist in the original.
-  onDocClickKebab = function() {
+  // Outside click closes any open kebab dropdown. Not present in the
+  // original script.js - every other library screen had one, but the
+  // Athletes list never did. On the multi-page site that gap was invisible:
+  // any navigation destroyed the whole document, which incidentally closed
+  // the dropdown too. In the SPA nothing destroys the screen between clicks.
+  ctx.on(document, 'click', function() {
     root?.querySelectorAll('.athlete-grid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  }
-  document.addEventListener('click', onDocClickKebab)
+  })
 
   root.querySelector('#athleteSearchInput').addEventListener('input', function(e) {
     currentSearchQuery = e.target.value

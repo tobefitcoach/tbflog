@@ -448,13 +448,13 @@ function sizeRouteToViewport() {
   if (route) route.style.setProperty('--tb-route-h', `${window.innerHeight - headerH}px`)
 }
 
-export async function mount(container, params) {
+export async function mount(container, params, ctx) {
   routeRoot = container
   ensureCss('css/builders.css?v=__V__')
   container.innerHTML = ROUTE_TEMPLATE
   container.querySelector('#trainingBuilderRouteBackBtn').addEventListener('click', function() { nav.back() })
   sizeRouteToViewport()
-  window.addEventListener('resize', sizeRouteToViewport)
+  ctx.on(window, 'resize', sizeRouteToViewport)
   await openBuilder(container.querySelector('#trainingBuilderRouteHost'), { id: params.id })
 }
 
@@ -465,7 +465,6 @@ export async function beforeLeave() {
 }
 
 export function unmount() {
-  window.removeEventListener('resize', sizeRouteToViewport)
   closeBuilder()
   routeRoot = null
 }

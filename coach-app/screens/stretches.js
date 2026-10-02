@@ -15,7 +15,7 @@
 // on the next pick, and on unmount.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
+import { showLoadError } from '../screen-context.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 
 const TEMPLATE = `
@@ -101,6 +101,7 @@ const SKELETON = `
 `
 
 let root = null
+let ctx = null   // this mount's screen context (screen-context.js)
 let currentStretch = null
 let allStretchesCache = []
 let allAreasCache = []       // names from stretch_body_areas - the coach's persisted list, independent of whether any stretch uses them yet
@@ -109,10 +110,11 @@ let activeAreaFilters = new Set()
 let pendingVideoFile = null
 let previewBlobUrl = null    // tracked so it can be revoked - see header note
 
-export async function mount(container, params, token) {
+export async function mount(container, params, screenCtx) {
   root = container
+  ctx = screenCtx
   container.innerHTML = SKELETON
-  if (!(await loadStretches(token))) return
+  if (!(await loadStretches())) return
 
   container.innerHTML = TEMPLATE
   bindEvents()
@@ -120,6 +122,7 @@ export async function mount(container, params, token) {
 }
 
 export function unmount() {
+  ctx = null
   releasePreviewBlob()
   root = null
   currentStretch = null
@@ -135,23 +138,21 @@ function releasePreviewBlob() {
   previewBlobUrl = null
 }
 
-async function loadStretches(token) {
+async function loadStretches() {
+  const c = ctx
+  if (!c) return false
   const [
     { data: stretchesData, error: stretchesError },
     { data: areasData, error: areasError }
   ] = await Promise.all([
-    window.fetchWithRetry((signal) => supabase.from('stretches').select('*').order('name').abortSignal(signal)),
-    window.fetchWithRetry((signal) => supabase.from('stretch_body_areas').select('name').order('name').abortSignal(signal))
+    c.fetch((signal) => supabase.from('stretches').select('*').order('name').abortSignal(signal)),
+    c.fetch((signal) => supabase.from('stretch_body_areas').select('name').order('name').abortSignal(signal))
   ])
-  if (token !== undefined && !nav.isCurrent(token)) return false
+  if (!c.alive()) return false
 
   if (stretchesError || areasError) {
     console.log('Error loading stretches:', stretchesError || areasError)
-    if (root) root.innerHTML = `
-      <div class="screen-message">
-        <h2>Couldn't load your stretches</h2>
-        <p>Check your connection and try again.</p>
-      </div>`
+    showLoadError(root, 'stretches')
     return false
   }
 

@@ -12,7 +12,7 @@
 // they would accumulate one pair per visit for the life of the app.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
+import { showLoadError } from '../screen-context.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
@@ -95,6 +95,7 @@ const SKELETON = `
 `
 
 let root = null
+let ctx = null   // this mount's screen context (screen-context.js)
 let allTrainings = []
 let allLabels = []
 let labelLinksByTraining = {} // training_id -> Set of label_id
@@ -103,13 +104,12 @@ let selectedTypeFilters = new Set()
 let trainingSearchText = ''
 let manageLabelsTrainingId = null
 let duplicateSourceTrainingId = null
-let onDocClickKebab = null
-let onDocClickFilter = null
 
-export async function mount(container, params, token) {
+export async function mount(container, params, screenCtx) {
   root = container
+  ctx = screenCtx
   container.innerHTML = SKELETON
-  const ok = await loadTrainings(token)
+  const ok = await loadTrainings()
   if (!ok) return
 
   container.innerHTML = TEMPLATE
@@ -120,10 +120,7 @@ export async function mount(container, params, token) {
 }
 
 export function unmount() {
-  if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
-  if (onDocClickFilter) document.removeEventListener('click', onDocClickFilter)
-  onDocClickKebab = null
-  onDocClickFilter = null
+  ctx = null
   root = null
   allTrainings = []
   allLabels = []
@@ -136,25 +133,23 @@ export function unmount() {
 }
 
 // Returns false if the screen should stop (error, or navigated away mid-load).
-async function loadTrainings(token) {
+async function loadTrainings() {
+  const c = ctx
+  if (!c) return false
   const [
     { data: trainingsData, error: trainingsError },
     { data: labelsData },
     { data: labelLinksData }
   ] = await Promise.all([
-    window.fetchWithRetry((signal) => supabase.from('trainings').select('*, training_exercises(id)').order('updated_at', { ascending: false }).abortSignal(signal)),
-    window.fetchWithRetry((signal) => supabase.from('training_labels').select('*').order('name').abortSignal(signal), 1),
-    window.fetchWithRetry((signal) => supabase.from('training_label_links').select('*').abortSignal(signal), 1)
+    c.fetch((signal) => supabase.from('trainings').select('*, training_exercises(id)').order('updated_at', { ascending: false }).abortSignal(signal)),
+    c.fetch((signal) => supabase.from('training_labels').select('*').order('name').abortSignal(signal), 1),
+    c.fetch((signal) => supabase.from('training_label_links').select('*').abortSignal(signal), 1)
   ])
-  if (token !== undefined && !nav.isCurrent(token)) return false
+  if (!c.alive()) return false
 
   if (trainingsError) {
     console.log('Error loading trainings:', trainingsError)
-    if (root) root.innerHTML = `
-      <div class="screen-message">
-        <h2>Couldn't load your workouts</h2>
-        <p>Check your connection and try again.</p>
-      </div>`
+    showLoadError(root, 'workouts')
     return false
   }
 
@@ -177,15 +172,13 @@ async function reloadAndRepaint() {
 }
 
 function bindEvents() {
-  onDocClickKebab = function() {
+  ctx.on(document, 'click', function() {
     root?.querySelectorAll('#trainingGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  }
-  document.addEventListener('click', onDocClickKebab)
+  })
 
-  onDocClickFilter = function(e) {
+  ctx.on(document, 'click', function(e) {
     if (!e.target.closest('#labelFilter')) root?.querySelector('#labelFilterDropdown')?.classList.remove('active')
-  }
-  document.addEventListener('click', onDocClickFilter)
+  })
 
   root.querySelector('#trainingSearchInput').addEventListener('input', function() {
     trainingSearchText = this.value

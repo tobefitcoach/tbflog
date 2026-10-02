@@ -14,7 +14,6 @@
 import { supabase } from '../../coachClient.js?v=__V__'
 import { supabase as athleteSupabase } from '../../athlete-app/athleteClient.js?v=__V__'
 import { pushStatus, enablePush, disablePush } from '../../push.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 
 const TEMPLATE = `
@@ -116,7 +115,7 @@ function paintAthleteAccountRow() {
   btn.disabled = false
 }
 
-export async function mount(container, params, token) {
+export async function mount(container, params, ctx) {
   root = container
   container.innerHTML = TEMPLATE
   bindEvents()
@@ -124,7 +123,7 @@ export async function mount(container, params, token) {
   // All four reads at once. The original awaited them in sequence.
   const [status, profile, athleteSession] = await Promise.all([
     pushStatus(),
-    window.fetchWithRetry((signal) => supabase
+    ctx.fetch((signal) => supabase
       .from('profiles')
       .select('mobility_enabled, low_trainings_warning_days')
       .eq('id', coachId())
@@ -133,7 +132,7 @@ export async function mount(container, params, token) {
     ),
     athleteSupabase.auth.getSession(),
   ])
-  if (!nav.isCurrent(token)) return
+  if (!ctx.alive()) return
 
   paintPushRow(status)
 

@@ -18,22 +18,30 @@
 //   const { data, error } = await fetchWithRetry((signal) => supabase
 //     .from('table').select('*').abortSignal(signal))
 //
+// Optional third argument: an AbortSignal (the coach app passes the
+// screen's ctx.signal). Once it fires, the request in flight is cancelled
+// and no further attempts are made - the screen that wanted it is gone.
+//
 // Loaded right after confirm-modal.js, before each page's own script.
 // ==========================================================================
-window.fetchWithRetry = async function(operationFactory, maxAttempts = 3) {
+window.fetchWithRetry = async function(operationFactory, maxAttempts = 3, outerSignal) {
   let result = { data: null, error: null }
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (outerSignal?.aborted) return { data: null, error: new DOMException('Screen left', 'AbortError') }
     const controller = new AbortController()
     const timeoutId = setTimeout(function() { controller.abort() }, 15000)
+    const onOuterAbort = function() { controller.abort() }
+    outerSignal?.addEventListener('abort', onOuterAbort)
     try {
       result = await operationFactory(controller.signal)
     } catch (err) {
       result = { data: null, error: err }
     } finally {
       clearTimeout(timeoutId)
+      outerSignal?.removeEventListener('abort', onOuterAbort)
     }
     if (!result.error) return result
-    if (attempt < maxAttempts) {
+    if (attempt < maxAttempts && !outerSignal?.aborted) {
       await new Promise(function(resolve) { setTimeout(resolve, attempt * 2000) })
     }
   }

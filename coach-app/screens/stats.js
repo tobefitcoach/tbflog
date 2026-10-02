@@ -14,7 +14,7 @@
 // yet, only the Completion tile is affected; everything else still loads.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
-import * as nav from '../nav.js?v=__V__'
+import { showLoadError } from '../screen-context.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { ensureCss } from '../lazy-css.js?v=__V__'
@@ -107,7 +107,7 @@ const TEMPLATE = `
 `
 
 let root = null
-let mountToken = null
+let ctx = null   // this mount's screen context (screen-context.js)
 let athletes = []
 let trackedIds = new Set()
 let athletesById = {}
@@ -117,7 +117,6 @@ let windowCache = new Map()
 let requestSeq = 0
 let flags = []
 let riskRows = []
-let onKeydown = null
 
 function formatDay(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
@@ -134,7 +133,8 @@ async function fetchAllPages(buildQuery) {
   const pageSize = 1000
   const rows = []
   for (let from = 0; ; from += pageSize) {
-    const { data, error } = await window.fetchWithRetry((signal) =>
+    if (!ctx) throw new Error('screen left')
+    const { data, error } = await ctx.fetch((signal) =>
       buildQuery().order('id').range(from, from + pageSize - 1).abortSignal(signal)
     )
     if (error) throw error
@@ -181,7 +181,8 @@ function isMissingFunction(err) {
 async function fetchCompletion(start, end, todayStr) {
   // One attempt only: a missing function should say so straight away rather
   // than after fetchWithRetry's two backoff waits
-  const { data, error } = await window.fetchWithRetry((signal) =>
+  if (!ctx) throw new Error('screen left')
+  const { data, error } = await ctx.fetch((signal) =>
     supabase.rpc('coach_completion_stats', { p_start: start, p_end: end, p_today: todayStr }).abortSignal(signal), 1)
   if (error) throw error
   return data
@@ -318,7 +319,7 @@ async function refreshWindow() {
 
   try {
     const stats = await loadWindowStats(win)
-    if (seq !== requestSeq || !root || !nav.isCurrent(mountToken)) return
+    if (seq !== requestSeq || !root || !ctx?.alive()) return
     renderTiles(win, stats)
   } catch (err) {
     if (seq !== requestSeq || !root) return
@@ -440,9 +441,10 @@ function renderRiskList() {
     </div>`).join('')
 }
 
-async function loadAttention(token) {
+async function loadAttention() {
+  const c = ctx
   const [flagsResult, riskResult] = await Promise.allSettled([loadFlags(), loadRisk()])
-  if (!root || !nav.isCurrent(token)) return
+  if (!root || !c?.alive()) return
 
   if (flagsResult.status === 'fulfilled') {
     flags = flagsResult.value
@@ -508,8 +510,7 @@ function bindEvents() {
       if (e.target === overlay || e.target.closest('[data-close]')) overlay.classList.remove('active')
     })
   })
-  onKeydown = function(e) { if (e.key === 'Escape') closeModals() }
-  document.addEventListener('keydown', onKeydown)
+  ctx.on(document, 'keydown', function(e) { if (e.key === 'Escape') closeModals() })
 
   // Shared by both lists: Go to profile / Mark reviewed. Bound to the lists
   // themselves, not `root` - root is the page container that outlives this
@@ -549,9 +550,9 @@ function bindEvents() {
   root.querySelector('#cdRiskList').addEventListener('click', onRowAction)
 }
 
-export async function mount(container, params, token) {
+export async function mount(container, params, screenCtx) {
   root = container
-  mountToken = token
+  ctx = screenCtx
   ensureCss('css/stats.css?v=__V__')
   container.innerHTML = TEMPLATE
   renderTilesLoading()
@@ -561,19 +562,13 @@ export async function mount(container, params, token) {
     if (stored && RANGES.some(r => r.key === stored && r.key !== 'custom')) currentRange = stored
   } catch (err) { /* storage can be blocked - fall back to the default */ }
 
-  const { data, error } = await window.fetchWithRetry((signal) =>
+  const { data, error } = await ctx.fetch((signal) =>
     supabase.from('athletes').select('id, name, archived, user_id, email').eq('coach_id', coachId()).abortSignal(signal)
   )
-  if (!root || !nav.isCurrent(token)) return
+  if (!root || !ctx.alive()) return
   if (error) {
     console.log('Error loading athletes for dashboard:', error)
-    container.innerHTML = `
-      <div class="screen-message">
-        <h2>Couldn't load your dashboard</h2>
-        <p>Check your connection and try again.</p>
-        <button class="btn-save" id="cdReloadBtn" style="margin-top:16px">Retry</button>
-      </div>`
-    container.querySelector('#cdReloadBtn').addEventListener('click', () => mount(container, params, token))
+    showLoadError(container, 'dashboard', () => mount(container, params, screenCtx))
     return
   }
 
@@ -583,14 +578,12 @@ export async function mount(container, params, token) {
 
   bindEvents()
   refreshWindow()
-  loadAttention(token)
+  loadAttention()
 }
 
 export function unmount() {
-  if (onKeydown) document.removeEventListener('keydown', onKeydown)
-  onKeydown = null
   root = null
-  mountToken = null
+  ctx = null
   athletes = []
   athletesById = {}
   trackedIds = new Set()

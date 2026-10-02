@@ -1373,7 +1373,6 @@ let currentAthlete = null
 // work immediately.
 let overviewLoadInFlight = false
 let lastOverviewAutoRefresh = 0
-let onVisibilityChange = null // tracked so unmount() can remove it
 
 // ==========================================================================
 // ---- METRICS state ----
@@ -1512,13 +1511,14 @@ let trainingBuilderOverlayMode = 'new-training'
 
 // Document-level listeners - the SPA-leak risk this screen is most exposed
 // to given its size. All three tracked here and removed in unmount().
-let onDocClickKebabCal = null // outside click closes calendar kebab dropdowns
-let onDocKeydownCal = null // Escape disarms an in-progress calendar copy
-
 // ==========================================================================
 // ---- MOUNT / UNMOUNT ----
 // ==========================================================================
-export async function mount(container, params, token) {
+// Still on the token-based checks (nav.isCurrent(mountToken)) rather than
+// ctx.alive() - moving this screen fully onto its context is part of
+// splitting it up. Its document listeners already go through ctx.on.
+export async function mount(container, params, ctx) {
+  const token = ctx.token
   ensureCss('css/athlete-detail.css?v=__V__')
   root = container
   mountToken = token
@@ -1553,29 +1553,27 @@ export async function mount(container, params, token) {
   loadOverviewStats()
   loadRecentActivity()
 
-  onVisibilityChange = function() {
+  ctx.on(document, 'visibilitychange', function() {
     if (document.visibilityState !== 'visible' || !athleteId) return
     if (Date.now() - lastOverviewAutoRefresh < 15000) return
     lastOverviewAutoRefresh = Date.now()
     loadOverviewStatsGuarded()
-  }
-  document.addEventListener('visibilitychange', onVisibilityChange)
+  })
 
   // Calendar tab's outside-click (closes its kebab dropdowns) and
   // Escape-to-disarm-copy - both document-level in athlete-calendar.js,
   // registered unconditionally there too (the elements they look for don't
   // exist until the Calendar tab has been opened at least once, so these
   // are harmless no-ops until then, exactly like on the original page).
-  onDocClickKebabCal = function(e) {
+  ctx.on(document, 'click', function(e) {
     if (e.target.closest('.kebab-menu')) return
     root?.querySelectorAll('#calendarGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  }
-  document.addEventListener('click', onDocClickKebabCal)
+  })
 
-  onDocKeydownCal = function(e) {
+  // Escape disarms an in-progress calendar copy
+  ctx.on(document, 'keydown', function(e) {
     if (e.key === 'Escape' && copyArmedMode) disarmCopy()
-  }
-  document.addEventListener('keydown', onDocKeydownCal)
+  })
 }
 
 // Leaving with the Workout Builder overlay still open: let it send any
@@ -1586,13 +1584,6 @@ export async function beforeLeave() {
 
 export function unmount() {
   teardownBuilderOverlay(root?.querySelector('#trainingBuilderHost'))
-  if (onVisibilityChange) document.removeEventListener('visibilitychange', onVisibilityChange)
-  if (onDocClickKebabCal) document.removeEventListener('click', onDocClickKebabCal)
-  if (onDocKeydownCal) document.removeEventListener('keydown', onDocKeydownCal)
-  onVisibilityChange = null
-  onDocClickKebabCal = null
-  onDocKeydownCal = null
-
   clearTimeout(toastHideTimer)
   toastHideTimer = null
 
@@ -3246,7 +3237,7 @@ async function findOrCreateAdHocDay(dateStr, name) {
 // clicking commits it there. Nothing outside the grid is blocked while
 // armed - Prev/Next, the sidebar, etc. all still work normally, since only
 // clicks that land inside #calendarGrid are intercepted (see
-// wireCalendarCopyArming below). Escape disarms too - see onDocKeydownCal
+// wireCalendarCopyArming below). Escape disarms too - see the keydown listener in mount()
 // in mount(), which already calls disarmCopy() below.
 // ==========================================================================
 function armCopyWeek(mondayStr) {
