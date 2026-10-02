@@ -244,7 +244,7 @@
 /* ==========================================================================
    SETTINGS ROWS
    .settings-row / -title / -desc and .detail-group-title already live in
-   athlete.css and are reused as-is. These four only exist to replace the
+   css/coach-core.css and are reused as-is. These four only exist to replace the
    inline style="..." strings the multi-page settings.html carried on its
    icons, number input and unit label - same values, just not repeated in
    markup where they can't be kept consistent.

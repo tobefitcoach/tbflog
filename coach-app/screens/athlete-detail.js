@@ -214,7 +214,7 @@ const TEMPLATE = `
       <!-- Training stats + Recent Activity share the row 50/50 on desktop
            (Recent Activity used to be its own full-width block, which was
            more space than it needed), stacking on mobile - see
-           .overview-top-split in athlete.css -->
+           .overview-top-split in css/athlete-detail.css -->
       <div class="overview-top-split">
         <!-- Training stats: how much of what was programmed actually got
              done, and how much volume they're moving - computed from the
@@ -339,7 +339,7 @@ const TEMPLATE = `
              be regenerated per month. Leading empty span lines the header up
              with the copy-icon gutter column #calendarGrid gets in JS (see
              the #calendarWeekdayHeader/#calendarGrid grid-template-columns
-             overrides in athlete.css). -->
+             overrides in css/coach-core.css). -->
         <div class="calendar-weekday-header" id="calendarWeekdayHeader">
           <span></span>
           <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>

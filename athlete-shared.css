@@ -1,15 +1,14 @@
 /* ==========================================================================
    ATHLETE APP CSS (shared subset)
-   The athlete app's actual subset of what used to be the shared athlete.css - replaces that 77KB link with just what this app needs.
+   The athlete app's actual subset of what used to be the shared athlete.css (now deleted) - just what this app needs.
    Auto-derived from athlete.css by classifying each rule against which
    source files actually reference its class names (including a fallback
    for classes built as template-literal suffixes, e.g. "status-${s}").
    Anything ambiguous or unmatched was folded into coach-core.css rather
    than dropped, since a wrongly-excluded rule breaks a screen silently
    while a wrongly-included one only costs a few bytes.
-   athlete.css itself is untouched - the old root pages keep loading it
-   exactly as before. Only the new coach-app/athlete-app entry points
-   switch to these derived files.
+   athlete.css itself has since been deleted - these derived files are
+   the only copies now.
    ========================================================================== */
 
 /* ==========================================================================
@@ -28,7 +27,7 @@
 /* ==========================================================================
    TRAINING BUILDER — EXERCISE LIBRARY PANEL
    Narrow searchable panel of draggable exercise cards, sits between the nav
-   sidebar and the training's own exercise list (training-builder.html)
+   sidebar and the training's own exercise list (the Workout Builder)
    ========================================================================== */
 
 .exercise-library-panel {
@@ -490,7 +489,7 @@
 
 /* ==========================================================================
    WORKOUT TYPE - Gym / Field / Run, set at the top of every Workout Library
-   entry (training-builder.html) and shown/editable wherever that workout
+   entry (the Workout Builder) and shown/editable wherever that workout
    turns up: the Workout Library list, Program Builder's day cell + day
    modal, the coach's per-athlete calendar day cell + day-detail dropdown,
    and read-only on the athlete's own day preview.

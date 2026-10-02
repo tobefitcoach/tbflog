@@ -9,9 +9,8 @@
    Anything ambiguous or unmatched was folded into coach-core.css rather
    than dropped, since a wrongly-excluded rule breaks a screen silently
    while a wrongly-included one only costs a few bytes.
-   athlete.css itself is untouched - the old root pages keep loading it
-   exactly as before. Only the new coach-app/athlete-app entry points
-   switch to these derived files.
+   athlete.css itself has since been deleted - these derived files are
+   the only copies now.
    ========================================================================== */
 
 

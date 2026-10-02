@@ -2436,8 +2436,8 @@ body:has(.home-screen) .athlete-app-card {
   }
 }
 
-/* Settings screen - .settings-row/.toggle-switch come from athlete.css
-   (shared with the coach's own Settings tab). Weight units uses the same
+/* Settings screen - .settings-row/.toggle-switch come from
+   athlete-shared.css (same rules as the coach's own Settings tab). Weight units uses the same
    .toggle-switch as every other setting here (kg/lbs is just a two-way
    choice) with a label on each side, instead of a <select> that didn't
    match the size of the other rows. */

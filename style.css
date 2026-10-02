@@ -82,8 +82,8 @@ header {
   padding: 12px 32px;
   /* Same fix as .coach-app-header/.athlete-app-header (see the coach-app
      rebuild): without this, this bare header sits under the notch/Dynamic
-     Island on any page that still uses it directly - login.html,
-     training-builder.html. Those pages also need viewport-fit=cover in
+     Island on any page that still uses it directly - login.html.
+     That page also needs viewport-fit=cover in
      their own <meta name="viewport">, or env() here just resolves to 0. */
   padding-top: calc(env(safe-area-inset-top, 12px) + 4px);
   display: flex;
@@ -93,7 +93,7 @@ header {
   /* Same fix as .coach-app-header/.athlete-app-header (see the coach-app
      rebuild): this bare header has safe-area padding above but was never
      pinned in place, so on any of the pages that still use it directly
-     (login.html, training-builder.html) with enough content to scroll,
+     (login.html) with enough content to scroll,
      the header scrolls away and whatever's left at y=0 renders straight
      under the status bar/notch again - the exact same bug, just never
      ported to these standalone pages. Verified with a real scroll test:
@@ -469,7 +469,7 @@ header {
 }
 
 /* Fills whichever initials circle it's dropped into (.athlete-initials here,
-   .profile-initials in athlete.css) once the athlete has uploaded a photo -
+   .profile-initials in coach-app/css/athlete-detail.css) once the athlete has uploaded a photo -
    see athlete-app/dashboard.js's renderSettings() for the upload itself */
 .avatar-img {
   width: 100%;
