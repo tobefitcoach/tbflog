@@ -1201,7 +1201,7 @@
 
 /* ==========================================================================
    PAIN/INJURY FLAG - shown when an athlete answers a high RPE with "pain
-   or injury" (see wireRpeFlagFollowup, athlete-app/dashboard.js). Badge on
+   or injury" (see wireRpeFlagFollowup, athlete-app/workout/swipe.js). Badge on
    the dashboard card + Overview tab's report list (script.js/athlete.js);
    .pain-flag-note is the read-only line on Calendar's day detail
    (athlete-calendar.js).
@@ -1588,7 +1588,8 @@
 
 
 /* Profile Photo row on the athlete app's own Settings tab - see
-   renderSettings()/resizeImageFile() in athlete-app/dashboard.js */
+   renderProfile() in athlete-app/screens/profile.js, resizeImageFile() in
+   athlete-app/screens/chat.js */
 .settings-avatar-preview,
 .settings-avatar-placeholder {
   width: 48px;
@@ -2382,7 +2383,7 @@
 /* ==========================================================================
    COMMUNICATION - coach<->athlete chat (chat_messages table), shared markup
    between athlete.html's Communication tab (coach side, athlete.js) and
-   athlete-app/dashboard.js's renderCommunication() (athlete side)
+   athlete-app/screens/chat.js's renderCommunication() (athlete side)
    ========================================================================== */
 .chat-messages {
   display: flex;
@@ -2798,7 +2799,7 @@
 
 /* ==========================================================================
    FORMS - question cards in the Form Builder (form-builder.html), and the
-   athlete's read-only fill-out screen (athlete-app/dashboard.js's
+   athlete's read-only fill-out screen (athlete-app/screens/form-fill.js's
    renderFormFill) reuses the same classes so a question looks identical in
    both places.
    ========================================================================== */

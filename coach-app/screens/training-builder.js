@@ -5,7 +5,7 @@
 // always one flat session. Each exercise is an always-editable card (video
 // thumbnail, one row per set with its own reps/weight target, rest time,
 // notes) instead of a popup modal - mirrors the athlete's own live workout
-// screen (athlete-app/dashboard.js's renderActiveExercise/renderSetRow).
+// screen (athlete-app/workout/: renderActiveExercise, renderSetRow).
 //
 // Doubles as the editor for one already-scheduled calendar day when opened
 // with a dayId instead of a training id (the athlete calendar's and Program

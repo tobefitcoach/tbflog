@@ -101,7 +101,7 @@ function paintMobilityRow() {
 
 // A coach who also trains under their own account can link it here so the
 // two stay one tap apart instead of needing a second sign-in every time -
-// see athlete-app/dashboard.js's Profile tab for the matching link back.
+// see athlete-app/screens/profile.js for the matching link back.
 // coachClient.js and athleteClient.js use separate localStorage keys by
 // design (see either file's header), so both sessions genuinely coexist in
 // this browser/app - this is just a shortcut between two sessions that

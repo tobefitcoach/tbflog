@@ -304,7 +304,7 @@ export async function loadOverviewStats() {
 }
 
 // The Overview tab's pain/injury inbox - unreviewed reports only (see
-// wireRpeFlagFollowup in athlete-app/dashboard.js for how these get set).
+// wireRpeFlagFollowup in athlete-app/workout/swipe.js for how these get set).
 // Reuses the same 90-day `sessions` fetch loadOverviewStats already made -
 // no extra query. Known limitation, same as every other stat on this tab:
 // a report older than that window with no coach visit in the meantime

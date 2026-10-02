@@ -308,7 +308,7 @@ async function loadAthleteExtras() {
     { data: profileData }
   ] = await Promise.all([
     // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
-    // athlete-app/dashboard.js) - not time-scoped, unlike Overview's other
+    // athlete-app/workout/swipe.js) - not time-scoped, unlike Overview's other
     // stats, since this is meant to stay visible until acknowledged
     c.fetch((signal) => supabase
       .from('workout_sessions')
@@ -661,7 +661,7 @@ function bindEvents() {
 // uses, so "seen" tracking is just a per-row timestamp with no separate
 // join table. timing decides which of the two in-app moments the athlete
 // app shows it at (see loadCoachMessages()/startWorkout() in
-// athlete-app/dashboard.js). 'push' additionally sends a real push
+// athlete-app/screens/coach-messages.js). 'push' additionally sends a real push
 // notification via sendPush() below, same send-push Edge Function as
 // every other push in this app.
 // ==========================================================================
@@ -730,7 +730,7 @@ async function onSendMessageAthletes() {
 
   // The row above is still inserted for 'push' too - a fallback in case the
   // notification is missed/dismissed or the athlete never enabled push on
-  // this device (see loadCoachMessages() in athlete-app/dashboard.js). The
+  // this device (see loadCoachMessages() in athlete-app/screens/coach-messages.js). The
   // actual push itself is fire-and-forget, same as every other
   // notification send in this app - a failed push shouldn't block or alert
   // on "the message was saved" succeeding.

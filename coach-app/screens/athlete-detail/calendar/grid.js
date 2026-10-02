@@ -77,7 +77,7 @@ export const TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL = {
 // the calendar always reflects the coach's latest Workout Builder edit for
 // any day not yet started. sync_live_training_days does the actual work
 // server-side; this just re-fetches whichever days it touched, once. Same
-// helper, duplicated, as athlete-app/dashboard.js's syncLiveTrainingDays.
+// helper, duplicated, as athlete-app/data.js's syncLiveTrainingDays.
 // ==========================================================================
 async function syncLiveTrainingDaysCal(programs) {
   const linkedDayIds = []

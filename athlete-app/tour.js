@@ -4,7 +4,7 @@
 // runTour(steps) dims the screen, cuts a highlighted hole around one real
 // element at a time and shows a small bubble next to it with Back / Next /
 // Skip. Used for the first-time Home tour and the one-time "check off your
-// set" hint in a workout (see dashboard.js).
+// set" hint in a workout (see home-tour.js).
 //
 // A step is { target: () => Element|null, title, body }. A step with no
 // target function is shown as a centred bubble (welcome). A step whose

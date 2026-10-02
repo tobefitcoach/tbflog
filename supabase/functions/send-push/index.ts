@@ -4,7 +4,7 @@
 // sends each one a real Web Push notification. Called from the client via
 // supabase.functions.invoke('send-push', { body: { user_id, title, body,
 // url } }) - see push.js's sendPush(), used by notifyCoach() in
-// athlete-app/dashboard.js and the coach's "push" message timing in
+// athlete-app/screens/tournaments.js and the coach's "push" message timing in
 // script.js.
 //
 // Uses the service role key (auto-provided, no secret to set up) rather

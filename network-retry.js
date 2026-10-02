@@ -8,7 +8,7 @@
 // are missing"), when really the request just needs a second try.
 //
 // Same retry/timeout pattern as the athlete app's own saveWithRetry
-// (athlete-app/dashboard.js), pulled out into a shared script here since
+// (athlete-app/outbox.js), pulled out into a shared script here since
 // every coach page needs it, not just one - exposed as window.fetchWithRetry
 // (same pattern as loading-bar.js patching window.fetch and
 // confirm-modal.js exposing window.customConfirm) since each page's own

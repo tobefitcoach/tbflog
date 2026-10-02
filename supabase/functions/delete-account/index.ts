@@ -5,7 +5,7 @@
 // users create an account must let them delete it from inside the app - and
 // by GDPR's right to erasure. Called from the client via
 // supabase.functions.invoke('delete-account') - see the Delete Account
-// button in renderProfile() in athlete-app/dashboard.js.
+// button in renderProfile() in athlete-app/screens/profile.js.
 //
 // SECURITY - the important difference from send-push: that function takes a
 // user_id from the request body, which is fine there because it only sends a

@@ -156,7 +156,7 @@ async function start() {
 
 // A push notification opens the app on a specific screen with
 // ?screen=communication|athlete-detail&id=<athlete id> (built by
-// notifyCoach() in athlete-app/dashboard.js). Only those two screens are
+// notifyCoach() in athlete-app/screens/tournaments.js). Only those two screens are
 // accepted. The query is stripped straight away so a reload, or nav's own
 // history entries, don't keep jumping back there.
 function readDeepLink() {
