@@ -199,7 +199,7 @@ let ctx = null
 // re-querying
 let allAthletes = []
 let flaggedCountByAthlete = {}
-let athleteStatsById = {} // athlete_id -> { acwr, acwrBuilding, furthestDate, completionRate30 } - see loadAthleteCardStats()
+let athleteStatsById = {} // athlete_id -> { acwr, acwrBuilding, furthestDate, completionRate30 } - see loadAthleteExtras()
 let lowTrainingsWarningDays = 7 // coach's own "warn me N days before an athlete's last training" setting (Settings screen), refreshed in loadAthleteExtras
 // Status used to come from ?status= in the URL; the sidebar submenu now
 // passes it into mount() as params.status instead, same default of 'active'
@@ -293,7 +293,6 @@ async function reloadAndRepaint() {
 async function loadAthleteExtras() {
   const c = ctx
   if (!c) return
-  const thirtyDaysAgo = toDateStr(addDays(new Date(), -29))
   const ninetyDaysAgoISO = addDays(new Date(), -89).toISOString()
   const once = (factory) => c.fetch(factory, 1)
 
@@ -302,16 +301,13 @@ async function loadAthleteExtras() {
   // coach wait through 3 rounds of backoff for something non-essential
   const [
     { data: flaggedData },
-    { data: programs, error: programsError },
-    { data: logSets, error: logError },
-    { data: sessions, error: sessionsError },
+    { data: cardStats, error: cardStatsError },
     { data: labelsData },
     { data: labelLinksData },
     { data: profileData }
   ] = await Promise.all([
     // The list-shaped ones are paged (fetchAllRows): across a whole roster
-    // they pass Supabase's 1,000-rows-per-request cap quickly, and the rows
-    // past it used to just vanish from the stats
+    // they can pass Supabase's 1,000-rows-per-request cap
     // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
     // athlete-app/workout/swipe.js) - not time-scoped, unlike Overview's other
     // stats, since this is meant to stay visible until acknowledged
@@ -321,27 +317,14 @@ async function loadAthleteExtras() {
       .eq('rpe_flag_reason', 'pain_injury')
       .is('rpe_flag_reviewed_at', null)
     ),
-    // Every non-template scheduled day, for "Programmed Through" + 30-day
-    // completion - same nested shape athlete.js's loadOverviewStats() uses
-    fetchAllRows(once, () => supabase
-      .from('programs')
-      .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, date_override, program_exercises(id, prescribed_sets)))')
-      .eq('is_template', false)
-    ),
-    // Logged sets for the last 30 days only - completion rate never looks
-    // further back than that
-    fetchAllRows(once, () => supabase
-      .from('exercise_log_sets')
-      .select('athlete_id, program_exercise_id, date, completed_at, set_number')
-      .gte('date', thirtyDaysAgo)
-    ),
-    // Rated sessions for ACWR - 90 days back, same window athlete.js uses
-    fetchAllRows(once, () => supabase
-      .from('workout_sessions')
-      .select('athlete_id, started_at, ended_at, local_date, session_rpe')
-      .not('ended_at', 'is', null)
-      .gte('started_at', ninetyDaysAgoISO)
-    ),
+    // Programmed Through, 30-day completion and ACWR for every athlete,
+    // worked out in the database (coach_athlete_card_stats in
+    // sql-history.sql) - one small row per athlete instead of downloading
+    // the whole roster's programs, sets and sessions to compute them here
+    c.fetch((signal) => supabase.rpc('coach_athlete_card_stats', {
+      p_today: toDateStr(new Date()),
+      p_sessions_since: ninetyDaysAgoISO
+    }).abortSignal(signal), 1),
     c.fetch((signal) => supabase.from('athlete_labels').select('*').order('name').abortSignal(signal), 1),
     fetchAllRows(once, () => supabase.from('athlete_label_links').select('*')),
     // Coach's own "warn me N days before an athlete's last training" setting
@@ -367,11 +350,21 @@ async function loadAthleteExtras() {
     }
   }
 
-  if (programsError || logError || sessionsError) {
-    console.log('Error loading card stats:', programsError || logError || sessionsError)
-    athleteStatsById = {}
+  // On an error the cards just show '—' - the list itself never depends on
+  // this. PGRST202 = the function isn't installed yet (run its block in
+  // sql-history.sql).
+  athleteStatsById = {}
+  if (cardStatsError) {
+    console.log('Error loading card stats:', cardStatsError.code === 'PGRST202' ? 'coach_athlete_card_stats is not installed yet - run it from sql-history.sql' : cardStatsError)
   } else {
-    athleteStatsById = computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo)
+    for (const row of cardStats || []) {
+      athleteStatsById[row.athlete_id] = {
+        acwr: row.acwr == null ? null : Number(row.acwr),
+        acwrBuilding: row.acwr_building,
+        furthestDate: row.furthest_date,
+        completionRate30: row.scheduled_30 > 0 ? Math.round((row.completed_30 / row.scheduled_30) * 100) : null
+      }
+    }
   }
 
   applyFilters() // re-render now that badges/stats are in (counts already shown, don't depend on this)
@@ -381,7 +374,7 @@ async function loadAthleteExtras() {
 // ==========================================================================
 // ---- LOW ON TRAININGS (no trainings left, or running out soon) ----
 // stats.furthestDate is already the furthest scheduled day across every
-// non-template program (see computeAthleteCardStats) - "low" means that
+// non-template program (coach_athlete_card_stats) - "low" means that
 // date is within the coach's configured warning window from today, or
 // there's no scheduled date at all. Only checked for active athletes -
 // pending/offline/archived aren't actually being trained yet, so flagging
@@ -441,100 +434,6 @@ function daysBetweenDateStrsIdx(a, b) {
   const [ay, am, ad] = a.split('-').map(Number)
   const [by, bm, bd] = b.split('-').map(Number)
   return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000)
-}
-
-function resolveDateIdx(startDateStr, weekNumber, dayNumber) {
-  const start = parseDateStr(startDateStr)
-  const result = new Date(start)
-  result.setDate(result.getDate() + (weekNumber - 1) * 7 + (dayNumber - 1))
-  return toDateStr(result)
-}
-
-function computeAthleteCardStats(programs, logSets, sessions, thirtyDaysAgo) {
-  const programsByAthlete = {}
-  for (const p of programs) (programsByAthlete[p.athlete_id] ||= []).push(p)
-
-  const logSetsByAthletePE = {}
-  for (const row of logSets) {
-    const byPE = (logSetsByAthletePE[row.athlete_id] ||= {})
-    ;(byPE[row.program_exercise_id] ||= []).push(row)
-  }
-
-  const sessionsByAthlete = {}
-  for (const s of sessions) (sessionsByAthlete[s.athlete_id] ||= []).push(s)
-
-  const todayStr = toDateStr(new Date())
-  const result = {}
-
-  for (const athlete of allAthletes) {
-    const athletePrograms = programsByAthlete[athlete.id] || []
-    const logSetsByPE = logSetsByAthletePE[athlete.id] || {}
-    const athleteSessions = sessionsByAthlete[athlete.id] || []
-
-    // ---- Programmed through: furthest scheduled date + this window's
-    // workout entries (reused for completion below) ----
-    let furthestDate = null
-    const workoutEntries = []
-    for (const program of athletePrograms) {
-      for (const week of program.program_weeks) {
-        for (const day of week.program_days) {
-          const dateStr = day.date_override || resolveDateIdx(program.start_date, week.week_number, day.day_number)
-          if (furthestDate === null || dateStr > furthestDate) furthestDate = dateStr
-          workoutEntries.push({ dateStr, exercises: day.program_exercises })
-        }
-      }
-    }
-
-    // ---- 30-day completion (same rule as athlete.js's completionRate) ----
-    let scheduled = 0
-    let completed = 0
-    for (const entry of workoutEntries) {
-      if (entry.dateStr < thirtyDaysAgo || entry.dateStr > todayStr) continue
-      if (entry.exercises.length === 0) continue
-      let totalSets = 0
-      let doneSets = 0
-      for (const pe of entry.exercises) {
-        const prescribed = pe.prescribed_sets || 1
-        totalSets += prescribed
-        const logged = (logSetsByPE[pe.id] || []).filter(s => s.completed_at && s.set_number <= prescribed)
-        doneSets += Math.min(logged.length, prescribed)
-      }
-      const workoutDone = totalSets > 0 && (doneSets / totalSets) >= 0.5
-      if (entry.dateStr === todayStr && !workoutDone) continue
-      scheduled++
-      if (workoutDone) completed++
-    }
-    const completionRate30 = scheduled === 0 ? null : Math.round((completed / scheduled) * 100)
-
-    // ---- ACWR (Foster's session-RPE method, same 28-day-history guard
-    // used on the athlete's own Overview tab) ----
-    const dailyLoad = {}
-    for (const s of athleteSessions) {
-      if (s.session_rpe == null) continue
-      const dateStr = s.local_date
-      const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
-      dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
-    }
-    function loadSum(days) {
-      const cutoff = toDateStr(addDays(new Date(), -(days - 1)))
-      return Object.entries(dailyLoad).filter(([d]) => d >= cutoff && d <= todayStr).reduce((sum, [, v]) => sum + v, 0)
-    }
-    const loadDates = Object.keys(dailyLoad).sort()
-    const daysOfHistory = loadDates.length ? daysBetweenDateStrsIdx(loadDates[0], todayStr) + 1 : 0
-    const hasEnoughHistory = daysOfHistory >= 28
-    const acuteLoad = loadSum(7)
-    const chronicLoad = hasEnoughHistory ? loadSum(28) / 4 : 0
-    const acwr = (hasEnoughHistory && chronicLoad > 0) ? acuteLoad / chronicLoad : null
-
-    result[athlete.id] = {
-      acwr,
-      acwrBuilding: !hasEnoughHistory && loadDates.length > 0,
-      furthestDate,
-      completionRate30
-    }
-  }
-
-  return result
 }
 
 // ==========================================================================

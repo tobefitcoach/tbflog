@@ -2810,3 +2810,143 @@ begin
   end loop;
 end;
 $$;
+
+
+-- ==========================================================================
+-- Athletes list: per-athlete card stats, worked out in the database.
+-- The Athletes screen used to download every program/day/exercise for the
+-- whole roster, a month of logged sets and three months of sessions, then
+-- compute these in the browser - fine for a few athletes, many seconds (and
+-- a lot of mobile data) for 100. This returns one small row per athlete
+-- instead, with the SAME rules the browser used (athletes.js, formerly
+-- computeAthleteCardStats):
+--   furthest_date   "Programmed through": latest scheduled date across the
+--                   athlete's non-template programs
+--   scheduled_30 /  30-day completion (p_today-29 .. p_today): a workout
+--   completed_30    counts as done when at least half its prescribed sets
+--                   were logged done (only sets logged in the window; sets
+--                   past the prescribed number ignored; missing/0
+--                   prescribed_sets counts as 1; days with no exercises
+--                   skipped; today's workout only counts once it's done)
+--   acwr /          Foster session-RPE load (rpe x minutes) per local day
+--   acwr_building   from sessions started since p_sessions_since: 7-day
+--                   acute over 28-day chronic/4, only once the earliest
+--                   rated day is 28+ days back - before that it's
+--                   "building" (if there's any rated session at all)
+-- (Pain/injury flags stay a separate small query in the app on purpose: a
+-- safety signal shouldn't depend on this function being installed.)
+-- SECURITY INVOKER (the default): runs with the caller's own row-level
+-- security, so a coach only ever sees their own athletes. p_today and
+-- p_sessions_since come from the app (the coach's local date and the
+-- 90-day cut-off) so "today" matches what the coach sees.
+-- Safe to re-run (create or replace). No tables change.
+-- ==========================================================================
+create or replace function public.coach_athlete_card_stats(p_today date, p_sessions_since timestamptz)
+returns table (
+  athlete_id bigint,
+  furthest_date date,
+  scheduled_30 bigint,
+  completed_30 bigint,
+  acwr numeric,
+  acwr_building boolean
+)
+language sql
+stable
+set search_path = public
+as $$
+  with days as (
+    select d.id as day_id, p.athlete_id,
+           coalesce(d.date_override, p.start_date + ((w.week_number - 1) * 7 + (d.day_number - 1))) as dt
+    from programs p
+    join program_weeks w on w.program_id = p.id
+    join program_days d on d.week_id = w.id
+    where p.is_template = false
+  ),
+  furthest as (
+    select days.athlete_id, max(days.dt) as furthest_date
+    from days
+    group by days.athlete_id
+  ),
+  scored as (
+    select days.athlete_id, days.dt,
+           (sum(least(ls.done_sets, coalesce(nullif(pe.prescribed_sets, 0), 1)))::numeric
+             / sum(coalesce(nullif(pe.prescribed_sets, 0), 1))) >= 0.5 as done
+    from days
+    join program_exercises pe on pe.day_id = days.day_id
+    cross join lateral (
+      select count(*) as done_sets
+      from exercise_log_sets l
+      where l.program_exercise_id = pe.id
+        and l.completed_at is not null
+        and l.set_number <= coalesce(nullif(pe.prescribed_sets, 0), 1)
+        and l.date >= p_today - 29
+    ) ls
+    where days.dt between p_today - 29 and p_today
+    group by days.athlete_id, days.day_id, days.dt
+  ),
+  completion as (
+    select scored.athlete_id,
+           count(*) filter (where scored.dt < p_today or scored.done) as scheduled_30,
+           count(*) filter (where scored.done) as completed_30
+    from scored
+    group by scored.athlete_id
+  ),
+  loads as (
+    select s.athlete_id, s.local_date,
+           sum(s.session_rpe * extract(epoch from (s.ended_at - s.started_at)) / 60) as load
+    from workout_sessions s
+    where s.ended_at is not null
+      and s.session_rpe is not null
+      and s.started_at >= p_sessions_since
+    group by s.athlete_id, s.local_date
+  ),
+  load_stats as (
+    select loads.athlete_id,
+           coalesce((p_today - min(loads.local_date) + 1) >= 28, false) as enough,
+           coalesce(sum(loads.load) filter (where loads.local_date between p_today - 6 and p_today), 0) as acute,
+           coalesce(sum(loads.load) filter (where loads.local_date between p_today - 27 and p_today), 0) / 4 as chronic
+    from loads
+    group by loads.athlete_id
+  )
+  select a.id as athlete_id,
+         f.furthest_date,
+         coalesce(c.scheduled_30, 0) as scheduled_30,
+         coalesce(c.completed_30, 0) as completed_30,
+         case when ls.enough and ls.chronic > 0 then ls.acute / ls.chronic end as acwr,
+         coalesce(not ls.enough, false) as acwr_building
+  from athletes a
+  left join furthest f on f.athlete_id = a.id
+  left join completion c on c.athlete_id = a.id
+  left join load_stats ls on ls.athlete_id = a.id
+$$;
+
+
+-- ==========================================================================
+-- Chat inbox: the latest message per athlete.
+-- The coach's Chat list shows each athlete's last message as a preview and
+-- sorts by it. It used to take the 300 newest messages across ALL athletes
+-- and pick each athlete's latest from those - with many athletes, anyone
+-- who hadn't chatted recently fell outside the 300 and showed "No messages
+-- yet" (and sorted to the bottom) even with a real conversation. This
+-- returns exactly one row per athlete that has any message, using the
+-- existing idx_chat_messages_athlete (athlete_id, created_at) index.
+-- SECURITY INVOKER (the default): the coach's own row-level security on
+-- athletes and chat_messages decides what they see.
+-- Safe to re-run (create or replace). No tables change.
+-- ==========================================================================
+create or replace function public.coach_chat_latest_messages()
+returns table (athlete_id bigint, message text, pdf_url text, sender text, created_at timestamptz)
+language sql
+stable
+set search_path = public
+as $$
+  select a.id as athlete_id, m.message, m.pdf_url, m.sender, m.created_at
+  from athletes a
+  cross join lateral (
+    select cm.message, cm.pdf_url, cm.sender, cm.created_at
+    from chat_messages cm
+    where cm.athlete_id = a.id
+    order by cm.created_at desc
+    limit 1
+  ) m
+$$;

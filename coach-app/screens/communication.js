@@ -204,12 +204,19 @@ async function loadCommsAthletes(preselectId) {
 
   // Unread = athlete-sent messages this coach hasn't opened yet, same
   // read_at convention as the old per-athlete tab used - just tallied
-  // across every athlete here instead of one at a time
-  const { data: unreadRows } = await supabase
-    .from('chat_messages')
-    .select('athlete_id')
-    .eq('sender', 'athlete')
-    .is('read_at', null)
+  // across every athlete here instead of one at a time. Fetched alongside
+  // the latest message per athlete (the row preview text + recency sort),
+  // which comes from the database in one row per athlete - see
+  // coach_chat_latest_messages in sql-history.sql.
+  const [{ data: unreadRows }, latest] = await Promise.all([
+    fetchAllRows(runOnce, () => supabase
+      .from('chat_messages')
+      .select('athlete_id')
+      .eq('sender', 'athlete')
+      .is('read_at', null)
+    ),
+    supabase.rpc('coach_chat_latest_messages')
+  ])
   if (!nav.isCurrent(mountToken) || !root) return
 
   unreadCountByAthlete = {}
@@ -217,17 +224,20 @@ async function loadCommsAthletes(preselectId) {
     unreadCountByAthlete[row.athlete_id] = (unreadCountByAthlete[row.athlete_id] || 0) + 1
   }
 
-  // Latest message per athlete, for the row preview text + recency sort.
-  // One query across everyone rather than N queries per-athlete - capped
-  // at 300 rows (recent-first) as a sane bound for a coach's whole inbox;
-  // the first row seen per athlete_id is that athlete's latest since the
-  // query is already ordered newest-first.
-  const { data: recentRows } = await supabase
-    .from('chat_messages')
-    .select('athlete_id, message, pdf_url, sender, created_at')
-    .order('created_at', { ascending: false })
-    .limit(300)
-  if (!nav.isCurrent(mountToken) || !root) return
+  let recentRows = latest.data
+  if (latest.error) {
+    // Not installed yet (PGRST202), or failed: fall back to the 300 newest
+    // messages across everyone - right for anyone who chatted recently,
+    // "No messages yet" for the rest
+    console.log('Error loading latest messages:', latest.error.code === 'PGRST202' ? 'coach_chat_latest_messages is not installed yet - run it from sql-history.sql' : latest.error)
+    const fallback = await supabase
+      .from('chat_messages')
+      .select('athlete_id, message, pdf_url, sender, created_at')
+      .order('created_at', { ascending: false })
+      .limit(300)
+    if (!nav.isCurrent(mountToken) || !root) return
+    recentRows = fallback.data
+  }
 
   lastMessageByAthlete = {}
   for (const row of (recentRows || [])) {
