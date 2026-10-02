@@ -295,29 +295,11 @@ function performQueuedSave(entry) {
   )
 }
 
-// Retries a Supabase call a few times with backoff before giving up.
-// Each attempt is capped with an AbortController timeout - fetch() has no
-// timeout by default, so a stalled (not failed, just stuck) connection
-// would otherwise hang on a single attempt indefinitely instead of ever
-// reaching a retry. Normalizes a thrown/aborted attempt into the same
-// {data, error} shape as a normal Supabase response so this never throws -
+// Retries a Supabase call a few times with backoff before giving up - the
+// shared window.fetchWithRetry (network-retry.js, loaded by dashboard.html
+// before this app), which this used to be an exact copy of. Never throws:
+// a failed attempt comes back in the usual {data, error} shape, so it's
 // safe to await from anywhere, including in a loop from flushPendingQueue.
-export async function saveWithRetry(operationFactory, maxAttempts = 3) {
-  let result = { data: null, error: null }
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
-    try {
-      result = await operationFactory(controller.signal)
-    } catch (err) {
-      result = { data: null, error: err }
-    } finally {
-      clearTimeout(timeoutId)
-    }
-    if (!result.error) return result
-    if (attempt < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, attempt * 2000))
-    }
-  }
-  return result
+export function saveWithRetry(operationFactory, maxAttempts = 3) {
+  return window.fetchWithRetry(operationFactory, maxAttempts)
 }

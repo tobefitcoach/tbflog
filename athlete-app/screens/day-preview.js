@@ -148,12 +148,17 @@ export function wireMoveWorkoutModal() {
     const newDate = document.getElementById('moveWorkoutDateInput').value
     if (!newDate) { customAlert('Please pick a date'); return }
 
-    const { error } = await saveWithRetry((signal) => supabase
+    // moved_by_athlete puts the "Moved by athlete" badge on the coach's
+    // calendar (see sql-history.sql). PGRST204 = that column isn't
+    // installed yet: move the day without it.
+    const move = (fields) => saveWithRetry((signal) => supabase
       .from('program_days')
-      .update({ date_override: newDate })
+      .update(fields)
       .eq('id', moveWorkoutDayId)
       .abortSignal(signal)
     )
+    let { error } = await move({ date_override: newDate, moved_by_athlete: true })
+    if (error && error.code === 'PGRST204') ({ error } = await move({ date_override: newDate }))
 
     if (error) { console.log(error); customAlert('Something went wrong moving this workout'); return }
 

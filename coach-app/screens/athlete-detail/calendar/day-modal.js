@@ -48,7 +48,7 @@ export function openWorkoutDetailModal(dateStr, dayId) {
   root.querySelector('#dayDetailContent').innerHTML = `
     <div class="detail-group" data-review="true" data-program-day-id="${entry.day.id}">
       <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:8px">
-        ${entry.day.date_override ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
+        ${entry.day.moved_by_athlete ? '<span class="athlete-modified-badge">Moved by athlete</span>' : ''}
         <select class="workout-type-select" data-action="set-workout-type" data-day-id="${entry.day.id}">
           ${Object.entries(WORKOUT_TYPE_LABELS_CAL).map(([value, text]) => `<option value="${value}" ${(entry.day.workout_type || 'gym') === value ? 'selected' : ''}>${text}</option>`).join('')}
         </select>

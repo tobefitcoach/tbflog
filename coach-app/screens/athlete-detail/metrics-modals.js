@@ -8,7 +8,7 @@ import * as nav from '../../nav.js?v=__V__'
 import { loadChartJs } from '../../vendor.js?v=__V__'
 import { toDateStr, parseDateStr } from '../../../shared/dates.js?v=__V__'
 import { root, mountToken, athleteId, ov, met } from './state.js?v=__V__'
-import { convertInput, convertValue, loadAthleteMetrics } from './metrics.js?v=__V__'
+import { convertInput, convertValue, loadAthleteMetrics, pctChange } from './metrics.js?v=__V__'
 import { formatDisplayDate, openChangeExplain } from './overview.js?v=__V__'
 import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
 
@@ -403,12 +403,12 @@ async function loadGraphData(months) {
     currentPeriodData = data.slice(half)
   }
 
-  if (!currentPeriodData || currentPeriodData.length === 0 || !previousPeriodData || previousPeriodData.length === 0) {
+  const currentAvg = currentPeriodData && currentPeriodData.length ? currentPeriodData.reduce((sum, m) => sum + getValue(m), 0) / currentPeriodData.length : null
+  const previousAvg = previousPeriodData && previousPeriodData.length ? previousPeriodData.reduce((sum, m) => sum + getValue(m), 0) / previousPeriodData.length : null
+  const pct = currentAvg === null || previousAvg === null ? null : pctChange(currentAvg, previousAvg)
+  if (pct === null) {
     changeStatEl.innerHTML = ''
   } else {
-    const currentAvg = currentPeriodData.reduce((sum, m) => sum + getValue(m), 0) / currentPeriodData.length
-    const previousAvg = previousPeriodData.reduce((sum, m) => sum + getValue(m), 0) / previousPeriodData.length
-    const pct = +(((currentAvg - previousAvg) / previousAvg) * 100).toFixed(1)
     const higherIsBetter = met.currentGraphMetric.higher_is_better
     const isPositive = higherIsBetter ? pct > 0 : pct < 0
     const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
@@ -563,12 +563,15 @@ async function renderGraphWithBodyweightOverlay(data, months, granularity) {
   const allDates = [...new Set([...data.map(m => m.date), ...bwData.map(b => b.date)])].sort()
 
   // --- Metric series: indexed to % change from the first value shown ---
-  const metricBaseline = getMetricValue(data[0])
+  // First non-zero value: a % change from 0 is infinite, so a series that
+  // starts at 0 is measured from the first value it can be compared to
+  const firstNonZero = data.find(m => getMetricValue(m))
+  const metricBaseline = firstNonZero ? getMetricValue(firstNonZero) : null
   const metricByEntry = {}
   data.forEach(m => { metricByEntry[m.date] = m })
   const metricSeries = allDates.map(d => {
     const entry = metricByEntry[d]
-    return entry ? +(((getMetricValue(entry) - metricBaseline) / metricBaseline) * 100).toFixed(2) : null
+    return entry && metricBaseline ? +(((getMetricValue(entry) - metricBaseline) / metricBaseline) * 100).toFixed(2) : null
   })
 
   // --- Bodyweight series: carry the last known weight forward across dates
@@ -585,7 +588,7 @@ async function renderGraphWithBodyweightOverlay(data, months, granularity) {
     if (d in bwByDate) lastKnownWeight = bwByDate[d]
     bwRawByDate[d] = lastKnownWeight
   })
-  const bwSeries = bwBaseline === null
+  const bwSeries = !bwBaseline
     ? allDates.map(() => null)
     : allDates.map(d => bwRawByDate[d] === null ? null : +(((bwRawByDate[d] - bwBaseline) / bwBaseline) * 100).toFixed(2))
 

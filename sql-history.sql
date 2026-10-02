@@ -2950,3 +2950,31 @@ as $$
     limit 1
   ) m
 $$;
+
+
+-- ==========================================================================
+-- Who moved a workout: program_days.moved_by_athlete.
+-- The coach calendar showed "Moved by athlete" on any day with a
+-- date_override - including days the COACH dragged to another date. The
+-- athlete app now sets this to true when the athlete moves a day; the
+-- coach's drag sets it back to false; the badge reads this column.
+-- Days already moved before this column existed can't be told apart, so
+-- (coach's choice, 2026-10-02) they keep the badge they show today: they
+-- start as true. That backfill runs only the first time, when the column
+-- is created, so re-running this block never re-marks a day the coach has
+-- since moved.
+-- The athlete can already update their own days when the coach allowed
+-- rescheduling ("athlete reschedules days when allowed"), so no policy
+-- changes are needed.
+-- Safe to re-run.
+-- ==========================================================================
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'program_days' and column_name = 'moved_by_athlete'
+  ) then
+    alter table program_days add column moved_by_athlete boolean not null default false;
+    update program_days set moved_by_athlete = true where date_override is not null;
+  end if;
+end $$;

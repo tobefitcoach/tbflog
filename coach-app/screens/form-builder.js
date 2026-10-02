@@ -107,7 +107,10 @@ function bindEvents() {
   root.querySelector('#doneFormBtn').addEventListener('click', function() { go('forms', {}) })
 
   root.querySelector('#addQuestionBtn').addEventListener('click', async function() {
-    const orderIndex = questionsCache.length
+    // After the highest existing position, not the count: after a delete the
+    // positions have a gap, and the count could repeat a position that's
+    // still in use - two questions with the same position swap order at random
+    const orderIndex = questionsCache.reduce((max, q) => Math.max(max, q.order_index ?? -1), -1) + 1
     const { data, error } = await supabase
       .from('form_questions')
       .insert([{ form_id: formId, order_index: orderIndex, question_text: '', type: 'short_text' }])

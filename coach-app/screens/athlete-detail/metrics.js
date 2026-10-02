@@ -12,6 +12,15 @@ import { onSaveEditEntry, openEntriesModal, openGraphModal, renderLastUpdatedMod
 import { openChangeExplain } from './overview.js?v=__V__'
 import { fetchAllRows } from '../../../shared/fetch-all.js?v=__V__'
 
+// % change from `previous` to `current`, to one decimal - or null when
+// there's nothing to compare against (previous is 0, or a value is
+// missing), so the badge is left out instead of showing "▲Infinity%"
+export function pctChange(current, previous) {
+  const c = Number(current), p = Number(previous)
+  if (!p || !Number.isFinite(c) || !Number.isFinite(p)) return null
+  return +(((c - p) / p) * 100).toFixed(1)
+}
+
 // ==========================================================================
 // ---- UNIT CONVERSION HELPERS ----
 // Converts stored values (always in a base unit, e.g. cm) into whatever
@@ -233,11 +242,14 @@ async function renderMetrics() {
             if (last30.length > 0 && prev30.length > 0) {
               const avg30 = last30.reduce((sum, m) => sum + m.value, 0) / last30.length
               const avgPrev = prev30.reduce((sum, m) => sum + m.value, 0) / prev30.length
-              const pct = +(((avg30 - avgPrev) / avgPrev) * 100).toFixed(1)
-              const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
-              const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
-              const arrow = pct > 0 ? '▲' : '▼'
-changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="zone2" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-avg30="${avg30.toFixed(3)}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}">${arrow} ${Math.abs(pct)}%</span>`            }
+              const pct = pctChange(avg30, avgPrev)
+              if (pct !== null) {
+                const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
+                const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
+                const arrow = pct > 0 ? '▲' : '▼'
+changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="zone2" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-avg30="${avg30.toFixed(3)}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}">${arrow} ${Math.abs(pct)}%</span>`
+              }
+            }
           }
         } else {
           // All other metric types: compare latest value vs avg of previous 5 entries
@@ -247,11 +259,14 @@ changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" dat
           if (measurements.length >= 2) {
             const previous = measurements.slice(0, -1).slice(-5)
             const avgPrev = previous.reduce((sum, m) => sum + getValue(m), 0) / previous.length
-            const pct = +(((latestVal - avgPrev) / avgPrev) * 100).toFixed(1)
-            const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
-            const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
-            const arrow = pct > 0 ? '▲' : '▼'
-changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="simple" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-latest="${latestVal}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}" data-unit="${metric.display_unit || metric.unit}">${arrow} ${Math.abs(pct)}%</span>`          }
+            const pct = pctChange(latestVal, avgPrev)
+            if (pct !== null) {
+              const isPositive = metric.higher_is_better ? pct > 0 : pct < 0
+              const cssClass = pct === 0 ? 'neutral' : isPositive ? 'positive' : 'negative'
+              const arrow = pct > 0 ? '▲' : '▼'
+changeHTML = `<span class="metric-change ${cssClass}" style="cursor:pointer" data-explain-type="simple" data-metric-type="${metric.type}" data-metric-name="${metric.name}" data-latest="${latestVal}" data-avgprev="${avgPrev.toFixed(3)}" data-pct="${pct}" data-higher="${metric.higher_is_better}" data-unit="${metric.display_unit || metric.unit}">${arrow} ${Math.abs(pct)}%</span>`
+            }
+          }
         }
       }
 

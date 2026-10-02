@@ -24,6 +24,19 @@
 //
 // Loaded right after confirm-modal.js, before each page's own script.
 // ==========================================================================
+// A refusal from the server (no permission, invalid data, a duplicate, not
+// found, a function that isn't installed...) gets the same answer every
+// time - retrying it only delayed the error by ~6 seconds. Only a dropped
+// or stalled connection (no HTTP status: status 0, a thrown error, or this
+// helper's own timeout) and server-side hiccups (5xx, 408 timeout, 429
+// too busy) are worth another try. Calls that don't report a status at
+// all (storage uploads, Edge Functions) keep retrying as before.
+function isWorthRetrying(result) {
+  const status = result.status
+  if (!status) return true
+  return status >= 500 || status === 408 || status === 429
+}
+
 window.fetchWithRetry = async function(operationFactory, maxAttempts = 3, outerSignal) {
   let result = { data: null, error: null }
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -40,7 +53,7 @@ window.fetchWithRetry = async function(operationFactory, maxAttempts = 3, outerS
       clearTimeout(timeoutId)
       outerSignal?.removeEventListener('abort', onOuterAbort)
     }
-    if (!result.error) return result
+    if (!result.error || !isWorthRetrying(result)) return result
     if (attempt < maxAttempts && !outerSignal?.aborted) {
       await new Promise(function(resolve) { setTimeout(resolve, attempt * 2000) })
     }

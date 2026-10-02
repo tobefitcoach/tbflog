@@ -504,7 +504,11 @@ export function wireCalendarDragToMove(grid) {
 
 export async function moveWorkoutToDate(dayId, newDateStr) {
   const token = mountToken
-  const { error } = await supabase.from('program_days').update({ date_override: newDateStr }).eq('id', dayId)
+  // A coach move clears moved_by_athlete, so the "Moved by athlete" badge
+  // only ever means the athlete did it (see sql-history.sql). PGRST204 =
+  // that column isn't installed yet: move the day without it.
+  let { error } = await supabase.from('program_days').update({ date_override: newDateStr, moved_by_athlete: false }).eq('id', dayId)
+  if (error && error.code === 'PGRST204') ({ error } = await supabase.from('program_days').update({ date_override: newDateStr }).eq('id', dayId))
   if (!nav.isCurrent(token)) return
   if (error) { console.log(error); customAlert('Something went wrong moving that workout'); return }
   await loadCalendarMonth(cal.currentViewYear, cal.currentViewMonth)
