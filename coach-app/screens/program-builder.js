@@ -6,31 +6,27 @@
 // that week, once this gets assigned to an athlete with a start date" (see
 // athlete-calendar.js for the date math that uses this). The coach's own
 // label field is what actually describes a day ("Day 1 — Upper Body").
-// Clicking a filled-in day opens the real Workout Builder
-// (training-builder.html, embedded - see openWorkoutBuilderOverlay) in
-// day-editing mode - same search-the-library/drag-to-reorder UI as editing
-// a Workout Library entry, instead of a separate, more limited inline
-// editor.
-//
-// training-builder.html/.js is deliberately NOT converted (see the plan) -
-// it stays exactly as it is at the repo root and is loaded here as an
-// iframe overlay, same URL params (?dayId=, &embed=1) and the same
-// .modal-overlay pattern every other modal in this app uses - closeTopModal
-// in nav.js already handles it with no special-casing, now that
-// doneTrainingBuilderBtn carries data-modal-dismiss like every other modal's
-// primary close/cancel control.
+// Clicking a filled-in day opens the real Workout Builder (screens/
+// training-builder.js, shown in an overlay through builder-overlay.js - see
+// openWorkoutBuilderOverlay) in day-editing mode - same search-the-library/
+// drag-to-reorder UI as editing a Workout Library entry, instead of a
+// separate, more limited inline editor. The overlay is a plain
+// .modal-overlay, so closeTopModal in nav.js handles it with no
+// special-casing (doneTrainingBuilderBtn carries data-modal-dismiss like
+// every other modal's primary close/cancel control).
 //
 // This screen registers TWO document-level listeners (kebab-dropdown
 // outside-click, and Escape-to-disarm-copy) - both tracked and removed in
 // unmount(), same reasoning as trainings.js's pair. There is no autosave
 // here (every edit either writes immediately or happens inside the
-// training-builder overlay), so there's no debounce timer to clear.
+// Workout Builder overlay, which builder-overlay.js closes in unmount()),
+// so there's no debounce timer to clear.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { ensureCss } from '../lazy-css.js?v=__V__'
-import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
+import { openBuilderOverlay, closeBuilderOverlay, flushBuilderOverlay, teardownBuilderOverlay } from '../builder-overlay.js?v=__V__'
 import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
 import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
@@ -68,19 +64,18 @@ const TEMPLATE = `
     <div class="copy-drop-label" id="copyDropLabel"></div>
   </div>
 
-  <!-- Training Builder Overlay: clicking a filled-in day cell opens
-       training-builder.html in an iframe (?dayId=, embed=1), so a day's
+  <!-- Workout Builder Overlay: clicking a filled-in day cell opens the
+       Workout Builder in day mode (see openWorkoutBuilderOverlay), so a day's
        exercises get built/edited with the real search-the-library/
-       reorder UI instead of this page's own, more limited inline editor -
-       see openWorkoutBuilderOverlay() below. Same iframe-overlay pattern
-       athlete-calendar.js uses for a scheduled day. -->
+       reorder UI instead of this page's own, more limited inline editor.
+       Same overlay the athlete calendar uses for a scheduled day. -->
   <div class="modal-overlay" id="trainingBuilderOverlayModal">
     <div class="modal modal-large">
       <div class="graph-modal-header">
         <h2>Build Workout</h2>
         <button class="btn-save" id="doneTrainingBuilderBtn" data-modal-dismiss>Done</button>
       </div>
-      <iframe id="trainingBuilderFrame" class="training-builder-frame" src="about:blank"></iframe>
+      <div id="trainingBuilderHost" class="training-builder-frame tb-host"></div>
     </div>
   </div>
 
@@ -170,10 +165,11 @@ export async function mount(container, params, token) {
 // Leaving with the Workout Builder overlay still open: let it send any
 // edit still waiting on its autosave before the router tears this down.
 export async function beforeLeave() {
-  await flushBuilderFrame(root?.querySelector('#trainingBuilderFrame'))
+  await flushBuilderOverlay(root?.querySelector('#trainingBuilderHost'))
 }
 
 export function unmount() {
+  teardownBuilderOverlay(root?.querySelector('#trainingBuilderHost'))
   if (onDocClickKebab) document.removeEventListener('click', onDocClickKebab)
   if (onDocKeydown) document.removeEventListener('keydown', onDocKeydown)
   onDocClickKebab = null
@@ -267,11 +263,10 @@ function bindEvents() {
   })
 
   root.querySelector('#doneTrainingBuilderBtn').addEventListener('click', async function() {
-    const frame = root.querySelector('#trainingBuilderFrame')
     root.querySelector('#trainingBuilderOverlayModal').classList.remove('active')
     // Save the last edit first, so loadWeeks below shows it
-    await flushBuilderFrame(frame)
-    frame.src = 'about:blank'
+    await closeBuilderOverlay(root.querySelector('#trainingBuilderHost'))
+    if (!root) return // left the screen meanwhile
     await loadWeeks()
   })
 
@@ -561,22 +556,16 @@ async function findOrCreateProgramDay(weekId, dayNumber) {
 }
 
 // ==========================================================================
-// ---- OPEN A DAY: THE REAL WORKOUT BUILDER (embedded) ----
-// Same training-builder.html iframe overlay the athlete calendar's own
-// per-day editing uses (see openWorkoutBuilderOverlay in
-// athlete-calendar.js) - ?dayId= instead of ?id= puts training-builder.js
-// into "edit this scheduled day's program_exercises" mode, giving the
+// ---- OPEN A DAY: THE REAL WORKOUT BUILDER (overlay) ----
+// Same Workout Builder overlay the athlete calendar's own per-day editing
+// uses (see openWorkoutBuilderOverlay in athlete-detail.js) - { dayId } puts
+// it into "edit this scheduled day's program_exercises" mode, giving the
 // identical search-the-library-on-the-left/reorder-on-the-right UI as
 // editing a Workout Library entry.
 // ==========================================================================
-// The iframe src is resolved by the browser against dashboard.html's own
-// location (coach-app/dashboard.html), not against this module's path -
-// one level up reaches the repo root where training-builder.html still
-// lives untouched, same as every other "../" asset reference dashboard.html
-// itself uses (its logo, its stylesheets).
 function openWorkoutBuilderOverlay(dayId) {
-  root.querySelector('#trainingBuilderFrame').src = `../training-builder.html?dayId=${dayId}&embed=1`
   root.querySelector('#trainingBuilderOverlayModal').classList.add('active')
+  openBuilderOverlay(root.querySelector('#trainingBuilderHost'), { dayId })
 }
 
 // Small lookup into the in-memory tree, used instead of an extra query

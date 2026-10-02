@@ -45,9 +45,8 @@
 //   - window.location.href = 'x.html?id=N' navigation (there wasn't any
 //     inside these two files themselves - both are already the destination
 //     of that kind of link from script.js/dashboard.js) has no equivalent
-//     here; the training-builder iframe overlay is untouched (still points
-//     at the unchanged repo-root training-builder.html?...&embed=1 - that
-//     conversion is Phase 5, out of scope here)
+//     here; the "Build Workout" overlay shows the Workout Builder screen
+//     module (screens/training-builder.js) through builder-overlay.js
 //   - Chart.js and jsPDF are no longer loaded unconditionally via
 //     <script defer> in athlete.html's <head> on every visit - see
 //     vendor.js. await loadChartJs() now sits immediately before every
@@ -91,7 +90,7 @@ import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { loadChartJs, loadJsPdf } from '../vendor.js?v=__V__'
 import { ensureCss } from '../lazy-css.js?v=__V__'
-import { flushBuilderFrame } from '../builder-frame.js?v=__V__'
+import { openBuilderOverlay, closeBuilderOverlay, flushBuilderOverlay, teardownBuilderOverlay } from '../builder-overlay.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
@@ -1314,19 +1313,18 @@ const TEMPLATE = `
       </div>
     </div>
 
-    <!-- Training Builder Overlay: training-builder.html loaded in an iframe
-         so a training can be built without navigating away from the
-         calendar. Same page/logic as the standalone Training Library.
-         Untouched/out of scope - see the banner comment at the top of this
-         file; only the JS that opens/closes this overlay and sets the
-         iframe src is converted here. -->
+    <!-- Workout Builder Overlay: the Workout Builder (screens/
+         training-builder.js, via builder-overlay.js) rendered into
+         #trainingBuilderHost, so a training can be built without
+         navigating away from the calendar. Same builder as the Workout
+         Library's own screen. -->
     <div class="modal-overlay" id="trainingBuilderOverlayModal">
       <div class="modal modal-large">
         <div class="graph-modal-header">
           <h2>Build Workout</h2>
           <button class="btn-save" id="doneTrainingBuilderBtn" data-modal-dismiss>Done</button>
         </div>
-        <iframe id="trainingBuilderFrame" class="training-builder-frame" src="about:blank"></iframe>
+        <div id="trainingBuilderHost" class="training-builder-frame tb-host"></div>
       </div>
     </div>
 
@@ -1583,10 +1581,11 @@ export async function mount(container, params, token) {
 // Leaving with the Workout Builder overlay still open: let it send any
 // edit still waiting on its autosave before the router tears this down.
 export async function beforeLeave() {
-  await flushBuilderFrame(root?.querySelector('#trainingBuilderFrame'))
+  await flushBuilderOverlay(root?.querySelector('#trainingBuilderHost'))
 }
 
 export function unmount() {
+  teardownBuilderOverlay(root?.querySelector('#trainingBuilderHost'))
   if (onVisibilityChange) document.removeEventListener('visibilitychange', onVisibilityChange)
   if (onDocClickKebabCal) document.removeEventListener('click', onDocClickKebabCal)
   if (onDocKeydownCal) document.removeEventListener('keydown', onDocKeydownCal)
@@ -2375,7 +2374,7 @@ function openWorkoutDetailModal(dateStr, dayId) {
   const showReview = !!session
 
   // Nothing logged yet to review - go straight to the real Workout Builder
-  // (training-builder.html, embedded - see openWorkoutBuilderOverlay) for
+  // (shown in the overlay - see openWorkoutBuilderOverlay) for
   // editing, instead of this popup's own separate, more limited inline
   // editor. Only a day the athlete has already started/finished still opens
   // this popup, to show what they actually logged.
@@ -2408,24 +2407,22 @@ function openWorkoutDetailModal(dateStr, dayId) {
   root.querySelector('#dayDetailModal').classList.add('active')
 }
 
-// Same training-builder.html iframe overlay the calendar's "+ New Training"
-// flow already uses (see #trainingBuilderOverlayModal/#trainingBuilderFrame
-// in the TEMPLATE) - ?dayId= instead of ?id= puts training-builder.js into
-// "edit this scheduled day's program_exercises" mode rather than "edit a
-// Workout Library template's training_exercises" mode (see the isDayMode
-// branch throughout training-builder.js). Reused for both a still-empty day
-// and one that already has exercises, so a coach gets the exact same
+// Same Workout Builder overlay the calendar's "+ New Training" flow already
+// uses (see #trainingBuilderOverlayModal/#trainingBuilderHost in the
+// TEMPLATE) - { dayId } instead of { id } puts the builder into "edit this
+// scheduled day's program_exercises" mode rather than "edit a Workout
+// Library template's training_exercises" mode (see isDayMode in
+// screens/training-builder.js). Reused for both a still-empty day and one
+// that already has exercises, so a coach gets the exact same
 // search-the-library-and-drag / drag-to-reorder experience as building a
 // Workout Library entry, whether they're starting from scratch or adjusting
-// what's already scheduled. The iframe src itself is a direct assignment,
-// not a go() route call - it's pointing an <iframe> at the unchanged
-// repo-root training-builder.html, not navigating this app anywhere.
+// what's already scheduled.
 function openWorkoutBuilderOverlay(dayId, dateStr) {
   currentDayDateForModal = dateStr
   trainingBuilderOverlayMode = 'edit-day'
   root.querySelector('#dayDetailModal').classList.remove('active')
-  root.querySelector('#trainingBuilderFrame').src = `../training-builder.html?dayId=${dayId}&embed=1`
   root.querySelector('#trainingBuilderOverlayModal').classList.add('active')
+  openBuilderOverlay(root.querySelector('#trainingBuilderHost'), { dayId })
 }
 
 // Mobility never creates a programs/program_days row, so it's read straight
@@ -2704,8 +2701,8 @@ async function deleteFormAssignment(assignmentId) {
 // Section then a Training in one sitting combines into one day), but always
 // creates a fresh one on a new "+" click - see adHocDayIdForThisSession.
 // Only way to put exercises on a day is via a saved Training - no more
-// "add one loose exercise" flow, that's what the Training Library /
-// training-builder.html is for. Two tabs share this one popup: a single
+// "add one loose exercise" flow, that's what the Workout Library / Workout
+// Builder is for. Two tabs share this one popup: a single
 // saved Training onto just this day, or a whole Program starting on this
 // day (see switchDayAddTab below).
 // ==========================================================================
@@ -3845,7 +3842,7 @@ function bindCalendarStaticEvents() {
   })
 
   // ---- "+ New Training" - name it, then build it in an overlay without
-  // leaving the calendar tab (training-builder.html loaded in an iframe) ----
+  // leaving the calendar tab (the Workout Builder overlay) ----
   root.querySelector('#newTrainingFromDayBtn').addEventListener('click', function() {
     root.querySelector('#dayAddTrainingModal').classList.remove('active')
     root.querySelector('#newTrainingNameInput').value = ''
@@ -3871,8 +3868,8 @@ function bindCalendarStaticEvents() {
     cachedTrainings = null // force a fresh fetch so the one just created shows up
     root.querySelector('#newTrainingNameModal').classList.remove('active')
     trainingBuilderOverlayMode = 'new-training'
-    root.querySelector('#trainingBuilderFrame').src = `../training-builder.html?id=${data[0].id}&embed=1`
     root.querySelector('#trainingBuilderOverlayModal').classList.add('active')
+    openBuilderOverlay(root.querySelector('#trainingBuilderHost'), { id: data[0].id })
   })
 
   // 'new-training': building a fresh Workout Library entry from the
@@ -3883,11 +3880,10 @@ function bindCalendarStaticEvents() {
   // there's no popup to return to. See trainingBuilderOverlayMode's own
   // declaration further up for the state var itself.
   root.querySelector('#doneTrainingBuilderBtn').addEventListener('click', async function() {
-    const frame = root.querySelector('#trainingBuilderFrame')
     root.querySelector('#trainingBuilderOverlayModal').classList.remove('active')
     // Save the last edit first, so the refresh below shows it
-    await flushBuilderFrame(frame)
-    frame.src = 'about:blank'
+    await closeBuilderOverlay(root.querySelector('#trainingBuilderHost'))
+    if (!root) return // left the screen meanwhile
     if (trainingBuilderOverlayMode === 'edit-day') {
       await loadCalendarMonth(currentViewYear, currentViewMonth)
     } else {

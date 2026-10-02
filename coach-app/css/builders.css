@@ -1,6 +1,8 @@
 /* ==========================================================================
    BUILDER SCREENS CSS
-   Lazy-loaded by the 3 builder screens (program/section/form) on first mount.
+   Lazy-loaded by the 4 builder screens (program/section/form/workout) on
+   first mount - the Workout Builder also loads it when it opens as the
+   calendar's or Program Builder's overlay.
    Auto-derived from athlete.css by classifying each rule against which
    source files actually reference its class names (including a fallback
    for classes built as template-literal suffixes, e.g. "status-${s}").
@@ -274,9 +276,8 @@
 
 /* ==========================================================================
    WORKOUT BUILDER ROUTE (screens/training-builder.js)
-   The builder page fills the space under the header instead of sitting in a
-   padded .modal-large box (which nested it inside two layers of padding
-   before the iframe's own page padding started). Phones keep a plain 92vh
+   The builder fills the space under the header instead of sitting in a
+   padded .modal-large box. Phones keep a plain 92vh
    frame; desktop bleeds out to the page edges (cancelling .coach-app-page's
    padding) and takes its exact height from --tb-route-h, which the screen
    sets from the live viewport so it fits every monitor and window size.
@@ -296,13 +297,11 @@
   font-size: 13px;
 }
 
-.tb-route-frame {
+.tb-route .tb-host {
   flex: 1;
   min-height: 0;
   width: 100%;
-  border: none;
   border-radius: 8px;
-  background-color: var(--c-bg);
 }
 
 @media (min-width: 769px) {
@@ -320,7 +319,238 @@
     background-color: var(--c-surface);
   }
 
-  .tb-route-frame {
+  .tb-route .tb-host {
     border-radius: 0;
+  }
+}
+
+
+/* ==========================================================================
+   WORKOUT BUILDER (screens/training-builder.js)
+   .tb-host is the box the builder renders into - the route's area under
+   its back bar, or the calendar / Program Builder overlay. It scrolls on
+   its own, so it plays the part the old iframe's window used to: the
+   exercise list scrolls inside it while the side panels stay put.
+   ========================================================================== */
+.tb-host {
+  overflow-y: auto;
+  /* Blocks sideways scrolling without turning into a second scroll
+     container, which would stop the panels below from sticking */
+  overflow-x: clip;
+  background-color: var(--c-bg);
+}
+
+.modal-large .tb-host {
+  min-height: 0;
+}
+
+/* Head row (title + the mobile-only expand toggle) and body (everything
+   else) are split so the mobile collapse below only has to hide/show one
+   element - see .library-toggle-btn/.exercise-library-body in the
+   (max-width:768px) block. */
+.exercise-library-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.exercise-library-panel-head h3 {
+  margin-bottom: 0;
+}
+
+.library-toggle-btn {
+  display: none;
+}
+
+/* The "+" on each library card - tap-to-add, since drag-and-drop never
+   fires from a touch gesture. On desktop too, as a quicker alternative to
+   dragging. */
+.exercise-lib-add-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--c-accent);
+  color: white;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.exercise-lib-add-btn:hover {
+  background-color: #5a5aae;
+}
+
+.exercise-lib-add-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Day mode heading: this day still tracks a Workout Library Training's
+   current content (see the LIVE-LINKED WORKOUTS block in sql-history.sql) */
+.live-link-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background-color: #4ad88126;
+  color: #6be08f;
+  white-space: nowrap;
+}
+
+.live-link-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #6be08f;
+}
+
+.training-empty-hint {
+  color: #aaaacc;
+  font-size: 13px;
+  margin-top: -16px;
+  margin-bottom: 16px;
+}
+
+/* Phones: the Exercise Library starts COLLAPSED - a full search box +
+   category chips + list used to sit ABOVE the workout itself, so a coach
+   opening a day they'd already built had to scroll past their whole
+   library just to see what was on it. (The panels' phone widths are in
+   coach-core.css.) */
+@media (max-width: 768px) {
+  .exercise-library-panel-head {
+    margin-bottom: 0;
+  }
+
+  .exercise-library-panel-head h3 {
+    font-size: 13px;
+  }
+
+  .library-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--c-accent);
+    background: transparent;
+    color: var(--c-text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .exercise-library-body {
+    display: none;
+    margin-top: 12px;
+  }
+
+  .exercise-library-panel.expanded .exercise-library-body {
+    display: block;
+  }
+
+  /* Flips to "Close"-looking once expanded, so the same button closes it */
+  .exercise-library-panel.expanded .library-toggle-btn {
+    background-color: var(--c-accent);
+    color: white;
+  }
+
+  .workout-outline-panel h3 {
+    font-size: 13px;
+  }
+}
+
+/* Desktop: the Exercise Library (left) and Exercise Order (right) stay in
+   frame with position:sticky - the exercise list in the middle is the only
+   thing that scrolls - and the header row (name + Rename / Add Section /
+   Save) sticks to the top so Save is never a long scroll away on a big
+   workout. --tb-host-h is the builder's visible height, kept current by
+   openBuilder(). Every width is fluid (clamp/vw) so it fits several
+   monitor sizes: side panels grow up to a cap, and on very wide screens
+   the trio is capped and centered. */
+@media (min-width: 769px) {
+  .tb-host {
+    --tb-gutter: clamp(16px, 2.2vw, 36px);
+  }
+
+  .tb-host .app-layout {
+    justify-content: center;
+  }
+
+  .tb-host .exercise-library-panel,
+  .tb-host .workout-outline-panel {
+    position: sticky;
+    top: 0;
+    height: var(--tb-host-h, 100vh);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 14px;
+    overflow: hidden;
+  }
+
+  .tb-host .exercise-library-panel {
+    width: clamp(240px, 19vw, 340px);
+  }
+
+  .tb-host .workout-outline-panel {
+    width: clamp(220px, 16vw, 300px);
+  }
+
+  /* Search / chips / Create stay put; only the list itself scrolls, and it
+     takes whatever height is left */
+  .tb-host .exercise-library-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tb-host .exercise-search-input,
+  .tb-host .exercise-library-panel .btn-create-metric {
+    flex-shrink: 0;
+  }
+
+  .tb-host .exercise-library-body .chip-row {
+    flex-shrink: 0;
+    max-height: 84px;
+    overflow-y: auto;
+  }
+
+  .tb-host .exercise-library-list,
+  .tb-host .workout-outline-list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .tb-host .training-builder-main {
+    flex: 1 1 0;
+    max-width: 1100px;
+    padding: 0 var(--tb-gutter) 40px;
+  }
+
+  .tb-host .training-builder-main .dashboard-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin: 0 calc(-1 * var(--tb-gutter)) 16px;
+    padding: 12px var(--tb-gutter);
+    background-color: var(--c-bg);
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  .tb-host .training-builder-main .dashboard-header h2 {
+    margin-bottom: 0;
+  }
+
+  .tb-host .training-empty-hint {
+    margin: 0 0 12px;
   }
 }

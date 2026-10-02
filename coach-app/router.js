@@ -36,9 +36,8 @@ export const ROUTES = {
   'program-builder':() => import(`./screens/program-builder.js?v=__V__`),
   'section-builder':() => import(`./screens/section-builder.js?v=__V__`),
   'form-builder':   () => import(`./screens/form-builder.js?v=__V__`),
-  // Wraps the unchanged repo-root training-builder.html in a full-bleed
-  // iframe (Phase 5). Reached from the Workout Library and from a day in
-  // the calendar/program builder, which already used it as an overlay.
+  // The Workout Builder. Reached from the Workout Library; the calendar and
+  // program builder show the same module in an overlay (builder-overlay.js).
   'training-builder': () => import(`./screens/training-builder.js?v=__V__`),
 }
 
