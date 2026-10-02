@@ -4,7 +4,7 @@
 // on their own and screens/stats.js is left to fetch + render.
 //
 // The definitions deliberately mirror the per-athlete Overview tab in
-// screens/athlete-detail.js (loadOverviewStats), so a number here can't
+// screens/athlete-detail/overview.js (loadOverviewStats), so a number here can't
 // disagree with the same number on that athlete's own page:
 //   - dates are LOCAL YYYY-MM-DD strings (workout_sessions.local_date is
 //     written by the athlete's own device, so it's already local)

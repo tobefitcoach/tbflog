@@ -26,7 +26,7 @@ import { createScreenContext } from './screen-context.js?v=__V__'
 export const ROUTES = {
   stats:            () => import(`./screens/stats.js?v=__V__`),
   athletes:         () => import(`./screens/athletes.js?v=__V__`),
-  'athlete-detail': () => import(`./screens/athlete-detail.js?v=__V__`),
+  'athlete-detail': () => import(`./screens/athlete-detail/index.js?v=__V__`),
   communication:    () => import(`./screens/communication.js?v=__V__`),
   exercises:        () => import(`./screens/exercises.js?v=__V__`),
   sections:         () => import(`./screens/sections.js?v=__V__`),

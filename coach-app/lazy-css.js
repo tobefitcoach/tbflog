@@ -1,6 +1,6 @@
 // ==========================================================================
 // LAZY STYLESHEET LOADING
-// Used by athlete-detail.js and the 3 builder screens to inject their own
+// Used by athlete-detail/ and the 3 builder screens to inject their own
 // split-out CSS file (coach-app/css/*.css) the first time they mount,
 // instead of it sitting on coach-app/dashboard.html's critical path for
 // every screen. See Part D of the rebuild plan.

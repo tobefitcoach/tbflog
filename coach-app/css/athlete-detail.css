@@ -1,6 +1,6 @@
 /* ==========================================================================
    ATHLETE-DETAIL SCREEN CSS
-   Lazy-loaded only by coach-app/screens/athlete-detail.js on first mount.
+   Lazy-loaded only by coach-app/screens/athlete-detail/index.js on first mount.
    Auto-derived from athlete.css by classifying each rule against which
    source files actually reference its class names (including a fallback
    for classes built as template-literal suffixes, e.g. "status-${s}").

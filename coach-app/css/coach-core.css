@@ -2834,7 +2834,7 @@
 /* ==========================================================================
    WORKOUT BUILDER OVERLAY (.modal-large)
    Only two things use .modal-large: the calendar's day overlay
-   (athlete-detail.js) and Program Builder's (program-builder.js). Both show
+   (athlete-detail/calendar) and Program Builder's (program-builder.js). Both show
    the same Workout Builder the Workout Library route does, so they get the
    same shell: no 40px .modal padding boxing the builder in, and a slim
    title bar instead of a 40px-inset heading, so the builder's own sticky

@@ -1036,7 +1036,7 @@ async function loadTournaments() {
 
 // Just the single most recent entry - enough for the Log Weight tile's
 // sublabel on Home. The same `bodyweight` table the coach's "Log weight"
-// button on the athlete profile writes to (see athlete-detail.js), so an
+// button on the athlete profile writes to (see athlete-detail/), so an
 // entry logged from either side shows up for the other immediately.
 async function loadLatestBodyweight() {
   const { data, error } = await saveWithRetry((signal) => supabase
@@ -3749,7 +3749,7 @@ document.getElementById('saveMoveWorkoutBtn').addEventListener('click', async fu
 
 // Log a bodyweight entry from the Log Weight tile on Home - writes straight
 // to the same `bodyweight` table the coach's "Log weight" button uses (see
-// athlete-detail.js's bindBodyweightEvents), so it shows up identically on
+// athlete-detail/overview.js's bindBodyweightEvents), so it shows up identically on
 // both sides. Always stored in kg, typed in whatever unit the athlete has
 // picked in Profile > Weight units.
 function openLogWeightModal() {

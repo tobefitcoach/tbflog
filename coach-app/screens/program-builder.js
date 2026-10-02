@@ -382,7 +382,7 @@ function deriveSetTargets(row) {
 // sql-history.sql) gets refreshed here, right after the main load below and
 // before anything renders, so the template grid always reflects the
 // coach's latest Workout Builder edit. Same helper, duplicated, as
-// athlete-detail.js's syncLiveTrainingDaysCal - just shaped for a flat
+// athlete-detail/calendar/grid.js's syncLiveTrainingDaysCal - just shaped for a flat
 // array of weeks instead of programs -> weeks.
 async function syncLiveTrainingDaysWeeks(weeks) {
   const linkedDayIds = []
@@ -557,7 +557,7 @@ async function findOrCreateProgramDay(weekId, dayNumber) {
 // ==========================================================================
 // ---- OPEN A DAY: THE REAL WORKOUT BUILDER (overlay) ----
 // Same Workout Builder overlay the athlete calendar's own per-day editing
-// uses (see openWorkoutBuilderOverlay in athlete-detail.js) - { dayId } puts
+// uses (see openWorkoutBuilderOverlay in athlete-detail/calendar/day-modal.js) - { dayId } puts
 // it into "edit this scheduled day's program_exercises" mode, giving the
 // identical search-the-library-on-the-left/reorder-on-the-right UI as
 // editing a Workout Library entry.
@@ -632,7 +632,7 @@ async function deleteDay(dayId) {
 // touches that day. Pass a training id to set/replace the link, or null to
 // detach - synced_at always resets to null either way, so the next read
 // naturally performs (and timestamps) the first real sync itself. Same
-// helper, duplicated, as athlete-detail.js's setDayLiveLink.
+// helper, duplicated, as athlete-detail/calendar/pickers.js's setDayLiveLink.
 // ==========================================================================
 async function setDayLiveLink(dayId, trainingId) {
   const { error } = await supabase

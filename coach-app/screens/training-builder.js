@@ -18,7 +18,7 @@
 // Two ways in:
 //   - the 'training-builder' route (Workout Library): mount/beforeLeave/
 //     unmount below, with a slim back bar above the builder
-//   - openBuilder/flushBuilder/closeBuilder, which athlete-detail.js and
+//   - openBuilder/flushBuilder/closeBuilder, which athlete-detail/ and
 //     program-builder.js call to show it inside their overlay
 // Only one builder is ever open at a time. It used to be the separate
 // training-builder.html page shown in an iframe; running in the app
