@@ -11,7 +11,7 @@ import { pageContent, athlete, wk } from '../state.js?v=__V__'
 import { completedSessionsByDayId, logSetsByPE, openSessionsByDayId } from '../data.js?v=__V__'
 import { RPE_DESCRIPTIONS, formatTimedReps, formatWeight, trainingDisplayName } from '../format.js?v=__V__'
 import { maybeShowSetHint } from '../home-tour.js?v=__V__'
-import { describeError, flushPendingQueue, flushTimer, saveSessionEnd, saveWithRetry } from '../outbox.js?v=__V__'
+import { describeError, dropPendingSessionEnd, flushPendingQueue, flushTimer, saveSessionEnd, saveWithRetry } from '../outbox.js?v=__V__'
 import { currentWeekStart, renderWeekView } from '../screens/home.js?v=__V__'
 import { notifyCoach } from '../screens/tournaments.js?v=__V__'
 import { loadAndRenderPRBadges } from './prs.js?v=__V__'
@@ -576,6 +576,7 @@ function wireSummaryDurationEdit(session, entry) {
       saveBtn.textContent = 'Save'
       return
     }
+    dropPendingSessionEnd(session.id)
 
     // Re-render from scratch - recomputes the duration text/warning and
     // re-runs PR detection against the (now differently-dated) session

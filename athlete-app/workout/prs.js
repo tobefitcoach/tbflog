@@ -9,7 +9,7 @@ import { formatPRBadgeValue } from '../screens/stats.js?v=__V__'
 
 // ==========================================================================
 // ---- PR DETECTION ----
-// Compares this session against every OTHER session ever logged for the
+// Compares this session against every EARLIER session logged for the
 // same underlying exercise (matched by exercise_id, so history carries
 // across different programs/weeks a coach has assigned it in - not just
 // program_exercise_id, which is a new row every time it's reprogrammed).
@@ -81,6 +81,10 @@ export async function loadAndRenderPRBadges(session, entry) {
     let hasHistory = false
     for (const key in buckets) {
       if (key === todayKey || !key.startsWith(pe.exercise_id + '|')) continue
+      // Only sessions BEFORE this one count as "the best to beat" - a later
+      // session (re-opening an older workout's summary) must not take this
+      // one's PR away
+      if (key.slice(key.indexOf('|') + 1) >= todayStr) continue
       hasHistory = true
       const stats = sessionExerciseStats(buckets[key])
       bestVolume = Math.max(bestVolume, stats.volume)
@@ -142,6 +146,9 @@ export function computeWeekPREvents(weekStart) {
     let bestVolume = 0, bestReps = 0, bestWeight = 0, bestOneRM = 0, bestSets = 0, hasHistory = false
     for (const otherKey in buckets) {
       if (otherKey === key || !otherKey.startsWith(bucket.exerciseId + '|')) continue
+      // Only earlier sessions: a PR set in a past week stays a PR in that
+      // week's stats even after the athlete beats it later
+      if (buckets[otherKey].date >= bucket.date) continue
       hasHistory = true
       const otherStats = sessionExerciseStats(buckets[otherKey].sets)
       bestVolume = Math.max(bestVolume, otherStats.volume)

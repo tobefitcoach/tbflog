@@ -982,7 +982,13 @@ async function addLabel(name, linkToAthleteId) {
     return
   }
   if (linkToAthleteId) {
-    await supabase.from('athlete_label_links').insert([{ athlete_id: linkToAthleteId, label_id: data.id }])
+    const { error: linkError } = await supabase.from('athlete_label_links').insert([{ athlete_id: linkToAthleteId, label_id: data.id }])
+    // The label itself was created either way - say so if attaching it
+    // didn't work, rather than leaving it silently unticked
+    if (linkError) {
+      console.log('Error attaching label:', linkError)
+      customAlert('The label was created, but attaching it to this athlete didn\'t work - tick it in the list to try again')
+    }
   }
   await loadAthleteExtras()
   if (linkToAthleteId && root) renderManageLabelsList()

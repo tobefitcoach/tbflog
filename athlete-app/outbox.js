@@ -181,6 +181,13 @@ function savePendingSessionEndsToStorage(queue) {
   } catch (e) { /* storage full/unavailable - falls back to in-memory-only behavior for this session */ }
 }
 
+// The athlete just saved a corrected duration for this session directly -
+// an older "ended" time still waiting in the queue must not go through
+// afterwards and put the old time back
+export function dropPendingSessionEnd(sessionId) {
+  savePendingSessionEndsToStorage(loadPendingSessionEnds().filter(e => e.session_id !== sessionId))
+}
+
 function queueSessionEnd(sessionId, endedAt) {
   const queue = loadPendingSessionEnds().filter(e => e.session_id !== sessionId)
   queue.push({ session_id: sessionId, ended_at: endedAt })
@@ -293,6 +300,32 @@ function performQueuedSave(entry) {
     .select()
     .abortSignal(signal)
   )
+}
+
+// Inserts one row so that a retry can never save it twice. A save that
+// takes longer than the 15s timeout is abandoned and tried again - but the
+// first attempt may have reached the server after all, which used to leave
+// two copies (two "workout started" rows confused the app into making
+// more). So every attempt after the first checks for the row first and
+// stops there if it's already saved.
+//   matchOn   columns that identify this exact row: ['id'] when the row
+//             carries an id chosen up front (crypto.randomUUID(), for the
+//             uuid tables); otherwise the columns of the entry itself
+//   returnRow return the saved row ({ data: row }) instead of nothing
+export function insertOnce(table, row, { matchOn = ['id'], returnRow = false } = {}) {
+  let attempt = 0
+  return saveWithRetry(async (signal) => {
+    attempt++
+    if (attempt > 1) {
+      let find = supabase.from(table).select(returnRow ? '*' : 'id')
+      for (const col of matchOn) find = find.eq(col, row[col])
+      const { data: found, error } = await find.limit(1).abortSignal(signal)
+      if (!error && found && found.length) return { data: returnRow ? found[0] : null, error: null, status: 200 }
+    }
+    let insert = supabase.from(table).insert([row])
+    if (returnRow) insert = insert.select().single()
+    return insert.abortSignal(signal)
+  })
 }
 
 // Retries a Supabase call a few times with backoff before giving up - the

@@ -7,7 +7,7 @@ import { toDateStr, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { loadTrainingData } from '../data.js?v=__V__'
 import { CHEVRON_LEFT } from '../format.js?v=__V__'
-import { saveWithRetry } from '../outbox.js?v=__V__'
+import { insertOnce, saveWithRetry } from '../outbox.js?v=__V__'
 import { currentWeekStart, renderWeekView } from './home.js?v=__V__'
 import { formatTimer, playRestDoneSound } from '../workout/rest-timer.js?v=__V__'
 
@@ -219,21 +219,18 @@ async function finishMobilitySession(startedAt, selectedAreas, doneSeconds, plan
     return
   }
 
-  const { error } = await saveWithRetry((signal) => supabase
-    .from('workout_sessions')
-    .insert([{
-      athlete_id: athlete.id,
-      program_day_id: null,
-      session_type: 'mobility',
-      started_at: startedAt.toISOString(),
-      // Started + time actually done, so the calendar shows the real length
-      // (pauses in the guided flow don't count)
-      ended_at: new Date(startedAt.getTime() + doneSeconds * 1000).toISOString(),
-      local_date: toDateStr(startedAt),
-      mobility_focus_areas: selectedAreas && selectedAreas.length ? selectedAreas : null
-    }])
-    .abortSignal(signal)
-  )
+  const { error } = await insertOnce('workout_sessions', {
+    id: crypto.randomUUID(),
+    athlete_id: athlete.id,
+    program_day_id: null,
+    session_type: 'mobility',
+    started_at: startedAt.toISOString(),
+    // Started + time actually done, so the calendar shows the real length
+    // (pauses in the guided flow don't count)
+    ended_at: new Date(startedAt.getTime() + doneSeconds * 1000).toISOString(),
+    local_date: toDateStr(startedAt),
+    mobility_focus_areas: selectedAreas && selectedAreas.length ? selectedAreas : null
+  })
 
   if (error) {
     console.log(error)

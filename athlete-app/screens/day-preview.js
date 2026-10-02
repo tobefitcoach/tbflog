@@ -10,7 +10,7 @@ import { toDateStr, parseDateStr, startOfWeek } from '../../shared/dates.js?v=__
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { completedSessionsByDayId, entriesByDate, formAssignmentsByDate, loadTrainingData } from '../data.js?v=__V__'
 import { CHEVRON_LEFT, formatDisplayDate, weightToKg } from '../format.js?v=__V__'
-import { loadPendingQueue, saveWithRetry } from '../outbox.js?v=__V__'
+import { insertOnce, loadPendingQueue, saveWithRetry } from '../outbox.js?v=__V__'
 import { renderDayPreviewGroup, renderFormFill } from './form-fill.js?v=__V__'
 import { currentWeekStart, playInlineVideo, renderSyncBannerHtml, renderWeekView, wireSyncBanner } from './home.js?v=__V__'
 import { renderMobilityAreaPicker } from './mobility.js?v=__V__'
@@ -196,11 +196,9 @@ export function wireLogWeightModal() {
     if (!date || !rawWeight) { customAlert('Please fill in date and weight'); return }
     const weight = weightToKg(rawWeight, athlete.weight_unit)
 
-    const { error } = await saveWithRetry((signal) => supabase
-      .from('bodyweight')
-      .insert([{ athlete_id: athlete.id, date, weight }])
-      .abortSignal(signal)
-    )
+    // bodyweight ids are numbers the database assigns, so a retry looks for
+    // this same entry (athlete, date, weight) instead of an id
+    const { error } = await insertOnce('bodyweight', { athlete_id: athlete.id, date, weight }, { matchOn: ['athlete_id', 'date', 'weight'] })
 
     if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
 

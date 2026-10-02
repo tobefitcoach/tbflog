@@ -8,7 +8,7 @@ import * as nav from '../nav.js?v=__V__'
 import { toDateStr } from '../../shared/dates.js?v=__V__'
 import { pageContent, athlete, wk } from '../state.js?v=__V__'
 import { logSetsByPE, openSessionsByDayId } from '../data.js?v=__V__'
-import { saveWithRetry } from '../outbox.js?v=__V__'
+import { insertOnce, saveWithRetry } from '../outbox.js?v=__V__'
 import { markMessagesSeen, showCoachMessagesModal } from '../screens/coach-messages.js?v=__V__'
 import { removeEmptyOwnExercise, renderOwnWorkoutAddExercise, renderOwnWorkoutBuilder } from '../screens/own-workout.js?v=__V__'
 import { renderGroupGate, renderGroupStep, renderSingleSlideBody } from './group.js?v=__V__'
@@ -42,13 +42,9 @@ async function findOrCreateSession(programDayId) {
   // catches it instead (sync_live_training_days checks for a session too).
   supabase.from('program_days').update({ source_training_id: null, source_training_synced_at: null }).eq('id', programDayId).then(({ error }) => { if (error) console.log('Error detaching live-link at session start:', error) })
 
-  const { data: newSession, error: insertError } = await saveWithRetry((signal) => supabase
-    .from('workout_sessions')
-    .insert([{ program_day_id: programDayId, athlete_id: athlete.id, local_date: toDateStr(new Date()) }])
-    .select()
-    .single()
-    .abortSignal(signal)
-  )
+  const { data: newSession, error: insertError } = await insertOnce('workout_sessions',
+    { id: crypto.randomUUID(), program_day_id: programDayId, athlete_id: athlete.id, local_date: toDateStr(new Date()) },
+    { returnRow: true })
 
   if (insertError) {
     console.log(insertError)

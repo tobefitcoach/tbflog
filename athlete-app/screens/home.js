@@ -7,7 +7,7 @@ import * as nav from '../nav.js?v=__V__'
 import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
 import { pageContent, pageWrap, cardWrap, athlete, coachMobilityEnabled } from '../state.js?v=__V__'
-import { completedSessionsByDayId, dayIsFullyLogged, entriesByDate, formAssignmentsByDate, formatSetTargets, mobilitySessionsByDate, openSessionsByDayId } from '../data.js?v=__V__'
+import { completedSessionsByDayId, dayIsFullyLogged, entriesByDate, formAssignmentsByDate, formatSetTargets, loadTrainingData, mobilitySessionsByDate, openSessionsByDayId } from '../data.js?v=__V__'
 import { CHEVRON_LEFT, CHEVRON_RIGHT, DAY_NAMES, WORKOUT_TYPE_ICON_SVG, formatShortDate, formatTimedReps, formatWeight } from '../format.js?v=__V__'
 import { flushPendingQueue, loadPendingQueue, savePendingQueueToStorage } from '../outbox.js?v=__V__'
 import { openLogWeightModal, renderDayPreview } from './day-preview.js?v=__V__'
@@ -331,6 +331,10 @@ export function wireSyncBanner(onDone) {
     const ok = await customConfirm(`Discard ${count} unsynced set${count === 1 ? '' : 's'}? They never saved to the server, so this can't be undone - only do this if you don't need this data.`)
     if (!ok) return
     savePendingQueueToStorage([])
+    // Those sets were applied on top of the loaded data (see
+    // applyPendingQueueLocally), so they'd keep looking ticked until the app
+    // reloaded - reload now so the screen matches what's actually saved
+    await loadTrainingData()
     onDone()
   })
 }

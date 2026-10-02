@@ -431,7 +431,13 @@ async function addLabel(name, linkToTrainingId) {
     return
   }
   if (linkToTrainingId) {
-    await supabase.from('training_label_links').insert([{ training_id: linkToTrainingId, label_id: data.id }])
+    const { error: linkError } = await supabase.from('training_label_links').insert([{ training_id: linkToTrainingId, label_id: data.id }])
+    // The label itself was created either way - say so if attaching it
+    // didn't work, rather than leaving it silently unticked
+    if (linkError) {
+      console.log('Error attaching label:', linkError)
+      customAlert('The label was created, but attaching it to this workout didn\'t work - tick it in the list to try again')
+    }
   }
   await reloadAndRepaint()
   if (linkToTrainingId && root) renderManageLabelsList()

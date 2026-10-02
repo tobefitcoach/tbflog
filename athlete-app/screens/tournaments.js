@@ -10,7 +10,7 @@ import { escapeHtml } from '../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays } from '../../shared/dates.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { CHEVRON_LEFT, formatDisplayDate, formatShortDate } from '../format.js?v=__V__'
-import { saveWithRetry } from '../outbox.js?v=__V__'
+import { insertOnce, saveWithRetry } from '../outbox.js?v=__V__'
 
 let tournamentsCache = [] // every upcoming+past tournaments row for this athlete, sorted by date
 export let tournamentsByDate = {} // 'YYYY-MM-DD' -> tournaments row
@@ -224,11 +224,8 @@ export function renderAddTournamentForm() {
     if (endDate < date) { customAlert("End date can't be before the start date"); return }
     if (!selectedImportance) { customAlert('Please rate how important this tournament is'); return }
 
-    const { error } = await saveWithRetry((signal) => supabase
-      .from('tournaments')
-      .insert({ athlete_id: athlete.id, name, date, end_date: endDate, importance: selectedImportance })
-      .abortSignal(signal)
-    )
+    const { error } = await insertOnce('tournaments',
+      { id: crypto.randomUUID(), athlete_id: athlete.id, name, date, end_date: endDate, importance: selectedImportance })
     if (error) { console.log(error); customAlert('Something went wrong saving that - try again'); return }
     notifyCoach('tournament_added', `${athlete.name} added a tournament: ${name}`)
     await loadTournaments()
