@@ -158,7 +158,6 @@ function initialCalendar() {
     selectedTrainingName: null,
     cachedTrainingExercises: {}, // training_id -> exercises array
     selectedTemplateId: null,
-    selectedTemplateName: null,
     totalProgramDays: 1,
     programStartDay: 1,
     programEndDay: 1,
@@ -183,7 +182,6 @@ function initialCalendar() {
     // ---- Form tab ----
     cachedFormsCal: null,
     selectedFormIdCal: null,
-    selectedFormNameCal: null,
     cachedFormQuestionsCal: {},
 
     // 'new-training': building a fresh Workout Library entry from the

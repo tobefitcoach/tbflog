@@ -16,6 +16,7 @@ import { showLoadError } from '../screen-context.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
+import { escapeHtml } from '../../escape.js?v=__V__'
 
 const WORKOUT_TYPE_LABELS = { gym: 'Gym', field: 'Field', run: 'Run' }
 
@@ -286,7 +287,7 @@ function applyFilters() {
 function createTrainingCard(training) {
   const exerciseCount = training.training_exercises.length
   const trainingLabelIds = labelLinksByTraining[training.id] || new Set()
-  const labelTagsHtml = allLabels.filter(l => trainingLabelIds.has(l.id)).map(l => `<span class="label-tag">${l.name}</span>`).join('')
+  const labelTagsHtml = allLabels.filter(l => trainingLabelIds.has(l.id)).map(l => `<span class="label-tag">${escapeHtml(l.name)}</span>`).join('')
 
   const card = document.createElement('div')
   card.classList.add('athlete-card')
@@ -302,7 +303,7 @@ function createTrainingCard(training) {
         </div>
       </div>
     </div>
-    <h3>${training.name}</h3>
+    <h3>${escapeHtml(training.name)}</h3>
     <span class="workout-type-badge workout-type-badge-${training.workout_type || 'gym'}">${WORKOUT_TYPE_LABELS[training.workout_type || 'gym']}</span>
     <p>${exerciseCount} exercise${exerciseCount === 1 ? '' : 's'}</p>
     ${labelTagsHtml}
@@ -388,7 +389,7 @@ function renderLabelFilterList() {
       <div class="label-filter-row">
         <label>
           <input type="checkbox" data-label-id="${label.id}" ${checked}>
-          <span>${label.name} (${count})</span>
+          <span>${escapeHtml(label.name)} (${count})</span>
         </label>
         <button type="button" class="label-row-delete" data-label-id="${label.id}" title="Delete label">✕</button>
       </div>
@@ -454,7 +455,7 @@ function renderManageLabelsList() {
   list.innerHTML = allLabels.map(label => `
     <label class="message-recipient-row">
       <input type="checkbox" data-label-id="${label.id}" ${trainingLabelIds.has(label.id) ? 'checked' : ''}>
-      <span>${label.name}</span>
+      <span>${escapeHtml(label.name)}</span>
     </label>
   `).join('')
 

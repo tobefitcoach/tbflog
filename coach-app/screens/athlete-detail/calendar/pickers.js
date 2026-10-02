@@ -52,7 +52,6 @@ export async function loadDayAddProgramList() {
 
 function resetProgramPreview() {
   cal.selectedTemplateId = null
-  cal.selectedTemplateName = null
   root.querySelector('#dayAddProgramPreview').innerHTML = '<p class="no-metrics">Select a program to preview it</p>'
   root.querySelector('#dayRangeRow').style.display = 'none'
   root.querySelector('#saveDayAddProgramBtn').disabled = true
@@ -61,7 +60,6 @@ function resetProgramPreview() {
 async function previewTemplate(templateId, templateName) {
   const token = mountToken
   cal.selectedTemplateId = templateId
-  cal.selectedTemplateName = templateName
 
   const preview = root.querySelector('#dayAddProgramPreview')
   preview.innerHTML = '<p class="no-metrics">Loading…</p>'
@@ -91,7 +89,7 @@ async function previewTemplate(templateId, templateName) {
 
   preview.innerHTML = `
     <div class="workout-preview-header">
-      <h3>${templateName}</h3>
+      <h3>${escapeHtml(templateName)}</h3>
       <span class="workout-preview-count">${details.totalWeeks} week${details.totalWeeks === 1 ? '' : 's'}</span>
     </div>
     ${details.days.length === 0
@@ -388,7 +386,6 @@ async function getFormsListCal() {
 
 export function resetFormPreviewCal() {
   cal.selectedFormIdCal = null
-  cal.selectedFormNameCal = null
   root.querySelector('#dayAddFormPreview').innerHTML = '<p class="no-metrics">Select a form to preview it</p>'
   root.querySelector('#selectFormForDayBtn').disabled = true
 }
@@ -420,7 +417,6 @@ export async function loadDayAddFormListCal() {
 
 async function previewFormCal(formId, formName) {
   cal.selectedFormIdCal = formId
-  cal.selectedFormNameCal = formName
   root.querySelector('#selectFormForDayBtn').disabled = false
 
   const preview = root.querySelector('#dayAddFormPreview')

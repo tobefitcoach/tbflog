@@ -16,6 +16,7 @@ import { supabase } from '../../coachClient.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { showLoadError } from '../screen-context.js?v=__V__'
+import { escapeHtml } from '../../escape.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -186,7 +187,7 @@ function createTemplateCard(template) {
         </div>
       </div>
     </div>
-    <h3>${template.name}</h3>
+    <h3>${escapeHtml(template.name)}</h3>
     <p>${weekCount} week${weekCount === 1 ? '' : 's'}, ${dayCount} day${dayCount === 1 ? '' : 's'}</p>
   `
 

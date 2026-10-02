@@ -15,6 +15,7 @@ import { supabase } from '../../coachClient.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { showLoadError } from '../screen-context.js?v=__V__'
+import { escapeHtml } from '../../escape.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -138,7 +139,7 @@ function createSectionCard(section) {
         </div>
       </div>
     </div>
-    <h3>${section.name}</h3>
+    <h3>${escapeHtml(section.name)}</h3>
     <p>${exerciseCount} exercise${exerciseCount === 1 ? '' : 's'}</p>
   `
 

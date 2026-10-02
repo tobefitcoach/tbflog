@@ -20,6 +20,7 @@ import { supabase } from '../../coachClient.js?v=__V__'
 import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { showLoadError } from '../screen-context.js?v=__V__'
+import { escapeHtml } from '../../escape.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -148,7 +149,7 @@ function createFormCard(form) {
         </div>
       </div>
     </div>
-    <h3>${form.name}</h3>
+    <h3>${escapeHtml(form.name)}</h3>
     <p>${questionCount} question${questionCount === 1 ? '' : 's'}</p>
     ${form.gate_workout ? '<span class="workout-type-badge workout-type-badge-run">Gates that day\'s workout</span>' : ''}
   `
