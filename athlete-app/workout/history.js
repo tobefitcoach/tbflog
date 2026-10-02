@@ -5,6 +5,7 @@
 import { supabase } from '../athleteClient.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { toDateStr, parseDateStr } from '../../shared/dates.js?v=__V__'
+import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { formatShortDate, formatTimedReps, formatWeight } from '../format.js?v=__V__'
 import { loadExerciseLibrary, wireExercisePicker } from '../screens/own-workout.js?v=__V__'
@@ -119,27 +120,18 @@ export async function loadLastTime(exercises, dateStr) {
 // not just one aggregate number.
 // ==========================================================================
 async function loadExerciseHistory(exerciseId, months) {
-  const { data: pastPEs, error: peError } = await fetchWithRetry((signal) => supabase
-    .from('program_exercises')
-    .select('id')
-    .eq('exercise_id', exerciseId)
-    .abortSignal(signal)
-  )
-  if (peError) { console.log(peError); return null }
-
-  const peIds = pastPEs.map(pe => pe.id)
-  if (peIds.length === 0) return []
-
   const cutoff = new Date()
   cutoff.setMonth(cutoff.getMonth() - months)
 
-  const { data: sets, error: setsError } = await fetchWithRetry((signal) => supabase
+  // One joined query, paged - same reason as loadAndRenderPRBadges: the old
+  // "fetch every program_exercises id, then send them all in the URL" grew
+  // with the athlete's history until the request failed
+  const { data: sets, error: setsError } = await fetchAllRows(fetchWithRetry, () => supabase
     .from('exercise_log_sets')
-    .select('*')
-    .in('program_exercise_id', peIds)
+    .select('*, program_exercises!inner(exercise_id)')
+    .eq('program_exercises.exercise_id', exerciseId)
     .not('completed_at', 'is', null)
     .gte('date', toDateStr(cutoff))
-    .abortSignal(signal)
   )
   if (setsError) { console.log(setsError); return null }
 

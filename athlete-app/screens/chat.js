@@ -7,6 +7,7 @@ import { supabase } from '../athleteClient.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { signReportLinks } from '../../report-links.js?v=__V__'
+import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { saveWithRetry } from '../outbox.js?v=__V__'
 import { notifyCoach } from './tournaments.js?v=__V__'
@@ -59,12 +60,13 @@ async function loadChatMessagesFromCoach() {
   const container = document.getElementById('chatMessages')
   if (!container) return // athlete navigated away before this resolved
 
-  const { data, error } = await saveWithRetry((signal) => supabase
+  // Paged: oldest-first, so past 1,000 messages the cap would drop the
+  // NEWEST ones
+  const { data, error } = await fetchAllRows(saveWithRetry, () => supabase
     .from('chat_messages')
     .select('*')
     .eq('athlete_id', athlete.id)
     .order('created_at', { ascending: true })
-    .abortSignal(signal)
   )
 
   if (error) {

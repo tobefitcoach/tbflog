@@ -23,6 +23,7 @@ import {
   computeWindowStats, sumCompletion, computeDelta, computeRiskRows, formatDuration,
 } from '../stats-calc.js?v=__V__'
 import { escapeHtml } from '../../escape.js?v=__V__'
+import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 
 const RANGES = [
   { key: 'week', label: 'Week' },
@@ -126,21 +127,14 @@ function formatShortDay(dateStr) {
   return parseDateStr(dateStr).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
-// PostgREST returns at most 1000 rows per request, so anything that can
-// exceed that (a year of sessions across a roster) is fetched in pages.
-// Ordered by id so a page boundary can't skip or repeat a row.
+// Anything that can pass Supabase's 1,000-rows-per-request cap (a year of
+// sessions across a roster) is fetched in pages - see shared/fetch-all.js.
+// Throws on error, which the callers here catch.
 async function fetchAllPages(buildQuery) {
-  const pageSize = 1000
-  const rows = []
-  for (let from = 0; ; from += pageSize) {
-    if (!ctx) throw new Error('screen left')
-    const { data, error } = await ctx.fetch((signal) =>
-      buildQuery().order('id').range(from, from + pageSize - 1).abortSignal(signal)
-    )
-    if (error) throw error
-    rows.push(...data)
-    if (data.length < pageSize) return rows
-  }
+  if (!ctx) throw new Error('screen left')
+  const { data, error } = await fetchAllRows(ctx.fetch, buildQuery)
+  if (error) throw error
+  return data
 }
 
 function athleteStatus(athlete) {

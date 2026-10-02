@@ -12,6 +12,7 @@ import { root, mountToken, athleteId, cal } from '../state.js?v=__V__'
 import { openDayAddTrainingModal } from './add-day.js?v=__V__'
 import { armCopyWorkout, armMoveWorkout } from './copy.js?v=__V__'
 import { deleteFormAssignment, deleteMobilitySession, deleteTraining, openFormDetailModal, openMobilityDetailModal, openTournamentDetailModal, openWorkoutDetailModal } from './day-modal.js?v=__V__'
+import { fetchAllRows, fetchAllRowsForIds } from '../../../../shared/fetch-all.js?v=__V__'
 
 // ==========================================================================
 // ---- CALENDAR TAB: DATE HELPERS ----
@@ -93,11 +94,12 @@ async function syncLiveTrainingDaysCal(programs) {
   const { error: syncError } = await window.fetchWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
   if (syncError) { console.log('Error syncing live-linked days:', syncError); return }
 
-  const { data: freshExercises, error: fetchError } = await window.fetchWithRetry((signal) => supabase
+  // In batches - the day ids go into the request URL, and the list grows
+  // with every live-linked day the athlete has ever had
+  const { data: freshExercises, error: fetchError } = await fetchAllRowsForIds(window.fetchWithRetry, linkedDayIds, (batch) => supabase
     .from('program_exercises')
     .select('*, exercises!exercise_id(name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
-    .in('day_id', linkedDayIds)
-    .abortSignal(signal)
+    .in('day_id', batch)
   )
   if (fetchError) { console.log('Error refreshing synced days:', fetchError); return }
 
@@ -130,36 +132,31 @@ export async function loadCalendarMonth(year, month) {
     { data: tournaments, error: tournamentsError },
     { data: formAssignments, error: formAssignmentsError }
   ] = await Promise.all([
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows(window.fetchWithRetry, () => supabase
       .from('programs')
       .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
-      .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows(window.fetchWithRetry, () => supabase
       .from('workout_sessions')
       .select('*') // '*' (not a column list) so athlete_note comes through once its migration has run, without breaking this query before then
       .eq('athlete_id', athleteId)
-      .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows(window.fetchWithRetry, () => supabase
       .from('exercise_log_sets')
       .select('*')
       .eq('athlete_id', athleteId)
-      .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows(window.fetchWithRetry, () => supabase
       .from('tournaments')
       .select('*')
       .eq('athlete_id', athleteId)
-      .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows((factory) => window.fetchWithRetry(factory, 1), () => supabase
       .from('form_assignments')
       .select('*, forms(name, gate_workout), form_answers(id)')
       .eq('athlete_id', athleteId)
-      .abortSignal(signal), 1
     )
   ])
 

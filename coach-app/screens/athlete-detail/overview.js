@@ -10,6 +10,7 @@ import { escapeHtml } from '../../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../../shared/dates.js?v=__V__'
 import { root, mountToken, athleteId, currentAthlete, ov } from './state.js?v=__V__'
 import { convertValue } from './metrics.js?v=__V__'
+import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
 
 // ==========================================================================
 // ---- OVERVIEW STATS: completion rate + volume ----
@@ -80,28 +81,25 @@ export async function loadOverviewStats() {
     { data: logSets, error: logError },
     { data: sessions, error: sessionsError }
   ] = await Promise.all([
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows(window.fetchWithRetry, () => supabase
       .from('programs')
       .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(tracks_weight))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
-      .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows(window.fetchWithRetry, () => supabase
       .from('exercise_log_sets')
       .select('*')
       .eq('athlete_id', athleteId)
       .gte('date', ninetyDaysAgo)
-      .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchAllRows(window.fetchWithRetry, () => supabase
       .from('workout_sessions')
       .select('*')
       .eq('athlete_id', athleteId)
       .not('ended_at', 'is', null)
       .gte('started_at', ninetyDaysAgoISO)
       .order('started_at', { ascending: false })
-      .abortSignal(signal)
     )
   ])
 
@@ -778,11 +776,12 @@ export function bindNotesEvents() {
 // ==========================================================================
 export async function loadBodyweightGraph() {
   const token = mountToken
-  const { data, error } = await supabase
+  const { data, error } = await fetchAllRows(runOnce, () => supabase
     .from('bodyweight')
     .select('*')
     .eq('athlete_id', athleteId)
     .order('date', { ascending: true })
+  )
 
   if (!nav.isCurrent(token)) return
   const canvas = root.querySelector('#bodyweightGraph')
@@ -922,11 +921,12 @@ export function bindBodyweightEvents() {
 
 async function loadBWEntries() {
   const token = mountToken
-  const { data, error } = await supabase
+  const { data, error } = await fetchAllRows(runOnce, () => supabase
     .from('bodyweight')
     .select('*')
     .eq('athlete_id', athleteId)
     .order('date', { ascending: false })
+  )
 
   if (!nav.isCurrent(token)) return
   const list = root.querySelector('#bwEntriesList')

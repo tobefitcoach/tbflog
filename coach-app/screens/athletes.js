@@ -43,6 +43,7 @@ import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays } from '../../shared/dates.js?v=__V__'
+import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -294,6 +295,7 @@ async function loadAthleteExtras() {
   if (!c) return
   const thirtyDaysAgo = toDateStr(addDays(new Date(), -29))
   const ninetyDaysAgoISO = addDays(new Date(), -89).toISOString()
+  const once = (factory) => c.fetch(factory, 1)
 
   // maxAttempts=1 (no retries) - these are all secondary/derived data, so
   // failing fast and just showing '—'/no badge is better than making the
@@ -307,42 +309,41 @@ async function loadAthleteExtras() {
     { data: labelLinksData },
     { data: profileData }
   ] = await Promise.all([
+    // The list-shaped ones are paged (fetchAllRows): across a whole roster
+    // they pass Supabase's 1,000-rows-per-request cap quickly, and the rows
+    // past it used to just vanish from the stats
     // Unreviewed pain/injury reports (see wireRpeFlagFollowup in
     // athlete-app/workout/swipe.js) - not time-scoped, unlike Overview's other
     // stats, since this is meant to stay visible until acknowledged
-    c.fetch((signal) => supabase
+    fetchAllRows(once, () => supabase
       .from('workout_sessions')
       .select('athlete_id')
       .eq('rpe_flag_reason', 'pain_injury')
       .is('rpe_flag_reviewed_at', null)
-      .abortSignal(signal), 1
     ),
     // Every non-template scheduled day, for "Programmed Through" + 30-day
     // completion - same nested shape athlete.js's loadOverviewStats() uses
-    c.fetch((signal) => supabase
+    fetchAllRows(once, () => supabase
       .from('programs')
       .select('athlete_id, start_date, program_weeks(week_number, program_days(day_number, date_override, program_exercises(id, prescribed_sets)))')
       .eq('is_template', false)
-      .abortSignal(signal), 1
     ),
     // Logged sets for the last 30 days only - completion rate never looks
     // further back than that
-    c.fetch((signal) => supabase
+    fetchAllRows(once, () => supabase
       .from('exercise_log_sets')
       .select('athlete_id, program_exercise_id, date, completed_at, set_number')
       .gte('date', thirtyDaysAgo)
-      .abortSignal(signal), 1
     ),
     // Rated sessions for ACWR - 90 days back, same window athlete.js uses
-    c.fetch((signal) => supabase
+    fetchAllRows(once, () => supabase
       .from('workout_sessions')
       .select('athlete_id, started_at, ended_at, local_date, session_rpe')
       .not('ended_at', 'is', null)
       .gte('started_at', ninetyDaysAgoISO)
-      .abortSignal(signal), 1
     ),
     c.fetch((signal) => supabase.from('athlete_labels').select('*').order('name').abortSignal(signal), 1),
-    c.fetch((signal) => supabase.from('athlete_label_links').select('*').abortSignal(signal), 1),
+    fetchAllRows(once, () => supabase.from('athlete_label_links').select('*')),
     // Coach's own "warn me N days before an athlete's last training" setting
     c.fetch((signal) => supabase.from('profiles').select('low_trainings_warning_days').eq('id', coachId()).single().abortSignal(signal), 1)
   ])

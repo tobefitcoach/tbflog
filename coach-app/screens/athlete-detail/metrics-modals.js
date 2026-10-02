@@ -10,6 +10,7 @@ import { toDateStr, parseDateStr } from '../../../shared/dates.js?v=__V__'
 import { root, mountToken, athleteId, ov, met } from './state.js?v=__V__'
 import { convertInput, convertValue, loadAthleteMetrics } from './metrics.js?v=__V__'
 import { formatDisplayDate, openChangeExplain } from './overview.js?v=__V__'
+import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
 
 // ==========================================================================
 // ---- PR OVERVIEW MODAL ----
@@ -336,20 +337,24 @@ async function loadGraphData(months) {
   const token = mountToken
   met.currentGraphMonths = months
 
-  let query = supabase
-    .from('measurements')
-    .select('*')
-    .eq('athlete_id', athleteId)
-    .eq('metric_id', met.currentGraphMetric.id)
-    .order('date', { ascending: true })
-
+  let fromDateStr = null
   if (months > 0) {
     const fromDate = new Date()
     fromDate.setMonth(fromDate.getMonth() - months)
-    query = query.gte('date', toDateStr(fromDate))
+    fromDateStr = toDateStr(fromDate)
   }
 
-  const { data } = await query
+  // Paged - "All time" on a daily metric passes the 1,000-row cap
+  const { data } = await fetchAllRows(runOnce, () => {
+    let query = supabase
+      .from('measurements')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('metric_id', met.currentGraphMetric.id)
+      .order('date', { ascending: true })
+    if (fromDateStr) query = query.gte('date', fromDateStr)
+    return query
+  })
   if (!nav.isCurrent(token)) return
 
   // For Zone 2 metrics, show total km run within the selected time filter above the graph
@@ -512,21 +517,22 @@ function renderGraphRaw(data) {
 // the % is just how they're drawn, not how they're read.
 async function renderGraphWithBodyweightOverlay(data, months, granularity) {
   const token = mountToken
-  let bwQuery = supabase
-    .from('bodyweight')
-    .select('*')
-    .eq('athlete_id', athleteId)
-    .order('date', { ascending: true })
-
   let fromDateStr = null
   if (months > 0) {
     const fromDate = new Date()
     fromDate.setMonth(fromDate.getMonth() - months)
     fromDateStr = toDateStr(fromDate)
-    bwQuery = bwQuery.gte('date', fromDateStr)
   }
 
-  const { data: bwDataRaw } = await bwQuery
+  const { data: bwDataRaw } = await fetchAllRows(runOnce, () => {
+    let bwQuery = supabase
+      .from('bodyweight')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .order('date', { ascending: true })
+    if (fromDateStr) bwQuery = bwQuery.gte('date', fromDateStr)
+    return bwQuery
+  })
   if (!nav.isCurrent(token)) return
   // Aggregated with the exact same bucketing as the metric series (both go
   // through chartBucketKey with the same granularity), so the two series'
@@ -711,12 +717,13 @@ export async function openEntriesModal(metric) {
 // Fetches and renders the entries table for a given metric
 async function loadEntries(metric) {
   const token = mountToken
-  const { data, error } = await supabase
+  const { data, error } = await fetchAllRows(runOnce, () => supabase
     .from('measurements')
     .select('*')
     .eq('athlete_id', athleteId)
     .eq('metric_id', metric.id)
     .order('date', { ascending: false })
+  )
 
   if (!nav.isCurrent(token)) return
   const list = root.querySelector('#entriesList')

@@ -3,6 +3,7 @@
 // ==========================================================================
 import { supabase } from '../athleteClient.js?v=__V__'
 import { toDateStr, addDays } from '../../shared/dates.js?v=__V__'
+import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 import { entriesByDate, logSetsByPE } from '../data.js?v=__V__'
 import { formatPRBadgeValue } from '../screens/stats.js?v=__V__'
 
@@ -44,28 +45,16 @@ export async function loadAndRenderPRBadges(session, entry) {
   const exerciseIds = [...new Set(entry.day.program_exercises.map(pe => pe.exercise_id))]
   if (exerciseIds.length === 0) return
 
-  // Every program_exercises row (across every program/week this athlete has
-  // ever had) that's ever pointed at one of today's exercises - RLS already
-  // scopes this to the athlete's own programs
-  const { data: pastPEs, error: peError } = await fetchWithRetry((signal) => supabase
-    .from('program_exercises')
-    .select('id, exercise_id')
-    .in('exercise_id', exerciseIds)
-    .abortSignal(signal)
-  )
-  if (peError) { console.log(peError); return }
-
-  const exerciseIdByPEId = {}
-  for (const pe of pastPEs) exerciseIdByPEId[pe.id] = pe.exercise_id
-  const allPEIds = pastPEs.map(pe => pe.id)
-  if (allPEIds.length === 0) return
-
-  const { data: pastSets, error: setsError } = await fetchWithRetry((signal) => supabase
+  // Every completed set this athlete has ever logged on one of today's
+  // exercises, in any program/week (RLS scopes it to their own). One joined
+  // query, paged - it used to fetch every matching program_exercises id
+  // first and send that list in the URL, which overflowed it (and hit the
+  // 1,000-row cap) for athletes with a long history.
+  const { data: pastSets, error: setsError } = await fetchAllRows(fetchWithRetry, () => supabase
     .from('exercise_log_sets')
-    .select('*')
-    .in('program_exercise_id', allPEIds)
+    .select('*, program_exercises!inner(exercise_id)')
+    .in('program_exercises.exercise_id', exerciseIds)
     .not('completed_at', 'is', null)
-    .abortSignal(signal)
   )
   if (setsError) { console.log(setsError); return }
 
@@ -74,7 +63,7 @@ export async function loadAndRenderPRBadges(session, entry) {
   // workout_sessions link on exercise_log_sets to group by directly)
   const buckets = {}
   for (const s of pastSets) {
-    const exerciseId = exerciseIdByPEId[s.program_exercise_id]
+    const exerciseId = s.program_exercises.exercise_id
     const key = `${exerciseId}|${s.date}`
     if (!buckets[key]) buckets[key] = []
     buckets[key].push(s)

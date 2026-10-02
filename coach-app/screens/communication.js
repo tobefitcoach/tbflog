@@ -70,6 +70,7 @@ import { coachId } from '../session.js?v=__V__'
 import { refreshChatBadge } from '../bell.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { signReportLinks } from '../../report-links.js?v=__V__'
+import { fetchAllRows, runOnce } from '../../shared/fetch-all.js?v=__V__'
 
 // Two-pane inbox: athlete list on the left, the selected athlete's full
 // chat_messages history + a send box on the right - see
@@ -345,11 +346,12 @@ async function loadChatMessages() {
   const container = root.querySelector('#chatMessages')
   container.innerHTML = '<p class="no-metrics">Loading...</p>'
 
-  const { data, error } = await supabase
+  const { data, error } = await fetchAllRows(runOnce, () => supabase
     .from('chat_messages')
     .select('*')
     .eq('athlete_id', selectedAthlete.id)
     .order('created_at', { ascending: true })
+  )
   if (!nav.isCurrent(mountToken) || !root) return
 
   if (error) {

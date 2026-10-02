@@ -10,6 +10,7 @@ import { toDateStr } from '../../../shared/dates.js?v=__V__'
 import { root, mountToken, athleteId, met } from './state.js?v=__V__'
 import { onSaveEditEntry, openEntriesModal, openGraphModal, renderLastUpdatedModal, renderMetricsTrackedModal, renderPRModal, renderTotalEntriesModal } from './metrics-modals.js?v=__V__'
 import { openChangeExplain } from './overview.js?v=__V__'
+import { fetchAllRows } from '../../../shared/fetch-all.js?v=__V__'
 
 // ==========================================================================
 // ---- UNIT CONVERSION HELPERS ----
@@ -136,14 +137,13 @@ async function renderMetrics() {
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
   const fromDate = toDateStr(threeMonthsAgo)
 
-  const { data: recentMeasurements } = await window.fetchWithRetry((signal) => supabase
+  const { data: recentMeasurements } = await fetchAllRows(window.fetchWithRetry, () => supabase
     .from('measurements')
     .select('*')
     .eq('athlete_id', athleteId)
     .in('metric_id', metricIds)
     .gte('date', fromDate)
     .order('date', { ascending: true })
-    .abortSignal(signal)
   )
 
   if (!nav.isCurrent(token)) return
@@ -160,13 +160,12 @@ async function renderMetrics() {
   const zone2MetricIds = met.athleteMetrics.filter(am => am.metrics.type === 'zone2').map(am => am.metrics.id)
   const zone2AllByMetric = {}
   if (zone2MetricIds.length > 0) {
-    const { data: allZone2Measurements } = await window.fetchWithRetry((signal) => supabase
+    const { data: allZone2Measurements } = await fetchAllRows(window.fetchWithRetry, () => supabase
       .from('measurements')
       .select('*')
       .eq('athlete_id', athleteId)
       .in('metric_id', zone2MetricIds)
       .order('date', { ascending: false })
-      .abortSignal(signal)
     )
 
     if (!nav.isCurrent(token)) return
@@ -656,12 +655,11 @@ export function bindMetricsStaticEvents() {
 async function loadStatsBar() {
   const token = mountToken
   // Get all measurements for this athlete
-  const { data: allMeasurements, error } = await window.fetchWithRetry((signal) => supabase
+  const { data: allMeasurements, error } = await fetchAllRows(window.fetchWithRetry, () => supabase
     .from('measurements')
     .select('*')
     .eq('athlete_id', athleteId)
     .order('date', { ascending: false })
-    .abortSignal(signal)
   )
 
   if (!nav.isCurrent(token)) return

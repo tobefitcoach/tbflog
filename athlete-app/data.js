@@ -6,6 +6,7 @@
 // ==========================================================================
 import { supabase } from './athleteClient.js?v=__V__'
 import { applyFieldOverrides } from '../shared/exercise-fields.js?v=__V__'
+import { fetchAllRows, fetchAllRowsForIds } from '../shared/fetch-all.js?v=__V__'
 import { athlete } from './state.js?v=__V__'
 import { formatTimedReps, formatWeight, resolveDate } from './format.js?v=__V__'
 import { applyPendingQueueLocally, saveWithRetry } from './outbox.js?v=__V__'
@@ -43,11 +44,12 @@ async function syncLiveTrainingDays(programs) {
   const { error: syncError } = await saveWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
   if (syncError) { console.log('Error syncing live-linked days:', syncError); return }
 
-  const { data: freshExercises, error: fetchError } = await saveWithRetry((signal) => supabase
+  // In batches - the day ids go into the request URL, and the list grows
+  // with every live-linked day the athlete has ever had
+  const { data: freshExercises, error: fetchError } = await fetchAllRowsForIds(saveWithRetry, linkedDayIds, (batch) => supabase
     .from('program_exercises')
     .select('*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
-    .in('day_id', linkedDayIds)
-    .abortSignal(signal)
+    .in('day_id', batch)
   )
   if (fetchError) { console.log('Error refreshing synced days:', fetchError); return }
 
@@ -68,11 +70,13 @@ async function syncLiveTrainingDays(programs) {
 // ==========================================================================
 // ---- LOAD TRAINING DATA ----
 // One nested query for the whole schedule, one flat query for every set
-// this athlete has logged, one flat query for any in-progress workout
-// session - small datasets for a solo coach's athlete, no date filtering.
+// this athlete has logged, one for their workout sessions, one for form
+// assignments - no date filtering. Each goes through fetchAllRows: a
+// regular athlete passes Supabase's 1,000-rows-per-request cap on logged
+// sets within a few months, and the rows past it used to just vanish.
 // ==========================================================================
 export async function loadTrainingData() {
-  // These 3 queries don't depend on each other's results, so they fire
+  // These queries don't depend on each other's results, so they fire
   // together instead of waiting on each other one at a time - on a slow
   // connection this also means one retry sequence doesn't delay the start
   // of the other two
@@ -82,30 +86,26 @@ export async function loadTrainingData() {
     { data: sessions, error: sessionsError },
     { data: formAssignments, error: formAssignmentsError }
   ] = await Promise.all([
-    saveWithRetry((signal) => supabase
+    fetchAllRows(saveWithRetry, () => supabase
       .from('programs')
       .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, foot_contacts, intensity_tier, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
       .eq('athlete_id', athlete.id)
       .eq('is_template', false)
-      .abortSignal(signal)
     ),
-    saveWithRetry((signal) => supabase
+    fetchAllRows(saveWithRetry, () => supabase
       .from('exercise_log_sets')
       .select('*')
       .eq('athlete_id', athlete.id)
-      .abortSignal(signal)
     ),
-    saveWithRetry((signal) => supabase
+    fetchAllRows(saveWithRetry, () => supabase
       .from('workout_sessions')
       .select('*')
       .eq('athlete_id', athlete.id)
-      .abortSignal(signal)
     ),
-    saveWithRetry((signal) => supabase
+    fetchAllRows(saveWithRetry, () => supabase
       .from('form_assignments')
       .select('*, forms(name, gate_workout)')
       .eq('athlete_id', athlete.id)
-      .abortSignal(signal)
     )
   ])
 
