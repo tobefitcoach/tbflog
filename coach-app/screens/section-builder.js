@@ -9,8 +9,7 @@
 // section_label is stamped onto the exercises only once they're copied out
 // into a real training/day. Sets CAN be linked into supersets within a
 // section though, and that link carries through the clone (see
-// insertSectionInto*'s group-id remapping in training-builder.js/
-// program-builder.js/athlete-calendar.js).
+// insertSectionInto*'s group-id remapping in training-builder.js).
 //
 // This is the busiest of the three builders: one document-level click
 // listener (closes a card's kebab dropdown on outside click) is tracked and

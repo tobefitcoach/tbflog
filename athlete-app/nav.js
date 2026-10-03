@@ -55,10 +55,6 @@ let guardBusy = false
 // checks isCurrent(token) after each await before touching the DOM again.
 let generation = 0
 
-export function token() {
-  return generation
-}
-
 export function isCurrent(t) {
   return t === generation
 }

@@ -3,9 +3,7 @@
 // Looks up every device (push_subscriptions row) for the given user_id and
 // sends each one a real Web Push notification. Called from the client via
 // supabase.functions.invoke('send-push', { body: { user_id, title, body,
-// url } }) - see push.js's sendPush(), used by notifyCoach() in
-// athlete-app/screens/tournaments.js and the coach's "push" message timing in
-// script.js.
+// url } }) - see push.js's sendPush() for who calls it.
 //
 // Uses the service role key (auto-provided, no secret to set up) rather
 // than the caller's own permissions, since the caller usually isn't the

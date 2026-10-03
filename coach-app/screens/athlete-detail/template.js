@@ -21,10 +21,9 @@ export const SKELETON = `
 
 // Pre-extracted from athlete.html: the .profile block (tab bar + 4
 // tab-panels) followed by every modal (Metrics tab's own modals, then the
-// Calendar tab's - see athlete-calendar.js's own banner comment on why that
-// file's modals live in athlete.html rather than being built by JS). The
+// Calendar tab's, which were static markup there rather than built by JS). The
 // Calendar tab's own DAY CONTENT (toolbar/grid) is included since it was
-// already static markup in athlete.html even though athlete-calendar.js
+// already static markup in athlete.html even though calendar/grid.js
 // fills the grid's cells in on first activation - only the grid's cells
 // themselves are injected by JS, same as before.
 //

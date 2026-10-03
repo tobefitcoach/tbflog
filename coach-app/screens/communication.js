@@ -60,8 +60,8 @@
 //
 // There is no SKELETON here, and no load before the first paint: the
 // markup is static and the athlete list carries its own "Loading..." line,
-// same as the settings screen. See screens/_placeholder.js for the full
-// contract.
+// same as the settings screen. See router.js and screen-context.js for the
+// screen contract.
 // ==========================================================================
 import { supabase } from '../../coachClient.js?v=__V__'
 import { sendPush } from '../../push.js?v=__V__'

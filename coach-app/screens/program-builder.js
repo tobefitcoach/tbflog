@@ -4,7 +4,7 @@
 // program-builder.html. Edits one template's Weeks -> Days -> Exercises. A
 // template has no real dates yet - day_number just means "the Nth day of
 // that week, once this gets assigned to an athlete with a start date" (see
-// athlete-calendar.js for the date math that uses this). The coach's own
+// resolveDate() in athlete-detail/calendar/grid.js for the date math that uses this). The coach's own
 // label field is what actually describes a day ("Day 1 — Upper Body").
 // Clicking a filled-in day opens the real Workout Builder (screens/
 // training-builder.js, shown in an overlay through builder-overlay.js - see
@@ -46,7 +46,7 @@ const TEMPLATE = `
        calendar's month view - see renderWeekNav() below. Every week
        always shows all 7 day slots (day_number 1-7, matching the fixed
        7-day week the date math already assumes once this gets assigned to
-       an athlete - see resolveDate() in athlete-calendar.js) - an empty
+       an athlete - see resolveDate() in athlete-detail/calendar/grid.js) - an empty
        slot shows a hover "+" to add a workout straight from the Workout
        Library, a filled one shows what's on it and opens for editing on
        click. Same look/interaction as the athlete calendar's own month
@@ -80,7 +80,7 @@ const TEMPLATE = `
   </div>
 
   <!-- Copy Day/Week: arm-then-click, same pattern as the coach's calendar
-       (see athlete-calendar.js's wireCalendarCopyArming) instead of a
+       (see athlete-detail/calendar/copy.js's wireCalendarCopyArming) instead of a
        modal asking which week/day to pick - the grid itself becomes the
        target picker once armed (see wireProgramGridCopyArming below).
        This bar just shows what's being copied and offers a way out;
@@ -242,7 +242,7 @@ function bindEvents() {
   })
 
   // Kebab dropdowns on the grid close on outside click (mirrors the same
-  // pattern in training-builder.js and athlete-calendar.js)
+  // pattern in training-builder.js and athlete-detail/calendar/grid.js)
   ctx.on(document, 'click', function(e) {
     if (e.target.closest('#programWeeksGrid .kebab-menu')) return
     root?.querySelectorAll('#programWeeksGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
@@ -644,7 +644,7 @@ async function setDayLiveLink(dayId, trainingId) {
 
 // ==========================================================================
 // ---- ADD WORKOUT (clone a saved Workout Library training into a day) ----
-// Same clone shape athlete-calendar.js's cloneTrainingToDay uses for a real
+// Same clone shape athlete-detail/calendar/pickers.js's cloneTrainingToDay uses for a real
 // athlete day - carries section/superset links and any "Adjust Fields"/
 // Alternative Exercise overrides from the Training over, so assigning one
 // that was fine-tuned in Workout Builder doesn't silently lose that. Only
@@ -846,7 +846,7 @@ async function cloneProgramDayExercises(sourceDay, targetDay) {
 // ---- COPY A FULL WEEK, or one day onto another (copy icon on a week
 // heading, and "Copy to another day" on a filled cell's ⋮ menu) ----
 // Arm-then-click, same pattern as the coach's calendar (see
-// athlete-calendar.js's wireCalendarCopyArming) instead of a modal asking
+// athlete-detail/calendar/copy.js's wireCalendarCopyArming) instead of a modal asking
 // which week/day to pick: arming shows a floating bar and the grid itself
 // becomes the target picker - hovering highlights the day (day mode) or
 // whole week (week mode) under the cursor with a "Drop Here"/"Drop Week
@@ -953,7 +953,7 @@ async function performCopyWeek(sourceWeekId, targetWeekId) {
   renderWeekNav()
 }
 
-// Capture-phase, same reasoning as athlete-calendar.js's own
+// Capture-phase, same reasoning as athlete-detail/calendar/copy.js's own
 // wireCalendarCopyArming: while a copy is armed, this needs to swallow a
 // click on a day cell (including a kebab/add-button click inside one)
 // before the existing bubble-phase listener above ever sees it and treats

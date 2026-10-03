@@ -16,7 +16,7 @@ import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
 // ---- OVERVIEW STATS: completion rate + volume ----
 // Computed from this athlete's schedule (programs -> ... -> program_exercises)
 // and their logged exercise_log_sets. Same nested-query shape and date math
-// athlete-calendar.js/dashboard.js use, duplicated here since this screen
+// calendar/grid.js and the athlete app use, duplicated here since this screen
 // (like every other one) has no shared scope with those.
 // ==========================================================================
 

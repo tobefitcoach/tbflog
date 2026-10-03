@@ -53,7 +53,7 @@ async function cloneTemplateToAthlete(templateId, startDate, rangeStart, rangeEn
 
 // ==========================================================================
 // ---- CALENDAR TAB: STATIC EVENT WIRING ----
-// Everything athlete-calendar.js registered at module top-level, against
+// Everything the old athlete-calendar.js registered at module top-level, against
 // markup that was already in the document on that page. Called once from
 // bindEvents() (see mount()) - every element referenced here is part of the
 // static TEMPLATE (the calendar toolbar, the Day Detail/Add Training/Day

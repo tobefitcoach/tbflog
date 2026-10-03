@@ -31,7 +31,7 @@ const TOURNAMENT_IMPORTANCE_DESCRIPTIONS = {
 // 1-5 importance rating using the same "tap the number, see what it means"
 // mechanic as the RPE picker above. Visible on this athlete's own week
 // strip (renderWeekView) and, read-only, on the coach's month calendar
-// (athlete-calendar.js) - both read from the same tournaments table.
+// (coach-app/screens/athlete-detail/calendar/) - both read from the same tournaments table.
 // A coach can also add a tournament for the athlete (created_by_coach).
 // Those show here like any other, but with NO importance rating - the
 // coach's rating is private and is never even sent to this app (it lives in

@@ -14,9 +14,8 @@
 // 2. No popTo support. The athlete app needed it for its workout-summary
 //    flow (reached FROM a workout, where back must skip the whole workout).
 //    Nothing in the coach app has that shape - the closest thing, the
-//    training-builder iframe overlay, is a modal and is handled by
-//    closeTopModal below. It can be ported across verbatim if that ever
-//    changes.
+//    Workout Builder overlay, is a modal and is handled by closeTopModal
+//    below.
 //
 // The URL never changes (no hash, no path) - GitHub Pages has no SPA
 // fallback so a real path would 404 on reload, and capacitor.config.json
@@ -37,18 +36,15 @@ let replaying = false
 let suppressNextPop = false
 let guardBusy = false
 
-// Bumped on every screen entry, forward or replayed. Every screen module's
-// mount() captures this and re-checks isCurrent() after each await before
+// Bumped on every screen entry, forward or replayed. The router hands each
+// mount a screen context whose alive() checks isCurrent() (see
+// screen-context.js), and screens re-check it after each await before
 // touching the DOM - without it, a slow Supabase response landing after
 // the coach has already navigated away would repaint over whatever screen
 // is actually showing by then. Every coach screen does load-then-render,
 // so unlike the athlete app (where only 5 screens were vulnerable) this
 // applies to all of them.
 let generation = 0
-
-export function token() {
-  return generation
-}
 
 export function isCurrent(t) {
   return t === generation
@@ -159,9 +155,9 @@ async function onPopState(e) {
 // modal), which makes a history-entry-per-modal model fragile. If the
 // active modal has no [data-modal-dismiss], it's force-closed directly.
 //
-// This is also what handles the training-builder iframe overlay, which is
-// a .modal-overlay like any other - see openWorkoutBuilderOverlay in the
-// calendar and program-builder screens.
+// This is also what handles the Workout Builder overlay, which is a
+// .modal-overlay like any other - see openWorkoutBuilderOverlay in
+// athlete-detail/calendar/day-modal.js and program-builder.js.
 function closeTopModal() {
   const overlays = document.querySelectorAll('.modal-overlay.active')
   const top = overlays[overlays.length - 1]

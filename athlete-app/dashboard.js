@@ -211,7 +211,7 @@ async function checkAccountState() {
   if (foundAthlete) {
     setAthlete(foundAthlete)
     // needs_password is stamped into signup metadata by sendInviteEmail()
-    // (coach's script.js/athlete.js) the moment the invite creates this
+    // (coach-app/screens/athletes.js and athlete-detail/index.js) the moment the invite creates this
     // account, and cleared once they actually set one below - this is more
     // reliable than trying to sniff the invite-link redirect itself
     // (Supabase's exact redirect shape depends on internal auth flow

@@ -122,7 +122,7 @@ export function renderWeekView(weekStart = startOfWeek(new Date())) {
     // name. Two separate entries that happen to share a name (e.g. two
     // default-named "Field Training" self-logged workouts the same day)
     // used to incorrectly collapse into a single badge here - same fix
-    // already applied to the coach's own calendar (athlete-calendar.js).
+    // already applied to the coach's own calendar (coach-app/screens/athlete-detail/calendar/grid.js).
     // 🙋 prefixes a workout the athlete added themselves (see Add Own
     // Workout) so it's visually distinct from what the coach assigned.
     const badgeEntries = [...new Map(entries.map(entry => [entry.day.id, entry])).values()]

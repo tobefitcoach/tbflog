@@ -1,6 +1,6 @@
 // ==========================================================================
 // COACH SUPABASE CLIENT
-// Used by every coach-facing page (index.html/script.js, athlete.html/athlete.js).
+// Used by the coach app (coach-app/), login/reset-password and app/index.js.
 // storageKey keeps this session separate from the athlete app's session -
 // without it, being logged into one could accidentally log you into the other,
 // since both apps share the same browser storage by default.

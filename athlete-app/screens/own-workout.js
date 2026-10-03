@@ -344,7 +344,7 @@ async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseI
   const orderIndex = existing.length ? Math.max(...existing.map(pe => pe.order_index)) + 1 : 0
 
   // added_by_athlete=true both flags this for the coach's calendar (see
-  // athlete-calendar.js) and is what the "athlete deletes own added
+  // coach-app/screens/athlete-detail/calendar/day-modal.js) and is what the "athlete deletes own added
   // exercises" RLS policy checks - true here regardless of self-logged vs
   // coach-assigned, since it's accurate either way
   const { data, error } = await supabase

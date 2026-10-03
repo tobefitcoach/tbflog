@@ -91,7 +91,7 @@ export async function mount(container, params, ctx) {
   })
 
   // Calendar tab's outside-click (closes its kebab dropdowns) and
-  // Escape-to-disarm-copy - both document-level in athlete-calendar.js,
+  // Escape-to-disarm-copy - both document-level in the old athlete-calendar.js,
   // registered unconditionally there too (the elements they look for don't
   // exist until the Calendar tab has been opened at least once, so these
   // are harmless no-ops until then, exactly like on the original page).

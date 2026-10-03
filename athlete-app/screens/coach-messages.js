@@ -45,7 +45,7 @@ export function maybeShowWeeklyRecap() {
 // A coach can send a message that shows either the next time this athlete
 // opens the app ('on_open'), right before they start their next workout
 // ('before_workout', gated inside startWorkout() below), or as a real push
-// notification ('push', sent immediately from script.js - see sendPush()
+// notification ('push', sent immediately from coach-app/screens/athletes.js - see sendPush()
 // in push.js). A 'push' message is also inserted into this same table as a
 // fallback, in case it's missed/dismissed or the athlete never enabled
 // push on this device - it just falls into the same on-open bucket as

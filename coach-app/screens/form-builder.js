@@ -9,8 +9,7 @@
 // a batched save (each question is independent).
 //
 // This is a drill-down (route.endsWith('-builder')), so it renders its own
-// .screen-header with a back button, same as _placeholder.js's reference
-// treatment - it's the one screen of the three builders that already had an
+// .screen-header with a back button, like the other builders - it's the one screen of the three builders that already had an
 // explicit "Done" affordance in the original (an <a href="forms.html">),
 // kept here as a real button that routes instead of navigating documents.
 //

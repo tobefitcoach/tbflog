@@ -179,7 +179,7 @@
    classes - initTabs() in athlete.js queries .tab-btn/.tab-panel globally,
    so reusing those exact classes inside this modal would make it fight
    with (and break) the page's own Overview/Metrics/Calendar/Settings tabs.
-   See switchDayAddTab() in athlete-calendar.js.
+   See switchDayAddTab() in athlete-detail/calendar/add-day.js.
    ========================================================================== */
 
 .modal-tab-bar {
@@ -203,7 +203,7 @@
 
 /* Calendar tab toolbar (month nav + add-training/assign-program buttons).
    The grid itself (.calendar-grid, .calendar-day, etc.) is styled once
-   athlete-calendar.js actually renders it. */
+   athlete-detail/calendar/grid.js actually renders it. */
 .calendar-toolbar {
   display: flex;
   align-items: center;
@@ -213,7 +213,7 @@
 
 
 /* Hover target while a Copy Week/Copy Workout is armed - see
-   wireCalendarCopyArming() in athlete-calendar.js */
+   wireCalendarCopyArming() in athlete-detail/calendar/copy.js */
 .calendar-day.copy-target-hover {
   border-color: var(--c-accent);
   background-color: rgba(74, 74, 142, 0.3);
@@ -287,7 +287,7 @@
 /* ==========================================================================
    ADD TRAINING POPUP — LIST + PREVIEW LAYOUT
    Left: the Training Library list (picking a row previews it here, doesn't
-   apply it - see selectTrainingForDayBtn in athlete-calendar.js). Right: a
+   apply it - see selectTrainingForDayBtn in athlete-detail/calendar/add-day.js). Right: a
    read-only preview of the selected training's exercises, same idea as the
    athlete app's own day-preview cards.
    ========================================================================== */
@@ -325,7 +325,7 @@
 
 
 /* Drag-to-move a workout badge to a different day - see
-   wireCalendarDragToMove in athlete-calendar.js. Only badges carrying
+   wireCalendarDragToMove in athlete-detail/calendar/grid.js. Only badges carrying
    draggable="true" (real workouts) get the grab cursor. */
 .calendar-day-badge[draggable="true"] {
   cursor: grab;
@@ -343,7 +343,7 @@
 
 /* Real-workout badges pair up with their own kebab (copy/delete) right on
    the calendar grid now - see wireCalendarBadgeKebabs in
-   athlete-calendar.js. min-width:0 on the badge lets its own
+   athlete-detail/calendar/grid.js. min-width:0 on the badge lets its own
    overflow/ellipsis rule (above) still kick in now that it's a flex child
    instead of the direct column item .calendar-day-badges expects. */
 .calendar-day-badge-row {
@@ -356,7 +356,7 @@
 
 /* Status colors: blue = scheduled but not started, orange = athlete is
    mid-workout (an open workout_sessions row, no ended_at yet), green =
-   finished. See sessionByDayId in athlete-calendar.js. */
+   finished. See sessionByDayId in athlete-detail/calendar/grid.js. */
 .calendar-day-dot-planned {
   background-color: #3b82f6;
 }
@@ -459,7 +459,7 @@
 
 /* ==========================================================================
    ATHLETE STATUS BADGE - active/pending/offline/archived, computed by
-   athleteStatus() in script.js/athlete.js from user_id/email/archived
+   athleteStatus() in coach-app/screens/athletes.js and athlete-detail/index.js from user_id/email/archived
    ========================================================================== */
 .athlete-status-badge {
   display: inline-block;
@@ -538,9 +538,9 @@
 /* ==========================================================================
    PAIN/INJURY FLAG - shown when an athlete answers a high RPE with "pain
    or injury" (see wireRpeFlagFollowup, athlete-app/workout/swipe.js). Badge on
-   the dashboard card + Overview tab's report list (script.js/athlete.js);
+   the Athletes card (coach-app/screens/athletes.js);
    .pain-flag-note is the read-only line on Calendar's day detail
-   (athlete-calendar.js).
+   (athlete-detail/calendar/day-modal.js).
    ========================================================================== */
 .pain-flag-badge {
   display: inline-block;
@@ -554,7 +554,7 @@
 
 
 /* Low on (or out of) scheduled trainings - see isLowOnTrainings() in
-   script.js. Deliberately louder than every other card badge (solid fill,
+   coach-app/screens/athletes.js. Deliberately louder than every other card badge (solid fill,
    not a tinted pill) since this is the one thing meant to grab attention
    at a glance while scanning the Athletes list. */
 .low-trainings-badge {
@@ -987,8 +987,8 @@
 }
 
 
-/* --- Supersets: link icon + picking mode + partner badge, shared by
-   training-builder.js/program-builder.js/athlete-calendar.js --- */
+/* --- Supersets: link icon + picking mode + partner badge, used by
+   training-builder.js and section-builder.js --- */
 .builder-exercise-card.picking-self {
   outline: 2px solid #4fc3f7;
   outline-offset: 2px;
@@ -1045,8 +1045,8 @@
 
 
 /* Dragged via the ⠿ handle to reorder exercises - see the dragstart/
-   dragover/dragend listeners in training-builder.js/program-builder.js/
-   athlete-calendar.js */
+   dragover/dragend listeners in training-builder.js and
+   section-builder.js */
 .builder-exercise-card.dragging {
   opacity: 0.4;
 }

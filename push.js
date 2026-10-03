@@ -97,10 +97,10 @@ export async function disablePush(supabase) {
   return true
 }
 
-// Fire-and-forget helper for the two features that actually send a push
-// (notifyCoach in dashboard.js, the coach's "push" message timing in
-// script.js) - both already never await their own notification calls, so
-// this matches that convention. url should already be absolute (built with
+// Fire-and-forget helper for every push the apps send (athlete -> coach in
+// athlete-app/screens/tournaments.js; coach -> athlete in coach-app's
+// athletes.js, communication.js and athlete-detail/report.js) - none of
+// them await it, so a slow or failed push never holds up the save. url should already be absolute (built with
 // `new URL(path, window.location.href).href`) since the service worker has
 // no page context of its own to resolve a relative one against.
 export async function sendPush(supabase, userId, title, body, url) {

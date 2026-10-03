@@ -255,7 +255,7 @@ header {
   position: relative;
 }
 
-/* Expands directly under "Library" on click (see sidebar.js) - no longer a
+/* Expands directly under "Library" on click (see initSidebar() in coach-app/dashboard.js) - no longer a
    hover-triggered side flyout, both because that didn't work on touch
    screens at all, and because clicking-to-expand-underneath reads clearer */
 .sidebar-submenu {
@@ -412,7 +412,8 @@ header {
 }
 
 /* Quick-glance stat rows on each athlete card - ACWR / Programmed Through /
-   30-Day Completion, computed in script.js's computeAthleteCardStats(). Any
+   30-Day Completion, computed by the coach_athlete_card_stats database
+   function (see coach-app/screens/athletes.js). Any
    risk/status badge renders on its own line below the label+value row
    (rather than crammed into it) so a long badge like "Needs New Program"
    never forces the row to overflow the card on narrow widths. */
@@ -868,7 +869,7 @@ header {
   /* Phone nav is a floating bottom pill now, matching the athlete app's
      .bottom-nav (see athlete-app/app.css) instead of the cramped
      horizontal strip this used to be under the header. Reuses the exact
-     same .sidebar/.sidebar-links/.sidebar-item-hover/sidebar.js
+     same .sidebar/.sidebar-links/.sidebar-item-hover/initSidebar()
      structure/logic as desktop - only position/layout change here, no
      markup or JS difference between the two. */
   .sidebar,
@@ -895,7 +896,7 @@ header {
      equivalent space to reclaim on mobile, so the whole toggle is hidden
      here and the nav always stays visible. The !important is needed
      because a collapsed state from a desktop visit is remembered in
-     localStorage (see sidebar.js) and can carry over to a phone, where
+     localStorage (see initSidebar() in coach-app/dashboard.js) and can carry over to a phone, where
      there'd otherwise be no visible button left to un-collapse it with. */
   .sidebar-toggle-btn {
     display: none;
