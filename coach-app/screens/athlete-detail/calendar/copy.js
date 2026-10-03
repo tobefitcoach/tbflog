@@ -23,10 +23,22 @@ import { setDayLiveLink } from './pickers.js?v=__V__'
 // wireCalendarCopyArming below). Escape disarms too - see the keydown listener in mount()
 // in mount(), which already calls disarmCopy() below.
 // ==========================================================================
+// The source week's workouts are noted down now, while that week is on
+// screen: only the month being shown is loaded (see loadCalendarMonth), and
+// the coach may well click Next before choosing where to paste. Deduped by
+// day.id the same way renderCalendarGrid's own badge list does, so a day
+// with several workouts scheduled gets all of them copied.
 function armCopyWeek(mondayStr) {
   cal.copyArmedMode = 'week'
   cal.copyArmedIsMove = false // guards against re-arming week-copy while a workout-move was left armed
   cal.copyArmedSourceMonday = mondayStr
+  const monday = parseDateStr(mondayStr)
+  cal.copyArmedSourceWeek = []
+  for (let i = 0; i < 7; i++) {
+    const dateStr = toDateStr(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i))
+    const entries = [...new Map((cal.calendarEntriesByDate[dateStr] || []).map(e => [e.day.id, e])).values()]
+    cal.copyArmedSourceWeek.push(entries.map(entry => ({ dayId: entry.day.id, name: trainingDisplayName(entry) })))
+  }
   cal.copyArmedSourceDayId = null
   cal.copyArmedSourceName = null
   cal.copyArmedHoverKey = null
@@ -67,6 +79,7 @@ export function disarmCopy() {
   cal.copyArmedSourceDayId = null
   cal.copyArmedSourceName = null
   cal.copyArmedSourceMonday = null
+  cal.copyArmedSourceWeek = null
   cal.copyArmedHoverKey = null
   root.querySelector('#copyArmedBar').classList.remove('active')
   clearCopyHoverHighlight()
@@ -119,22 +132,17 @@ function updateCopyHoverHighlight(cellEl) {
   }
 }
 
-// Loops the 7 days from sourceMonday to targetMonday, reusing
-// cloneDayToDate() below as-is for each scheduled day - it already does the
-// full clone (fresh ad-hoc program/week/day, superset/section id remap,
-// overrides carried over), so this is just that function called once per
-// matched day. Dedupes by day.id the same way renderCalendarGrid's own
-// badge list does, so a day with several workouts scheduled gets all of
-// them copied, not just the first.
-async function performCopyWeek(sourceMonday, targetMonday) {
-  const fromStart = parseDateStr(sourceMonday)
+// Copies the week noted down by armCopyWeek onto the week starting
+// targetMonday, reusing cloneDayToDate() below as-is for each scheduled day
+// - it already does the full clone (fresh ad-hoc program/week/day,
+// superset/section id remap, overrides carried over), so this is just that
+// function called once per workout.
+async function performCopyWeek(sourceWeek, targetMonday) {
   const toStart = parseDateStr(targetMonday)
   for (let i = 0; i < 7; i++) {
-    const sourceDate = toDateStr(new Date(fromStart.getFullYear(), fromStart.getMonth(), fromStart.getDate() + i))
     const targetDate = toDateStr(new Date(toStart.getFullYear(), toStart.getMonth(), toStart.getDate() + i))
-    const entries = [...new Map((cal.calendarEntriesByDate[sourceDate] || []).map(e => [e.day.id, e])).values()]
-    for (const entry of entries) {
-      await cloneDayToDate(entry.day.id, trainingDisplayName(entry), targetDate)
+    for (const { dayId, name } of sourceWeek[i]) {
+      await cloneDayToDate(dayId, name, targetDate)
     }
   }
   await loadCalendarMonth(cal.currentViewYear, cal.currentViewMonth)
@@ -216,9 +224,10 @@ export function wireCalendarCopyArming(grid) {
     if (cal.copyArmedMode === 'week') {
       const targetMonday = cell.dataset.weekMonday
       const sourceMonday = cal.copyArmedSourceMonday
+      const sourceWeek = cal.copyArmedSourceWeek
       if (keepArmed) { cal.copyArmedHoverKey = null } else { disarmCopy() }
       if (targetMonday === sourceMonday) return
-      await performCopyWeek(sourceMonday, targetMonday)
+      await performCopyWeek(sourceWeek, targetMonday)
     } else if (cal.copyArmedIsMove) {
       const targetDate = cell.dataset.date
       const sourceDayId = cal.copyArmedSourceDayId

@@ -134,6 +134,7 @@ function initialCalendar() {
     mobilityEntriesByDateCal: {}, // 'YYYY-MM-DD' -> workout_sessions row with session_type='mobility'
     tournamentsByDateCal: {}, // 'YYYY-MM-DD' -> tournaments row (athlete-added, read-only here)
     formAssignmentsByDateCal: {}, // 'YYYY-MM-DD' -> array of form_assignments rows (joined with forms(name, gate_workout))
+    monthCache: {}, // 'YYYY-M' -> { at, promise } - recently loaded months, see loadCalendarMonth
     calendarLoaded: false,
     currentDayDateForModal: null, // date currently shown in the day-detail modal
 
@@ -171,6 +172,7 @@ function initialCalendar() {
     copyArmedSourceDayId: null,
     copyArmedSourceName: null,
     copyArmedSourceMonday: null,
+    copyArmedSourceWeek: null, // week-copy: [[{ dayId, name }], ...] for Mon..Sun, taken when armed - see armCopyWeek
     copyArmedHoverKey: null,
 
     // ---- Section tab ----

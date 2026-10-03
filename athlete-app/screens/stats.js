@@ -5,9 +5,10 @@ import * as nav from '../nav.js?v=__V__'
 import { escapeHtml } from '../../escape.js?v=__V__'
 import { toDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { pageContent, athlete, coachMobilityEnabled } from '../state.js?v=__V__'
-import { mobilitySessionsByDate } from '../data.js?v=__V__'
+import { ensureDatesLoaded, mobilitySessionsByDate } from '../data.js?v=__V__'
 import { CHEVRON_LEFT, CHEVRON_RIGHT, formatShortDate, formatWeight } from '../format.js?v=__V__'
 import { computeWeekRecap } from './coach-messages.js?v=__V__'
+import { computeWeekPREvents } from '../workout/prs.js?v=__V__'
 import { tournamentsByDate } from './tournaments.js?v=__V__'
 
 // ==========================================================================
@@ -70,7 +71,20 @@ export function formatPRBadgeValue(value, isWeight) {
   return Math.round(value).toLocaleString()
 }
 
-function renderWeeklyStatsBody(weekStart) {
+// PRs fill in a moment after the rest: they compare against the athlete's
+// whole history, which is a database query (see computeWeekPREvents). The
+// body remembers which week it's showing, so a slow answer for a week the
+// athlete has already stepped away from is dropped.
+async function renderWeeklyStatsBody(weekStart) {
+  const body = document.getElementById('weeklyStatsBody')
+  const weekKey = toDateStr(weekStart)
+  const stillShowing = () => body.isConnected && body.dataset.week === weekKey
+  body.dataset.week = weekKey
+
+  // Normally a no-op - the last 8 weeks are loaded on open (see data.js)
+  await ensureDatesLoaded(weekKey, toDateStr(addDays(weekStart, 6)))
+  if (!stillShowing()) return
+
   const stats = computeWeekRecap(weekStart)
   const durationMin = Math.round(stats.totalDurationMs / 60000)
   const durationText = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : `${durationMin}m`
@@ -79,30 +93,36 @@ function renderWeeklyStatsBody(weekStart) {
     { value: `${stats.scheduledCompletedCount} / ${stats.scheduledCount}`, label: 'Workouts' },
     ...(stats.hasVolumeData ? [{ value: `${Math.round(formatWeight(stats.totalVolume, athlete.weight_unit))}${athlete.weight_unit || 'kg'}`, label: 'Volume' }] : []),
     { value: durationText, label: 'Training Time' },
-    { value: `${stats.prEvents.length}`, label: 'PRs' },
+    { value: '…', label: 'PRs', id: 'weeklyPRCount' },
   ]
 
-  document.getElementById('weeklyStatsBody').innerHTML = `
+  body.innerHTML = `
     <div class="stats-grid">
       ${tiles.map(t => `
         <div class="stats-grid-tile">
-          <div class="workout-summary-stat-value">${t.value}</div>
+          <div class="workout-summary-stat-value"${t.id ? ` id="${t.id}"` : ''}>${t.value}</div>
           <div class="workout-summary-stat-label">${t.label}</div>
         </div>
       `).join('')}
     </div>
-    ${stats.prEvents.length ? `
-      <div class="stats-section">
-        <p class="stats-section-title">Personal Records</p>
-        <div class="summary-exercise-list">${stats.prEvents.map(e => `
-          <div class="summary-exercise-row">
-            <div class="summary-exercise-name"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${e.exerciseName}</div>
-            ${e.badges.map(b => `<p class="summary-exercise-sets">${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</p>`).join('')}
-          </div>
-        `).join('')}</div>
-      </div>
-    ` : ''}
+    <div id="weeklyPRSection"></div>
     ${stats.scheduledCount === 0 && stats.totalWorkouts === 0 ? '<p class="no-metrics" style="margin-top:16px">Nothing logged this week</p>' : ''}
+  `
+
+  const prEvents = await computeWeekPREvents(weekStart)
+  if (!stillShowing()) return
+  document.getElementById('weeklyPRCount').textContent = prEvents ? `${prEvents.length}` : '—'
+  if (!prEvents || prEvents.length === 0) return
+  document.getElementById('weeklyPRSection').innerHTML = `
+    <div class="stats-section">
+      <p class="stats-section-title">Personal Records</p>
+      <div class="summary-exercise-list">${prEvents.map(e => `
+        <div class="summary-exercise-row">
+          <div class="summary-exercise-name"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg> ${escapeHtml(e.exerciseName)}</div>
+          ${e.badges.map(b => `<p class="summary-exercise-sets">${b.label}: ${formatPRBadgeValue(b.before, b.isWeight)} → ${formatPRBadgeValue(b.after, b.isWeight)}</p>`).join('')}
+        </div>
+      `).join('')}</div>
+    </div>
   `
 }
 

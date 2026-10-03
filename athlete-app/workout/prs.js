@@ -116,14 +116,16 @@ export async function loadAndRenderPRBadges(session, entry) {
 
 // Same bucket-by-(exercise_id, date) + beat-your-own-best comparison as
 // loadAndRenderPRBadges above, generalized from "today" to any 7-day
-// window and run entirely off data already in entriesByDate/logSetsByPE
-// (loadTrainingData's queries are unbounded) instead of a fresh network
-// query - used by the Weekly Stats view (computeWeekRecap) to report which
-// PRs, if any, were set during a picked past week
-export function computeWeekPREvents(weekStart) {
+// window - used by the Weekly Stats view (computeWeekRecap) to report which
+// PRs, if any, were set during a picked past week. The week's own sets come
+// from the loaded days; the earlier bests are asked of the database, since
+// only a window of dates is loaded in memory (see data.js). Resolves null
+// if that query fails.
+export async function computeWeekPREvents(weekStart) {
   const buckets = {}
-  for (const dateStr in entriesByDate) {
-    for (const entry of entriesByDate[dateStr]) {
+  for (let i = 0; i < 7; i++) {
+    const dateStr = toDateStr(addDays(weekStart, i))
+    for (const entry of entriesByDate[dateStr] || []) {
       for (const pe of entry.day.program_exercises) {
         const sets = (logSetsByPE[pe.id] || []).filter(s => s.completed_at)
         if (sets.length === 0) continue
@@ -133,24 +135,37 @@ export function computeWeekPREvents(weekStart) {
       }
     }
   }
+  const exerciseIds = [...new Set(Object.values(buckets).map(b => b.exerciseId))]
+  if (exerciseIds.length === 0) return []
 
-  const weekDateStrs = new Set()
-  for (let i = 0; i < 7; i++) weekDateStrs.add(toDateStr(addDays(weekStart, i)))
+  // Every completed set on these exercises up to the end of the week, one
+  // bucket per (exercise_id, date) - same grouping loadAndRenderPRBadges uses
+  const { data: pastSets, error } = await fetchAllRows(fetchWithRetry, () => supabase
+    .from('exercise_log_sets')
+    .select('*, program_exercises!inner(exercise_id)')
+    .in('program_exercises.exercise_id', exerciseIds)
+    .not('completed_at', 'is', null)
+    .lte('date', toDateStr(addDays(weekStart, 6)))
+  )
+  if (error) { console.log('Error loading PR history:', error); return null }
+  const history = {}
+  for (const s of pastSets) {
+    const key = `${s.program_exercises.exercise_id}|${s.date}`
+    ;(history[key] ||= { exerciseId: s.program_exercises.exercise_id, date: s.date, sets: [] }).sets.push(s)
+  }
 
   const events = []
   for (const key in buckets) {
     const bucket = buckets[key]
-    if (!weekDateStrs.has(bucket.date)) continue
     const stats = sessionExerciseStats(bucket.sets)
 
     let bestVolume = 0, bestReps = 0, bestWeight = 0, bestOneRM = 0, bestSets = 0, hasHistory = false
-    for (const otherKey in buckets) {
-      if (otherKey === key || !otherKey.startsWith(bucket.exerciseId + '|')) continue
+    for (const earlier of Object.values(history)) {
       // Only earlier sessions: a PR set in a past week stays a PR in that
       // week's stats even after the athlete beats it later
-      if (buckets[otherKey].date >= bucket.date) continue
+      if (earlier.exerciseId !== bucket.exerciseId || earlier.date >= bucket.date) continue
       hasHistory = true
-      const otherStats = sessionExerciseStats(buckets[otherKey].sets)
+      const otherStats = sessionExerciseStats(earlier.sets)
       bestVolume = Math.max(bestVolume, otherStats.volume)
       bestReps = Math.max(bestReps, otherStats.totalReps)
       bestWeight = Math.max(bestWeight, otherStats.maxWeight)

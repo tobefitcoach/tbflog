@@ -6,9 +6,9 @@
 import { supabase } from '../athleteClient.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { escapeHtml } from '../../escape.js?v=__V__'
-import { toDateStr, parseDateStr, startOfWeek } from '../../shared/dates.js?v=__V__'
+import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
-import { completedSessionsByDayId, entriesByDate, formAssignmentsByDate, loadTrainingData } from '../data.js?v=__V__'
+import { completedSessionsByDayId, ensureDatesLoaded, entriesByDate, formAssignmentsByDate, loadTrainingData } from '../data.js?v=__V__'
 import { CHEVRON_LEFT, formatDisplayDate, weightToKg } from '../format.js?v=__V__'
 import { insertOnce, loadPendingQueue, saveWithRetry } from '../outbox.js?v=__V__'
 import { renderDayPreviewGroup, renderFormFill } from './form-fill.js?v=__V__'
@@ -164,7 +164,9 @@ export function wireMoveWorkoutModal() {
 
     document.getElementById('moveWorkoutModal').classList.remove('active')
     await loadTrainingData()
-    renderWeekView(startOfWeek(parseDateStr(newDate)))
+    const newWeek = startOfWeek(parseDateStr(newDate))
+    await ensureDatesLoaded(toDateStr(newWeek), toDateStr(addDays(newWeek, 6)))
+    renderWeekView(newWeek)
   })
 }
 

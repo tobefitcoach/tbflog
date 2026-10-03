@@ -64,13 +64,13 @@ export function bindCalendarStaticEvents() {
   root.querySelector('#calPrevBtn').addEventListener('click', function() {
     cal.currentViewMonth--
     if (cal.currentViewMonth < 0) { cal.currentViewMonth = 11; cal.currentViewYear-- }
-    loadCalendarMonth(cal.currentViewYear, cal.currentViewMonth)
+    loadCalendarMonth(cal.currentViewYear, cal.currentViewMonth, { fromCache: true })
   })
 
   root.querySelector('#calNextBtn').addEventListener('click', function() {
     cal.currentViewMonth++
     if (cal.currentViewMonth > 11) { cal.currentViewMonth = 0; cal.currentViewYear++ }
-    loadCalendarMonth(cal.currentViewYear, cal.currentViewMonth)
+    loadCalendarMonth(cal.currentViewYear, cal.currentViewMonth, { fromCache: true })
   })
 
   const dayDetailContent = root.querySelector('#dayDetailContent')

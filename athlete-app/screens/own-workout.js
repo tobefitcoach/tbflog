@@ -187,13 +187,29 @@ export async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise
 }
 
 // Every exercise the athlete has ever self-added to one of their own
-// workouts, most recently first - pure client-side derivation from
-// entriesByDate (already loaded by loadTrainingData(), no extra query
-// needed) mapped back through the current library so an archived/deleted
-// exercise never shows up. Powers the "Recently Logged" shortcut in
-// renderOwnWorkoutBuilder, so a repeat gym day doesn't mean re-searching
-// for the same handful of exercises every time.
-function getRecentlyLoggedExercises(library, limit) {
+// workouts, most recently first, mapped back through the current library so
+// an archived/deleted exercise never shows up. Powers the "Recently Logged"
+// shortcut in renderOwnWorkoutBuilder, so a repeat gym day doesn't mean
+// re-searching for the same handful of exercises every time.
+// Asked of the database (newest 200 rows is plenty for 6 shortcuts): only a
+// window of dates is loaded in memory (see data.js), and an athlete who
+// self-logs rarely should still see what they did last time. If that
+// query fails, falls back to whatever is loaded.
+async function loadRecentlyLoggedIds() {
+  const { data, error } = await saveWithRetry((signal) => supabase
+    .from('program_exercises')
+    .select('exercise_id, created_at, program_days!inner(program_weeks!inner(programs!inner(athlete_id, created_by_athlete)))')
+    .eq('program_days.program_weeks.programs.athlete_id', athlete.id)
+    .eq('program_days.program_weeks.programs.created_by_athlete', true)
+    .order('created_at', { ascending: false })
+    .limit(200)
+    .abortSignal(signal)
+  )
+  if (error) { console.log('Error loading recently logged exercises:', error); return null }
+  return [...new Set(data.map(row => row.exercise_id))]
+}
+
+function recentIdsFromLoadedDays() {
   const latestCreatedAt = new Map() // exercise_id -> most recent created_at it was added at
   for (const dateStr in entriesByDate) {
     for (const entry of entriesByDate[dateStr]) {
@@ -204,9 +220,12 @@ function getRecentlyLoggedExercises(library, limit) {
       }
     }
   }
-  return [...latestCreatedAt.entries()]
-    .sort((a, b) => b[1].localeCompare(a[1]))
-    .map(([exerciseId]) => library.find(ex => ex.id === exerciseId))
+  return [...latestCreatedAt.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([exerciseId]) => exerciseId)
+}
+
+function getRecentlyLoggedExercises(library, recentIds, limit) {
+  return (recentIds || recentIdsFromLoadedDays())
+    .map(exerciseId => library.find(ex => ex.id === exerciseId))
     .filter(Boolean)
     .slice(0, limit)
 }
@@ -238,7 +257,7 @@ export async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
 
   document.getElementById('ownBuilderBackBtn').addEventListener('click', nav.back)
 
-  const library = await loadExerciseLibrary()
+  const [library, recentIds] = await Promise.all([loadExerciseLibrary(), loadRecentlyLoggedIds()])
   if (library === null) return
   if (!nav.isCurrent(myToken)) return // navigated away while the library loaded - #ownBuilderCategoryChips is gone
 
@@ -279,7 +298,7 @@ export async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
     )
 
     const showRecents = !search && activeCategoryFilters.size === 0
-    const recents = showRecents ? getRecentlyLoggedExercises(library, 6) : []
+    const recents = showRecents ? getRecentlyLoggedExercises(library, recentIds, 6) : []
     const recentIds = new Set(recents.map(ex => ex.id))
     const rest = filtered.filter(ex => !recentIds.has(ex.id))
 

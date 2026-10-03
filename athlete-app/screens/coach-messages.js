@@ -8,7 +8,6 @@ import { toDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { athlete, wk } from '../state.js?v=__V__'
 import { completedSessionsByDayId, entriesByDate, logSetsByPE } from '../data.js?v=__V__'
 import { saveWithRetry } from '../outbox.js?v=__V__'
-import { computeWeekPREvents } from '../workout/prs.js?v=__V__'
 
 // ==========================================================================
 // ---- WEEKLY RECAP POPUP ----
@@ -119,8 +118,9 @@ export function maybeShowOnOpenMessages() {
 }
 
 // Also powers the on-demand Weekly Stats view (see renderWeeklyStats
-// below) - scheduledCount/scheduledCompletedCount/totalVolume/hasVolumeData/
-// prEvents are additive fields that view needs; totalWorkouts/totalSets/
+// below) - scheduledCount/scheduledCompletedCount/totalVolume/hasVolumeData
+// are additive fields that view needs (its PRs come separately, see
+// computeWeekPREvents); totalWorkouts/totalSets/
 // totalReps/totalDurationMs keep their exact original meaning and
 // accumulation so the auto-popup above is unaffected
 export function computeWeekRecap(weekStart) {
@@ -169,8 +169,7 @@ export function computeWeekRecap(weekStart) {
 
   return {
     totalWorkouts, totalSets, totalReps, totalDurationMs,
-    scheduledCount, scheduledCompletedCount, totalVolume, hasVolumeData,
-    prEvents: computeWeekPREvents(weekStart)
+    scheduledCount, scheduledCompletedCount, totalVolume, hasVolumeData
   }
 }
 

@@ -7,7 +7,7 @@ import * as nav from '../nav.js?v=__V__'
 import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
 import { pageContent, pageWrap, cardWrap, athlete, coachMobilityEnabled } from '../state.js?v=__V__'
-import { completedSessionsByDayId, dayIsFullyLogged, entriesByDate, formAssignmentsByDate, formatSetTargets, loadTrainingData, mobilitySessionsByDate, openSessionsByDayId } from '../data.js?v=__V__'
+import { completedSessionsByDayId, dayIsFullyLogged, ensureDatesLoaded, entriesByDate, formAssignmentsByDate, formatSetTargets, isDateLoaded, loadTrainingData, mobilitySessionsByDate, openSessionsByDayId } from '../data.js?v=__V__'
 import { CHEVRON_LEFT, CHEVRON_RIGHT, DAY_NAMES, WORKOUT_TYPE_ICON_SVG, formatShortDate, formatTimedReps, formatWeight } from '../format.js?v=__V__'
 import { flushPendingQueue, loadPendingQueue, savePendingQueueToStorage } from '../outbox.js?v=__V__'
 import { openLogWeightModal, renderDayPreview } from './day-preview.js?v=__V__'
@@ -88,7 +88,7 @@ export function playInlineVideo(containerEl, url) {
 // ---- WEEK VIEW (default landing) ----
 // ==========================================================================
 export function renderWeekView(weekStart = startOfWeek(new Date())) {
-  nav.enter('home', { weekStart }, { root: true, tab: 'home' })
+  const token = nav.enter('home', { weekStart }, { root: true, tab: 'home' })
   currentWeekStart = weekStart
   // Only screen that ever needs to clear .centered: it's the sole landing
   // point for the real app (see enterWeekView), reached either fresh or,
@@ -251,8 +251,19 @@ export function renderWeekView(weekStart = startOfWeek(new Date())) {
     cardEl.addEventListener('click', function() { renderDayPreview(cardEl.dataset.date) })
   })
 
-  document.getElementById('weekPrevBtn').addEventListener('click', function() {
-    renderWeekView(addDays(weekStart, -7))
+  // Only a window of weeks is loaded (see data.js) - stepping back past it
+  // waits for that week first. Usually it's already there: the line at the
+  // bottom of this function keeps the weeks behind this one loading.
+  document.getElementById('weekPrevBtn').addEventListener('click', async function() {
+    const prevWeek = addDays(weekStart, -7)
+    if (!isDateLoaded(toDateStr(prevWeek))) {
+      this.disabled = true
+      const loaded = await ensureDatesLoaded(toDateStr(prevWeek), toDateStr(addDays(prevWeek, 6)))
+      if (!nav.isCurrent(token)) return
+      this.disabled = false
+      if (!loaded) { customAlert('Couldn\'t load that week - check your connection and try again'); return }
+    }
+    renderWeekView(prevWeek)
   })
   document.getElementById('weekNextBtn').addEventListener('click', function() {
     if (nextEnabled) renderWeekView(addDays(weekStart, 7))
@@ -280,6 +291,11 @@ export function renderWeekView(weekStart = startOfWeek(new Date())) {
   })
 
   wireSyncBanner(function() { renderWeekView(weekStart) })
+
+  // Quietly load the weeks behind this one, so the back arrow doesn't have
+  // to wait (no-op when they're already loaded)
+  const twoWeeksBack = addDays(weekStart, -14)
+  ensureDatesLoaded(toDateStr(twoWeeksBack), toDateStr(addDays(twoWeeksBack, 6)))
 }
 
 // ==========================================================================

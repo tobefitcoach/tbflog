@@ -11,6 +11,7 @@ import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../../shared/d
 import { root, mountToken, athleteId, currentAthlete, ov } from './state.js?v=__V__'
 import { convertValue } from './metrics.js?v=__V__'
 import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
+import { fetchScheduleRange } from '../../../shared/schedule-range.js?v=__V__'
 
 // ==========================================================================
 // ---- OVERVIEW STATS: completion rate + volume ----
@@ -65,6 +66,17 @@ export async function loadOverviewStatsGuarded() {
   }
 }
 
+async function loadScheduleForStats(from, to) {
+  const schedule = await fetchScheduleRange(supabase, window.fetchWithRetry, athleteId, from, to)
+  if (!schedule.missing) return { data: schedule.programs, error: schedule.error }
+  return fetchAllRows(window.fetchWithRetry, () => supabase
+    .from('programs')
+    .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(tracks_weight))))')
+    .eq('athlete_id', athleteId)
+    .eq('is_template', false)
+  )
+}
+
 export async function loadOverviewStats() {
   const ninetyDaysAgo = toDateStr(addDays(new Date(), -89))
   const ninetyDaysAgoISO = addDays(new Date(), -89).toISOString()
@@ -76,17 +88,17 @@ export async function loadOverviewStats() {
   // through window.fetchWithRetry so a slow/flaky connection gets a couple
   // of automatic retries instead of these stats just staying blank with no
   // explanation.
+  //
+  // The schedule only needs the window these stats cover, not the whole
+  // history (see athlete_schedule_range in sql-history.sql) - 30 days more
+  // than the 90, so a set logged late still finds the workout it belongs to.
+  // Until that function is installed, falls back to the whole schedule.
   const [
     { data: programs, error: programsError },
     { data: logSets, error: logError },
     { data: sessions, error: sessionsError }
   ] = await Promise.all([
-    fetchAllRows(window.fetchWithRetry, () => supabase
-      .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(tracks_weight))))')
-      .eq('athlete_id', athleteId)
-      .eq('is_template', false)
-    ),
+    loadScheduleForStats(toDateStr(addDays(new Date(), -119)), toDateStr(new Date())),
     fetchAllRows(window.fetchWithRetry, () => supabase
       .from('exercise_log_sets')
       .select('*')

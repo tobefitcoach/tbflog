@@ -13,6 +13,7 @@ import { openDayAddTrainingModal } from './add-day.js?v=__V__'
 import { armCopyWorkout, armMoveWorkout } from './copy.js?v=__V__'
 import { deleteFormAssignment, deleteMobilitySession, deleteTraining, openFormDetailModal, openMobilityDetailModal, openTournamentDetailModal, openWorkoutDetailModal } from './day-modal.js?v=__V__'
 import { fetchAllRows, fetchAllRowsForIds } from '../../../../shared/fetch-all.js?v=__V__'
+import { fetchScheduleRange } from '../../../../shared/schedule-range.js?v=__V__'
 
 // ==========================================================================
 // ---- CALENDAR TAB: DATE HELPERS ----
@@ -119,57 +120,83 @@ async function syncLiveTrainingDaysCal(programs) {
 
 // ==========================================================================
 // ---- LOAD + RENDER MONTH GRID ----
+// Only the 6 weeks the grid shows are loaded for a month, not the athlete's
+// whole history (see athlete_schedule_range in sql-history.sql). Each month
+// loaded is remembered in cal.monthCache for a couple of minutes, and the
+// months either side load in the background, so Prev/Next is usually
+// instant. Any other reload (after an add/copy/move/delete) forgets every
+// remembered month first, since an edit can touch more than the one shown.
+// Until the SQL function is installed, each month falls back to the old
+// download of everything.
 // ==========================================================================
-export async function loadCalendarMonth(year, month) {
-  const token = mountToken
-  root.querySelector('#calMonthLabel').textContent = `${MONTH_NAMES[month]} ${year}`
+const MONTH_CACHE_MS = 2 * 60 * 1000
+let rangeFunctionMissing = false
 
-  // Programs, sessions, and logged sets don't depend on each other, so they fire together
-  const [
-    { data, error },
-    { data: sessions, error: sessionsError },
-    { data: logSets, error: logSetsError },
-    { data: tournaments, error: tournamentsError },
-    { data: formAssignments, error: formAssignmentsError }
-  ] = await Promise.all([
-    fetchAllRows(window.fetchWithRetry, () => supabase
-      .from('programs')
-      .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
-      .eq('athlete_id', athleteId)
-      .eq('is_template', false)
-    ),
-    fetchAllRows(window.fetchWithRetry, () => supabase
-      .from('workout_sessions')
-      .select('*') // '*' (not a column list) so athlete_note comes through once its migration has run, without breaking this query before then
-      .eq('athlete_id', athleteId)
-    ),
-    fetchAllRows(window.fetchWithRetry, () => supabase
-      .from('exercise_log_sets')
-      .select('*')
-      .eq('athlete_id', athleteId)
-    ),
+// The grid always shows 42 days starting on the Monday on/before the 1st -
+// see renderCalendarGrid
+function gridRange(year, month) {
+  const startWeekday = (new Date(year, month, 1).getDay() + 6) % 7
+  return { from: toDateStr(new Date(year, month, 1 - startWeekday)), to: toDateStr(new Date(year, month, 42 - startWeekday)) }
+}
+
+async function fetchMonthData(id, from, to) {
+  const [schedule, { data: tournaments, error: tournamentsError }, { data: formAssignments, error: formAssignmentsError }] = await Promise.all([
+    rangeFunctionMissing ? { missing: true } : fetchScheduleRange(supabase, window.fetchWithRetry, id, from, to),
     fetchAllRows(window.fetchWithRetry, () => supabase
       .from('tournaments')
       .select('*')
-      .eq('athlete_id', athleteId)
+      .eq('athlete_id', id)
+      .lte('date', to)
+      .gte('end_date', from)
     ),
     fetchAllRows((factory) => window.fetchWithRetry(factory, 1), () => supabase
       .from('form_assignments')
       .select('*, forms(name, gate_workout), form_answers(id)')
-      .eq('athlete_id', athleteId)
+      .eq('athlete_id', id)
+      .gte('date', from)
+      .lte('date', to)
     )
   ])
+  if (tournamentsError) console.log('Error loading tournaments for calendar:', tournamentsError)
+  if (formAssignmentsError) console.log('Error loading form assignments for calendar:', formAssignmentsError)
 
-  if (!nav.isCurrent(token)) return
+  let { programs, logSets, sessions } = schedule
+  if (schedule.missing) {
+    if (!rangeFunctionMissing) console.log('athlete_schedule_range is not installed yet - run it from sql-history.sql. Loading full history instead.')
+    rangeFunctionMissing = true
+    const [
+      { data, error },
+      { data: allSessions, error: sessionsError },
+      { data: allSets, error: logSetsError }
+    ] = await Promise.all([
+      fetchAllRows(window.fetchWithRetry, () => supabase
+        .from('programs')
+        .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
+        .eq('athlete_id', id)
+        .eq('is_template', false)
+      ),
+      fetchAllRows(window.fetchWithRetry, () => supabase
+        .from('workout_sessions')
+        .select('*') // '*' (not a column list) so athlete_note comes through once its migration has run, without breaking this query before then
+        .eq('athlete_id', id)
+      ),
+      fetchAllRows(window.fetchWithRetry, () => supabase
+        .from('exercise_log_sets')
+        .select('*')
+        .eq('athlete_id', id)
+      )
+    ])
+    if (error) return { error }
+    if (sessionsError) console.log('Error loading sessions for calendar:', sessionsError)
+    if (logSetsError) console.log('Error loading logged sets for calendar:', logSetsError)
+    programs = data
+    sessions = allSessions || []
+    logSets = allSets || []
+  } else if (schedule.error) {
+    return { error: schedule.error }
+  }
 
-  if (error) { console.log('Error loading calendar:', error); customAlert('Something went wrong loading the calendar - check your connection and try again'); return }
-  if (sessionsError) { console.log('Error loading sessions for calendar:', sessionsError) }
-  if (logSetsError) { console.log('Error loading logged sets for calendar:', logSetsError) }
-  if (tournamentsError) { console.log('Error loading tournaments for calendar:', tournamentsError) }
-  if (formAssignmentsError) { console.log('Error loading form assignments for calendar:', formAssignmentsError) }
-
-  await syncLiveTrainingDaysCal(data)
-  if (!nav.isCurrent(token)) return
+  await syncLiveTrainingDaysCal(programs)
 
   // A coach-added tournament carries no rating on its own row (the athlete
   // can read that row) - the coach's private rating is in
@@ -189,18 +216,51 @@ export async function loadCalendarMonth(year, month) {
     for (const t of coachAddedTournaments) t.importance = ratingById[t.id] ?? null
   }
 
+  return { programs, logSets, sessions, tournaments: tournaments || [], formAssignments: formAssignments || [] }
+}
+
+// The month's data, from cal.monthCache when it's fresh. The promise goes
+// into the cache straight away, so clicking onto a month whose background
+// load is still running waits for that one instead of asking twice.
+function fetchMonth(year, month) {
+  const key = `${year}-${month}`
+  const hit = cal.monthCache[key]
+  if (hit && Date.now() - hit.at < MONTH_CACHE_MS) return hit.promise
+  const { from, to } = gridRange(year, month)
+  const promise = fetchMonthData(athleteId, from, to)
+  const cache = cal.monthCache
+  cache[key] = { at: Date.now(), promise }
+  promise.then(result => { if (result.error && cache[key]?.promise === promise) delete cache[key] })
+  return promise
+}
+
+// fromCache: only Prev/Next pass it - every other caller is reloading
+// because something just changed
+export async function loadCalendarMonth(year, month, { fromCache = false } = {}) {
+  const token = mountToken
+  root.querySelector('#calMonthLabel').textContent = `${MONTH_NAMES[month]} ${year}`
+  if (!fromCache) cal.monthCache = {}
+
+  const monthData = await fetchMonth(year, month)
+  if (!nav.isCurrent(token)) return
+  // Clicked on to another month while this one loaded - that load paints instead
+  if (cal.currentViewYear !== year || cal.currentViewMonth !== month) return
+  if (monthData.error) { console.log('Error loading calendar:', monthData.error); customAlert('Something went wrong loading the calendar - check your connection and try again'); return }
+
+  const { programs, logSets, sessions, tournaments, formAssignments } = monthData
+
   cal.tournamentsByDateCal = {}
-  for (const t of tournaments || []) {
+  for (const t of tournaments) {
     for (const dateStr of eachDateStrInRangeCal(t.date, t.end_date)) cal.tournamentsByDateCal[dateStr] = t
   }
 
   cal.formAssignmentsByDateCal = {}
-  for (const fa of formAssignments || []) {
+  for (const fa of formAssignments) {
     (cal.formAssignmentsByDateCal[fa.date] ||= []).push(fa)
   }
 
   cal.calendarEntriesByDate = {}
-  for (const program of data) {
+  for (const program of programs) {
     for (const week of program.program_weeks) {
       for (const day of week.program_days) {
         day.program_exercises.forEach(applyFieldOverrides)
@@ -217,7 +277,7 @@ export async function loadCalendarMonth(year, month) {
   // decides "done"
   cal.sessionByDayId = {}
   cal.mobilityEntriesByDateCal = {}
-  for (const s of sessions || []) {
+  for (const s of sessions) {
     if (s.session_type === 'mobility') {
       cal.mobilityEntriesByDateCal[s.local_date] = s
       continue
@@ -234,7 +294,7 @@ export async function loadCalendarMonth(year, month) {
   }
 
   cal.logSetsByPECal = {}
-  for (const row of logSets || []) {
+  for (const row of logSets) {
     if (!cal.logSetsByPECal[row.program_exercise_id]) cal.logSetsByPECal[row.program_exercise_id] = []
     cal.logSetsByPECal[row.program_exercise_id].push(row)
   }
@@ -243,6 +303,11 @@ export async function loadCalendarMonth(year, month) {
   }
 
   renderCalendarGrid(year, month)
+
+  // Get the months either side ready for Prev/Next (failures are just
+  // forgotten - the click will try again)
+  fetchMonth(month === 0 ? year - 1 : year, (month + 11) % 12)
+  fetchMonth(month === 11 ? year + 1 : year, (month + 1) % 12)
 }
 
 export function renderCalendarGrid(year, month) {

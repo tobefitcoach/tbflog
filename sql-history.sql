@@ -3097,3 +3097,89 @@ as $$
   update stretches set body_areas = array_remove(body_areas, p_area) where p_area = any(body_areas);
   delete from stretch_body_areas where name = p_area;
 $$;
+
+-- ==========================================================================
+-- athlete_schedule_range: one athlete's schedule for a date range.
+-- The athlete app's home screen and the coach's calendar used to download
+-- an athlete's whole history (every scheduled workout with its exercises,
+-- every logged set, every session) to show one week or one month - a few
+-- MB per load after a year of training, re-sent on every month click.
+-- This returns just the days whose date falls in [p_from, p_to], in the
+-- same shape the apps already use:
+--   programs: [ program + program_weeks: [ week + program_days: [ day +
+--              program_exercises: [ row + exercises: {...} ] ] ] ]
+--             (only the weeks/days inside the range are included)
+--   log_sets: every logged set on those days' exercises
+--   sessions: every session on those days, plus mobility sessions in range
+-- A day with a workout the athlete started and never finished is always
+-- included, whatever its date, so an open workout can't drop out of view.
+-- A day's date is worked out the same way the app and
+-- coach_completion_stats do: date_override, else start_date + week/day.
+-- Forms and tournaments aren't here - they have their own date column, so
+-- the apps filter them directly.
+-- SECURITY INVOKER (the default): runs with the caller's own row-level
+-- security - an athlete only ever gets their own rows, a coach only their
+-- own athletes'. If this isn't installed yet the apps fall back to the old
+-- full download, so nothing breaks before it's run.
+-- Safe to re-run (create or replace). No tables change.
+-- ==========================================================================
+create or replace function public.athlete_schedule_range(p_athlete_id bigint, p_from date, p_to date)
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  with picked as (
+    select d.id as day_id, w.id as week_id, p.id as program_id
+    from programs p
+    join program_weeks w on w.program_id = p.id
+    join program_days d on d.week_id = w.id
+    where p.athlete_id = p_athlete_id
+      and p.is_template = false
+      and (
+        coalesce(d.date_override, p.start_date + ((w.week_number - 1) * 7 + (d.day_number - 1))) between p_from and p_to
+        or exists (select 1 from workout_sessions s
+                   where s.program_day_id = d.id and s.athlete_id = p_athlete_id and s.ended_at is null)
+      )
+  )
+  select jsonb_build_object(
+    'programs', coalesce((
+      select jsonb_agg(to_jsonb(p) || jsonb_build_object('program_weeks', (
+        select jsonb_agg(to_jsonb(w) || jsonb_build_object('program_days', (
+          select jsonb_agg(to_jsonb(d) || jsonb_build_object('program_exercises', coalesce((
+            select jsonb_agg(to_jsonb(pe) || jsonb_build_object('exercises', (
+              select jsonb_build_object(
+                'id', e.id, 'name', e.name, 'category', e.category, 'type', e.type,
+                'video_url', e.video_url, 'foot_contacts', e.foot_contacts,
+                'intensity_tier', e.intensity_tier, 'tracks_reps', e.tracks_reps,
+                'tracks_weight', e.tracks_weight, 'is_timed', e.is_timed,
+                'is_unilateral', e.is_unilateral, 'tracks_distance', e.tracks_distance)
+              from exercises e where e.id = pe.exercise_id
+            )) order by pe.order_index)
+            from program_exercises pe where pe.day_id = d.id
+          ), '[]'::jsonb)) order by d.day_number)
+          from program_days d
+          where d.week_id = w.id and d.id in (select day_id from picked)
+        )) order by w.week_number)
+        from program_weeks w
+        where w.program_id = p.id and w.id in (select week_id from picked)
+      )) order by p.start_date, p.created_at)
+      from programs p
+      where p.id in (select program_id from picked)
+    ), '[]'::jsonb),
+    'log_sets', coalesce((
+      select jsonb_agg(to_jsonb(l))
+      from exercise_log_sets l
+      join program_exercises pe on pe.id = l.program_exercise_id
+      where l.athlete_id = p_athlete_id
+        and pe.day_id in (select day_id from picked)
+    ), '[]'::jsonb),
+    'sessions', coalesce((
+      select jsonb_agg(to_jsonb(s))
+      from workout_sessions s
+      where s.athlete_id = p_athlete_id
+        and (s.program_day_id in (select day_id from picked)
+             or (s.session_type = 'mobility' and s.local_date between p_from and p_to))
+    ), '[]'::jsonb)
+  )
+$$;
