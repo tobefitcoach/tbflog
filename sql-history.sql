@@ -3183,3 +3183,74 @@ as $$
     ), '[]'::jsonb)
   )
 $$;
+
+-- ==========================================================================
+-- check_low_trainings: the "running low on trainings" bell alerts, in one
+-- request. Finds every active athlete of the calling coach (linked, not
+-- archived) whose furthest scheduled day is within the coach's
+-- low_trainings_warning_days of p_today, or who has nothing scheduled at
+-- all; for each one not already warned about that same furthest date
+-- (athletes.low_trainings_notified_for, 'YYYY-MM-DD' or 'never' - same
+-- keys the app used before), adds a 'low_trainings' notification and
+-- marks them warned. Returns how many alerts were added.
+-- The app used to do this from the Athletes screen only, two requests per
+-- athlete; now the bell calls it on whatever screen the app opens on.
+-- Marking and alerting happen in one statement, and the mark only applies
+-- if it changes the value, so two devices running it at the same moment
+-- can't both alert: the second waits on the first's row lock, then finds
+-- nothing left to change.
+-- p_today comes from the app (the coach's local date), like
+-- coach_athlete_card_stats. SECURITY INVOKER (the default): the coach's
+-- own row-level security applies to every read and write.
+-- Safe to re-run (create or replace). No tables change.
+-- ==========================================================================
+create or replace function public.check_low_trainings(p_today date)
+returns integer
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_warning_days int;
+  v_added int;
+begin
+  select low_trainings_warning_days into v_warning_days from profiles where id = auth.uid();
+  v_warning_days := coalesce(v_warning_days, 7);
+
+  with furthest as (
+    select p.athlete_id,
+           max(coalesce(d.date_override, p.start_date + ((w.week_number - 1) * 7 + (d.day_number - 1)))) as furthest_date
+    from programs p
+    join program_weeks w on w.program_id = p.id
+    join program_days d on d.week_id = w.id
+    where p.is_template = false
+    group by p.athlete_id
+  ),
+  low as (
+    select a.id, a.name, f.furthest_date, coalesce(f.furthest_date::text, 'never') as notified_key
+    from athletes a
+    left join furthest f on f.athlete_id = a.id
+    where a.coach_id = auth.uid()
+      and a.user_id is not null
+      and not a.archived
+      and (f.furthest_date is null or f.furthest_date - p_today <= v_warning_days)
+  ),
+  marked as (
+    update athletes a
+    set low_trainings_notified_for = low.notified_key
+    from low
+    where a.id = low.id
+      and a.low_trainings_notified_for is distinct from low.notified_key
+    returning a.id, low.name, low.furthest_date
+  )
+  insert into notifications (coach_id, athlete_id, type, message)
+  select auth.uid(), marked.id, 'low_trainings',
+         case when marked.furthest_date is null
+              then marked.name || ' doesn''t have any trainings scheduled yet'
+              else marked.name || ' only has trainings scheduled through ' || to_char(marked.furthest_date, 'Mon FMDD')
+         end
+  from marked;
+
+  get diagnostics v_added = row_count;
+  return v_added;
+end;
+$$;

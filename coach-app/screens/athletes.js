@@ -40,6 +40,7 @@ import { supabase } from '../../coachClient.js?v=__V__'
 import { sendPush } from '../../push.js?v=__V__'
 import { showLoadError } from '../screen-context.js?v=__V__'
 import { go } from '../router.js?v=__V__'
+import { checkLowTrainings as checkLowTrainingsInDatabase } from '../bell.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays } from '../../shared/dates.js?v=__V__'
@@ -393,6 +394,8 @@ function isLowOnTrainings(athlete, stats) {
 // notification every time - a NEW one only fires once the coach has fixed
 // it (added more trainings, pushing furthestDate out) and it later runs dry
 // again, since that produces a different furthestDate to compare against.
+// Done in the database in one request (see checkLowTrainings in bell.js);
+// the loop below is only the fallback until that function is installed.
 //
 // Touches no DOM, so it needs no isCurrent guard to be safe - but it does
 // stop early once the screen is gone, rather than walking a whole roster of
@@ -400,6 +403,8 @@ function isLowOnTrainings(athlete, stats) {
 async function checkLowTrainings() {
   const c = ctx
   if (!c) return
+  const { missing } = await checkLowTrainingsInDatabase()
+  if (!missing) return
   for (const athlete of allAthletes) {
     if (!c.alive()) return
     const stats = athleteStatsById[athlete.id]

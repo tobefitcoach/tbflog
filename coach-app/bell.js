@@ -24,6 +24,7 @@
 import { supabase } from '../coachClient.js?v=__V__'
 import { go } from './router.js?v=__V__'
 import { escapeHtml } from '../escape.js?v=__V__'
+import { toDateStr } from '../shared/dates.js?v=__V__'
 
 let refreshTimer = null
 
@@ -62,12 +63,32 @@ export function initBell() {
 
   refreshBadge()
   refreshChatBadge()
+  checkLowTrainings()
   refreshTimer = setInterval(function() { refreshBadge(); refreshChatBadge() }, 45000)
   document.addEventListener('visibilitychange', onVisibilityChange)
 }
 
 function onVisibilityChange() {
-  if (document.visibilityState === 'visible') { refreshBadge(); refreshChatBadge() }
+  if (document.visibilityState === 'visible') { refreshBadge(); refreshChatBadge(); checkLowTrainings() }
+}
+
+// "Running low on trainings" alerts, worked out in the database in one
+// request (check_low_trainings in sql-history.sql): any active athlete
+// whose last scheduled day is within the coach's warning window gets one
+// bell notification per "last day", however many devices are open. Run
+// when the app opens and whenever it comes back to the front, so it no
+// longer waits for a visit to the Athletes screen. Resolves
+// { missing: true } while the function isn't installed - the Athletes
+// screen then does its old one-athlete-at-a-time check instead.
+export async function checkLowTrainings() {
+  const { data: added, error } = await supabase.rpc('check_low_trainings', { p_today: toDateStr(new Date()) })
+  if (error) {
+    if (error.code === 'PGRST202') return { missing: true }
+    console.log('Error checking low trainings:', error)
+    return { missing: false }
+  }
+  if (added > 0) refreshBadge()
+  return { missing: false }
 }
 
 // The sidebar's Chat tab gets its own small red dot - separate from the
