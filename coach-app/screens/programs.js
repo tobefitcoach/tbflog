@@ -18,6 +18,7 @@ import { coachId } from '../session.js?v=__V__'
 import { showLoadError } from '../screen-context.js?v=__V__'
 import { escapeHtml } from '../../escape.js?v=__V__'
 import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { wireCardMenu, closeMenusOnOutsideClick } from '../card-menu.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -110,9 +111,7 @@ export function unmount() {
 }
 
 function bindEvents(ctx) {
-  ctx.on(document, 'click', function() {
-    root?.querySelectorAll('#programGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  })
+  closeMenusOnOutsideClick(ctx, () => root, '#programGrid')
 
   root.querySelector('#newTemplateBtn').addEventListener('click', function() {
     root.querySelector('#newTemplateName').value = ''
@@ -192,36 +191,28 @@ function createTemplateCard(template) {
     <p>${weekCount} week${weekCount === 1 ? '' : 's'}, ${dayCount} day${dayCount === 1 ? '' : 's'}</p>
   `
 
-  card.addEventListener('click', function(e) {
-    if (e.target.closest('.kebab-menu')) return
-    go('program-builder', { id: template.id })
-  })
+  wireCardMenu(card, {
+    open: () => go('program-builder', { id: template.id }),
+    actions: {
+      '.kebab-duplicate': function() {
+        duplicateSourceTemplateId = template.id
+        root.querySelector('#duplicateTemplateName').value = `${template.name} (Copy)`
+        root.querySelector('#duplicateTemplateModal').classList.add('active')
+      },
+      '.kebab-delete': async function() {
+        if (!(await customConfirm(`Delete "${template.name}"? This cannot be undone.`))) return
 
-  card.querySelector('.kebab-btn').addEventListener('click', function(e) {
-    e.stopPropagation()
-    card.querySelector(`#dropdown-${template.id}`).classList.toggle('active')
-  })
+        const { error } = await supabase.from('programs').delete().eq('id', template.id)
+        if (error) {
+          console.log('Error deleting template:', error)
+          customAlert('Something went wrong')
+          return
+        }
 
-  card.querySelector('.kebab-duplicate').addEventListener('click', function(e) {
-    e.stopPropagation()
-    duplicateSourceTemplateId = template.id
-    root.querySelector('#duplicateTemplateName').value = `${template.name} (Copy)`
-    root.querySelector('#duplicateTemplateModal').classList.add('active')
-  })
-
-  card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
-    e.stopPropagation()
-    if (!(await customConfirm(`Delete "${template.name}"? This cannot be undone.`))) return
-
-    const { error } = await supabase.from('programs').delete().eq('id', template.id)
-    if (error) {
-      console.log('Error deleting template:', error)
-      customAlert('Something went wrong')
-      return
+        allTemplates = allTemplates.filter(t => t.id !== template.id)
+        renderProgramGrid()
+      }
     }
-
-    allTemplates = allTemplates.filter(t => t.id !== template.id)
-    renderProgramGrid()
   })
 
   return card

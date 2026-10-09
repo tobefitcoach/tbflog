@@ -18,6 +18,8 @@ import { coachId } from '../session.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
 import { escapeHtml } from '../../escape.js?v=__V__'
 import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { wireCardMenu, closeMenusOnOutsideClick } from '../card-menu.js?v=__V__'
+import { createLabelManager } from '../label-manager.js?v=__V__'
 
 const WORKOUT_TYPE_LABELS = { gym: 'Gym', field: 'Field', run: 'Run' }
 
@@ -105,6 +107,25 @@ let selectedLabelFilterIds = new Set()
 let selectedTypeFilters = new Set()
 let trainingSearchText = ''
 let manageLabelsTrainingId = null
+
+// Filter dropdown + per-workout Manage Labels popup (label-manager.js)
+const labels = createLabelManager({
+  getRoot: () => root,
+  noun: 'workout',
+  labelsTable: 'training_labels',
+  linksTable: 'training_label_links',
+  itemColumn: 'training_id',
+  getLabels: () => allLabels,
+  getItems: () => allTrainings,
+  getLinks: () => labelLinksByTraining,
+  getSelected: () => selectedLabelFilterIds,
+  getManageItemId: () => manageLabelsTrainingId,
+  onFilterChange: () => applyFilters(),
+  reload: () => reloadAndRepaint()
+})
+const renderLabelFilterList = labels.renderFilterList
+const renderManageLabelsList = labels.renderManageList
+const addLabel = labels.addLabel
 let duplicateSourceTrainingId = null
 
 export async function mount(container, params, screenCtx) {
@@ -174,9 +195,7 @@ async function reloadAndRepaint() {
 }
 
 function bindEvents() {
-  ctx.on(document, 'click', function() {
-    root?.querySelectorAll('#trainingGrid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  })
+  closeMenusOnOutsideClick(ctx, () => root, '#trainingGrid')
 
   ctx.on(document, 'click', function(e) {
     if (!e.target.closest('#labelFilter')) root?.querySelector('#labelFilterDropdown')?.classList.remove('active')
@@ -310,177 +329,54 @@ function createTrainingCard(training) {
     ${labelTagsHtml}
   `
 
-  card.addEventListener('click', function(e) {
-    if (e.target.closest('.kebab-menu')) return
-    go('training-builder', { id: training.id })
-  })
+  wireCardMenu(card, {
+    open: () => go('training-builder', { id: training.id }),
+    actions: {
+      '.kebab-duplicate': function() {
+        duplicateSourceTrainingId = training.id
+        root.querySelector('#duplicateTrainingName').value = `${training.name} (Copy)`
+        root.querySelector('#duplicateTrainingModal').classList.add('active')
+      },
+      '.kebab-manage-labels': function() {
+        manageLabelsTrainingId = training.id
+        root.querySelector('#manageLabelsTrainingName').textContent = training.name
+        renderManageLabelsList()
+        root.querySelector('#manageLabelsModal').classList.add('active')
+      },
+      '.kebab-delete': async function() {
+        // Blocked ahead of the confirm (not just left to the database's own FK
+        // constraint) so the coach gets a real count and a next step, instead
+        // of a raw "foreign key violation" if they'd already said yes to
+        // deleting. See the LIVE-LINKED WORKOUTS block in sql-history.sql -
+        // source_training_id is non-null on a day for exactly as long as it's
+        // still tracking this Training.
+        const { count, error: countError } = await supabase
+          .from('program_days')
+          .select('id', { count: 'exact', head: true })
+          .eq('source_training_id', training.id)
+        if (countError) { console.log(countError); customAlert('Something went wrong'); return }
+        if (count > 0) {
+          customAlert(`"${training.name}" is still live-linked to ${count} day${count === 1 ? '' : 's'} (on a calendar, or in a Program template) - editing it is still reaching those days. Start them (or hand-edit that specific day) to detach it first, then delete this workout.`)
+          return
+        }
 
-  card.querySelector('.kebab-btn').addEventListener('click', function(e) {
-    e.stopPropagation()
-    card.querySelector(`#dropdown-${training.id}`).classList.toggle('active')
-  })
+        if (!(await customConfirm(`Delete "${training.name}"? This cannot be undone.`))) return
 
-  card.querySelector('.kebab-duplicate').addEventListener('click', function(e) {
-    e.stopPropagation()
-    duplicateSourceTrainingId = training.id
-    root.querySelector('#duplicateTrainingName').value = `${training.name} (Copy)`
-    root.querySelector('#duplicateTrainingModal').classList.add('active')
-  })
+        const { error } = await supabase.from('trainings').delete().eq('id', training.id)
+        if (error) {
+          console.log('Error deleting training:', error)
+          customAlert('Something went wrong')
+          return
+        }
 
-  card.querySelector('.kebab-manage-labels').addEventListener('click', function(e) {
-    e.stopPropagation()
-    manageLabelsTrainingId = training.id
-    root.querySelector('#manageLabelsTrainingName').textContent = training.name
-    renderManageLabelsList()
-    root.querySelector('#manageLabelsModal').classList.add('active')
-  })
-
-  card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
-    e.stopPropagation()
-
-    // Blocked ahead of the confirm (not just left to the database's own FK
-    // constraint) so the coach gets a real count and a next step, instead
-    // of a raw "foreign key violation" if they'd already said yes to
-    // deleting. See the LIVE-LINKED WORKOUTS block in sql-history.sql -
-    // source_training_id is non-null on a day for exactly as long as it's
-    // still tracking this Training.
-    const { count, error: countError } = await supabase
-      .from('program_days')
-      .select('id', { count: 'exact', head: true })
-      .eq('source_training_id', training.id)
-    if (countError) { console.log(countError); customAlert('Something went wrong'); return }
-    if (count > 0) {
-      customAlert(`"${training.name}" is still live-linked to ${count} day${count === 1 ? '' : 's'} (on a calendar, or in a Program template) - editing it is still reaching those days. Start them (or hand-edit that specific day) to detach it first, then delete this workout.`)
-      return
+        allTrainings = allTrainings.filter(t => t.id !== training.id)
+        renderLabelFilterList()
+        applyFilters()
+      }
     }
-
-    if (!(await customConfirm(`Delete "${training.name}"? This cannot be undone.`))) return
-
-    const { error } = await supabase.from('trainings').delete().eq('id', training.id)
-    if (error) {
-      console.log('Error deleting training:', error)
-      customAlert('Something went wrong')
-      return
-    }
-
-    allTrainings = allTrainings.filter(t => t.id !== training.id)
-    renderLabelFilterList()
-    applyFilters()
   })
 
   return card
-}
-
-// ==========================================================================
-// LABELS
-// The "Filter by Label" dropdown filters the grid to workouts with ANY of
-// the checked labels; each card's kebab has its own "Manage Labels" modal
-// for tagging one workout. Both share the state loaded above.
-// ==========================================================================
-function renderLabelFilterList() {
-  const list = root.querySelector('#labelFilterList')
-  if (allLabels.length === 0) {
-    list.innerHTML = '<p class="label-filter-empty">No labels yet - add one below.</p>'
-    return
-  }
-  list.innerHTML = allLabels.map(label => {
-    const count = allTrainings.filter(t => labelLinksByTraining[t.id]?.has(label.id)).length
-    const checked = selectedLabelFilterIds.has(label.id) ? 'checked' : ''
-    return `
-      <div class="label-filter-row">
-        <label>
-          <input type="checkbox" data-label-id="${label.id}" ${checked}>
-          <span>${escapeHtml(label.name)} (${count})</span>
-        </label>
-        <button type="button" class="label-row-delete" data-label-id="${label.id}" title="Delete label">✕</button>
-      </div>
-    `
-  }).join('')
-
-  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', function() {
-      if (cb.checked) selectedLabelFilterIds.add(cb.dataset.labelId)
-      else selectedLabelFilterIds.delete(cb.dataset.labelId)
-      applyFilters()
-    })
-  })
-
-  list.querySelectorAll('.label-row-delete').forEach(btn => {
-    btn.addEventListener('click', async function() {
-      if (!(await customConfirm('Delete this label? It will be removed from every workout.'))) return
-      const { error } = await supabase.from('training_labels').delete().eq('id', btn.dataset.labelId)
-      if (error) {
-        console.log('Error deleting label:', error)
-        customAlert('Something went wrong deleting that label')
-        return
-      }
-      selectedLabelFilterIds.delete(btn.dataset.labelId)
-      await reloadAndRepaint()
-    })
-  })
-}
-
-// Creates a label, optionally linking it straight to one workout (used by
-// the Manage Labels modal, so creating a label there tags it onto that
-// workout immediately instead of as a separate second step).
-async function addLabel(name, linkToTrainingId) {
-  name = name.trim()
-  if (!name) return
-  const { data, error } = await supabase.from('training_labels').insert([{ name, coach_id: coachId() }]).select().single()
-  if (error) {
-    console.log('Error adding label:', error)
-    customAlert('Something went wrong adding that label')
-    return
-  }
-  if (linkToTrainingId) {
-    const { error: linkError } = await supabase.from('training_label_links').insert([{ training_id: linkToTrainingId, label_id: data.id }])
-    // The label itself was created either way - say so if attaching it
-    // didn't work, rather than leaving it silently unticked
-    if (linkError) {
-      console.log('Error attaching label:', linkError)
-      customAlert('The label was created, but attaching it to this workout didn\'t work - tick it in the list to try again')
-    }
-  }
-  await reloadAndRepaint()
-  if (linkToTrainingId && root) renderManageLabelsList()
-}
-
-function renderManageLabelsList() {
-  const list = root.querySelector('#manageLabelsList')
-  const trainingLabelIds = labelLinksByTraining[manageLabelsTrainingId] || new Set()
-
-  if (allLabels.length === 0) {
-    list.innerHTML = '<p class="label-filter-empty">No labels yet - add one below.</p>'
-    return
-  }
-  list.innerHTML = allLabels.map(label => `
-    <label class="message-recipient-row">
-      <input type="checkbox" data-label-id="${label.id}" ${trainingLabelIds.has(label.id) ? 'checked' : ''}>
-      <span>${escapeHtml(label.name)}</span>
-    </label>
-  `).join('')
-
-  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', function() {
-      toggleTrainingLabel(manageLabelsTrainingId, cb.dataset.labelId, cb.checked)
-    })
-  })
-}
-
-async function toggleTrainingLabel(trainingId, labelId, checked) {
-  const { error } = checked
-    ? await supabase.from('training_label_links').insert([{ training_id: trainingId, label_id: labelId }])
-    : await supabase.from('training_label_links').delete().eq('training_id', trainingId).eq('label_id', labelId)
-
-  if (error) {
-    console.log('Error updating workout label:', error)
-    customAlert('Something went wrong')
-    return
-  }
-
-  (labelLinksByTraining[trainingId] ||= new Set())[checked ? 'add' : 'delete'](labelId)
-  renderLabelFilterList()
-  applyFilters()
 }
 
 // ==========================================================================

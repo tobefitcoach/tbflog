@@ -46,6 +46,8 @@ import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays } from '../../shared/dates.js?v=__V__'
 import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { wireCardMenu, closeMenusOnOutsideClick } from '../card-menu.js?v=__V__'
+import { createLabelManager } from '../label-manager.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -214,6 +216,26 @@ let allLabels = []
 let labelLinksByAthlete = {} // athlete_id -> Set of label_id
 let selectedLabelFilterIds = new Set()
 let manageLabelsAthleteId = null
+
+// Filter dropdown + per-athlete Manage Labels popup (label-manager.js)
+const labels = createLabelManager({
+  getRoot: () => root,
+  noun: 'athlete',
+  labelsTable: 'athlete_labels',
+  linksTable: 'athlete_label_links',
+  itemColumn: 'athlete_id',
+  getLabels: () => allLabels,
+  getItems: () => allAthletes,
+  getLinks: () => labelLinksByAthlete,
+  getSelected: () => selectedLabelFilterIds,
+  getManageItemId: () => manageLabelsAthleteId,
+  onFilterChange: () => applyFilters(),
+  reload: () => reloadAndRepaint(),
+  reloadAfterAdd: () => loadAthleteExtras()
+})
+const renderLabelFilterList = labels.renderFilterList
+const renderManageLabelsList = labels.renderManageList
+const addLabel = labels.addLabel
 
 export async function mount(container, params, screenCtx) {
   root = container
@@ -514,9 +536,7 @@ function bindEvents() {
   // Athletes list never did. On the multi-page site that gap was invisible:
   // any navigation destroyed the whole document, which incidentally closed
   // the dropdown too. In the SPA nothing destroys the screen between clicks.
-  ctx.on(document, 'click', function() {
-    root?.querySelectorAll('.athlete-grid .kebab-dropdown.active').forEach(d => d.classList.remove('active'))
-  })
+  closeMenusOnOutsideClick(ctx, () => root, '.athlete-grid')
 
   root.querySelector('#athleteSearchInput').addEventListener('input', function(e) {
     currentSearchQuery = e.target.value
@@ -740,71 +760,54 @@ function createAthleteCard(athlete, flaggedCount) {
   `
 
   // Clicking anywhere on the card (except the kebab menu) opens the athlete's profile
-  card.addEventListener('click', function(e) {
-    if (e.target.closest('.kebab-menu')) return
-    go('athlete-detail', { id: athlete.id })
-  })
+  wireCardMenu(card, {
+    open: () => go('athlete-detail', { id: athlete.id }),
+    actions: {
+      // "Resend Invite" / "Copy Invite Link" - only present on Pending cards
+      '.kebab-resend': async function() {
+        const error = await sendInviteEmail(athlete.email, athlete.name)
+        customAlert(error ? 'Something went wrong sending the invite' : `Invite sent to ${athlete.email}`)
+      },
+      '.kebab-copy-link': async function() {
+        await navigator.clipboard.writeText(buildInviteLink(athlete.email, athlete.name))
+        customAlert('Invite link copied - paste it anywhere you like.')
+      },
+      '.kebab-manage-labels': function() {
+        openManageLabelsModal(athlete.id, athlete.name)
+      },
+      // "Archive athlete" / "Unarchive athlete" - reversible, no confirm needed
+      '.kebab-archive': async function() {
+        const { error } = await supabase
+          .from('athletes')
+          .update({ archived: !athlete.archived })
+          .eq('id', athlete.id)
 
-  // Kebab (⋮) button toggles the dropdown open/closed
-  card.querySelector('.kebab-btn').addEventListener('click', function(e) {
-    e.stopPropagation()
-    const dropdown = card.querySelector(`#dropdown-${athlete.id}`)
-    dropdown.classList.toggle('active')
-  })
+        if (error) {
+          console.log('Error archiving athlete:', error)
+          customAlert('Something went wrong')
+          return
+        }
 
-  // "Resend Invite" / "Copy Invite Link" - only present on Pending cards
-  card.querySelector('.kebab-resend')?.addEventListener('click', async function(e) {
-    e.stopPropagation()
-    const error = await sendInviteEmail(athlete.email, athlete.name)
-    customAlert(error ? 'Something went wrong sending the invite' : `Invite sent to ${athlete.email}`)
-  })
+        reloadAndRepaint()
+      },
+      // "Delete athlete" — confirm, delete from DB, then refresh the list
+      '.kebab-delete': async function() {
+        if (!(await customConfirm('Delete this athlete? This cannot be undone.'))) return
 
-  card.querySelector('.kebab-copy-link')?.addEventListener('click', async function(e) {
-    e.stopPropagation()
-    await navigator.clipboard.writeText(buildInviteLink(athlete.email, athlete.name))
-    customAlert('Invite link copied - paste it anywhere you like.')
-  })
+        const { error } = await supabase
+          .from('athletes')
+          .delete()
+          .eq('id', athlete.id)
 
-  card.querySelector('.kebab-manage-labels').addEventListener('click', function(e) {
-    e.stopPropagation()
-    openManageLabelsModal(athlete.id, athlete.name)
-  })
+        if (error) {
+          console.log('Error deleting athlete:', error)
+          customAlert('Something went wrong')
+          return
+        }
 
-  // "Archive athlete" / "Unarchive athlete" - reversible, no confirm needed
-  card.querySelector('.kebab-archive').addEventListener('click', async function(e) {
-    e.stopPropagation()
-    const { error } = await supabase
-      .from('athletes')
-      .update({ archived: !athlete.archived })
-      .eq('id', athlete.id)
-
-    if (error) {
-      console.log('Error archiving athlete:', error)
-      customAlert('Something went wrong')
-      return
+        reloadAndRepaint()
+      }
     }
-
-    reloadAndRepaint()
-  })
-
-  // "Delete athlete" — confirm, delete from DB, then refresh the list
-  card.querySelector('.kebab-delete').addEventListener('click', async function(e) {
-    e.stopPropagation()
-
-    if (!(await customConfirm('Delete this athlete? This cannot be undone.'))) return
-
-    const { error } = await supabase
-      .from('athletes')
-      .delete()
-      .eq('id', athlete.id)
-
-    if (error) {
-      console.log('Error deleting athlete:', error)
-      customAlert('Something went wrong')
-      return
-    }
-
-    reloadAndRepaint()
   })
 
   return card
@@ -926,126 +929,14 @@ async function onSaveAthlete() {
 
 // ==========================================================================
 // ---- LABELS ----
-// Coach-created tags (e.g. "Monthly Plan", "12 Week Plan") - the "Filter by
-// Label" dropdown (next to the search bar) filters the grid to athletes
-// with ANY of the checked labels; each card's kebab menu has its own
-// "Manage Labels" modal for tagging/untagging that one athlete. Both share
-// the same allLabels/labelLinksByAthlete state loaded in loadAthleteExtras().
+// The filter dropdown and the per-athlete "Manage Labels" popup are built by
+// label-manager.js (see `labels` near the top); only opening the popup for
+// one athlete lives here.
 // ==========================================================================
-function renderLabelFilterList() {
-  const list = root.querySelector('#labelFilterList')
-  if (allLabels.length === 0) {
-    list.innerHTML = '<p class="label-filter-empty">No labels yet - add one below.</p>'
-    return
-  }
-  list.innerHTML = allLabels.map(label => {
-    const count = allAthletes.filter(a => labelLinksByAthlete[a.id]?.has(label.id)).length
-    const checked = selectedLabelFilterIds.has(label.id) ? 'checked' : ''
-    return `
-      <div class="label-filter-row">
-        <label>
-          <input type="checkbox" data-label-id="${label.id}" ${checked}>
-          <span>${escapeHtml(label.name)} (${count})</span>
-        </label>
-        <button type="button" class="label-row-delete" data-label-id="${label.id}" title="Delete label">✕</button>
-      </div>
-    `
-  }).join('')
-
-  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', function() {
-      if (cb.checked) selectedLabelFilterIds.add(cb.dataset.labelId)
-      else selectedLabelFilterIds.delete(cb.dataset.labelId)
-      applyFilters()
-    })
-  })
-
-  list.querySelectorAll('.label-row-delete').forEach(btn => {
-    btn.addEventListener('click', async function() {
-      if (!(await customConfirm('Delete this label? It will be removed from every athlete.'))) return
-      const { error } = await supabase.from('athlete_labels').delete().eq('id', btn.dataset.labelId)
-      if (error) {
-        console.log('Error deleting label:', error)
-        customAlert('Something went wrong')
-        return
-      }
-      selectedLabelFilterIds.delete(btn.dataset.labelId)
-      reloadAndRepaint()
-    })
-  })
-}
-
-// Creates a label, optionally linking it straight to one athlete (used by
-// the Manage Labels modal, so creating a new label there tags it onto that
-// athlete immediately instead of leaving it unassigned)
-async function addLabel(name, linkToAthleteId) {
-  name = name.trim()
-  if (!name) return
-  const { data, error } = await supabase.from('athlete_labels').insert([{ name, coach_id: coachId() }]).select().single()
-  if (error) {
-    console.log('Error adding label:', error)
-    customAlert('Something went wrong adding that label')
-    return
-  }
-  if (linkToAthleteId) {
-    const { error: linkError } = await supabase.from('athlete_label_links').insert([{ athlete_id: linkToAthleteId, label_id: data.id }])
-    // The label itself was created either way - say so if attaching it
-    // didn't work, rather than leaving it silently unticked
-    if (linkError) {
-      console.log('Error attaching label:', linkError)
-      customAlert('The label was created, but attaching it to this athlete didn\'t work - tick it in the list to try again')
-    }
-  }
-  await loadAthleteExtras()
-  if (linkToAthleteId && root) renderManageLabelsList()
-}
-
 // ---- Manage Labels modal (per-athlete tagging) ----
 function openManageLabelsModal(athleteId, athleteName) {
   manageLabelsAthleteId = athleteId
   root.querySelector('#manageLabelsAthleteName').textContent = athleteName
   renderManageLabelsList()
   root.querySelector('#manageLabelsModal').classList.add('active')
-}
-
-function renderManageLabelsList() {
-  const list = root.querySelector('#manageLabelsList')
-  const athleteLabelIds = labelLinksByAthlete[manageLabelsAthleteId] || new Set()
-
-  if (allLabels.length === 0) {
-    list.innerHTML = '<p class="label-filter-empty">No labels yet - add one below.</p>'
-    return
-  }
-
-  list.innerHTML = allLabels.map(label => `
-    <label class="message-recipient-row">
-      <input type="checkbox" data-label-id="${label.id}" ${athleteLabelIds.has(label.id) ? 'checked' : ''}>
-      <span>${escapeHtml(label.name)}</span>
-    </label>
-  `).join('')
-
-  list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', function() {
-      toggleAthleteLabel(manageLabelsAthleteId, cb.dataset.labelId, cb.checked)
-    })
-  })
-}
-
-async function toggleAthleteLabel(athleteId, labelId, checked) {
-  const { error } = checked
-    ? await supabase.from('athlete_label_links').insert([{ athlete_id: athleteId, label_id: labelId }])
-    : await supabase.from('athlete_label_links').delete().eq('athlete_id', athleteId).eq('label_id', labelId)
-
-  if (error) {
-    console.log('Error updating athlete label:', error)
-    customAlert('Something went wrong')
-    return
-  }
-
-  (labelLinksByAthlete[athleteId] ||= new Set())[checked ? 'add' : 'delete'](labelId)
-  // The insert/delete above is a round trip the coach can navigate away
-  // during - the cached Set is still worth updating, the repaint isn't.
-  if (!root) return
-  renderLabelFilterList()
-  applyFilters()
 }
