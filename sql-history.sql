@@ -1,4 +1,12 @@
 -- ==========================================================================
+-- FROZEN on 2026-10-09. Everything below has been run and is part of the
+-- snapshot in db/schema.sql, which is now the source of truth for what the
+-- database looks like. This file stays as the record of HOW it got there
+-- (and the reason behind each change - the comments are the history).
+-- New changes go in db/changes/, one numbered file each - see db/README.md.
+-- ==========================================================================
+
+-- ==========================================================================
 -- TBFlog schema — multi-user foundation (auth + training-program tables).
 --
 -- This script is SAFE TO COPY AND RUN IN FULL, ANY TIME, as many times as
