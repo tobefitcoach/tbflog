@@ -51,6 +51,7 @@ import { renderEndOfWorkoutSlide, wireExerciseHistoryModal, wireExerciseSwapModa
 import { clearRestTimer } from './workout/rest-timer.js?v=__V__'
 import { renderWorkoutSummary } from './workout/swipe.js?v=__V__'
 import { customAlert } from '../confirm-modal.js?v=__V__'
+import { logOut } from '../shared/logout.js?v=__V__'
 
 const { data: { session } } = await supabase.auth.getSession()
 setSession(session)
@@ -243,15 +244,11 @@ function renderWrongRole() {
     <p>This is the athlete login, and this account isn't set up as an athlete. If you're a coach, use the main Tobe-Fit login instead.</p>
     <button class="btn-save" id="signOutBtn">Sign Out</button>
   `
-  document.getElementById('signOutBtn').addEventListener('click', async function() {
-    await supabase.auth.signOut()
-    // Same role-cache clear as the other 2 sign-out sites below - see their
-    // comment (and app/index.js's header) for why. Sent to the chooser
-    // rather than back to the athlete login, since this screen exists
-    // because the signed-in account ISN'T an athlete - reloading the
-    // athlete login would just show the exact same message again.
-    localStorage.removeItem('tbflog-known-role')
-    window.location.href = '../app/index.html'
+  // To the chooser, not back to the athlete login: this screen exists
+  // because the account ISN'T an athlete, so the login would show the same
+  // message again
+  document.getElementById('signOutBtn').addEventListener('click', function() {
+    logOut(supabase)
   })
 }
 

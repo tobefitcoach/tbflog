@@ -16,6 +16,7 @@ import { saveWithRetry } from '../outbox.js?v=__V__'
 import { resizeImageFile } from './chat.js?v=__V__'
 import { renderWeekView } from './home.js?v=__V__'
 import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { logOut } from '../../shared/logout.js?v=__V__'
 
 let coachName = null // fetched once, lazily, the first time the Profile tab is opened
 
@@ -289,13 +290,8 @@ export async function renderProfile() {
     runHomeTour()
   })
 
-  document.getElementById('profileLogoutBtn').addEventListener('click', async function() {
-    await supabase.auth.signOut()
-    // See renderWrongRole's identical 2 lines above for why this clears the
-    // cached role and goes to the chooser instead of straight back to the
-    // athlete login.
-    localStorage.removeItem('tbflog-known-role')
-    window.location.href = '../app/index.html'
+  document.getElementById('profileLogoutBtn').addEventListener('click', function() {
+    logOut(supabase)
   })
 
   if (coachAccountLinked) {
@@ -321,9 +317,6 @@ export async function renderProfile() {
       return
     }
 
-    // Same role-cache clear as the other 2 sign-out sites above.
-    await supabase.auth.signOut()
-    localStorage.removeItem('tbflog-known-role')
-    window.location.href = '../app/index.html'
+    await logOut(supabase)
   })
 }

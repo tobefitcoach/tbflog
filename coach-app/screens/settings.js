@@ -16,6 +16,7 @@ import { supabase as athleteSupabase } from '../../athlete-app/athleteClient.js?
 import { pushStatus, enablePush, disablePush } from '../../push.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { customAlert } from '../../confirm-modal.js?v=__V__'
+import { logOut } from '../../shared/logout.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">
@@ -156,14 +157,8 @@ export function unmount() {
 }
 
 function bindEvents() {
-  root.querySelector('#logoutBtn').addEventListener('click', async function() {
-    await supabase.auth.signOut()
-    // Forget which role this browser/device was routed as last time, so the
-    // app root (app/index.js) asks again instead of silently sending the
-    // next visit straight back to the coach side - see that file's header
-    // comment for the cache this clears.
-    localStorage.removeItem('tbflog-known-role')
-    window.location.href = '../app/index.html'
+  root.querySelector('#logoutBtn').addEventListener('click', function() {
+    logOut(supabase)
   })
 
   root.querySelector('#athleteAccountBtn').addEventListener('click', function() {

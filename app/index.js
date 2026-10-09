@@ -19,18 +19,19 @@
 // ==========================================================================
 import { supabase as coachSupabase } from '../coachClient.js?v=__V__'
 import { supabase as athleteSupabase } from '../athlete-app/athleteClient.js?v=__V__'
+import { KNOWN_ROLE_KEY } from '../shared/logout.js?v=__V__'
 
 // Once a coach or athlete has been routed once, their role is cached here
 // so every later visit skips the two-client session probe (and its two
 // network round trips) entirely - this file becomes a same-tick redirect
 // instead of a "wait for Supabase to answer" one. A stale/wrong cached
-// value self-corrects on the very next login: coachClient.js/athleteClient.js's
-// own signOut flows don't touch this key, but the destination apps' own
+// value self-corrects on the very next login: shared/logout.js clears this
+// key on every normal log-out, and the destination apps' own
 // role checks (already in place - see coach-app/dashboard.js's start() and
 // athlete-app/dashboard.js's checkAccountState()) still verify the real
 // role independently, so a stale cache can misroute at most once, to a
 // screen that will itself bounce a wrong-role visitor back out.
-const CACHED_ROLE_KEY = 'tbflog-known-role'
+const CACHED_ROLE_KEY = KNOWN_ROLE_KEY
 
 const cachedRole = localStorage.getItem(CACHED_ROLE_KEY)
 if (cachedRole === 'coach') {

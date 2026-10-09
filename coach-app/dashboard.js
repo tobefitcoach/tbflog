@@ -21,6 +21,7 @@ import { setSession } from './session.js?v=__V__'
 import { go, initRouter, prefetchLikelyNext, currentRouteName, TAB_FOR_ROUTE } from './router.js?v=__V__'
 import { initBell } from './bell.js?v=__V__'
 import { fetchWithRetry } from '../network-retry.js?v=__V__'
+import { logOut } from '../shared/logout.js?v=__V__'
 
 const pageContent = document.getElementById('pageContent')
 const pageTitle = document.getElementById('pageTitle')
@@ -131,9 +132,8 @@ async function start() {
         <p>You're signed in as ${profile?.role || 'an unknown role'}, so there's nothing here for you.</p>
         <button class="btn-save" id="wrongRoleLogoutBtn" style="margin-top:16px">Log out</button>
       </div>`
-    document.getElementById('wrongRoleLogoutBtn').addEventListener('click', async function() {
-      await supabase.auth.signOut()
-      window.location.href = '../login.html'
+    document.getElementById('wrongRoleLogoutBtn').addEventListener('click', function() {
+      logOut(supabase, '../login.html')
     })
     return
   }
