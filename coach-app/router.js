@@ -217,9 +217,7 @@ export function initRouter({ content, title, onFrameChange }) {
   }
   nav.init(navRoutes, onFrameChange, { rootRoute: 'athletes' })
 
-  // Exposed for debugging from the console, and for any screen that would
-  // rather not import the router. Same pattern as confirm-modal.js's
-  // window.customConfirm.
+  // Exposed for debugging from the console only - no screen uses it
   window.coachNav = { go, back: nav.back }
 }
 

@@ -11,6 +11,8 @@ import { getYouTubeThumbnail } from '../../../../shared/video.js?v=__V__'
 import { root, mountToken, currentAthlete, cal } from '../state.js?v=__V__'
 import { TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL, WORKOUT_TYPE_LABELS_CAL, formatShortDateCal, loadCalendarMonth, trainingDisplayName } from './grid.js?v=__V__'
 import { showToast } from '../toast.js?v=__V__'
+import { customAlert, customConfirm } from '../../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- DAY DETAIL MODAL ----
@@ -131,7 +133,7 @@ export function openTournamentDetailModal(dateStr) {
   if (addedByCoach) {
     root.querySelector('#deleteCoachTournamentBtn').addEventListener('click', async function() {
       if (!(await customConfirm(`Delete "${tournament.name}" from ${currentAthlete?.name || 'the athlete'}'s calendar?`))) return
-      const { error } = await window.fetchWithRetry((signal) => supabase
+      const { error } = await fetchWithRetry((signal) => supabase
         .from('tournaments')
         .delete()
         .eq('id', tournament.id)

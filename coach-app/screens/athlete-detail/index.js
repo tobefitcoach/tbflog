@@ -42,6 +42,8 @@ import { bindMetricsStaticEvents, loadAllMetrics, loadAthleteMetrics } from './m
 import { bindBodyweightEvents, bindChangeExplainEvents, bindNotesEvents, bindOverviewEvents, loadBodyweightGraph, loadLatestNote, loadOverviewStats, loadOverviewStatsGuarded, loadRecentActivity } from './overview.js?v=__V__'
 import { bindReportEvents } from './report.js?v=__V__'
 import { SKELETON, TEMPLATE } from './template.js?v=__V__'
+import { customAlert } from '../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- MOUNT / UNMOUNT ----
@@ -313,7 +315,7 @@ function bindStatusInviteEvents() {
 // in the header/settings toggles once the real markup is in the DOM.
 // ==========================================================================
 async function loadAthlete(token) {
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('athletes')
     .select('*')
     .eq('id', athleteId)

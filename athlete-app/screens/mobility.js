@@ -10,6 +10,7 @@ import { CHEVRON_LEFT } from '../format.js?v=__V__'
 import { insertOnce, saveWithRetry } from '../outbox.js?v=__V__'
 import { currentWeekStart, renderWeekView } from './home.js?v=__V__'
 import { formatTimer, playRestDoneSound } from '../workout/rest-timer.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 let mobilityTimerInterval = null
 let stretchLibraryCache = null              // stretches visible to this athlete (RLS-scoped to their coach)

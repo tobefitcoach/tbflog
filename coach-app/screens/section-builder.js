@@ -27,6 +27,8 @@ import { coachId } from '../session.js?v=__V__'
 import { ensureCss } from '../lazy-css.js?v=__V__'
 import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
 import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../network-retry.js?v=__V__'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -975,7 +977,7 @@ function collectExtraFields(containerId) {
 // ==========================================================================
 async function loadExtraFieldNames() {
   if (extraFieldNamesCache) return extraFieldNamesCache
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('extra_field_names')
     .select('id, name')
     .order('name')

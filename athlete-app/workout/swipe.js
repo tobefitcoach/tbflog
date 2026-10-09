@@ -16,6 +16,7 @@ import { currentWeekStart, renderWeekView } from '../screens/home.js?v=__V__'
 import { notifyCoach } from '../screens/tournaments.js?v=__V__'
 import { loadAndRenderPRBadges } from './prs.js?v=__V__'
 import { restoreRestTimerBar } from './rest-timer.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- SWIPE NAVIGATION ----

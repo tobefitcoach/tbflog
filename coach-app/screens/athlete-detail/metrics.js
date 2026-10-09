@@ -11,6 +11,8 @@ import { root, mountToken, athleteId, met } from './state.js?v=__V__'
 import { onSaveEditEntry, openEntriesModal, openGraphModal, renderLastUpdatedModal, renderMetricsTrackedModal, renderPRModal, renderTotalEntriesModal } from './metrics-modals.js?v=__V__'
 import { openChangeExplain } from './overview.js?v=__V__'
 import { fetchAllRows } from '../../../shared/fetch-all.js?v=__V__'
+import { customAlert, customConfirm } from '../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../network-retry.js?v=__V__'
 
 // % change from `previous` to `current`, to one decimal - or null when
 // there's nothing to compare against (previous is 0, or a value is
@@ -58,7 +60,7 @@ export function convertInput(value, displayUnit) {
 // ==========================================================================
 export async function loadAllMetrics() {
   const token = mountToken
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('metrics')
     .select('*')
     .abortSignal(signal)
@@ -91,7 +93,7 @@ export async function loadAllMetrics() {
 // ==========================================================================
 export async function loadAthleteMetrics() {
   const token = mountToken
-  const { data, error } = await window.fetchWithRetry((signal) => supabase
+  const { data, error } = await fetchWithRetry((signal) => supabase
     .from('athlete_metrics')
     .select('*')
     .eq('athlete_id', athleteId)
@@ -146,7 +148,7 @@ async function renderMetrics() {
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
   const fromDate = toDateStr(threeMonthsAgo)
 
-  const { data: recentMeasurements } = await fetchAllRows(window.fetchWithRetry, () => supabase
+  const { data: recentMeasurements } = await fetchAllRows(fetchWithRetry, () => supabase
     .from('measurements')
     .select('*')
     .eq('athlete_id', athleteId)
@@ -169,7 +171,7 @@ async function renderMetrics() {
   const zone2MetricIds = met.athleteMetrics.filter(am => am.metrics.type === 'zone2').map(am => am.metrics.id)
   const zone2AllByMetric = {}
   if (zone2MetricIds.length > 0) {
-    const { data: allZone2Measurements } = await fetchAllRows(window.fetchWithRetry, () => supabase
+    const { data: allZone2Measurements } = await fetchAllRows(fetchWithRetry, () => supabase
       .from('measurements')
       .select('*')
       .eq('athlete_id', athleteId)
@@ -670,7 +672,7 @@ export function bindMetricsStaticEvents() {
 async function loadStatsBar() {
   const token = mountToken
   // Get all measurements for this athlete
-  const { data: allMeasurements, error } = await fetchAllRows(window.fetchWithRetry, () => supabase
+  const { data: allMeasurements, error } = await fetchAllRows(fetchWithRetry, () => supabase
     .from('measurements')
     .select('*')
     .eq('athlete_id', athleteId)

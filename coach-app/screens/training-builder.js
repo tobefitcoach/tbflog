@@ -32,6 +32,8 @@ import { ensureCss } from '../lazy-css.js?v=__V__'
 import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../../shared/video.js?v=__V__'
 import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../network-retry.js?v=__V__'
 
 const ROUTE_TEMPLATE = `
   <div class="tb-route" id="trainingBuilderRoute">

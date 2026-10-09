@@ -13,6 +13,8 @@ import { convertValue } from './metrics.js?v=__V__'
 import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
 import { fetchScheduleRange } from '../../../shared/schedule-range.js?v=__V__'
 import { dailyLoadByDate, computeAcwr } from '../../training-load.js?v=__V__'
+import { customAlert, customConfirm } from '../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- OVERVIEW STATS: completion rate + volume ----
@@ -63,9 +65,9 @@ export async function loadOverviewStatsGuarded() {
 }
 
 async function loadScheduleForStats(from, to) {
-  const schedule = await fetchScheduleRange(supabase, window.fetchWithRetry, athleteId, from, to)
+  const schedule = await fetchScheduleRange(supabase, fetchWithRetry, athleteId, from, to)
   if (!schedule.missing) return { data: schedule.programs, error: schedule.error }
-  return fetchAllRows(window.fetchWithRetry, () => supabase
+  return fetchAllRows(fetchWithRetry, () => supabase
     .from('programs')
     .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(tracks_weight))))')
     .eq('athlete_id', athleteId)
@@ -81,7 +83,7 @@ export async function loadOverviewStats() {
   // These 3 queries don't depend on each other's results, so they fire
   // together instead of waiting on each other one at a time - this alone
   // cuts this tab's load time roughly in half to a third. Each also goes
-  // through window.fetchWithRetry so a slow/flaky connection gets a couple
+  // through fetchWithRetry so a slow/flaky connection gets a couple
   // of automatic retries instead of these stats just staying blank with no
   // explanation.
   //
@@ -95,13 +97,13 @@ export async function loadOverviewStats() {
     { data: sessions, error: sessionsError }
   ] = await Promise.all([
     loadScheduleForStats(toDateStr(addDays(new Date(), -119)), toDateStr(new Date())),
-    fetchAllRows(window.fetchWithRetry, () => supabase
+    fetchAllRows(fetchWithRetry, () => supabase
       .from('exercise_log_sets')
       .select('*')
       .eq('athlete_id', athleteId)
       .gte('date', ninetyDaysAgo)
     ),
-    fetchAllRows(window.fetchWithRetry, () => supabase
+    fetchAllRows(fetchWithRetry, () => supabase
       .from('workout_sessions')
       .select('*')
       .eq('athlete_id', athleteId)
@@ -524,7 +526,7 @@ export async function loadRecentActivity() {
     { data: ownPrograms, error: programsError },
     { data: sessions, error: sessionsError }
   ] = await Promise.all([
-    window.fetchWithRetry((signal) => supabase
+    fetchWithRetry((signal) => supabase
       .from('tournaments')
       .select('id, name, created_at')
       .eq('athlete_id', athleteId)
@@ -532,7 +534,7 @@ export async function loadRecentActivity() {
       .limit(5)
       .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchWithRetry((signal) => supabase
       .from('programs')
       .select('id, name, created_at')
       .eq('athlete_id', athleteId)
@@ -541,7 +543,7 @@ export async function loadRecentActivity() {
       .limit(5)
       .abortSignal(signal)
     ),
-    window.fetchWithRetry((signal) => supabase
+    fetchWithRetry((signal) => supabase
       .from('workout_sessions')
       .select('id, ended_at, session_type, program_days(day_number, label, program_weeks(programs(name, is_adhoc)))')
       .eq('athlete_id', athleteId)

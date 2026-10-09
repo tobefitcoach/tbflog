@@ -7,6 +7,7 @@ import { supabase } from './athleteClient.js?v=__V__'
 import { athlete } from './state.js?v=__V__'
 import { logSetsByPE } from './data.js?v=__V__'
 import { tickRestTimer } from './workout/rest-timer.js?v=__V__'
+import { fetchWithRetry } from '../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- PENDING SAVE QUEUE ----
@@ -329,10 +330,10 @@ export function insertOnce(table, row, { matchOn = ['id'], returnRow = false } =
 }
 
 // Retries a Supabase call a few times with backoff before giving up - the
-// shared window.fetchWithRetry (network-retry.js, loaded by dashboard.html
+// shared fetchWithRetry (network-retry.js, loaded by dashboard.html
 // before this app), which this used to be an exact copy of. Never throws:
 // a failed attempt comes back in the usual {data, error} shape, so it's
 // safe to await from anywhere, including in a loop from flushPendingQueue.
 export function saveWithRetry(operationFactory, maxAttempts = 3) {
-  return window.fetchWithRetry(operationFactory, maxAttempts)
+  return fetchWithRetry(operationFactory, maxAttempts)
 }

@@ -13,6 +13,7 @@ import { saveWithRetry } from '../outbox.js?v=__V__'
 import { notifyCoach } from './tournaments.js?v=__V__'
 import { buildWorkoutSlides, renderActiveExercise, startWorkout } from '../workout/active.js?v=__V__'
 import { renderWorkoutSummary } from '../workout/swipe.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- ADD OWN WORKOUT (Strength + Field/Training) ----

@@ -50,6 +50,7 @@ import { renderGroupGate, renderGroupStep } from './workout/group.js?v=__V__'
 import { renderEndOfWorkoutSlide, wireExerciseHistoryModal, wireExerciseSwapModal } from './workout/history.js?v=__V__'
 import { clearRestTimer } from './workout/rest-timer.js?v=__V__'
 import { renderWorkoutSummary } from './workout/swipe.js?v=__V__'
+import { customAlert } from '../confirm-modal.js?v=__V__'
 
 const { data: { session } } = await supabase.auth.getSession()
 setSession(session)

@@ -12,6 +12,8 @@ import { loadExerciseLibrary, wireExercisePicker } from '../screens/own-workout.
 import { renderActiveExercise } from './active.js?v=__V__'
 import { sessionExerciseStats } from './prs.js?v=__V__'
 import { attachSwipeHandlers, finishWorkout, mountSlide } from './swipe.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- LAST TIME ----

@@ -11,6 +11,7 @@ import { toDateStr, parseDateStr, addDays } from '../../shared/dates.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { CHEVRON_LEFT, formatDisplayDate, formatShortDate } from '../format.js?v=__V__'
 import { insertOnce, saveWithRetry } from '../outbox.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 let tournamentsCache = [] // every upcoming+past tournaments row for this athlete, sorted by date
 export let tournamentsByDate = {} // 'YYYY-MM-DD' -> tournaments row

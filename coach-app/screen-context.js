@@ -14,7 +14,7 @@
 //   ctx.signal         aborted when the screen goes away
 //   ctx.on(t, ev, fn)  addEventListener, removed automatically on leave
 //   ctx.timeout(fn,ms) setTimeout, cleared automatically on leave
-//   ctx.fetch(factory) window.fetchWithRetry, cancelled on leave
+//   ctx.fetch(factory) fetchWithRetry, cancelled on leave
 //
 // Listeners on elements INSIDE the screen don't need ctx.on - they're
 // thrown away with the screen's HTML. Only document, window,
@@ -22,6 +22,7 @@
 // screen) need it.
 // ==========================================================================
 import * as nav from './nav.js?v=__V__'
+import { fetchWithRetry } from '../network-retry.js?v=__V__'
 
 export function createScreenContext(token) {
   const controller = new AbortController()
@@ -46,7 +47,7 @@ export function createScreenContext(token) {
       return id
     },
     fetch(operationFactory, maxAttempts) {
-      return window.fetchWithRetry(operationFactory, maxAttempts, controller.signal)
+      return fetchWithRetry(operationFactory, maxAttempts, controller.signal)
     },
     // Router-only: called once, right after the screen's own unmount()
     dispose() {

@@ -24,6 +24,7 @@ import {
 } from '../stats-calc.js?v=__V__'
 import { escapeHtml } from '../../escape.js?v=__V__'
 import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 const RANGES = [
   { key: 'week', label: 'Week' },

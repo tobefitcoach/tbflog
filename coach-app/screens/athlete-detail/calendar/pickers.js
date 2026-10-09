@@ -13,6 +13,8 @@ import { createAdHocDay } from '../../../../shared/adhoc-day.js?v=__V__'
 import { root, mountToken, athleteId, cal } from '../state.js?v=__V__'
 import { getProgramTemplates, renderWorkoutPreviewExercise } from './add-day.js?v=__V__'
 import { loadCalendarMonth } from './grid.js?v=__V__'
+import { customAlert } from '../../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- PROGRAM TAB: list + preview + day-range picker ----
@@ -277,7 +279,7 @@ async function findOrCreateAdHocDay(dateStr, name) {
 // ==========================================================================
 async function getSectionsListCal() {
   if (cal.cachedSectionsCal) return cal.cachedSectionsCal
-  const { data, error } = await window.fetchWithRetry((signal) => supabase.from('sections').select('*').order('name').abortSignal(signal))
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('sections').select('*').order('name').abortSignal(signal))
   if (error) { console.log(error); customAlert('Something went wrong loading your sections - check your connection and try again'); return null }
   cal.cachedSectionsCal = data
   return cal.cachedSectionsCal
@@ -378,7 +380,7 @@ async function cloneSectionToDayCal(sectionId, sectionName, dayId) {
 // ==========================================================================
 async function getFormsListCal() {
   if (cal.cachedFormsCal) return cal.cachedFormsCal
-  const { data, error } = await window.fetchWithRetry((signal) => supabase.from('forms').select('*').order('name').abortSignal(signal))
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('forms').select('*').order('name').abortSignal(signal))
   if (error) { console.log(error); customAlert('Something went wrong loading your forms - check your connection and try again'); return null }
   cal.cachedFormsCal = data
   return cal.cachedFormsCal

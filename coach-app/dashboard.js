@@ -20,6 +20,7 @@ import { supabase } from '../coachClient.js?v=__V__'
 import { setSession } from './session.js?v=__V__'
 import { go, initRouter, prefetchLikelyNext, currentRouteName, TAB_FOR_ROUTE } from './router.js?v=__V__'
 import { initBell } from './bell.js?v=__V__'
+import { fetchWithRetry } from '../network-retry.js?v=__V__'
 
 const pageContent = document.getElementById('pageContent')
 const pageTitle = document.getElementById('pageTitle')
@@ -112,7 +113,7 @@ async function start() {
   setSession(session)
   loggedInAs.textContent = session.user.email || ''
 
-  const { data: profile, error } = await window.fetchWithRetry((signal) => supabase
+  const { data: profile, error } = await fetchWithRetry((signal) => supabase
     .from('profiles')
     .select('role, name')
     .eq('id', session.user.id)

@@ -14,6 +14,8 @@ import { armCopyWorkout, armMoveWorkout } from './copy.js?v=__V__'
 import { deleteFormAssignment, deleteMobilitySession, deleteTraining, openFormDetailModal, openMobilityDetailModal, openTournamentDetailModal, openWorkoutDetailModal } from './day-modal.js?v=__V__'
 import { fetchAllRows, fetchAllRowsForIds } from '../../../../shared/fetch-all.js?v=__V__'
 import { fetchScheduleRange } from '../../../../shared/schedule-range.js?v=__V__'
+import { customAlert } from '../../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- CALENDAR TAB: DATE HELPERS ----
@@ -92,12 +94,12 @@ async function syncLiveTrainingDaysCal(programs) {
   }
   if (linkedDayIds.length === 0) return
 
-  const { error: syncError } = await window.fetchWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
+  const { error: syncError } = await fetchWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
   if (syncError) { console.log('Error syncing live-linked days:', syncError); return }
 
   // In batches - the day ids go into the request URL, and the list grows
   // with every live-linked day the athlete has ever had
-  const { data: freshExercises, error: fetchError } = await fetchAllRowsForIds(window.fetchWithRetry, linkedDayIds, (batch) => supabase
+  const { data: freshExercises, error: fetchError } = await fetchAllRowsForIds(fetchWithRetry, linkedDayIds, (batch) => supabase
     .from('program_exercises')
     .select('*, exercises!exercise_id(name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .in('day_id', batch)
@@ -141,15 +143,15 @@ function gridRange(year, month) {
 
 async function fetchMonthData(id, from, to) {
   const [schedule, { data: tournaments, error: tournamentsError }, { data: formAssignments, error: formAssignmentsError }] = await Promise.all([
-    rangeFunctionMissing ? { missing: true } : fetchScheduleRange(supabase, window.fetchWithRetry, id, from, to),
-    fetchAllRows(window.fetchWithRetry, () => supabase
+    rangeFunctionMissing ? { missing: true } : fetchScheduleRange(supabase, fetchWithRetry, id, from, to),
+    fetchAllRows(fetchWithRetry, () => supabase
       .from('tournaments')
       .select('*')
       .eq('athlete_id', id)
       .lte('date', to)
       .gte('end_date', from)
     ),
-    fetchAllRows((factory) => window.fetchWithRetry(factory, 1), () => supabase
+    fetchAllRows((factory) => fetchWithRetry(factory, 1), () => supabase
       .from('form_assignments')
       .select('*, forms(name, gate_workout), form_answers(id)')
       .eq('athlete_id', id)
@@ -169,18 +171,18 @@ async function fetchMonthData(id, from, to) {
       { data: allSessions, error: sessionsError },
       { data: allSets, error: logSetsError }
     ] = await Promise.all([
-      fetchAllRows(window.fetchWithRetry, () => supabase
+      fetchAllRows(fetchWithRetry, () => supabase
         .from('programs')
         .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance))))')
         .eq('athlete_id', id)
         .eq('is_template', false)
       ),
-      fetchAllRows(window.fetchWithRetry, () => supabase
+      fetchAllRows(fetchWithRetry, () => supabase
         .from('workout_sessions')
         .select('*') // '*' (not a column list) so athlete_note comes through once its migration has run, without breaking this query before then
         .eq('athlete_id', id)
       ),
-      fetchAllRows(window.fetchWithRetry, () => supabase
+      fetchAllRows(fetchWithRetry, () => supabase
         .from('exercise_log_sets')
         .select('*')
         .eq('athlete_id', id)
@@ -205,7 +207,7 @@ async function fetchMonthData(id, from, to) {
   // yet) can't take the athlete's own tournaments off the calendar.
   const coachAddedTournaments = (tournaments || []).filter(t => t.created_by_coach)
   if (coachAddedTournaments.length > 0) {
-    const { data: ratings, error: ratingsError } = await window.fetchWithRetry((signal) => supabase
+    const { data: ratings, error: ratingsError } = await fetchWithRetry((signal) => supabase
       .from('tournament_coach_ratings')
       .select('tournament_id, importance')
       .in('tournament_id', coachAddedTournaments.map(t => t.id))

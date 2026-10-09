@@ -15,6 +15,7 @@ import { renderGroupGate, renderGroupStep, renderSingleSlideBody } from './group
 import { loadLastTime, openExerciseHistoryModal, openSwapModal, renderEndOfWorkoutSlide, swapExercise } from './history.js?v=__V__'
 import { wireExerciseCardEvents } from './sets.js?v=__V__'
 import { attachSwipeHandlers, mountSlide } from './swipe.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- ACTIVE WORKOUT (one exercise at a time) ----

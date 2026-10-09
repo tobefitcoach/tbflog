@@ -30,6 +30,8 @@ import { openBuilderOverlay, closeBuilderOverlay, flushBuilderOverlay, teardownB
 import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
 import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../network-retry.js?v=__V__'
 
 const TEMPLATE = `
   <div class="screen-header">
@@ -393,10 +395,10 @@ async function syncLiveTrainingDaysWeeks(weeks) {
   }
   if (linkedDayIds.length === 0) return
 
-  const { error: syncError } = await window.fetchWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
+  const { error: syncError } = await fetchWithRetry((signal) => supabase.rpc('sync_live_training_days', { p_day_ids: linkedDayIds }).abortSignal(signal))
   if (syncError) { console.log('Error syncing live-linked days:', syncError); return }
 
-  const { data: freshExercises, error: fetchError } = await window.fetchWithRetry((signal) => supabase
+  const { data: freshExercises, error: fetchError } = await fetchWithRetry((signal) => supabase
     .from('program_exercises')
     .select('*, exercises!exercise_id(id, name, category, type, video_url, tracks_reps, tracks_weight, is_timed, is_unilateral, tracks_distance)')
     .in('day_id', linkedDayIds)
@@ -673,7 +675,7 @@ let currentDayIdForAddTraining = null
 
 async function getTrainingsList() {
   if (cachedTrainings) return cachedTrainings
-  const { data, error } = await window.fetchWithRetry((signal) => supabase.from('trainings').select('*').order('name').abortSignal(signal))
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('trainings').select('*').order('name').abortSignal(signal))
   if (error) { console.log(error); customAlert('Something went wrong loading your Workout Library - check your connection and try again'); return null }
   cachedTrainings = data
   return cachedTrainings

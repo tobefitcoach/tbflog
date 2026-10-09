@@ -15,6 +15,7 @@ import { supabase } from '../../coachClient.js?v=__V__'
 import { supabase as athleteSupabase } from '../../athlete-app/athleteClient.js?v=__V__'
 import { pushStatus, enablePush, disablePush } from '../../push.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">

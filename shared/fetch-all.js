@@ -10,11 +10,11 @@
 // Settings > API > Max rows, default 1,000). If that's ever LOWERED, lower
 // this too - a full page under the cap would look like the last page.
 //
-//   const { data, error } = await fetchAllRows(window.fetchWithRetry,
+//   const { data, error } = await fetchAllRows(fetchWithRetry,
 //     () => supabase.from('exercise_log_sets').select('*').eq('athlete_id', id))
 //
 // run          the retry helper to send each page through - called as
-//              run(signal => query) like window.fetchWithRetry / saveWithRetry
+//              run(signal => query) like fetchWithRetry / saveWithRetry
 // buildQuery   returns a fresh, unsent query each time (filters + select,
 //              no range); any .order() it sets is kept and id is added as
 //              the final tie-break, so a page boundary can't skip or repeat

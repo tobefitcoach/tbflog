@@ -9,6 +9,7 @@ import { createAdHocDay } from '../../../../shared/adhoc-day.js?v=__V__'
 import { root, athleteId, cal } from '../state.js?v=__V__'
 import { formatShortDateCal, loadCalendarMonth, moveWorkoutToDate, trainingDisplayName } from './grid.js?v=__V__'
 import { setDayLiveLink } from './pickers.js?v=__V__'
+import { customAlert } from '../../../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- ARM-AND-DROP COPYING (single workout, from the ⋮ menu, and a full

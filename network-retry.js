@@ -8,11 +8,9 @@
 // are missing"), when really the request just needs a second try.
 //
 // Same retry/timeout pattern as the athlete app's own saveWithRetry
-// (athlete-app/outbox.js), pulled out into a shared script here since
-// every coach page needs it, not just one - exposed as window.fetchWithRetry
-// (same pattern as loading-bar.js patching window.fetch and
-// confirm-modal.js exposing window.customConfirm) since each page's own
-// script is a separate module with no shared import.
+// (athlete-app/outbox.js), pulled out into a shared module here since
+// every coach page needs it, not just one. Imported where needed:
+// import { fetchWithRetry } from '.../network-retry.js'
 //
 // Usage:
 //   const { data, error } = await fetchWithRetry((signal) => supabase
@@ -21,8 +19,6 @@
 // Optional third argument: an AbortSignal (the coach app passes the
 // screen's ctx.signal). Once it fires, the request in flight is cancelled
 // and no further attempts are made - the screen that wanted it is gone.
-//
-// Loaded right after confirm-modal.js, before each page's own script.
 // ==========================================================================
 // A refusal from the server (no permission, invalid data, a duplicate, not
 // found, a function that isn't installed...) gets the same answer every
@@ -37,7 +33,7 @@ function isWorthRetrying(result) {
   return status >= 500 || status === 408 || status === 429
 }
 
-window.fetchWithRetry = async function(operationFactory, maxAttempts = 3, outerSignal) {
+export async function fetchWithRetry(operationFactory, maxAttempts = 3, outerSignal) {
   let result = { data: null, error: null }
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (outerSignal?.aborted) return { data: null, error: new DOMException('Screen left', 'AbortError') }

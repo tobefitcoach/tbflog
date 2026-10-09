@@ -14,6 +14,8 @@ import { convertValue } from './metrics.js?v=__V__'
 import { formatDurationOv, resolveDateOv, setVolumeOv } from './overview.js?v=__V__'
 import { showToast } from './toast.js?v=__V__'
 import { fetchAllRows } from '../../../shared/fetch-all.js?v=__V__'
+import { customAlert } from '../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- PDF PROGRESS REPORT ----
@@ -78,13 +80,13 @@ async function fetchReportData() {
     { data: programs, error: programsError },
     { data: sessions, error: sessionsError }
   ] = await Promise.all([
-    fetchAllRows(window.fetchWithRetry, () => supabase
+    fetchAllRows(fetchWithRetry, () => supabase
       .from('programs')
       .select('*, program_weeks(*, program_days(*, program_exercises(*, exercises!exercise_id(id, name, type, tracks_weight, foot_contacts, intensity_tier))))')
       .eq('athlete_id', athleteId)
       .eq('is_template', false)
     ),
-    fetchAllRows(window.fetchWithRetry, () => supabase
+    fetchAllRows(fetchWithRetry, () => supabase
       .from('workout_sessions')
       .select('*')
       .eq('athlete_id', athleteId)
@@ -131,7 +133,7 @@ async function fetchReportData() {
   // report knows about.
   let logSets = []
   if (Object.keys(peInfoById).length > 0) {
-    const { data, error } = await fetchAllRows(window.fetchWithRetry, () => supabase
+    const { data, error } = await fetchAllRows(fetchWithRetry, () => supabase
       .from('exercise_log_sets')
       .select('*')
       .eq('athlete_id', athleteId)

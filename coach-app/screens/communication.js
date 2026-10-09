@@ -71,6 +71,7 @@ import { refreshChatBadge } from '../bell.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { signReportLinks } from '../../report-links.js?v=__V__'
 import { fetchAllRows, runOnce } from '../../shared/fetch-all.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 // Two-pane inbox: athlete list on the left, the selected athlete's full
 // chat_messages history + a send box on the right - see

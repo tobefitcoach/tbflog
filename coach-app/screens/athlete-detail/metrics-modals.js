@@ -11,6 +11,7 @@ import { root, mountToken, athleteId, ov, met } from './state.js?v=__V__'
 import { convertInput, convertValue, loadAthleteMetrics, pctChange } from './metrics.js?v=__V__'
 import { formatDisplayDate, openChangeExplain } from './overview.js?v=__V__'
 import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
+import { customAlert, customConfirm } from '../../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- PR OVERVIEW MODAL ----

@@ -12,7 +12,7 @@
 // A day with a started-but-unfinished workout is always included.
 //
 // run      the retry helper, called as run(signal => query) like
-//          window.fetchWithRetry / saveWithRetry
+//          fetchWithRetry / saveWithRetry
 // from/to  'YYYY-MM-DD', both inclusive
 //
 // Returns { programs, logSets, sessions } or { error, missing }. missing is

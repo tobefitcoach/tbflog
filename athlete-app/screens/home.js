@@ -14,6 +14,7 @@ import { openLogWeightModal, renderDayPreview } from './day-preview.js?v=__V__'
 import { renderMobilityAreaPicker } from './mobility.js?v=__V__'
 import { renderAddWorkoutChoice } from './own-workout.js?v=__V__'
 import { latestBodyweightRow, renderTournaments, tournamentsByDate } from './tournaments.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 export let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 

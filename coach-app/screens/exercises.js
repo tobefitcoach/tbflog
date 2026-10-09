@@ -17,6 +17,7 @@ import { showLoadError } from '../screen-context.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { safeUrl } from '../../escape.js?v=__V__'
 import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 const BUILT_IN_TYPES = {
   weights: 'Weightlifting (sets, reps, weight)',

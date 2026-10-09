@@ -17,6 +17,7 @@
 import { supabase } from '../../coachClient.js?v=__V__'
 import { showLoadError } from '../screen-context.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 const TEMPLATE = `
   <div class="dashboard-header">

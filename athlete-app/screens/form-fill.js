@@ -10,6 +10,7 @@ import { completedSessionsByDayId, formsGatingDate, loadTrainingData, logSetsByP
 import { CHEVRON_LEFT, WORKOUT_TYPE_LABELS_ATH, trainingDisplayName } from '../format.js?v=__V__'
 import { renderDayPreview } from './day-preview.js?v=__V__'
 import { summarizeWorkout, targetLine } from './home.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- FORM FILL-OUT SCREEN ----

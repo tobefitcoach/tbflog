@@ -12,6 +12,7 @@ import { disarmCopy } from './copy.js?v=__V__'
 import { openWorkoutBuilderOverlay } from './day-modal.js?v=__V__'
 import { loadCalendarMonth, renderCalendarGrid, resolveDate } from './grid.js?v=__V__'
 import { applySectionToDayCal, applyTrainingToDay, openDayPicker, playInlineVideoCal, renderDayPickerGrid } from './pickers.js?v=__V__'
+import { customAlert } from '../../../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- ASSIGN PROGRAM ----

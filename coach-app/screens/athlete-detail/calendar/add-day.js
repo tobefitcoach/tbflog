@@ -9,6 +9,8 @@ import { root, athleteId, cal } from '../state.js?v=__V__'
 import { TOURNAMENT_IMPORTANCE_DESCRIPTIONS_CAL, formatDisplayDateCal, loadCalendarMonth } from './grid.js?v=__V__'
 import { loadDayAddFormListCal, loadDayAddProgramList, loadDayAddSectionListCal, resetFormPreviewCal, resetSectionPreviewCal } from './pickers.js?v=__V__'
 import { showToast } from '../toast.js?v=__V__'
+import { customAlert } from '../../../../confirm-modal.js?v=__V__'
+import { fetchWithRetry } from '../../../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- ADD TRAINING (hover "+" on a calendar day) ----
@@ -24,7 +26,7 @@ import { showToast } from '../toast.js?v=__V__'
 // ==========================================================================
 async function getTrainingsList() {
   if (cal.cachedTrainings) return cal.cachedTrainings
-  const { data, error } = await window.fetchWithRetry((signal) => supabase.from('trainings').select('*').order('created_at', { ascending: false }).abortSignal(signal))
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('trainings').select('*').order('created_at', { ascending: false }).abortSignal(signal))
   if (error) { console.log(error); customAlert('Something went wrong loading your workouts - check your connection and try again'); return null }
   cal.cachedTrainings = data
   return cal.cachedTrainings
@@ -32,7 +34,7 @@ async function getTrainingsList() {
 
 export async function getProgramTemplates() {
   if (cal.cachedTemplates) return cal.cachedTemplates
-  const { data, error } = await window.fetchWithRetry((signal) => supabase.from('programs').select('*').eq('is_template', true).order('name').abortSignal(signal))
+  const { data, error } = await fetchWithRetry((signal) => supabase.from('programs').select('*').eq('is_template', true).order('name').abortSignal(signal))
   if (error) { console.log(error); customAlert('Something went wrong loading your programs - check your connection and try again'); return null }
   cal.cachedTemplates = data
   return cal.cachedTemplates
@@ -246,7 +248,7 @@ export function wireCoachTournamentForm() {
 
     // One attempt only (no retry): this inserts a row, so a retry after a
     // dropped response could add the same tournament twice
-    const { error } = await window.fetchWithRetry((signal) => supabase
+    const { error } = await fetchWithRetry((signal) => supabase
       .rpc('coach_add_tournament', {
         p_athlete_id: athleteId, p_name: name, p_date: date, p_end_date: endDate, p_importance: coachTournamentImportance
       })

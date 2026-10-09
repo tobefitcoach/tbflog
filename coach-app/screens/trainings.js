@@ -17,6 +17,7 @@ import { go } from '../router.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
 import { escapeHtml } from '../../escape.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 const WORKOUT_TYPE_LABELS = { gym: 'Gym', field: 'Field', run: 'Run' }
 

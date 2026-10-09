@@ -7,12 +7,9 @@
 // .modal-overlay/.modal/.form-actions/.btn-cancel/.btn-save classes as
 // every other modal in the app, so they look the same as everything else.
 //
-// Exposed as window.customConfirm/window.customAlert (same pattern as
-// loading-bar.js patching window.fetch) since each page's own script is a
-// separate module with no shared import - this needs to be callable from
-// all of them without one.
-//
-// Loaded right after loading-bar.js, before each page's own script.
+// Imported where needed (import { customConfirm, customAlert } from
+// '.../confirm-modal.js'). The popup itself is created the first time this
+// file loads, so a page doesn't need a script tag for it.
 // ==========================================================================
 const overlay = document.createElement('div')
 overlay.className = 'modal-overlay'
@@ -84,13 +81,13 @@ function open(message, showCancel) {
 
 // Confirm: Cancel + OK, resolves true/false - use with await, same as the
 // native confirm() it replaces
-window.customConfirm = function(message) {
+export function customConfirm(message) {
   return open(message, true)
 }
 
 // Alert: OK only. Every existing alert() call site fires right before a
 // `return` with nothing depending on it blocking, so this is fire-and-forget
 // (no await needed) - callers can keep calling it exactly like alert(...)
-window.customAlert = function(message) {
+export function customAlert(message) {
   return open(message, false)
 }

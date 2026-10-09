@@ -19,6 +19,7 @@ import { renderRestDayCard } from './stats.js?v=__V__'
 import { loadLatestBodyweight } from './tournaments.js?v=__V__'
 import { startWorkout } from '../workout/active.js?v=__V__'
 import { renderWorkoutSummary } from '../workout/swipe.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
 // ---- DAY PREVIEW (read-only, no logging inputs) ----

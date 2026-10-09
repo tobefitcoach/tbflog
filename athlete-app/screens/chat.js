@@ -11,6 +11,7 @@ import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { saveWithRetry } from '../outbox.js?v=__V__'
 import { notifyCoach } from './tournaments.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 // Small red dot on the Chat tab, mirroring the coach app's own (see
 // coach-app/bell.js's refreshChatBadge) - same chat_messages/read_at

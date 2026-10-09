@@ -12,6 +12,8 @@
 
 // Public key only - the matching private key lives in the send-push Edge
 // Function's VAPID_PRIVATE_KEY secret, never shipped to the browser.
+import { customAlert } from './confirm-modal.js?v=__V__'
+
 const VAPID_PUBLIC_KEY = 'BE9WSRB8zBbkjKEBJlGF9cIVRN-Mn9fOg8XvP9hVFl1Zb2AOZKczpnc6P9aMNQ55MwbMRAj2ILeJQqYOMQhYvOg'
 
 function urlBase64ToUint8Array(base64String) {

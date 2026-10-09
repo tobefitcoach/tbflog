@@ -6,6 +6,7 @@ import { toDateStr, addDays } from '../../shared/dates.js?v=__V__'
 import { fetchAllRows } from '../../shared/fetch-all.js?v=__V__'
 import { entriesByDate, logSetsByPE } from '../data.js?v=__V__'
 import { formatPRBadgeValue } from '../screens/stats.js?v=__V__'
+import { fetchWithRetry } from '../../network-retry.js?v=__V__'
 
 // ==========================================================================
 // ---- PR DETECTION ----

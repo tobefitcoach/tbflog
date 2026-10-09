@@ -15,6 +15,7 @@ import { SET_HINT_KEY, runHomeTour } from '../home-tour.js?v=__V__'
 import { saveWithRetry } from '../outbox.js?v=__V__'
 import { resizeImageFile } from './chat.js?v=__V__'
 import { renderWeekView } from './home.js?v=__V__'
+import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
 
 let coachName = null // fetched once, lazily, the first time the Profile tab is opened
 
