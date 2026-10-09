@@ -529,11 +529,34 @@ async function onSaveStretch() {
     ? await supabase.from('stretches').update(fields).eq('id', currentStretch.id)
     : await supabase.from('stretches').insert([{ coach_id: coachId(), ...fields }])
 
-  if (error) { console.log(error); customAlert('Something went wrong'); return }
+  if (error) {
+    console.log(error)
+    if (pendingVideoFile) removeStretchVideo(videoUrl)
+    customAlert('Something went wrong')
+    return
+  }
+
+  // A replaced clip is no longer referenced by anything - drop the old file
+  if (currentStretch && currentStretch.video_url && currentStretch.video_url !== videoUrl) {
+    removeStretchVideo(currentStretch.video_url)
+  }
 
   closeStretchModal()
   releasePreviewBlob()
   await reloadAndRepaint()
+}
+
+// Best-effort delete of a stretch-videos file by its public URL. Each clip
+// belongs to exactly one stretch, so once the row stops pointing at it the
+// file is an orphan. Failures are only logged - the stretch itself is fine.
+function removeStretchVideo(url) {
+  const marker = '/stretch-videos/'
+  const i = url ? url.indexOf(marker) : -1
+  if (i < 0) return
+  const path = decodeURIComponent(url.slice(i + marker.length).split('?')[0])
+  supabase.storage.from('stretch-videos').remove([path])
+    .then(({ error }) => { if (error) console.log(error) })
+    .catch(err => console.log(err))
 }
 
 // No FK-violation handling needed (unlike the Exercise Library's delete) -
@@ -542,8 +565,10 @@ async function onSaveStretch() {
 async function deleteStretch(id) {
   if (!(await customConfirm('Delete this stretch?'))) return
 
+  const stretch = allStretchesCache.find(s => String(s.id) === String(id))
   const { error } = await supabase.from('stretches').delete().eq('id', id)
   if (error) { console.log(error); customAlert('Something went wrong'); return }
+  if (stretch) removeStretchVideo(stretch.video_url)
 
   await reloadAndRepaint()
 }
