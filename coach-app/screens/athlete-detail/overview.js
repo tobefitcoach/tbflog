@@ -12,6 +12,7 @@ import { root, mountToken, athleteId, currentAthlete, ov } from './state.js?v=__
 import { convertValue } from './metrics.js?v=__V__'
 import { fetchAllRows, runOnce } from '../../../shared/fetch-all.js?v=__V__'
 import { fetchScheduleRange } from '../../../shared/schedule-range.js?v=__V__'
+import { dailyLoadByDate, computeAcwr } from '../../training-load.js?v=__V__'
 
 // ==========================================================================
 // ---- OVERVIEW STATS: completion rate + volume ----
@@ -28,11 +29,6 @@ export function resolveDateOv(startDateStr, weekNumber, dayNumber) {
   return toDateStr(result)
 }
 
-function daysBetweenDateStrsOv(a, b) {
-  const [ay, am, ad] = a.split('-').map(Number)
-  const [by, bm, bd] = b.split('-').map(Number)
-  return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000)
-}
 
 // Weight x reps for one logged set - 0 if incomplete, unweighted, or the
 // reps didn't parse as a plain number (duration text, unedited "8-12" ranges)
@@ -247,35 +243,17 @@ export async function loadOverviewStats() {
 
   // ---- Training Load (Foster's session-RPE method: RPE x duration) ----
   // sessions already covers a 90-day window with session_rpe included
-  // (select('*') above) - no extra query needed.
-  const dailyLoad = {} // dateStr -> summed session_load that day
-  for (const s of sessions) {
-    if (s.session_rpe == null) continue // no rating entered - excluded, not treated as 0
-    const dateStr = s.local_date
-    const minutes = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
-    dailyLoad[dateStr] = (dailyLoad[dateStr] || 0) + s.session_rpe * minutes
-  }
-
-  function loadSum(days) {
-    const cutoff = toDateStr(addDays(new Date(), -(days - 1)))
-    const todayStr = toDateStr(new Date())
-    return Object.entries(dailyLoad)
-      .filter(([d]) => d >= cutoff && d <= todayStr)
-      .reduce((sum, [, v]) => sum + v, 0)
-  }
-
-  // ACWR only means something once there's a real 4-week baseline to compare
-  // against - with less than 28 days of rated-session history, loadSum(28)/4
-  // divides a partial sum by 4 as if a full chronic period had passed,
-  // understating the baseline and inflating the ratio. Held back as "—"
-  // until enough history exists, rather than showing a falsely high number.
-  const loadDates = Object.keys(dailyLoad).sort()
-  ov.daysOfLoadHistoryValue = loadDates.length ? daysBetweenDateStrsOv(loadDates[0], toDateStr(new Date())) + 1 : 0
-  const hasEnoughHistoryForAcwr = ov.daysOfLoadHistoryValue >= 28
-
-  ov.acuteLoadValue = loadSum(7)
-  ov.chronicLoadValue = hasEnoughHistoryForAcwr ? loadSum(28) / 4 : 0
-  ov.acwrValue = (hasEnoughHistoryForAcwr && ov.chronicLoadValue > 0) ? ov.acuteLoadValue / ov.chronicLoadValue : null
+  // (select('*') above) - no extra query needed. Rules (incl. why ACWR is
+  // held back as "—" under 28 days of history) live in training-load.js.
+  const todayStr = toDateStr(new Date())
+  const dailyLoad = dailyLoadByDate(sessions)
+  const loadDates = Object.keys(dailyLoad)
+  const acwr = computeAcwr(dailyLoad, todayStr)
+  ov.daysOfLoadHistoryValue = acwr.daysOfHistory
+  const hasEnoughHistoryForAcwr = acwr.enoughHistory
+  ov.acuteLoadValue = acwr.acute
+  ov.chronicLoadValue = acwr.chronic
+  ov.acwrValue = acwr.acwr
   const highRisk = ov.acwrValue !== null && ov.acwrValue > 1.5
 
   // Rest days count as 0, not skipped - monotony measures variation across

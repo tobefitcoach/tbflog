@@ -8,8 +8,7 @@
 // disagree with the same number on that athlete's own page:
 //   - dates are LOCAL YYYY-MM-DD strings (workout_sessions.local_date is
 //     written by the athlete's own device, so it's already local)
-//   - ACWR = last 7 days' load / (last 28 days' load / 4), load = session
-//     RPE x minutes, held back until 28 days of rated-session history exist
+//   - ACWR / training load come from training-load.js, shared with that tab
 //   - completion rate: a scheduled workout is done when at least half its
 //     prescribed sets were logged, and today's workout only counts once it's
 //     done. That rule needs every logged set, so it runs in the database
@@ -18,6 +17,7 @@
 // ==========================================================================
 
 import { toDateStr, parseDateStr, addDays } from '../shared/dates.js?v=__V__'
+import { sessionMinutes, dailyLoadByDate, computeAcwr } from './training-load.js?v=__V__'
 
 export const PRESET_DAYS = { week: 7, month: 30, quarter: 90, half: 180, year: 365 }
 
@@ -54,10 +54,6 @@ export function resolveWindow(range, today, custom) {
   return { start, end, prevStart, prevEnd, days }
 }
 
-function sessionMinutes(s) {
-  const m = (new Date(s.ended_at) - new Date(s.started_at)) / 60000
-  return m > 0 ? m : 0
-}
 
 // sessions: finished sessions of either type ({ athlete_id, session_type,
 //   local_date, started_at, ended_at }) - fetched over the current window
@@ -147,33 +143,13 @@ export function computeRiskRows({ athletes, sessions, todayStr }) {
     byAthlete.get(s.athlete_id).push(s)
   }
 
-  const today = parseDateStr(todayStr)
-  const cutoff7 = toDateStr(addDays(today, -6))
-  const cutoff28 = toDateStr(addDays(today, -27))
   const rows = []
-
   for (const athlete of athletes) {
     const list = byAthlete.get(athlete.id)
     if (!list) continue
 
-    const dailyLoad = {}
-    for (const s of list) {
-      dailyLoad[s.local_date] = (dailyLoad[s.local_date] || 0) + s.session_rpe * sessionMinutes(s)
-    }
-
-    // ACWR only means something once there's a real 4-week baseline
-    const firstDate = Object.keys(dailyLoad).sort()[0]
-    if (daysBetween(firstDate, todayStr) + 1 < 28) continue
-
-    const sum = cutoff => Object.entries(dailyLoad)
-      .filter(([d]) => d >= cutoff && d <= todayStr)
-      .reduce((total, [, v]) => total + v, 0)
-
-    const acute = sum(cutoff7)
-    const chronic = sum(cutoff28) / 4
-    if (!(chronic > 0)) continue
-
-    const acwr = acute / chronic
+    const { acwr, acute, chronic } = computeAcwr(dailyLoadByDate(list), todayStr)
+    if (acwr === null) continue
     if (acwr > 1.5) rows.push({ athlete, acwr, acute, chronic, kind: 'spike' })
     else if (acwr < 0.8) rows.push({ athlete, acwr, acute, chronic, kind: 'under' })
   }
