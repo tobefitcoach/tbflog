@@ -3254,3 +3254,106 @@ begin
   return v_added;
 end;
 $$;
+
+-- ==========================================================================
+-- Security rules use the ownership helpers everywhere (2026-10-09)
+-- The last 16 policies that still wrote out "exists (select 1 from athletes
+-- ...)" by hand now call the same helper functions as every other policy.
+-- Who can see/change what is unchanged - each helper does the exact check
+-- the policy did (verified rule-by-rule against the old policies in
+-- pglite). The helpers are security definer, so the athletes lookup runs
+-- once as a plain indexed check instead of going through athletes' own
+-- rules first.
+--
+-- New helper is_my_coach(coach): "the logged-in athlete's coach is this
+-- one" - for the athlete-reads-own-coach's-library policies. athletes.user_id
+-- is unique, so one login = one athlete row.
+-- ==========================================================================
+
+create or replace function public.is_my_coach(check_coach_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from athletes where user_id = (select auth.uid()) and coach_id = check_coach_id);
+$$;
+
+-- --- coach side: rows belonging to one of the coach's own athletes ---
+drop policy if exists "coach manages own athlete label links" on athlete_label_links;
+create policy "coach manages own athlete label links" on athlete_label_links for all
+  using (is_own_athlete_as_coach(athlete_id)) with check (is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "coach manages own athletes athlete_metrics" on athlete_metrics;
+create policy "coach manages own athletes athlete_metrics" on athlete_metrics for all
+  using (is_own_athlete_as_coach(athlete_id)) with check (is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "coach manages own athletes notes" on athlete_notes;
+create policy "coach manages own athletes notes" on athlete_notes for all
+  using (is_own_athlete_as_coach(athlete_id)) with check (is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "coach manages own athletes bodyweight" on bodyweight;
+create policy "coach manages own athletes bodyweight" on bodyweight for all
+  using (is_own_athlete_as_coach(athlete_id)) with check (is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "coach manages own athletes measurements" on measurements;
+create policy "coach manages own athletes measurements" on measurements for all
+  using (is_own_athlete_as_coach(athlete_id)) with check (is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "coach deletes sessions for own athletes" on workout_sessions;
+create policy "coach deletes sessions for own athletes" on workout_sessions for delete
+  using (is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "coach reviews sessions for own athletes" on workout_sessions;
+create policy "coach reviews sessions for own athletes" on workout_sessions for update
+  using (is_own_athlete_as_coach(athlete_id)) with check (is_own_athlete_as_coach(athlete_id));
+
+drop policy if exists "coach manages own programs" on programs;
+create policy "coach manages own programs" on programs for all
+  using (
+    coach_id = (select auth.uid())
+    and (athlete_id is null or is_own_athlete_as_coach(athlete_id))
+  )
+  with check (
+    coach_id = (select auth.uid()) and is_coach()
+    and (
+      (is_template and athlete_id is null)
+      or (not is_template and athlete_id is not null and is_own_athlete_as_coach(athlete_id))
+    )
+  );
+
+-- --- athlete side: the athlete's own rows ---
+drop policy if exists "athlete views own form assignments" on form_assignments;
+create policy "athlete views own form assignments" on form_assignments for select
+  using (is_own_athlete_as_athlete(athlete_id));
+
+drop policy if exists "athlete completes own form assignments" on form_assignments;
+create policy "athlete completes own form assignments" on form_assignments for update
+  using (is_own_athlete_as_athlete(athlete_id)) with check (is_own_athlete_as_athlete(athlete_id));
+
+drop policy if exists "athlete views own programs" on programs;
+create policy "athlete views own programs" on programs for select
+  using (is_own_athlete_as_athlete(athlete_id));
+
+-- athlete_notifies_own_coach(athlete, coach) = "this is my athlete row and
+-- it belongs to this coach" - the same check these two inserts made inline
+drop policy if exists "athlete creates own self-logged programs" on programs;
+create policy "athlete creates own self-logged programs" on programs for insert
+  with check (
+    athlete_notifies_own_coach(athlete_id, coach_id)
+    and athlete_can_self_log(athlete_id)
+    and is_adhoc = true and not is_template and created_by_athlete = true
+  );
+
+drop policy if exists "athlete sends to own coach" on chat_messages;
+create policy "athlete sends to own coach" on chat_messages for insert
+  with check (sender = 'athlete' and pdf_url is null and athlete_notifies_own_coach(athlete_id, coach_id));
+
+-- --- athlete side: reading their own coach's library and profile ---
+drop policy if exists "athlete views own coach's exercises" on exercises;
+create policy "athlete views own coach's exercises" on exercises for select
+  using (is_my_coach(coach_id));
+
+drop policy if exists "athlete views own coach's stretches" on stretches;
+create policy "athlete views own coach's stretches" on stretches for select
+  using (is_my_coach(coach_id));
+
+drop policy if exists "athlete views own coach's profile" on profiles;
+create policy "athlete views own coach's profile" on profiles for select
+  using (is_my_coach(id));
