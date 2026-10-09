@@ -7,7 +7,7 @@
 .splash-screen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-splash);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,7 +68,7 @@ header {
      is in. */
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-bar);
 }
 
 .athlete-app-header .header-logo {
@@ -82,9 +82,10 @@ header {
    Floats above the bottom edge (not flush against it) as a rounded,
    blurred pill, capped at a comfortable width and centered so it also
    looks intentional on a wide/tablet viewport, not just a phone.
-   z-index sits below the mobility flow screen (500) and modals (1000), so
-   both correctly cover it full-screen when active; above the rest timer
-   bar (50), which is offset to clear it instead (see .rest-timer-bar).
+   z-index sits below the mobility flow screen (--z-flow) and modals
+   (--z-modal), so both correctly cover it full-screen when active; above
+   the rest timer bar (50), which is offset to clear it instead (see
+   .rest-timer-bar).
    ========================================================================== */
 /* Distance from the screen's bottom edge to the pill. Sits just above the
    home indicator (which lives inside the safe-area inset) instead of a
@@ -98,7 +99,7 @@ header {
   left: 16px;
   right: 16px;
   bottom: var(--nav-bottom);
-  z-index: 200;
+  z-index: var(--z-nav);
   display: flex;
   max-width: 420px;
   margin: 0 auto;
@@ -123,7 +124,7 @@ header {
   right: 0;
   bottom: 0;
   height: calc(var(--nav-bottom) + 64px + 28px);
-  z-index: 199;
+  z-index: var(--z-nav-blur);
   pointer-events: none;
   background: linear-gradient(to top, rgba(15, 15, 26, 0.6), rgba(15, 15, 26, 0));
   backdrop-filter: blur(10px);
@@ -438,14 +439,14 @@ body:has(.home-screen) .athlete-app-card {
 
 /* ==========================================================================
    MOBILITY GUIDED FLOW - first fullscreen (position:fixed) screen in the
-   app, deliberately not the paginated guided-workout look. z-index 500
-   stays below .modal-overlay's 1000 so the End-session confirm dialog
+   app, deliberately not the paginated guided-workout look. --z-flow
+   stays below .modal-overlay's --z-modal so the End-session confirm dialog
    still renders on top of it.
    ========================================================================== */
 .mobility-flow-screen {
   position: fixed;
   inset: 0;
-  z-index: 500;
+  z-index: var(--z-flow);
   background-color: var(--c-bg);
   /* No overflow:hidden here on purpose - Android's WebView renders a
      hardware-decoded <video> through a separate native surface that it
@@ -560,7 +561,7 @@ body:has(.home-screen) .athlete-app-card {
 .mobility-flow-progress-fill {
   height: 100%;
   width: 0%;
-  background-color: #4fc3f7;
+  background-color: var(--c-info);
   transition: width 1s linear;
 }
 
@@ -725,12 +726,12 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .set-type-badge.set-type-warmup {
-  color: #e0a030;
+  color: var(--c-warning);
   background-color: rgba(224, 160, 48, 0.15);
 }
 
 .set-type-badge.set-type-failure {
-  color: #ff4444;
+  color: var(--c-danger);
   background-color: rgba(255, 68, 68, 0.15);
 }
 
@@ -738,7 +739,7 @@ body:has(.home-screen) .athlete-app-card {
    warmup/failure above - shown on every set row of a unilateral exercise
    as a constant reminder while the athlete is mid-workout */
 .set-type-badge.set-type-unilateral {
-  color: #4fc3f7;
+  color: var(--c-info);
   background-color: rgba(79, 195, 247, 0.15);
 }
 
@@ -912,8 +913,8 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .set-check-btn.checked {
-  background-color: #4caf50;
-  border-color: #4caf50;
+  background-color: var(--c-success);
+  border-color: var(--c-success);
   color: var(--c-text);
 }
 
@@ -921,7 +922,7 @@ body:has(.home-screen) .athlete-app-card {
    stays visually as tapped (never reverts), just flagged so it's clear
    something's still trying to sync in the background */
 .set-row.unsynced .set-check-btn {
-  box-shadow: 0 0 0 2px #e0a030;
+  box-shadow: 0 0 0 2px var(--c-warning);
 }
 
 /* Same amber accent as the unsynced ring above - makes the pending-save
@@ -933,7 +934,7 @@ body:has(.home-screen) .athlete-app-card {
   align-items: center;
   gap: 12px;
   background-color: rgba(224, 160, 48, 0.12);
-  border: 1px solid #e0a030;
+  border: 1px solid var(--c-warning);
   border-radius: 8px;
   padding: 10px 14px;
   margin-bottom: 16px;
@@ -958,7 +959,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .set-remove-btn:hover {
-  color: #ff4444;
+  color: var(--c-danger);
 }
 
 .add-set-btn {
@@ -980,8 +981,8 @@ body:has(.home-screen) .athlete-app-card {
 .own-add-exercise-btn {
   flex-shrink: 0;
   background: rgba(79, 195, 247, 0.12);
-  border: 1px solid #4fc3f7;
-  color: #4fc3f7;
+  border: 1px solid var(--c-info);
+  color: var(--c-info);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 13px;
@@ -1015,7 +1016,7 @@ body:has(.home-screen) .athlete-app-card {
    toggles this instead of immediately adding, unlike the single-add flow
    above */
 .own-add-exercise-card.selected {
-  border-color: #4fc3f7;
+  border-color: var(--c-info);
   background-color: rgba(79, 195, 247, 0.1);
 }
 
@@ -1023,7 +1024,7 @@ body:has(.home-screen) .athlete-app-card {
   display: none;
   margin-left: auto;
   flex-shrink: 0;
-  color: #4fc3f7;
+  color: var(--c-info);
   font-size: 16px;
   font-weight: 700;
 }
@@ -1207,13 +1208,13 @@ body:has(.home-screen) .athlete-app-card {
    tournament-only day, so "something's here" is visible without opening it */
 .week-day-card.done {
   background-color: rgba(76, 175, 80, 0.14);
-  border-color: #4caf50;
+  border-color: var(--c-success);
 }
 
 /* Started but never ended - see the "in progress" note in renderWeekView() */
 .week-day-card.in-progress {
   background-color: rgba(224, 160, 48, 0.14);
-  border-color: #e0a030;
+  border-color: var(--c-warning);
 }
 
 .week-day-card.planned {
@@ -1270,19 +1271,19 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .type-icon-done {
-  background-color: #4caf50;
+  background-color: var(--c-success);
 }
 
 .type-icon-in-progress {
-  background-color: #e0a030;
+  background-color: var(--c-warning);
 }
 
 .type-icon-mobility {
-  background-color: #4caf50;
+  background-color: var(--c-success);
 }
 
 .type-icon-tournament {
-  background-color: #d4a017;
+  background-color: var(--c-gold);
   color: var(--c-surface);
 }
 
@@ -1663,7 +1664,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .start-workout-btn:hover {
-  background-color: #5a5aae;
+  background-color: var(--c-accent-bright);
 }
 
 /* --- Active workout (one exercise at a time) --- */
@@ -1807,8 +1808,8 @@ body:has(.home-screen) .athlete-app-card {
 
 .exercise-swap-btn {
   background: rgba(224, 160, 48, 0.12);
-  border-color: #e0a030;
-  color: #e0a030;
+  border-color: var(--c-warning);
+  color: var(--c-warning);
 }
 
 /* Section this exercise came from (see section_label) - a light subtitle
@@ -1828,7 +1829,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .group-gate-kind {
-  color: #e0a030;
+  color: var(--c-warning);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 4px;
@@ -2024,7 +2025,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .duration-warning {
-  color: #e0a030;
+  color: var(--c-warning);
   font-size: 13px;
   margin: -12px 0 12px;
 }
@@ -2135,13 +2136,13 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .importance-btn:hover {
-  border-color: #d4a017;
+  border-color: var(--c-gold);
   color: var(--c-text);
 }
 
 .importance-btn.selected {
-  background-color: #d4a017;
-  border-color: #d4a017;
+  background-color: var(--c-gold);
+  border-color: var(--c-gold);
   color: var(--c-surface);
 }
 
@@ -2189,7 +2190,7 @@ body:has(.home-screen) .athlete-app-card {
 .tournament-list-badge {
   font-size: 12px;
   font-weight: 600;
-  color: #d4a017;
+  color: var(--c-gold);
   white-space: nowrap;
 }
 
@@ -2341,7 +2342,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .pr-badge-volume {
-  color: #e0a030;
+  color: var(--c-warning);
   background-color: rgba(224, 160, 48, 0.15);
 }
 
@@ -2351,12 +2352,12 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .pr-badge-reps {
-  color: #4caf50;
+  color: var(--c-success);
   background-color: rgba(76, 175, 80, 0.15);
 }
 
 .pr-badge-sets {
-  color: #4fc3f7;
+  color: var(--c-info);
   background-color: rgba(79, 195, 247, 0.15);
 }
 
@@ -2465,7 +2466,7 @@ body:has(.home-screen) .athlete-app-card {
 .tour-layer {
   position: fixed;
   inset: 0;
-  z-index: 3000;
+  z-index: var(--z-tour);
 }
 
 .tour-hole {
@@ -2546,7 +2547,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 /* --- Delete Account (Profile screen) ---
-   Same #ff4444 destructive red used by .btn-delete-metric/.btn-delete-measurement
+   Same var(--c-danger) destructive red used by .btn-delete-metric/.btn-delete-measurement
    elsewhere, but always shown in that color (not just on hover) since this
    action is permanent and irreversible - it should read as dangerous before
    it's tapped, not just after. */
@@ -2566,8 +2567,8 @@ body:has(.home-screen) .athlete-app-card {
 .btn-delete-account {
   width: 100%;
   background-color: transparent;
-  border: 1px solid #ff4444;
-  color: #ff4444;
+  border: 1px solid var(--c-danger);
+  color: var(--c-danger);
   padding: 10px 20px;
   border-radius: 8px;
   cursor: pointer;
@@ -2575,7 +2576,7 @@ body:has(.home-screen) .athlete-app-card {
 }
 
 .btn-delete-account:hover {
-  background-color: #ff4444;
+  background-color: var(--c-danger);
   color: white;
 }
 

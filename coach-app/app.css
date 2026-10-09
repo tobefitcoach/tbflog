@@ -22,7 +22,7 @@
 .splash-screen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-splash);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -81,7 +81,7 @@
      style.css) so they still layer correctly above it. */
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-bar);
 }
 
 .coach-app-header .header-logo {

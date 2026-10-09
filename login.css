@@ -34,14 +34,14 @@
 }
 
 .auth-message {
-  color: #ff4444;
+  color: var(--c-danger);
   font-size: 13px;
   margin-bottom: 12px;
   min-height: 16px;
 }
 
 .auth-message.success {
-  color: #4caf50;
+  color: var(--c-success);
 }
 
 .auth-toggle {

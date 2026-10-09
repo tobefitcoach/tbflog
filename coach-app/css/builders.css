@@ -379,7 +379,7 @@
 }
 
 .exercise-lib-add-btn:hover {
-  background-color: #5a5aae;
+  background-color: var(--c-accent-bright);
 }
 
 .exercise-lib-add-btn:disabled {

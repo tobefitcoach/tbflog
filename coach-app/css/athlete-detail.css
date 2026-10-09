@@ -295,11 +295,11 @@
 }
 
 .calendar-day-dot-done {
-  background-color: #4caf50;
+  background-color: var(--c-success);
 }
 
 .calendar-day-dot-tournament {
-  background-color: #d4a017;
+  background-color: var(--c-gold);
 }
 
 .calendar-day-dot-mobility {
@@ -577,7 +577,7 @@
 
 
 .btn-record:hover {
-  background-color: #5a5aae;
+  background-color: var(--c-accent-bright);
 }
 
 
@@ -595,8 +595,8 @@
 
 
 .btn-delete-metric:hover {
-  background-color: #ff4444;
-  border-color: #ff4444;
+  background-color: var(--c-danger);
+  border-color: var(--c-danger);
   color: white;
 }
 
@@ -802,13 +802,13 @@
   text-transform: uppercase;
   padding: 2px 8px;
   border-radius: 20px;
-  color: #ff4444;
+  color: var(--c-danger);
   background-color: rgba(255, 68, 68, 0.15);
 }
 
 
 .stat-insufficient-note {
-  color: #e0a030;
+  color: var(--c-warning);
   font-size: 12px;
   margin-top: 12px;
   margin-bottom: 0;
@@ -858,7 +858,7 @@
 
 
 .btn-save-notes:hover {
-  background-color: #5a5aae;
+  background-color: var(--c-accent-bright);
 }
 
 
@@ -966,7 +966,7 @@
 
 
 .metric-change.positive {
-  color: #4caf50;
+  color: var(--c-success);
 }
 
 
@@ -1151,13 +1151,13 @@
 }
 
 .coach-importance-btn:hover {
-  border-color: #d4a017;
+  border-color: var(--c-gold);
   color: var(--c-text);
 }
 
 .coach-importance-btn.selected {
-  background-color: #d4a017;
-  border-color: #d4a017;
+  background-color: var(--c-gold);
+  border-color: var(--c-gold);
   color: var(--c-surface);
 }
 
