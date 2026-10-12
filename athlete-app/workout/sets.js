@@ -8,6 +8,7 @@ import { formatWeight, parseTimeToParts, weightToKg } from '../format.js?v=__V__
 import { queueUpsert, scheduleFlush } from '../outbox.js?v=__V__'
 import { playInlineVideo } from '../screens/home.js?v=__V__'
 import { clearRestTimer, maybeStartRestTimer } from './rest-timer.js?v=__V__'
+import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 // Whatever the athlete has typed into a not-yet-checked set's inputs, keyed
 // by "peId-setNumber" - { reps, duration, weight, distance }. renderSetRow reads from
@@ -36,6 +37,48 @@ export let extraSetCountByPE = {}
 // Unchanged from the per-set logging built earlier - now dropped into the
 // single active-exercise card above instead of an all-exercises list.
 // ==========================================================================
+
+// Reps + time + weight together means 3 inputs competing for whatever's
+// left after the set number and check button - the time box is then pinned
+// to its own width (see .set-row-crowded) so "00:00" never gets clipped.
+// Header and rows must agree on this, or the columns wouldn't line up.
+function isCrowdedRow(tracksReps, isTimed, tracksWeight) {
+  return !!(tracksReps && isTimed && tracksWeight)
+}
+
+function unitHeadLabel(unit) {
+  return `<span class="set-unit-pill">${unit} <span class="set-unit-head-swap" aria-hidden="true">⇄</span></span>`
+}
+
+// What the one-letter set chips mean - shown when the athlete taps one
+const SET_TYPE_INFO = {
+  warmup: 'Warmup set: a lighter set to get your body ready. Go easier than your working sets.',
+  failure: 'Failure set: push until you cannot do another good rep.'
+}
+
+// One header above an exercise's set rows naming each column once (Set,
+// Reps, Time, kg, Meters), so the rows themselves are just numbers - the
+// unit used to be repeated as a placeholder AND a label inside every box.
+// Same flex layout and column order as renderSetRow, so each heading sits
+// over its own column. The weight heading is the kg/lbs switch for all of
+// this exercise's sets (see toggleExerciseUnit).
+export function renderSetHeader(pe, tracksReps, isTimed, tracksWeight) {
+  const unit = athlete.weight_unit || 'kg'
+  const isUnilateral = pe.exercises && pe.exercises.is_unilateral
+  const tracksDistance = pe.exercises && pe.exercises.tracks_distance
+  const crowded = isCrowdedRow(tracksReps, isTimed, tracksWeight)
+  return `
+    <div class="set-header ${crowded ? 'set-row-crowded' : ''}">
+      <span class="set-label">Set</span>
+      ${tracksReps ? `<span class="set-col-head">${isUnilateral ? 'Reps / side' : 'Reps'}</span>` : ''}
+      ${isTimed ? '<span class="set-col-head set-col-head-time">Time</span>' : ''}
+      ${tracksWeight ? `<button type="button" class="set-col-head set-unit-head" data-action="toggle-unit" data-pe-id="${pe.id}" data-unit="${unit}" title="Switch all sets to ${unit === 'kg' ? 'lbs' : 'kg'}">${unitHeadLabel(unit)}</button>` : ''}
+      ${tracksDistance ? '<span class="set-col-head">Meters</span>' : ''}
+      <span class="set-col-head-check" aria-hidden="true"></span>
+    </div>
+  `
+}
+
 export function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksWeight, isExtra, exerciseLabel) {
   const checked = !!(logged && logged.completed_at)
   // A not-yet-checked set's draft (see draftSetValues above) wins over the
@@ -75,23 +118,15 @@ export function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksW
   // just be noise, since that's the default for most sets in a workout
   const setType = target && target.type && target.type !== 'main' ? target.type : null
   const typeLabel = setType === 'warmup' ? 'Warmup' : setType === 'failure' ? 'Failure' : ''
-  const isUnilateral = pe.exercises && pe.exercises.is_unilateral
-  // Reps + time + weight together means 3 flex:1 inputs competing for
-  // whatever's left after the fixed-width label/unit-toggle/check-button -
-  // tight enough on a phone that the full "reps each side" placeholder was
-  // getting cut off mid-word. Dropping to just "reps" when crowded isn't
-  // losing information: isUnilateral already gets its own "Each Side"
-  // badge right next to the Set N label on the same row.
-  const crowded = tracksReps && isTimed && tracksWeight
-  const repsPlaceholder = 'reps' + (isUnilateral && !crowded ? ' each side' : '')
+  const crowded = isCrowdedRow(tracksReps, isTimed, tracksWeight)
   const { mm, ss } = parseTimeToParts(durationVal)
   const tracksDistance = pe.exercises && pe.exercises.tracks_distance
   const distanceVal = draft && draft.distance !== undefined ? draft.distance : (logged ? (logged.actual_distance != null ? logged.actual_distance : '') : ((target && target.distance != null) ? target.distance : ''))
 
   return `
     <div class="set-row ${checked ? 'completed' : ''} ${crowded ? 'set-row-crowded' : ''}" data-set-number="${setNumber}" data-unit="${unit}" data-pe-id="${pe.id}">
-      <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}Set ${setNumber}${typeLabel ? `<span class="set-type-badge set-type-${setType}">${typeLabel}</span>` : ''}${isUnilateral ? '<span class="set-type-badge set-type-unilateral">Each Side</span>' : ''}</span>
-      ${tracksReps ? `<div class="set-field ${crowded ? '' : 'set-field-reps'}"><input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="${repsPlaceholder}" ${checked ? 'disabled' : ''}>${crowded ? '' : '<span class="set-field-unit">reps</span>'}</div>` : ''}
+      <span class="set-label">${exerciseLabel ? `<span class="set-row-exercise-label">${exerciseLabel}</span>` : ''}<span class="set-number">${setNumber}</span>${typeLabel ? `<button type="button" class="set-type-badge set-type-${setType}" data-action="set-type-info" data-set-type="${setType}" title="${typeLabel} set - tap for what this means">${typeLabel[0]}</button>` : ''}${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}</span>
+      ${tracksReps ? `<input type="text" inputmode="numeric" class="set-reps-input" value="${repsVal}" placeholder="–" aria-label="Reps" ${checked ? 'disabled' : ''}>` : ''}
       ${isTimed ? `
         <div class="set-time-input">
           <input type="text" inputmode="numeric" class="set-time-mm" value="${String(mm).padStart(2, '0')}" maxlength="2" ${checked ? 'disabled' : ''}>
@@ -100,43 +135,38 @@ export function renderSetRow(pe, setNumber, logged, tracksReps, isTimed, tracksW
         </div>
       ` : ''}
       ${tracksWeight ? `
-        <input type="number" inputmode="decimal" class="set-weight-input" value="${weightVal}" placeholder="${unit}" step="0.5" ${checked ? 'disabled' : ''}>
-        <button type="button" class="set-unit-toggle" data-action="toggle-unit" title="Switch to ${unit === 'kg' ? 'lbs' : 'kg'}" ${checked ? 'disabled' : ''}>${unit}</button>
+        <input type="number" inputmode="decimal" class="set-weight-input" value="${weightVal}" placeholder="–" aria-label="Weight" step="0.5" ${checked ? 'disabled' : ''}>
       ` : ''}
-      ${tracksDistance ? `<div class="set-field set-field-distance"><input type="number" inputmode="numeric" class="set-distance-input" value="${distanceVal}" placeholder="meters" step="1" ${checked ? 'disabled' : ''}><span class="set-field-unit">m</span></div>` : ''}
+      ${tracksDistance ? `<input type="number" inputmode="numeric" class="set-distance-input" value="${distanceVal}" placeholder="–" aria-label="Meters" step="1" ${checked ? 'disabled' : ''}>` : ''}
       <button type="button" class="set-check-btn ${checked ? 'checked' : ''}" data-action="check-set" title="${checked ? 'Undo' : 'Mark done'}">${checked ? '✓' : ''}</button>
-      ${isExtra && !checked ? '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>' : ''}
     </div>
   `
 }
 
 // Flips one row's kg/lbs display without changing the weight it represents
-// - converts the number currently typed in so switching units relabels it
+// - converts the number currently shown so switching units relabels it
 // instead of silently reinterpreting it (100kg staying "100" after a
-// switch would quietly turn it into 100lbs, which is wrong)
-function toggleRowUnit(rowEl) {
+// switch would quietly turn it into 100lbs, which is wrong). The row's
+// data-unit is what checkSet saves the weight from.
+function setRowUnit(rowEl, nextUnit) {
   const weightInput = rowEl.querySelector('.set-weight-input')
-  const unitBtn = rowEl.querySelector('.set-unit-toggle')
-  if (!weightInput || !unitBtn) return
-
+  if (!weightInput) return
   const currentUnit = rowEl.dataset.unit || 'kg'
-  const nextUnit = currentUnit === 'kg' ? 'lbs' : 'kg'
+  if (currentUnit === nextUnit) return
   const typed = parseFloat(weightInput.value)
-  if (!isNaN(typed)) {
-    const kgVal = weightToKg(typed, currentUnit)
-    weightInput.value = formatWeight(kgVal, nextUnit)
-  }
-
+  if (!isNaN(typed)) weightInput.value = formatWeight(weightToKg(typed, currentUnit), nextUnit)
   rowEl.dataset.unit = nextUnit
-  weightInput.placeholder = nextUnit
-  unitBtn.textContent = nextUnit
-  unitBtn.title = `Switch to ${nextUnit === 'kg' ? 'lbs' : 'kg'}`
+}
 
-  // Tapping the toggle button (not the input itself) steals focus, which
-  // is what was dismissing the on-screen keyboard - refocusing the
-  // weight input right after brings it straight back up instead of
-  // leaving the athlete to tap back into the field themselves
-  weightInput.focus()
+// The header's kg/lbs button: switches every set of that exercise at once,
+// done sets included (display only - nothing is re-saved), so the column
+// never mixes units under one heading
+function toggleExerciseUnit(container, headBtn) {
+  const nextUnit = (headBtn.dataset.unit || 'kg') === 'kg' ? 'lbs' : 'kg'
+  container.querySelectorAll(`.set-row[data-pe-id="${headBtn.dataset.peId}"]`).forEach(row => setRowUnit(row, nextUnit))
+  headBtn.dataset.unit = nextUnit
+  headBtn.innerHTML = unitHeadLabel(nextUnit)
+  headBtn.title = `Switch all sets to ${nextUnit === 'kg' ? 'lbs' : 'kg'}`
 }
 
 // onExerciseEmptied(peId): called when a remove-set tap leaves an exercise
@@ -167,8 +197,10 @@ export function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied, 
 
     if (btn.dataset.action === 'add-set') {
       addSetRow(peId)
+    } else if (btn.dataset.action === 'set-type-info') {
+      customAlert(SET_TYPE_INFO[btn.dataset.setType])
     } else if (btn.dataset.action === 'toggle-unit') {
-      toggleRowUnit(row)
+      toggleExerciseUnit(document.getElementById(containerId), btn)
     } else if (btn.dataset.action === 'check-set') {
       const setNumber = parseInt(row.dataset.setNumber)
       if (row.classList.contains('completed')) {
@@ -257,6 +289,11 @@ function addSetRow(peId) {
   const lastOwnRow = ownRows[ownRows.length - 1]
   if (lastOwnRow) lastOwnRow.insertAdjacentHTML('afterend', html)
   else rowsContainer.insertAdjacentHTML('beforeend', html)
+  // A new row starts in the athlete's default unit - match whatever the
+  // header's kg/lbs switch currently shows
+  const unitHead = rowsContainer.querySelector(`.set-unit-head[data-pe-id="${peId}"]`)
+  const newRow = rowsContainer.querySelector(`.set-row[data-pe-id="${peId}"][data-set-number="${nextNumber}"]`)
+  if (unitHead && newRow) setRowUnit(newRow, unitHead.dataset.unit)
   extraSetCountByPE[peId] = Math.max(0, nextNumber - (pe.prescribed_sets || 0))
 }
 

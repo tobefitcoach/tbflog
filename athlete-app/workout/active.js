@@ -13,7 +13,7 @@ import { markMessagesSeen, showCoachMessagesModal } from '../screens/coach-messa
 import { removeEmptyOwnExercise, renderOwnWorkoutAddExercise, renderOwnWorkoutBuilder } from '../screens/own-workout.js?v=__V__'
 import { renderGroupGate, renderGroupStep, renderSingleSlideBody } from './group.js?v=__V__'
 import { newWorkout } from './run.js?v=__V__'
-import { loadLastTime, openExerciseHistoryModal, openSwapModal, renderEndOfWorkoutSlide, swapExercise } from './history.js?v=__V__'
+import { openExerciseHistoryModal, openSwapModal, renderEndOfWorkoutSlide, swapExercise } from './history.js?v=__V__'
 import { wireExerciseCardEvents } from './sets.js?v=__V__'
 import { attachSwipeHandlers, mountSlide } from './swipe.js?v=__V__'
 import { customAlert } from '../../confirm-modal.js?v=__V__'
@@ -184,7 +184,6 @@ function proceedToStartWorkout(entry, dateStr) {
 
   const slides = buildWorkoutSlides(exercises)
   const resumeIndex = findResumeIndex(slides)
-  loadLastTime(exercises, dateStr) // not awaited - fills in the "Last time" lines when it lands
   renderActiveExercise(newWorkout(entry, dateStr, sessionPromise, slides), resumeIndex)
 }
 

@@ -157,6 +157,10 @@ body:has(.workout-active) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* style.css reserves 88px at the bottom of every page on phones for the
+     floating nav, which is hidden here - left in, it was the dark band
+     under a long exercise's card */
+  padding-bottom: 0;
 }
 
 body:has(.workout-active) header {
@@ -169,6 +173,16 @@ body:has(.workout-active) .athlete-app-page {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The bottom nav is hidden here, so the gap normally kept clear for it
+     was just an empty dark band under the card. Only a floating bar that is
+     actually showing (rest timer, "Start workout" bar - both toggle their
+     inline display) needs room, so the last set never hides behind it. */
+  padding-bottom: 0;
+}
+
+body:has(.workout-active):has(.rest-timer-bar[style*="flex"]) .athlete-app-page,
+body:has(.workout-active):has(.own-builder-start-bar[style*="flex"]) .athlete-app-page {
+  padding-bottom: var(--nav-clearance);
 }
 
 .bottom-nav-btn {
@@ -678,17 +692,6 @@ body:has(.home-screen) .athlete-app-card {
   margin-bottom: 12px;
 }
 
-.last-time {
-  color: var(--c-text-muted);
-  font-size: 12.5px;
-  line-height: 1.4;
-  margin-bottom: 4px;
-}
-
-.last-time:empty {
-  display: none;
-}
-
 .set-rows {
   display: flex;
   flex-direction: column;
@@ -702,27 +705,102 @@ body:has(.home-screen) .athlete-app-card {
   gap: 8px;
 }
 
+/* Set number column. Narrow on purpose: the number is all the row says -
+   the units live once in .set-header above, not in every box. Holds the
+   number, a one-letter warmup/failure badge, and (on added sets) the remove
+   button, wrapping if more than one is present. */
 .set-label {
-  width: 52px;
+  width: 40px;
   flex-shrink: 0;
   color: var(--c-text-muted);
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: 2px;
+}
+
+/* Column headings: one row above an exercise's sets, same flex layout as
+   .set-row so each heading sits over its own column */
+.set-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.set-header .set-label {
+  font-size: 11px;
+  letter-spacing: 0.4px;
+}
+
+.set-col-head {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.set-col-head-check {
+  flex: 0 0 36px; /* same width as .set-check-btn */
+}
+
+/* The weight heading doubles as the kg/lbs switch for every set of the
+   exercise - looks like the other headings, plus a small swap arrow */
+/* The button keeps the column's flex width so it stays over the weight
+   boxes; the pill inside is what makes it look pressable (the plain text
+   headings next to it are not) */
+.set-unit-head {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-transform: none;
+  color: var(--c-text);
+  cursor: pointer;
+}
+
+.set-unit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+.set-unit-head:hover .set-unit-pill {
+  border-color: var(--c-accent);
+}
+
+.set-unit-head-swap {
+  color: var(--c-accent);
+  font-size: 13px;
 }
 
 /* Only shown for warmup/failure sets - a coach-set flag so the athlete
    knows to go lighter on a warmup or push all-out on a failure set,
    without cluttering every ordinary "main" set with a label */
 .set-type-badge {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
   text-transform: uppercase;
-  padding: 1px 5px;
-  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
 }
 
 .set-type-badge.set-type-warmup {
@@ -735,56 +813,13 @@ body:has(.home-screen) .athlete-app-card {
   background-color: rgba(255, 68, 68, 0.15);
 }
 
-/* Fixed per exercise (Exercise Library), not a per-set choice like
-   warmup/failure above - shown on every set row of a unilateral exercise
-   as a constant reminder while the athlete is mid-workout */
-.set-type-badge.set-type-unilateral {
-  color: var(--c-info);
-  background-color: rgba(79, 195, 247, 0.15);
-}
-
-/* Unit label inside a set-row input. The placeholder ("meters", "reps")
-   disappears as soon as the field is prefilled with the coach's target, so
-   without this a prefilled "30" read as a bare number. The label sits over
-   the right edge of the input, and pointer-events:none keeps taps going to
-   the input underneath. */
-.set-field {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-}
-
-.set-field > input {
-  width: 100%;
-  min-width: 0;
-}
-
-.set-field-distance > input {
-  padding-right: 26px;
-}
-
-.set-field-reps > input {
-  padding-right: 40px;
-}
-
-.set-field-unit {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--c-text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  pointer-events: none;
-}
-
 .set-reps-input,
 .set-weight-input,
 .set-distance-input {
   flex: 1;
   min-width: 0;
-  padding: 8px 10px;
+  text-align: center;
+  padding: 8px 6px;
   border: 1px solid var(--c-border);
   border-radius: 8px;
   /* Under 16px triggers iOS Safari's auto-zoom-on-focus - the exact bug
@@ -866,33 +901,14 @@ body:has(.home-screen) .athlete-app-card {
    .set-reps-input/.set-weight-input stay flex:1 and simply absorb whatever
    width is left, which they can do fine since they only ever show a short
    number. */
-.set-row-crowded .set-time-input {
-  flex: 0 0 auto;
+.set-row-crowded .set-time-input,
+.set-header.set-row-crowded .set-col-head-time {
+  flex: 0 0 88px;
 }
 
 .set-row-crowded .set-time-mm,
 .set-row-crowded .set-time-ss {
   flex-shrink: 0;
-}
-
-.set-unit-toggle {
-  flex-shrink: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--c-border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--c-text-muted);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.set-unit-toggle:hover {
-  border-color: var(--c-accent);
-  color: var(--c-text);
-}
-
-.set-unit-toggle:disabled {
-  opacity: 0.6;
 }
 
 .set-check-btn {
@@ -953,9 +969,10 @@ body:has(.home-screen) .athlete-app-card {
   background: transparent;
   border: none;
   color: var(--c-text-muted);
-  font-size: 14px;
+  font-size: 11px;
+  line-height: 1;
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
 }
 
 .set-remove-btn:hover {
@@ -2388,13 +2405,9 @@ body:has(.home-screen) .athlete-app-card {
   }
 
   .set-label {
-    width: 44px;
+    width: 36px;
   }
 
-  .set-type-badge {
-    font-size: 8px;
-    padding: 1px 3px;
-  }
 
   /* Same 7-column grid as the coach's calendar on mobile - just smaller
      cards/text, not a different (vertical) layout */

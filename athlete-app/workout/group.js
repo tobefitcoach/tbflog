@@ -8,9 +8,9 @@ import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { logSetsByPE } from '../data.js?v=__V__'
 import { buildGroupSteps, renderActiveExercise } from './active.js?v=__V__'
-import { lastTimeLineHtml, openExerciseHistoryModal, renderEndOfWorkoutSlide } from './history.js?v=__V__'
+import { openExerciseHistoryModal, renderEndOfWorkoutSlide } from './history.js?v=__V__'
 import { startRestTimer } from './rest-timer.js?v=__V__'
-import { extraSetCountByPE, renderSetRow, wireExerciseCardEvents } from './sets.js?v=__V__'
+import { extraSetCountByPE, renderSetHeader, renderSetRow, wireExerciseCardEvents } from './sets.js?v=__V__'
 import { attachSwipeHandlers, mountSlide } from './swipe.js?v=__V__'
 
 // ==========================================================================
@@ -103,8 +103,7 @@ export function renderGroupStep(w, index, steps, stepIndex, direction) {
         ${exerciseActionButtonsHtml(pe, isSelfLogged, true)}
       </div>
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
-      ${lastTimeLineHtml(pe)}
-      <div class="set-rows">${renderSetRow(pe, round, logged, tracksReps, isTimed, tracksWeight, false)}</div>
+      <div class="set-rows">${renderSetHeader(pe, tracksReps, isTimed, tracksWeight)}${renderSetRow(pe, round, logged, tracksReps, isTimed, tracksWeight, false)}</div>
     </div>
     <p class="swipe-hint"><span class="swipe-hint-arrow">‹</span> Swipe to skip <span class="swipe-hint-arrow">›</span></p>
     <div id="restTimerBar" class="rest-timer-bar"></div>
@@ -248,8 +247,7 @@ export function renderSingleSlideBody(pe, isSelfLogged) {
         ${exerciseActionButtonsHtml(pe, isSelfLogged)}
       </div>
       ${pe.notes ? `<p class="exercise-log-notes">${pe.notes}</p>` : ''}
-      ${lastTimeLineHtml(pe)}
-      <div class="set-rows">${rowsHtml}</div>
+      <div class="set-rows">${renderSetHeader(pe, tracksReps, isTimed, tracksWeight)}${rowsHtml}</div>
       <button type="button" class="add-set-btn" data-action="add-set" data-pe-id="${pe.id}">+ Add Set</button>
     </div>
   `
