@@ -197,10 +197,10 @@ Deno.serve(async (req) => {
       .eq('platform', 'ios')
     if (phonesError) console.log('device_push_tokens read failed', phonesError.message)
 
-    const link = safeUrl(url)
+    const tapUrl = safeUrl(url)
     await Promise.all((phones || []).map(async (phone) => {
       try {
-        const result = await sendToIphone(phone.token, title, body, link)
+        const result = await sendToIphone(phone.token, title, body, tapUrl)
         if (result === 'gone') await supabase.from('device_push_tokens').delete().eq('id', phone.id)
       } catch (err) {
         console.log('apns send failed', phone.id, err.message)
