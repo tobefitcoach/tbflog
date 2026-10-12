@@ -13,6 +13,7 @@ import { openWorkoutBuilderOverlay } from './day-modal.js?v=__V__'
 import { loadCalendarMonth, renderCalendarGrid, resolveDate } from './grid.js?v=__V__'
 import { applySectionToDayCal, applyTrainingToDay, openDayPicker, playInlineVideoCal, renderDayPickerGrid } from './pickers.js?v=__V__'
 import { customAlert } from '../../../../confirm-modal.js?v=__V__'
+import { addPickListSearch } from '../../../pick-list-search.js?v=__V__'
 
 // ==========================================================================
 // ---- ASSIGN PROGRAM ----
@@ -123,6 +124,11 @@ export function bindCalendarStaticEvents() {
   root.querySelector('#dayAddTabForm').addEventListener('click', function() { switchDayAddTab('form') })
   root.querySelector('#dayAddTabTournament').addEventListener('click', function() { switchDayAddTab('tournament') })
   wireCoachTournamentForm()
+  // Search above each list in the "+" popup - a library of hundreds needs it
+  addPickListSearch(root.querySelector('#dayAddTrainingList'), 'Search workouts...')
+  addPickListSearch(root.querySelector('#dayAddProgramList'), 'Search programs...')
+  addPickListSearch(root.querySelector('#dayAddSectionList'), 'Search sections...')
+  addPickListSearch(root.querySelector('#dayAddFormList'), 'Search forms...')
 
   root.querySelector('#programStartDayField').addEventListener('click', function() { openDayPicker('start') })
   root.querySelector('#programEndDayField').addEventListener('click', function() { openDayPicker('end') })

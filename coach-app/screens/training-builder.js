@@ -33,6 +33,7 @@ import { getYouTubeThumbnail, getYouTubeEmbedUrl } from '../../shared/video.js?v
 import { applyFieldOverrides } from '../../shared/exercise-fields.js?v=__V__'
 import { copyExercises } from '../../shared/copy-exercises.js?v=__V__'
 import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { addPickListSearch } from '../pick-list-search.js?v=__V__'
 import { fetchWithRetry } from '../../network-retry.js?v=__V__'
 
 const ROUTE_TEMPLATE = `
@@ -1014,6 +1015,10 @@ function bindEvents() {
   $('closeAddSectionBtn').addEventListener('click', function() {
     $('addSectionModal').classList.remove('active')
   })
+
+  // Search above the Add Section / Add Workout lists - a library of hundreds needs it
+  addPickListSearch($('addSectionList'), 'Search sections...')
+  addPickListSearch($('addWorkoutToDayList'), 'Search workouts...')
 
   $('addWorkoutToDayBtn').addEventListener('click', async function() {
     resetWorkoutToDayPreview()
