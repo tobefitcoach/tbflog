@@ -5,6 +5,17 @@
   "server": {
     "url": "https://tobefitcoach.github.io/tbflog/app/",
     "cleartext": false,
-    "allowNavigation": ["tobefitcoach.github.io"]
+    "allowNavigation": [
+      "tobefitcoach.github.io"
+    ]
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
   }
 }

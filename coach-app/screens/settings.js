@@ -14,6 +14,7 @@
 import { supabase } from '../../coachClient.js?v=__V__'
 import { supabase as athleteSupabase } from '../../athlete-app/athleteClient.js?v=__V__'
 import { pushStatus, enablePush, disablePush } from '../../push.js?v=__V__'
+import { askForNativePush, nativePush, nativePushPermission } from '../../shared/native-push.js?v=__V__'
 import { coachId } from '../session.js?v=__V__'
 import { customAlert } from '../../confirm-modal.js?v=__V__'
 import { logOut } from '../../shared/logout.js?v=__V__'
@@ -80,6 +81,24 @@ function pushStatusDesc(status) {
   return 'Get notified (e.g. an athlete completes a workout) even when this tab is closed'
 }
 
+// The App Store app: the phone's own notification permission instead
+function nativePushDesc(permission) {
+  if (permission === 'granted') return 'On - get notified when an athlete finishes a workout or messages you'
+  if (permission === 'denied') return "Off - turn on notifications for Tobe-Fit in your phone's Settings"
+  return 'Get notified when an athlete finishes a workout or messages you'
+}
+
+function paintNativePushRow(permission) {
+  if (!root.querySelector('#pushRow')) return
+  root.querySelector('#pushStatusDesc').textContent = nativePushDesc(permission)
+  const btn = root.querySelector('#pushToggleBtn')
+  // Only the first "allow?" can be asked from here; after that it's the
+  // phone's Settings app
+  btn.style.display = permission === 'prompt' ? '' : 'none'
+  btn.textContent = 'Turn On'
+  btn.disabled = false
+}
+
 function mobilityStatusDesc(enabled) {
   return enabled
     ? 'Athletes see the Daily Mobility/Stretching tile on their home screen'
@@ -121,14 +140,17 @@ function paintAthleteAccountRow() {
 export async function mount(container, params, ctx) {
   root = container
   container.innerHTML = TEMPLATE
-  // The browser's push can't work inside the App Store / Play Store app -
-  // the row would only ever say "not supported", so it's left out there
-  if (window.Capacitor?.isNativePlatform?.()) root.querySelector('#pushRow').remove()
-  bindEvents()
+  // The browser's push can't work inside the App Store / Play Store app.
+  // An app build with native push shows the phone's own permission instead;
+  // an older build without it leaves the row out.
+  const nativeApp = !!window.Capacitor?.isNativePlatform?.()
+  const hasNativePush = !!nativePush()
+  if (nativeApp && !hasNativePush) root.querySelector('#pushRow').remove()
+  bindEvents(hasNativePush)
 
   // All four reads at once. The original awaited them in sequence.
   const [status, profile, athleteSession] = await Promise.all([
-    pushStatus(),
+    hasNativePush ? nativePushPermission() : pushStatus(),
     ctx.fetch((signal) => supabase
       .from('profiles')
       .select('mobility_enabled, low_trainings_warning_days')
@@ -140,7 +162,8 @@ export async function mount(container, params, ctx) {
   ])
   if (!ctx.alive()) return
 
-  paintPushRow(status)
+  if (hasNativePush) paintNativePushRow(status)
+  else paintPushRow(status)
 
   const row = profile?.data
   mobilityEnabled = row ? row.mobility_enabled !== false : true
@@ -156,7 +179,7 @@ export function unmount() {
   currentStatus = null
 }
 
-function bindEvents() {
+function bindEvents(hasNativePush) {
   root.querySelector('#logoutBtn').addEventListener('click', function() {
     logOut(supabase)
   })
@@ -171,6 +194,10 @@ function bindEvents() {
 
   root.querySelector('#pushToggleBtn')?.addEventListener('click', async function(e) {
     e.target.disabled = true
+    if (hasNativePush) {
+      paintNativePushRow(await askForNativePush(supabase))
+      return
+    }
     if (currentStatus === 'on') await disablePush(supabase)
     else await enablePush(supabase, coachId())
     paintPushRow(await pushStatus())

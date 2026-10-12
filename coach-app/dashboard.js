@@ -22,6 +22,8 @@ import { go, initRouter, prefetchLikelyNext, currentRouteName, TAB_FOR_ROUTE } f
 import { initBell } from './bell.js?v=__V__'
 import { fetchWithRetry } from '../network-retry.js?v=__V__'
 import { logOut } from '../shared/logout.js?v=__V__'
+import { offerNativePush, startNativePush } from '../shared/native-push.js?v=__V__'
+import { customConfirm } from '../confirm-modal.js?v=__V__'
 
 const pageContent = document.getElementById('pageContent')
 const pageTitle = document.getElementById('pageTitle')
@@ -153,6 +155,9 @@ async function start() {
     if (deepLink) await go('athlete-detail', { id: deepLink.id })
   }
   prefetchLikelyNext()
+  // App Store app only: (re)save this phone's push address, and ask once
+  startNativePush(supabase)
+  offerNativePush(supabase, 'Turn on notifications? You\'ll get a message when an athlete finishes a workout, sends you a message or adds a tournament.', customConfirm)
 }
 
 // A push notification opens the app on a specific screen with

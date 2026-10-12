@@ -13,9 +13,14 @@
 // athlete apps keep separate sessions (coachClient.js / athleteClient.js).
 // ==========================================================================
 
+import { forgetThisDevice } from './native-push.js?v=__V__'
+
 export const KNOWN_ROLE_KEY = 'tbflog-known-role'
 
 export async function logOut(supabase, destination = '../app/index.html') {
+  // App Store app: this phone stops getting the signed-out person's
+  // notifications (must run before signOut - it deletes as that user)
+  await forgetThisDevice(supabase)
   await supabase.auth.signOut()
   try { localStorage.removeItem(KNOWN_ROLE_KEY) } catch (e) { /* storage blocked - nothing cached to forget */ }
   window.location.href = destination

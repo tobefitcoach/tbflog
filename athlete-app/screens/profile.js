@@ -7,6 +7,7 @@ import { supabase } from '../athleteClient.js?v=__V__'
 import { supabase as coachSupabase } from '../../coachClient.js?v=__V__'
 import { pushStatus, enablePush, disablePush } from '../../push.js?v=__V__'
 import { alertPermission, askForAlerts, isNativeApp } from '../native-alerts.js?v=__V__'
+import { askForNativePush, nativePush, nativePushPermission } from '../../shared/native-push.js?v=__V__'
 import * as nav from '../nav.js?v=__V__'
 import { escapeHtml, safeUrl } from '../../escape.js?v=__V__'
 import { startOfWeek } from '../../shared/dates.js?v=__V__'
@@ -29,6 +30,13 @@ function restAlertDesc(permission) {
   if (permission === 'granted') return "On - your phone tells you when a rest is over, even if you've switched apps"
   if (permission === 'denied') return "Off - turn on notifications for Tobe-Fit in your phone's Settings to get them"
   return "Get an alert when a rest is over, even if you've switched apps"
+}
+
+// App build with push: one permission covers coach messages and rest alerts
+function nativeNotificationsDesc(permission) {
+  if (permission === 'granted') return "On - messages from your coach, and an alert when a rest is over"
+  if (permission === 'denied') return "Off - turn on notifications for Tobe-Fit in your phone's Settings to get them"
+  return "Get a message when your coach writes to you or shares a report, and when a rest is over"
 }
 
 function pushStatusDesc(status) {
@@ -61,10 +69,11 @@ export async function renderProfile() {
   // that row is replaced by on-device rest-timer alerts (see
   // native-alerts.js) - or left out, on an older app build without them
   const native = isNativeApp()
+  const hasNativePush = !!nativePush()
   const [status, coachAccountSession, alertStatus] = await Promise.all([
     native ? null : pushStatus(),
     coachSupabase.auth.getSession(),
-    alertPermission(),
+    hasNativePush ? nativePushPermission() : alertPermission(),
   ])
   const coachAccountLinked = !!coachAccountSession?.data?.session
   const initials = athlete.name.split(' ').map(w => w[0]).join('').toUpperCase()
@@ -145,8 +154,8 @@ export async function renderProfile() {
     </div>` : alertStatus ? `
     <div class="settings-row">
       <div class="settings-row-info">
-        <div class="settings-row-title">${BELL_ICON}Rest Timer Alerts</div>
-        <div class="settings-row-desc">${restAlertDesc(alertStatus)}</div>
+        <div class="settings-row-title">${BELL_ICON}${hasNativePush ? 'Notifications' : 'Rest Timer Alerts'}</div>
+        <div class="settings-row-desc">${hasNativePush ? nativeNotificationsDesc(alertStatus) : restAlertDesc(alertStatus)}</div>
       </div>
       ${alertStatus === 'prompt' ? '<button type="button" class="btn-profile-action" id="restAlertsBtn">Turn On</button>' : ''}
     </div>` : ''}
@@ -234,7 +243,8 @@ export async function renderProfile() {
   // switch lives in the phone's Settings, which the row then points to
   document.getElementById('restAlertsBtn')?.addEventListener('click', async function(e) {
     e.target.disabled = true
-    await askForAlerts()
+    if (hasNativePush) await askForNativePush(supabase)
+    else await askForAlerts()
     renderProfile()
   })
 

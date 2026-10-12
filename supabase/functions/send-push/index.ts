@@ -1,7 +1,8 @@
 // ==========================================================================
 // send-push (Supabase Edge Function)
-// Looks up every device (push_subscriptions row) for the given user_id and
-// sends each one a real Web Push notification. Called from the client via
+// Looks up every device for the given user_id and sends each one a real
+// notification: browsers (push_subscriptions, Web Push) and the App Store
+// app on iPhones (device_push_tokens, Apple's push service - APNs). Called from the client via
 // supabase.functions.invoke('send-push', { body: { user_id, title, body,
 // url } }) - see push.js's sendPush() for who calls it.
 //
@@ -22,8 +23,14 @@
 // This file is kept here for version history only - it isn't deployed by
 // a CLI. Deploy it by pasting this file's contents into the Supabase
 // Dashboard: Edge Functions -> Deploy a new function -> Via Editor, name
-// it "send-push", then set the one secret it needs (VAPID_PRIVATE_KEY) in
-// that function's Secrets panel before deploying.
+// it "send-push", then set its secrets (Edge Functions -> Secrets):
+//   VAPID_PRIVATE_KEY  browser push
+//   APNS_KEY           the whole AuthKey_XXXXXXXXXX.p8 file from Apple,
+//                      BEGIN/END lines included
+//   APNS_KEY_ID        the 10-character key ID (in the file name)
+//   APNS_TEAM_ID       the Apple Developer team ID
+// Without the three APNS_* secrets the phone part is skipped and browser
+// push carries on as before.
 // ==========================================================================
 // @ts-nocheck - this runs on Deno (Supabase Edge Functions), not Node, so
 // VS Code's normal TypeScript checker doesn't understand it (Deno global,
@@ -60,6 +67,67 @@ function safeUrl(url) {
   } catch {
     return null
   }
+}
+
+// ---- Apple push (APNs) ----
+// TestFlight and App Store builds both use Apple's production service.
+const APNS_HOST = 'https://api.push.apple.com'
+const APNS_TOPIC = 'com.tobefitcoach.tbflog' // the app's bundle ID
+const APNS_KEY = Deno.env.get('APNS_KEY')
+const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID')
+const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID')
+
+function base64url(bytes) {
+  let text = ''
+  for (const b of bytes) text += String.fromCharCode(b)
+  return btoa(text).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+// Apple wants a short signed token (ES256, signed with the .p8 key) on
+// every request, refreshed at most every 20 minutes and at least hourly -
+// kept for 50 minutes while this function instance stays warm.
+let apnsSigningKey = null
+let apnsToken = null
+let apnsTokenAt = 0
+
+async function apnsAuthToken() {
+  if (!APNS_KEY || !APNS_KEY_ID || !APNS_TEAM_ID) return null
+  const now = Math.floor(Date.now() / 1000)
+  if (apnsToken && now - apnsTokenAt < 50 * 60) return apnsToken
+  if (!apnsSigningKey) {
+    const pem = APNS_KEY.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')
+    const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0))
+    apnsSigningKey = await crypto.subtle.importKey('pkcs8', der, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])
+  }
+  const encode = (obj) => base64url(new TextEncoder().encode(JSON.stringify(obj)))
+  const unsigned = encode({ alg: 'ES256', kid: APNS_KEY_ID }) + '.' + encode({ iss: APNS_TEAM_ID, iat: now })
+  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, apnsSigningKey, new TextEncoder().encode(unsigned))
+  apnsToken = unsigned + '.' + base64url(new Uint8Array(signature))
+  apnsTokenAt = now
+  return apnsToken
+}
+
+// 'sent' | 'gone' (this phone token is dead - delete it) | 'failed' | 'off'
+async function sendToIphone(deviceToken, title, body, url) {
+  if (!/^[0-9a-f]{32,200}$/i.test(deviceToken)) return 'gone'
+  const auth = await apnsAuthToken()
+  if (!auth) return 'off'
+  const res = await fetch(`${APNS_HOST}/3/device/${deviceToken}`, {
+    method: 'POST',
+    headers: {
+      authorization: `bearer ${auth}`,
+      'apns-topic': APNS_TOPIC,
+      'apns-push-type': 'alert',
+      'apns-priority': '10',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ aps: { alert: { title, body: body || '' }, sound: 'default' }, url }),
+  })
+  if (res.ok) return 'sent'
+  const reason = (await res.json().catch(() => ({}))).reason
+  if (res.status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered' || reason === 'DeviceTokenNotForTopic') return 'gone'
+  console.log('apns send failed', res.status, reason)
+  return 'failed'
 }
 
 const supabase = createClient(
@@ -120,7 +188,26 @@ Deno.serve(async (req) => {
       }
     }))
 
-    return json({ sent: (subs || []).length }, 200)
+    // The App Store app on iPhones. A missing table (0003 not run yet) just
+    // means no phones to send to.
+    const { data: phones, error: phonesError } = await supabase
+      .from('device_push_tokens')
+      .select('id, token, platform')
+      .eq('user_id', user_id)
+      .eq('platform', 'ios')
+    if (phonesError) console.log('device_push_tokens read failed', phonesError.message)
+
+    const link = safeUrl(url)
+    await Promise.all((phones || []).map(async (phone) => {
+      try {
+        const result = await sendToIphone(phone.token, title, body, link)
+        if (result === 'gone') await supabase.from('device_push_tokens').delete().eq('id', phone.id)
+      } catch (err) {
+        console.log('apns send failed', phone.id, err.message)
+      }
+    }))
+
+    return json({ sent: (subs || []).length + (phones || []).length }, 200)
   } catch (err) {
     return json({ error: err.message }, 500)
   }

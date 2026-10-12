@@ -51,7 +51,8 @@ import { renderGroupGate, renderGroupStep } from './workout/group.js?v=__V__'
 import { renderEndOfWorkoutSlide, wireExerciseHistoryModal, wireExerciseSwapModal } from './workout/history.js?v=__V__'
 import { clearRestTimer } from './workout/rest-timer.js?v=__V__'
 import { renderWorkoutSummary } from './workout/swipe.js?v=__V__'
-import { customAlert } from '../confirm-modal.js?v=__V__'
+import { customAlert, customConfirm } from '../confirm-modal.js?v=__V__'
+import { offerNativePush, startNativePush } from '../shared/native-push.js?v=__V__'
 import { logOut } from '../shared/logout.js?v=__V__'
 
 const { data: { session } } = await supabase.auth.getSession()
@@ -394,9 +395,12 @@ async function enterWeekView({ tour = false } = {}) {
   renderWeekView(startOfWeek(new Date()))
   flushPendingQueue() // not awaited - picks up anything left over from a previous session
   flushPendingSessionEnds()
+  startNativePush(supabase) // App Store app only: (re)saves this phone's push address
   // The tour goes first; the recap and coach messages wait until it's
   // closed, so only one overlay is ever on screen
   if (tour) await runHomeTour()
+  // App Store app only, asked once: notifications for coach messages and rests
+  await offerNativePush(supabase, 'Turn on notifications? You\'ll get a message when your coach writes to you or shares a report, and when a rest is over.', customConfirm)
   // Only one modal-overlay should ever be active at once - if the recap
   // actually shows, its own close button chains into
   // maybeShowOnOpenMessages() afterward instead of this firing right away
