@@ -69,6 +69,10 @@ header {
   position: sticky;
   top: 0;
   z-index: var(--z-bar);
+  /* Same dark blue as the page, no line under it - just the logo on the
+     background (the base header rule in style.css is a lighter bar) */
+  background-color: var(--c-bg);
+  border-bottom: none;
 }
 
 .athlete-app-header .header-logo {
