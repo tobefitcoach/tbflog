@@ -45,6 +45,7 @@ import { renderAddWorkoutChoice, renderAddWorkoutFieldForm, renderOwnWorkoutAddE
 import { renderProfile } from './screens/profile.js?v=__V__'
 import { renderWeeklyStats } from './screens/stats.js?v=__V__'
 import { loadLatestBodyweight, loadTournaments, renderAddTournamentForm, renderTournaments } from './screens/tournaments.js?v=__V__'
+import { loadConsistency } from './consistency.js?v=__V__'
 import { renderActiveExercise } from './workout/active.js?v=__V__'
 import { renderGroupGate, renderGroupStep } from './workout/group.js?v=__V__'
 import { renderEndOfWorkoutSlide, wireExerciseHistoryModal, wireExerciseSwapModal } from './workout/history.js?v=__V__'
@@ -383,6 +384,7 @@ async function enterWeekView({ tour = false } = {}) {
   await loadTrainingData()
   await loadTournaments()
   await loadLatestBodyweight()
+  await loadConsistency() // best effort - never blocks Home
   await loadCoachMessages()
   refreshChatNavBadge()
   setInterval(refreshChatNavBadge, 45000)

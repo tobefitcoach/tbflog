@@ -2633,3 +2633,74 @@ body:has(.home-screen) .athlete-app-card {
   background-color: var(--c-accent);
   color: var(--c-text);
 }
+
+/* Streak on Home: the number sits to the right of the greeting, this
+   month's progress bar underneath it. Summary line is on the finished-workout
+   screen. */
+.welcome-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.welcome-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.streak-number {
+  flex-shrink: 0;
+  text-align: right;
+  line-height: 1;
+}
+
+.streak-number b {
+  font-size: 38px;
+  font-weight: 800;
+}
+
+.streak-number > span {
+  display: block;
+  margin-top: 3px;
+  color: var(--c-text-muted);
+  font-size: 11px;
+}
+
+.month-progress {
+  margin-top: 12px;
+}
+
+.month-progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--c-border);
+  overflow: hidden;
+}
+
+.month-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--c-accent-bright), var(--c-gold));
+}
+
+.month-progress-label {
+  display: block;
+  margin-top: 4px;
+  text-align: right;
+  color: var(--c-text-muted);
+  font-size: 11px;
+}
+
+.consistency-summary-line {
+  color: var(--c-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.consistency-summary-line:empty {
+  display: none;
+}

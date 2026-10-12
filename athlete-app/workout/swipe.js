@@ -17,6 +17,7 @@ import { notifyCoach } from '../screens/tournaments.js?v=__V__'
 import { loadAndRenderPRBadges } from './prs.js?v=__V__'
 import { restoreRestTimerBar } from './rest-timer.js?v=__V__'
 import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { consistencySummaryText, loadConsistency } from '../consistency.js?v=__V__'
 
 // ==========================================================================
 // ---- SWIPE NAVIGATION ----
@@ -168,6 +169,13 @@ export async function finishWorkout(entry, session) {
   notifyCoach('workout_completed', `${athlete.name} completed ${trainingDisplayName(entry)}`) // not awaited
 
   renderWorkoutSummary(finishedSession, entry)
+
+  // The streak line counts this workout: the local state above already has
+  // it, so recalculate (in the background) and fill the line in
+  loadConsistency().then(function() {
+    const line = document.getElementById('consistencySummaryLine')
+    if (line) line.textContent = consistencySummaryText()
+  })
 }
 
 export function renderWorkoutSummary(finishedSession, entry) {
@@ -261,6 +269,7 @@ export function renderWorkoutSummary(finishedSession, entry) {
   pageContent.innerHTML = `
     <div class="workout-summary">
       <h2>Workout Complete 💪</h2>
+      <p class="consistency-summary-line" id="consistencySummaryLine">${consistencySummaryText()}</p>
       <div class="workout-summary-stats">
         <div>
           <div class="workout-summary-stat-value">${durationText}</div>

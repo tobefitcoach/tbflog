@@ -352,6 +352,17 @@ export const TEMPLATE = `
             <span class="toggle-slider"></span>
           </label>
         </div>
+
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <div class="settings-row-title">Show this athlete their consistency streak</div>
+            <div class="settings-row-desc">Shows "4 weeks in a row" and "26/28 in the last 30 days" on the athlete's Home, and the streak after each workout. A week counts when they finish more than half of its scheduled workouts; weeks with nothing scheduled are skipped. On by default.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="settingsStreakToggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
 
     </div>

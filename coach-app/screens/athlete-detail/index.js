@@ -234,6 +234,7 @@ function bindSettingsEvents() {
   bindToggle('settingsChangeExercisesToggle', 'can_change_exercises')
   bindToggle('settingsRescheduleToggle', 'can_reschedule_workouts')
   bindToggle('settingsWeeklyStatsToggle', 'can_view_weekly_stats')
+  bindToggle('settingsStreakToggle', 'streak_enabled')
 }
 
 // ==========================================================================
@@ -379,6 +380,8 @@ function paintAthleteHeader() {
   root.querySelector('#settingsChangeExercisesToggle').checked = !!data.can_change_exercises
   root.querySelector('#settingsRescheduleToggle').checked = !!data.can_reschedule_workouts
   root.querySelector('#settingsWeeklyStatsToggle').checked = !!data.can_view_weekly_stats
+  // On unless switched off - and on while the column doesn't exist yet (undefined)
+  root.querySelector('#settingsStreakToggle').checked = data.streak_enabled !== false
 }
 
 // ==========================================================================

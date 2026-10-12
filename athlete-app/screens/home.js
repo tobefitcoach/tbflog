@@ -15,6 +15,7 @@ import { renderMobilityAreaPicker } from './mobility.js?v=__V__'
 import { renderAddWorkoutChoice } from './own-workout.js?v=__V__'
 import { latestBodyweightRow, renderTournaments, tournamentsByDate } from './tournaments.js?v=__V__'
 import { customAlert, customConfirm } from '../../confirm-modal.js?v=__V__'
+import { consistencyHeaderParts } from '../consistency.js?v=__V__'
 
 export let currentWeekStart = null // Date (Monday) of the currently-shown week, for "back to week"
 
@@ -113,6 +114,7 @@ export function renderWeekView(weekStart = startOfWeek(new Date())) {
   const showTournaments = athlete.tournaments_enabled
 
   const todayStr = toDateStr(new Date())
+  const streakHeader = consistencyHeaderParts()
   const days = []
   for (let i = 0; i < 7; i++) days.push(addDays(weekStart, i))
 
@@ -234,8 +236,14 @@ export function renderWeekView(weekStart = startOfWeek(new Date())) {
   pageContent.innerHTML = `
     <div class="home-screen">
       <div class="welcome-header">
-        <h2>Welcome back, ${athlete.name.split(' ')[0]}</h2>
-        <p>Here's your training for the week</p>
+        <div class="welcome-row">
+          <div class="welcome-text">
+            <h2>Welcome back, ${athlete.name.split(' ')[0]}</h2>
+            <p>Here's your training for the week</p>
+          </div>
+          ${streakHeader.number}
+        </div>
+        ${streakHeader.bar}
       </div>
       ${renderSyncBannerHtml(pendingCount)}
       <div class="week-nav-row">
