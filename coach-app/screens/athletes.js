@@ -477,7 +477,7 @@ function athleteStatus(athlete) {
   return 'offline'
 }
 
-// Sidebar submenu links get a live count appended, e.g. "Active (3)" and
+// Sidebar submenu links get a live count appended, e.g. "Active 3" and
 // the current one highlighted. Deliberately document-scoped rather than
 // root-scoped: #athleteStatusFilter lives in the shell's sidebar
 // (dashboard.html), which this screen does not own and which survives every
@@ -488,7 +488,7 @@ function updateFilterCounts() {
   allAthletes.forEach(a => { counts[athleteStatus(a)]++ })
   document.querySelectorAll('#athleteStatusFilter a').forEach(link => {
     const status = link.dataset.status
-    link.textContent = `${STATUS_LABELS[status]} (${counts[status]})`
+    link.innerHTML = `${STATUS_LABELS[status]} <span class="count-badge">${counts[status]}</span>`
     link.classList.toggle('active', status === currentStatusFilter)
   })
 }

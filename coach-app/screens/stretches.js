@@ -169,7 +169,7 @@ async function reloadAndRepaint() {
 }
 
 function paint() {
-  root.querySelector('#stretchTotalCount').textContent = `(${allStretchesCache.length})`
+  root.querySelector('#stretchTotalCount').textContent = String(allStretchesCache.length)
   renderAreaFilterChips()
   applyLibraryFilters()
 }

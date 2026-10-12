@@ -1723,9 +1723,11 @@
 }
 
 
-/* Small item-count next to a title (e.g. "Exercise Library (24)", or a
+/* Small item-count next to a title (e.g. "Exercise Library 24", or a
    category heading) - resets the uppercase/letter-spacing it'd otherwise
-   inherit from a title like .category-title */
+   inherit from a title like .category-title. Always the bare number, never
+   wrapped in parentheses: the app font draws "(0)" to "(9)" as a circled
+   digit but "(10)" and up as plain text, so counts looked inconsistent. */
 .count-badge {
   text-transform: none;
   letter-spacing: normal;

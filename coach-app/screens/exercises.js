@@ -180,7 +180,7 @@ async function reloadAndRepaint() {
 }
 
 function paint() {
-  root.querySelector('#exerciseTotalCount').textContent = `(${allExercisesCache.length})`
+  root.querySelector('#exerciseTotalCount').textContent = String(allExercisesCache.length)
   renderCategoryChips()
   applyLibraryFilters()
 }
@@ -325,7 +325,7 @@ function renderExercises(exercises) {
   container.innerHTML = categoryNames.map((cat, i) => `
     <div class="metric-category">
       <div class="category-header-row">
-        <h3 class="category-title" style="margin-bottom:0">${cat} <span class="count-badge">(${byCategory[cat].length})</span></h3>
+        <h3 class="category-title" style="margin-bottom:0">${cat} <span class="count-badge">${byCategory[cat].length}</span></h3>
         ${cat === 'Uncategorized' ? '' : `
           <div class="kebab-menu">
             <button class="kebab-btn" data-index="${i}">⋮</button>

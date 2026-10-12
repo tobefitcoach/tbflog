@@ -1282,7 +1282,7 @@ function renderWorkoutOutline() {
       return `
         <div class="workout-outline-item workout-outline-section" draggable="true" data-group-ids="${ids}">
           <span class="workout-outline-num">${i + 1}</span>
-          <span class="workout-outline-name">${unit.label || 'Section'} (${unit.cards.length})</span>
+          <span class="workout-outline-name">${unit.label || 'Section'} <span class="count-badge">${unit.cards.length}</span></span>
         </div>
       `
     }

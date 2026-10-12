@@ -50,7 +50,7 @@ export function createLabelManager(config) {
         <div class="label-filter-row">
           <label>
             <input type="checkbox" data-label-id="${label.id}" ${checked}>
-            <span>${escapeHtml(label.name)} (${count})</span>
+            <span>${escapeHtml(label.name)} <span class="count-badge">${count}</span></span>
           </label>
           <button type="button" class="label-row-delete" data-label-id="${label.id}" title="Delete label">✕</button>
         </div>
