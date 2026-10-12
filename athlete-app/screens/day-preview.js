@@ -9,7 +9,7 @@ import { escapeHtml } from '../../escape.js?v=__V__'
 import { toDateStr, parseDateStr, addDays, startOfWeek } from '../../shared/dates.js?v=__V__'
 import { pageContent, athlete } from '../state.js?v=__V__'
 import { completedSessionsByDayId, ensureDatesLoaded, entriesByDate, formAssignmentsByDate, loadTrainingData } from '../data.js?v=__V__'
-import { CHEVRON_LEFT, formatDisplayDate, weightToKg } from '../format.js?v=__V__'
+import { CHEVRON_LEFT, formatDisplayDate, formatWeight, weightToKg } from '../format.js?v=__V__'
 import { insertOnce, loadPendingQueue, saveWithRetry } from '../outbox.js?v=__V__'
 import { renderDayPreviewGroup, renderFormFill } from './form-fill.js?v=__V__'
 import { currentWeekStart, playInlineVideo, renderSyncBannerHtml, renderWeekView, wireSyncBanner } from './home.js?v=__V__'
@@ -174,17 +174,41 @@ export function wireMoveWorkoutModal() {
 // Log a bodyweight entry from the Log Weight tile on Home - writes straight
 // to the same `bodyweight` table the coach's "Log weight" button uses (see
 // athlete-detail/overview.js's bindBodyweightEvents), so it shows up identically on
-// both sides. Always stored in kg, typed in whatever unit the athlete has
-// picked in Profile > Weight units.
+// both sides. Always stored in kg. The form opens in the unit picked in
+// Profile > Weight units, and the kg | lbs switch in it changes the unit for
+// this entry only (the Profile setting stays the default).
+let logWeightUnit = 'kg'
+
+function setLogWeightUnit(unit) {
+  logWeightUnit = unit
+  document.querySelectorAll('#logWeightUnitSwitch button').forEach(function(btn) {
+    const active = btn.dataset.unit === unit
+    btn.classList.toggle('active', active)
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false')
+  })
+  document.getElementById('logWeightValue').placeholder = unit === 'lbs' ? 'e.g. 166.4' : 'e.g. 75.5'
+}
+
 export function openLogWeightModal() {
   document.getElementById('logWeightDate').valueAsDate = new Date()
   document.getElementById('logWeightValue').value = ''
-  document.getElementById('logWeightUnitLabel').textContent = athlete.weight_unit || 'kg'
+  setLogWeightUnit(athlete.weight_unit === 'lbs' ? 'lbs' : 'kg')
   document.getElementById('logWeightModal').classList.add('active')
 }
 
 // Log Weight modal buttons. Called once from dashboard.js at startup.
 export function wireLogWeightModal() {
+  // Switching units converts what is already typed, so "75.5" kg becomes
+  // "166.4" lbs instead of being silently reread as 75.5 lbs
+  document.getElementById('logWeightUnitSwitch').addEventListener('click', function(e) {
+    const btn = e.target.closest('button[data-unit]')
+    if (!btn || btn.dataset.unit === logWeightUnit) return
+    const input = document.getElementById('logWeightValue')
+    const typed = parseFloat(input.value)
+    if (!isNaN(typed)) input.value = formatWeight(weightToKg(typed, logWeightUnit), btn.dataset.unit)
+    setLogWeightUnit(btn.dataset.unit)
+  })
+
   document.getElementById('closeLogWeightBtn').addEventListener('click', function() {
     document.getElementById('logWeightModal').classList.remove('active')
   })
@@ -197,7 +221,8 @@ export function wireLogWeightModal() {
     const date = document.getElementById('logWeightDate').value
     const rawWeight = parseFloat(document.getElementById('logWeightValue').value)
     if (!date || !rawWeight) { customAlert('Please fill in date and weight'); return }
-    const weight = weightToKg(rawWeight, athlete.weight_unit)
+    // Rounded so 176.4 lbs is stored as 80.01 kg, not 80.01369406977025
+    const weight = Math.round(weightToKg(rawWeight, logWeightUnit) * 100) / 100
 
     // bodyweight ids are numbers the database assigns, so a retry looks for
     // this same entry (athlete, date, weight) instead of an id

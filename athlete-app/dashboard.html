@@ -167,8 +167,14 @@
           <input type="date" id="logWeightDate" />
         </div>
         <div class="form-group">
-          <label>Weight (<span id="logWeightUnitLabel">kg</span>)</label>
-          <input type="number" id="logWeightValue" step="0.1" placeholder="e.g. 75.5" inputmode="decimal" />
+          <label>Weight</label>
+          <div class="log-weight-row">
+            <input type="number" id="logWeightValue" step="0.1" placeholder="e.g. 75.5" inputmode="decimal" />
+            <div class="unit-segment" id="logWeightUnitSwitch" role="group" aria-label="Weight unit">
+              <button type="button" data-unit="kg">kg</button>
+              <button type="button" data-unit="lbs">lbs</button>
+            </div>
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn-cancel" id="cancelLogWeightBtn">Cancel</button>

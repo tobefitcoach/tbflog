@@ -2599,3 +2599,37 @@ body:has(.home-screen) .athlete-app-card {
   display: block;
   margin: 16px 0;
 }
+
+/* Log Weight form: the number box with a kg | lbs switch beside it */
+.log-weight-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-weight-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.unit-segment {
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.unit-segment button {
+  background: transparent;
+  border: none;
+  color: var(--c-text-muted);
+  font-size: 14px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.unit-segment button.active {
+  background-color: var(--c-accent);
+  color: var(--c-text);
+}
