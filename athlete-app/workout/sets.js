@@ -424,7 +424,7 @@ function uncheckSet(peId, setNumber, dateStr, rowEl) {
   checkBtn.classList.remove('checked')
   checkBtn.title = 'Mark done'
   if (isExtra && !rowEl.querySelector('.set-remove-btn')) {
-    rowEl.insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
+    rowEl.querySelector('.set-label').insertAdjacentHTML('beforeend', '<button type="button" class="set-remove-btn" data-action="remove-set" title="Remove set">✕</button>')
   }
   logSetsByPE[peId] = (logSetsByPE[peId] || []).filter(s => s.set_number !== setNumber)
 
