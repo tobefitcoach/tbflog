@@ -141,13 +141,13 @@ const ROUTES = {
   mobilityFlow:     a => renderMobilityFlow(a.queue, a.totalSeconds, a.selectedAreas),
   addWorkoutChoice: () => renderAddWorkoutChoice(),
   addWorkoutField:  a => renderAddWorkoutFieldForm(a.type),
-  ownBuilder:       a => renderOwnWorkoutBuilder(a.entry, a.dateStr, a.sessionPromise),
-  ownAddExercise:   a => renderOwnWorkoutAddExercise(a.entry, a.dateStr, a.sessionPromise, a.returnIndex),
+  ownBuilder:       a => renderOwnWorkoutBuilder(a.workout),
+  ownAddExercise:   a => renderOwnWorkoutAddExercise(a.workout, a.returnIndex),
   workout: a => {
-    if (a.variant === 'groupGate') renderGroupGate(a.entry, a.dateStr, a.slides, a.index, a.sessionPromise, a.direction)
-    else if (a.variant === 'groupStep') renderGroupStep(a.entry, a.dateStr, a.slides, a.index, a.sessionPromise, a.steps, a.stepIndex, a.direction)
-    else if (a.variant === 'endOfWorkout') renderEndOfWorkoutSlide(a.entry, a.dateStr, a.slides, a.sessionPromise, a.direction)
-    else renderActiveExercise(a.entry, a.dateStr, a.slides, a.index, a.sessionPromise, a.direction)
+    if (a.variant === 'groupGate') renderGroupGate(a.workout, a.index, a.direction)
+    else if (a.variant === 'groupStep') renderGroupStep(a.workout, a.index, a.steps, a.stepIndex, a.direction)
+    else if (a.variant === 'endOfWorkout') renderEndOfWorkoutSlide(a.workout, a.direction)
+    else renderActiveExercise(a.workout, a.index, a.direction)
   },
   workoutSummary: a => renderWorkoutSummary(a.session, a.entry),
 }

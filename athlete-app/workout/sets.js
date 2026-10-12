@@ -2,12 +2,11 @@
 // ATHLETE APP - workout: set logging
 // Set rows, checking/unchecking a set, adding/removing extra sets.
 // ==========================================================================
-import { athlete, wk } from '../state.js?v=__V__'
+import { athlete } from '../state.js?v=__V__'
 import { findPE, logSetsByPE } from '../data.js?v=__V__'
 import { formatWeight, parseTimeToParts, weightToKg } from '../format.js?v=__V__'
 import { queueUpsert, scheduleFlush } from '../outbox.js?v=__V__'
 import { playInlineVideo } from '../screens/home.js?v=__V__'
-import { goToNextGroupStep } from './group.js?v=__V__'
 import { clearRestTimer, maybeStartRestTimer } from './rest-timer.js?v=__V__'
 
 // Whatever the athlete has typed into a not-yet-checked set's inputs, keyed
@@ -146,7 +145,11 @@ function toggleRowUnit(rowEl) {
 // remove button; a coach-assigned exercise always keeps at least
 // prescribed_sets rows, whose remove buttons never show in the first
 // place - see renderSingleSlideBody's isExtra check)
-export function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) {
+// onSetChecked(): replaces the normal rest-timer-only behaviour after a set
+// is checked - a group step passes one that advances to the next step (or
+// starts the between-round rest). Left out, a checked set just starts the
+// exercise's own rest timer.
+export function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied, onSetChecked) {
   document.getElementById(containerId).addEventListener('click', async function(e) {
     const thumbBtn = e.target.closest('.active-exercise-thumb')
     if (thumbBtn && thumbBtn.dataset.videoUrl) {
@@ -171,7 +174,7 @@ export function wireExerciseCardEvents(containerId, dateStr, onExerciseEmptied) 
       if (row.classList.contains('completed')) {
         await uncheckSet(peId, setNumber, dateStr, row)
       } else {
-        await checkSet(peId, setNumber, dateStr, row)
+        await checkSet(peId, setNumber, dateStr, row, onSetChecked)
       }
     } else if (btn.dataset.action === 'remove-set') {
       delete draftSetValues[`${peId}-${row.dataset.setNumber}`]
@@ -276,7 +279,7 @@ function addSetRow(peId) {
 // tapped rather than reverting.
 // Upsert on (program_exercise_id, date, set_number) - re-checking an
 // already-logged set updates it instead of creating a duplicate row.
-async function checkSet(peId, setNumber, dateStr, rowEl) {
+async function checkSet(peId, setNumber, dateStr, rowEl, onSetChecked) {
   const pe = findPE(peId)
   const isTimed = pe.exercises && pe.exercises.is_timed
   const repsInput = rowEl.querySelector('.set-reps-input')
@@ -326,9 +329,8 @@ async function checkSet(peId, setNumber, dateStr, rowEl) {
   // the timer follows the athlete across swipes) counts as skipped the
   // moment a new set is checked - startRestTimer below then replaces it
   clearRestTimer()
-  if (wk.currentSlideContext && wk.currentSlideContext.type === 'group' && wk.currentGroupNav) {
-    const { entry, slides, index, sessionPromise, steps, stepIndex } = wk.currentGroupNav
-    goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex)
+  if (onSetChecked) {
+    onSetChecked()
   } else {
     maybeStartRestTimer(pe, rowEl)
   }

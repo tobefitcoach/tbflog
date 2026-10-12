@@ -5,8 +5,7 @@
 // Plain exports (read them as `athlete`, `pageContent`, ...) are set only
 // through the setters below, from dashboard.js - an imported binding can't
 // be assigned from another file. `wk` holds the in-progress workout bits
-// that several workout files both read and write (wk.currentSlideContext,
-// ...).
+// that several workout files both read and write (wk.swipeCleanup, ...).
 //
 // Data owned by one area lives with that area instead: training data in
 // data.js, tournaments in screens/tournaments.js, mobility caches in
@@ -37,23 +36,6 @@ export function setCoachMobilityEnabled(value) { coachMobilityEnabled = value }
 export function bumpWorkoutScreenSeq() { workoutScreenSeq++ }
 
 export const wk = {
-  // Set on every renderActiveExercise call (single or superset), read by
-  // maybeStartRestTimer to decide whether the checked exercise is the FIRST
-  // or SECOND member of a linked pair. Not reset anywhere else on purpose -
-  // checkSet can only ever fire while a guided slide's DOM (and its
-  // wireExerciseCardEvents listener) exists, and that DOM is only ever
-  // created by renderActiveExercise / renderGroupStep, which always set this
-  // first - so it's impossible for a stale value to be read.
-  currentSlideContext: null,
-
-  // Set only while inside a group's step-through (renderGroupStep), read by
-  // checkSet's auto-advance branch - checkSet only ever receives peId/
-  // setNumber/dateStr/rowEl (see wireExerciseCardEvents), so this is how it
-  // reaches entry/slides/index/sessionPromise/steps/stepIndex without
-  // threading five new parameters through every intermediate call site.
-  // Same lifecycle guarantee as currentSlideContext above.
-  currentGroupNav: null,
-
   // Coach messages to show right before the athlete's next workout -
   // loaded by loadCoachMessages(), shown and cleared by startWorkout()
   // (see screens/coach-messages.js)

@@ -5,7 +5,7 @@
 // ==========================================================================
 import * as nav from '../nav.js?v=__V__'
 import { getYouTubeThumbnail } from '../../shared/video.js?v=__V__'
-import { pageContent, athlete, wk } from '../state.js?v=__V__'
+import { pageContent, athlete } from '../state.js?v=__V__'
 import { logSetsByPE } from '../data.js?v=__V__'
 import { buildGroupSteps, renderActiveExercise } from './active.js?v=__V__'
 import { lastTimeLineHtml, openExerciseHistoryModal, renderEndOfWorkoutSlide } from './history.js?v=__V__'
@@ -21,12 +21,11 @@ import { attachSwipeHandlers, mountSlide } from './swipe.js?v=__V__'
 // only once every member has done that round, then the next round starts
 // automatically. See buildGroupSteps for the exact step order.
 // ==========================================================================
-export function renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction) {
-  nav.enter('workout', { variant: 'groupGate', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true, keepRest: true })
+export function renderGroupGate(w, index, direction) {
+  nav.enter('workout', { variant: 'groupGate', workout: w, index, direction }, { collapse: true, keepRest: true })
 
+  const { slides } = w
   const slide = slides[index]
-  wk.currentSlideContext = slide
-  wk.currentGroupNav = null
 
   const kindLabel = slide.groupKind === 'section' ? 'Section' : 'Superset'
   const title = slide.label || (slide.groupKind === 'section' ? 'Section' : 'Superset')
@@ -60,25 +59,25 @@ export function renderGroupGate(entry, dateStr, slides, index, sessionPromise, d
 
   const steps = buildGroupSteps(slide.members)
   document.getElementById('groupStartBtn').addEventListener('click', function() {
-    renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, 0, 1)
+    renderGroupStep(w, index, steps, 0, 1)
   })
 
   attachSwipeHandlers(
     function onSwipeLeft() {
-      renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, 0, 1)
+      renderGroupStep(w, index, steps, 0, 1)
     },
     index > 0 ? function onSwipeRight() {
-      renderActiveExercise(entry, dateStr, slides, index - 1, sessionPromise, -1)
+      renderActiveExercise(w, index - 1, -1)
     } : null
   )
 
   mountSlide(direction)
 }
 
-export function renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction) {
-  nav.enter('workout', { variant: 'groupStep', entry, dateStr, slides, index, sessionPromise, steps, stepIndex, direction }, { collapse: true, keepRest: true })
+export function renderGroupStep(w, index, steps, stepIndex, direction) {
+  nav.enter('workout', { variant: 'groupStep', workout: w, index, steps, stepIndex, direction }, { collapse: true, keepRest: true })
 
-  const slide = slides[index]
+  const { entry, dateStr, slides } = w
   const { pe, round } = steps[stepIndex]
   const tracksReps = !pe.exercises || pe.exercises.tracks_reps !== false
   const isTimed = pe.exercises && pe.exercises.is_timed
@@ -87,8 +86,6 @@ export function renderGroupStep(entry, dateStr, slides, index, sessionPromise, s
   const thumb = getYouTubeThumbnail(videoUrl)
   const logged = (logSetsByPE[pe.id] || []).find(s => s.set_number === round)
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
-  wk.currentSlideContext = slide
-  wk.currentGroupNav = { entry, dateStr, slides, index, sessionPromise, steps, stepIndex }
 
   const rounds = Math.max(...steps.map(s => s.round))
 
@@ -113,7 +110,11 @@ export function renderGroupStep(entry, dateStr, slides, index, sessionPromise, s
     <div id="restTimerBar" class="rest-timer-bar"></div>
   `
 
-  wireExerciseCardEvents('activeExerciseCard', dateStr, null)
+  // Checking the set moves straight on to the next step (or a rest first) -
+  // see goToNextGroupStep
+  wireExerciseCardEvents('activeExerciseCard', dateStr, null, function onSetChecked() {
+    goToNextGroupStep(w, index, steps, stepIndex)
+  })
 
   document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
     const historyBtn = e.target.closest('.exercise-history-btn')
@@ -133,11 +134,11 @@ export function renderGroupStep(entry, dateStr, slides, index, sessionPromise, s
       // at the end of a round starts a rest timer instead of advancing -
       // the card slid off screen, the timer restarted from full, and
       // nothing replaced the card.
-      goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, true)
+      goToNextGroupStep(w, index, steps, stepIndex, true)
     },
     function onSwipeRight() {
-      if (stepIndex === 0) renderGroupGate(entry, dateStr, slides, index, sessionPromise, -1)
-      else renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex - 1, -1)
+      if (stepIndex === 0) renderGroupGate(w, index, -1)
+      else renderGroupStep(w, index, steps, stepIndex - 1, -1)
     }
   )
 
@@ -152,19 +153,19 @@ export function renderGroupStep(entry, dateStr, slides, index, sessionPromise, s
 // end of the group (hand off to the normal top-level next-slide/
 // end-of-workout flow). skipRest (swipe-left) skips
 // the rest pause and always advances.
-export function goToNextGroupStep(entry, dateStr, slides, index, sessionPromise, steps, stepIndex, skipRest) {
+export function goToNextGroupStep(w, index, steps, stepIndex, skipRest) {
   const next = stepIndex + 1
   if (next >= steps.length) {
-    const isLast = index === slides.length - 1
-    if (isLast) renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, 1)
-    else renderActiveExercise(entry, dateStr, slides, index + 1, sessionPromise, 1)
+    const isLast = index === w.slides.length - 1
+    if (isLast) renderEndOfWorkoutSlide(w, 1)
+    else renderActiveExercise(w, index + 1, 1)
     return
   }
 
   const finishedRound = steps[stepIndex].round
   const enteringNewRound = steps[next].round !== finishedRound
   if (!enteringNewRound) {
-    renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, next, 1)
+    renderGroupStep(w, index, steps, next, 1)
     return
   }
 
@@ -173,10 +174,10 @@ export function goToNextGroupStep(entry, dateStr, slides, index, sessionPromise,
   const restSeconds = target && target.rest != null ? target.rest : lastMemberOfRound.rest_seconds
   if (restSeconds && !skipRest) {
     startRestTimer(restSeconds, function() {
-      renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, next, 1)
+      renderGroupStep(w, index, steps, next, 1)
     })
   } else {
-    renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, next, 1)
+    renderGroupStep(w, index, steps, next, 1)
   }
 }
 

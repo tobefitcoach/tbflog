@@ -234,7 +234,7 @@ export function wireExerciseHistoryModal() {
 // canSwapExercise allowed the button to render in the first place (coach-
 // prescribed, athlete.can_change_exercises on, nothing logged yet).
 // ==========================================================================
-export function openSwapModal(entry, dateStr, slides, index, sessionPromise, peId) {
+export function openSwapModal(w, index, peId) {
   document.getElementById('exerciseSwapModal').classList.add('active')
   document.getElementById('exerciseSwapSearchInput').value = ''
 
@@ -247,7 +247,7 @@ export function openSwapModal(entry, dateStr, slides, index, sessionPromise, peI
       document.getElementById('exerciseSwapList'),
       library,
       function(newExerciseId) {
-        swapExercise(entry, dateStr, slides, index, sessionPromise, peId, newExerciseId)
+        swapExercise(w, index, peId, newExerciseId)
       }
     )
   })
@@ -260,8 +260,8 @@ export function wireExerciseSwapModal() {
   })
 }
 
-export async function swapExercise(entry, dateStr, slides, index, sessionPromise, peId, newExerciseId) {
-  const pe = entry.day.program_exercises.find(p => p.id === peId)
+export async function swapExercise(w, index, peId, newExerciseId) {
+  const pe = w.entry.day.program_exercises.find(p => p.id === peId)
   if (!pe) return
 
   const { data, error } = await supabase
@@ -287,14 +287,14 @@ export async function swapExercise(entry, dateStr, slides, index, sessionPromise
   document.getElementById('exerciseSwapModal').classList.remove('active')
   // Slide objects hold references to the same pe object mutated above, so
   // re-rendering the current slide is enough - no need to rebuild slides
-  renderActiveExercise(entry, dateStr, slides, index, sessionPromise)
+  renderActiveExercise(w, index)
 }
 
 // Reached by pressing Next (or swiping left) on the last exercise - the
 // only place "End Workout" lives now, instead of a persistent link on
 // every slide
-export function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, direction) {
-  nav.enter('workout', { variant: 'endOfWorkout', entry, dateStr, slides, sessionPromise, direction }, { collapse: true, keepRest: true })
+export function renderEndOfWorkoutSlide(w, direction) {
+  nav.enter('workout', { variant: 'endOfWorkout', workout: w, direction }, { collapse: true, keepRest: true })
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -309,13 +309,13 @@ export function renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, 
   `
 
   document.getElementById('endWorkoutBtn').addEventListener('click', function() {
-    finishWorkout(entry, sessionPromise)
+    finishWorkout(w.entry, w.sessionPromise)
   })
 
   attachSwipeHandlers(
     null, // already the last slide, nothing to swipe forward to
     function onSwipeRight() {
-      renderActiveExercise(entry, dateStr, slides, slides.length - 1, sessionPromise, -1)
+      renderActiveExercise(w, w.slides.length - 1, -1)
     }
   )
 

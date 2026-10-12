@@ -12,6 +12,7 @@ import { insertOnce, saveWithRetry } from '../outbox.js?v=__V__'
 import { markMessagesSeen, showCoachMessagesModal } from '../screens/coach-messages.js?v=__V__'
 import { removeEmptyOwnExercise, renderOwnWorkoutAddExercise, renderOwnWorkoutBuilder } from '../screens/own-workout.js?v=__V__'
 import { renderGroupGate, renderGroupStep, renderSingleSlideBody } from './group.js?v=__V__'
+import { newWorkout } from './run.js?v=__V__'
 import { loadLastTime, openExerciseHistoryModal, openSwapModal, renderEndOfWorkoutSlide, swapExercise } from './history.js?v=__V__'
 import { wireExerciseCardEvents } from './sets.js?v=__V__'
 import { attachSwipeHandlers, mountSlide } from './swipe.js?v=__V__'
@@ -179,18 +180,19 @@ function proceedToStartWorkout(entry, dateStr) {
 
   // A self-logged workout has no coach-built list to start from - the
   // athlete picks their whole list up front via renderOwnWorkoutBuilder
-  if (exercises.length === 0) { renderOwnWorkoutBuilder(entry, dateStr, sessionPromise); return }
+  if (exercises.length === 0) { renderOwnWorkoutBuilder(newWorkout(entry, dateStr, sessionPromise)); return }
 
   const slides = buildWorkoutSlides(exercises)
   const resumeIndex = findResumeIndex(slides)
   loadLastTime(exercises, dateStr) // not awaited - fills in the "Last time" lines when it lands
-  renderActiveExercise(entry, dateStr, slides, resumeIndex, sessionPromise)
+  renderActiveExercise(newWorkout(entry, dateStr, sessionPromise, slides), resumeIndex)
 }
 
 // direction: 1 when arriving from a Next/swipe-left (new slide enters from
 // the right), -1 from Previous/swipe-right (enters from the left), omitted
 // for the very first exercise shown (no animation, nothing to slide from)
-export function renderActiveExercise(entry, dateStr, slides, index, sessionPromise, direction) {
+export function renderActiveExercise(w, index, direction) {
+  const { entry, dateStr, slides } = w
   const slide = slides[index]
 
   // A linked group (superset or section) gets its own gate + step-through
@@ -203,12 +205,12 @@ export function renderActiveExercise(entry, dateStr, slides, index, sessionPromi
     const steps = buildGroupSteps(slide.members)
     const resumeStep = findResumeStepIndex(steps)
     const anythingLogged = steps.some(s => (logSetsByPE[s.pe.id] || []).some(x => x.completed_at && x.set_number === s.round))
-    if (!anythingLogged) renderGroupGate(entry, dateStr, slides, index, sessionPromise, direction)
-    else renderGroupStep(entry, dateStr, slides, index, sessionPromise, steps, resumeStep, direction)
+    if (!anythingLogged) renderGroupGate(w, index, direction)
+    else renderGroupStep(w, index, steps, resumeStep, direction)
     return
   }
 
-  nav.enter('workout', { variant: 'activeExercise', entry, dateStr, slides, index, sessionPromise, direction }, { collapse: true, keepRest: true })
+  nav.enter('workout', { variant: 'activeExercise', workout: w, index, direction }, { collapse: true, keepRest: true })
 
   const isLast = index === slides.length - 1
   const isSelfLogged = !!(entry.program && entry.program.created_by_athlete)
@@ -217,8 +219,6 @@ export function renderActiveExercise(entry, dateStr, slides, index, sessionPromi
   // addExerciseToOwnWorkout/removeEmptyOwnExercise are already generic
   // enough (see their comments) that no fork is needed beyond this gate
   const canAddExercises = isSelfLogged || !!athlete.can_add_exercises
-  wk.currentSlideContext = slide
-  wk.currentGroupNav = null
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -232,20 +232,20 @@ export function renderActiveExercise(entry, dateStr, slides, index, sessionPromi
   `
 
   wireExerciseCardEvents('activeExerciseCard', dateStr, canAddExercises ? function(peId) {
-    removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId)
+    removeEmptyOwnExercise(w, index, peId)
   } : null)
 
   const addExerciseBtn = document.getElementById('ownAddExerciseBtn')
   if (addExerciseBtn) {
     addExerciseBtn.addEventListener('click', function() {
-      renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, index)
+      renderOwnWorkoutAddExercise(w, index)
     })
   }
 
   // History (every exercise) and Swap (coach-prescribed only, gated inside
   // renderSingleSlideBody) share one delegated listener here rather than
-  // folding into wireExerciseCardEvents, since both need entry/slides/
-  // index/sessionPromise, which that function doesn't carry
+  // folding into wireExerciseCardEvents, since both need the workout and
+  // the slide index, which that function doesn't carry
   document.getElementById('activeExerciseCard').addEventListener('click', function(e) {
     const historyBtn = e.target.closest('.exercise-history-btn')
     if (historyBtn) {
@@ -253,21 +253,21 @@ export function renderActiveExercise(entry, dateStr, slides, index, sessionPromi
       return
     }
     const swapBtn = e.target.closest('.exercise-swap-btn')
-    if (swapBtn) { openSwapModal(entry, dateStr, slides, index, sessionPromise, swapBtn.dataset.peId) }
+    if (swapBtn) { openSwapModal(w, index, swapBtn.dataset.peId) }
     const altBtn = e.target.closest('.exercise-alternative-btn')
     if (altBtn) {
       const pe = entry.day.program_exercises.find(p => p.id === altBtn.dataset.peId)
       if (!pe) return
       const onAlternative = pe.alternative_exercise_id && pe.exercise_id === pe.alternative_exercise_id
       const targetId = onAlternative ? pe.original_exercise_id : pe.alternative_exercise_id
-      if (targetId) swapExercise(entry, dateStr, slides, index, sessionPromise, altBtn.dataset.peId, targetId)
+      if (targetId) swapExercise(w, index, altBtn.dataset.peId, targetId)
     }
   })
 
   attachSwipeHandlers(
     function onSwipeLeft() {
-      if (isLast) renderEndOfWorkoutSlide(entry, dateStr, slides, sessionPromise, 1)
-      else renderActiveExercise(entry, dateStr, slides, index + 1, sessionPromise, 1)
+      if (isLast) renderEndOfWorkoutSlide(w, 1)
+      else renderActiveExercise(w, index + 1, 1)
     },
     // Passing null (instead of a function that no-ops on index 0) matters:
     // attachSwipeHandlers plays the slide-out-off-screen animation whenever
@@ -276,7 +276,7 @@ export function renderActiveExercise(entry, dateStr, slides, index, sessionPromi
     // fully off screen and just leave a blank gap, since there's no
     // previous exercise to replace it with.
     index > 0 ? function onSwipeRight() {
-      renderActiveExercise(entry, dateStr, slides, index - 1, sessionPromise, -1)
+      renderActiveExercise(w, index - 1, -1)
     } : null
   )
 

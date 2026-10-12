@@ -13,6 +13,7 @@ import { saveWithRetry } from '../outbox.js?v=__V__'
 import { notifyCoach } from './tournaments.js?v=__V__'
 import { buildWorkoutSlides, renderActiveExercise, startWorkout } from '../workout/active.js?v=__V__'
 import { renderWorkoutSummary } from '../workout/swipe.js?v=__V__'
+import { withSlides } from '../workout/run.js?v=__V__'
 import { customAlert } from '../../confirm-modal.js?v=__V__'
 
 // ==========================================================================
@@ -154,8 +155,9 @@ export function wireExercisePicker(searchInputEl, listEl, library, onPick) {
 // time: this is for a spontaneous "oh, one more thing" mid-session, not
 // upfront planning - that's renderOwnWorkoutBuilder below, used instead for
 // the very first exercise of a fresh (or emptied-back-to-zero) day.
-export async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise, returnIndex) {
-  const myToken = nav.enter('ownAddExercise', { entry, dateStr, sessionPromise, returnIndex })
+export async function renderOwnWorkoutAddExercise(w, returnIndex) {
+  const myToken = nav.enter('ownAddExercise', { workout: w, returnIndex })
+  const { entry } = w
 
   pageContent.innerHTML = `
     <div class="workout-active" style="display:none"></div>
@@ -170,7 +172,7 @@ export async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise
   document.getElementById('ownAddExerciseBackBtn').addEventListener('click', function() {
     const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
     const slides = buildWorkoutSlides(exercises)
-    renderActiveExercise(entry, dateStr, slides, Math.min(returnIndex, slides.length - 1), sessionPromise)
+    renderActiveExercise(withSlides(w, slides), Math.min(returnIndex, slides.length - 1))
   })
 
   const library = await loadExerciseLibrary()
@@ -182,7 +184,7 @@ export async function renderOwnWorkoutAddExercise(entry, dateStr, sessionPromise
     document.getElementById('ownAddExerciseList'),
     library,
     function(exerciseId) {
-      addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseId)
+      addExerciseToOwnWorkout(w, exerciseId)
     }
   )
 }
@@ -237,8 +239,9 @@ function getRecentlyLoggedExercises(library, recentIds, limit) {
 // program_exercises until "Start Workout" inserts the whole batch in one
 // go, so backing out here leaves no trace. Once started, it's the exact
 // same renderActiveExercise flow as a coach-built workout.
-export async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
-  const myToken = nav.enter('ownBuilder', { entry, dateStr, sessionPromise }, { collapse: true })
+export async function renderOwnWorkoutBuilder(w) {
+  const myToken = nav.enter('ownBuilder', { workout: w }, { collapse: true })
+  const { entry, dateStr } = w
 
   const selected = new Map() // exercise_id -> exercise object, insertion-ordered
   const activeCategoryFilters = new Set()
@@ -353,13 +356,14 @@ export async function renderOwnWorkoutBuilder(entry, dateStr, sessionPromise) {
 
     entry.day.program_exercises.push(...data)
     const slides = buildWorkoutSlides([...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index))
-    renderActiveExercise(entry, dateStr, slides, 0, sessionPromise)
+    renderActiveExercise(withSlides(w, slides), 0)
   }
 
   renderList()
 }
 
-async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseId) {
+async function addExerciseToOwnWorkout(w, exerciseId) {
+  const { entry } = w
   const existing = entry.day.program_exercises
   const orderIndex = existing.length ? Math.max(...existing.map(pe => pe.order_index)) + 1 : 0
 
@@ -378,7 +382,7 @@ async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseI
   existing.push(data)
   const slides = buildWorkoutSlides([...existing].sort((a, b) => a.order_index - b.order_index))
   const newIndex = slides.findIndex(s => s.type === 'single' && s.pe.id === data.id)
-  renderActiveExercise(entry, dateStr, slides, newIndex === -1 ? slides.length - 1 : newIndex, sessionPromise, 1)
+  renderActiveExercise(withSlides(w, slides), newIndex === -1 ? slides.length - 1 : newIndex, 1)
 }
 
 // Removing a self-logged exercise's last set row removes the exercise
@@ -387,16 +391,17 @@ async function addExerciseToOwnWorkout(entry, dateStr, sessionPromise, exerciseI
 // Updates in-memory state and moves on immediately (nothing was ever saved
 // for an unchecked row - see wireExerciseCardEvents), then deletes the row
 // in the background rather than making the athlete wait on it.
-export function removeEmptyOwnExercise(entry, dateStr, sessionPromise, index, peId) {
+export function removeEmptyOwnExercise(w, index, peId) {
+  const { entry } = w
   entry.day.program_exercises = entry.day.program_exercises.filter(pe => pe.id !== peId)
   delete logSetsByPE[peId]
 
   const exercises = [...entry.day.program_exercises].sort((a, b) => a.order_index - b.order_index)
   if (exercises.length === 0) {
-    renderOwnWorkoutBuilder(entry, dateStr, sessionPromise)
+    renderOwnWorkoutBuilder(w)
   } else {
     const slides = buildWorkoutSlides(exercises)
-    renderActiveExercise(entry, dateStr, slides, Math.min(index, slides.length - 1), sessionPromise, -1)
+    renderActiveExercise(withSlides(w, slides), Math.min(index, slides.length - 1), -1)
   }
 
   supabase.from('program_exercises').delete().eq('id', peId).then(function(res) {

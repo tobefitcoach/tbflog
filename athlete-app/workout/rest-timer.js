@@ -16,7 +16,7 @@ let restTimerInterval = null
 // is the last row in its exercise's list, there's nothing to rest before.
 // Group (superset/section) rest timing is handled entirely by
 // goToNextGroupStep instead - checkSet only ever calls this function for a
-// normal single exercise (see checkSet's currentSlideContext branch).
+// normal single exercise (a group step passes checkSet an onSetChecked instead).
 // ==========================================================================
 export function maybeStartRestTimer(pe, rowEl) {
   const setNumber = parseInt(rowEl.dataset.setNumber)
